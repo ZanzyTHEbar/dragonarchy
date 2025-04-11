@@ -69,7 +69,7 @@ esac
 export FPATH="$ZSH_CUSTOM/completions/eza:$FPATH"
 
 # To customize prompt, run `p10k configure`or edit the file
-[[ ! -f $ZSH_CUSTOM/.p10k.zsh ]] || source $ZSH_CUSTOM/.p10k.zsh
+[[ ! -f $HOME/.p10k.zsh ]] || source $HOME/.p10k.zsh
 
 # comment this out if you want to use the wizard
 POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
@@ -224,3 +224,4 @@ eval "$(pyenv init - zsh)"
 eval "$(pyenv virtualenv-init -)"
 
 export LS_COLORS=$(echo $LS_COLORS | sed "s/ow=34/ow=37;40/")
+eval "$(gh copilot alias -- zsh)"
