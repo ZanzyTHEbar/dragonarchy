@@ -215,7 +215,7 @@ bindkey '^ ' autosuggest-accept
 #[ -f "$ZSH_CUSTOM/aliases.zsh" ] && source "$ZSH_CUSTOM/aliases.zsh"
 
 # Load ; should be last.
-source $HOME/.local/share/icons-in-terminal/icons_bash.sh
+source $HOME/.config/icons-in-terminal/icons_bash.sh
 
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
