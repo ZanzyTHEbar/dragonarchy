@@ -344,6 +344,7 @@ function random_bars() {
 
 source ~/.config/zsh/zsh-syntax-highlighting-tokyonight.zsh
 source ~/.config/zsh/aliases.zsh
+source ~/.config/zsh/autojump.zsh
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh ]
 
