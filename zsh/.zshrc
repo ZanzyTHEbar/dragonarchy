@@ -25,22 +25,17 @@ zinit ice depth=1; zinit light romkatv/powerlevel10k
 zinit light zsh-users/zsh-syntax-highlighting
 zinit light zsh-users/zsh-completions
 zinit light zsh-users/zsh-autosuggestions
-#zinit light Aloxaf/fzf-tab
+zinit light Aloxaf/fzf-tab
 zinit light jeffreytse/zsh-vi-mode
-
-# plugins
-#	git
-#	nvm
-#	docker
-#	npm
-#	zsh-autosuggestions 
-#	zsh-syntax-highlighting 
-#	autojump 
 
 # Add in snippets
 zinit snippet OMZP::git
 zinit snippet OMZP::sudo
-# zinit snippet OMZP::tmuxinator
+zinit snippet OMZP::autojump
+zinit snippet OMZP::nvm
+zinit snippet OMZP::npm
+zinit snippet OMZP::docker-compose
+
 zinit snippet OMZP::docker
 zinit snippet OMZP::command-not-found
 
@@ -344,7 +339,6 @@ function random_bars() {
 
 source ~/.config/zsh/zsh-syntax-highlighting-tokyonight.zsh
 source ~/.config/zsh/aliases.zsh
-source ~/.config/zsh/autojump.zsh
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh ]
 
