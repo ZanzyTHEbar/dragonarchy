@@ -83,8 +83,8 @@ export EDITOR=nvim visudo
 export VISUAL=nvim visudo
 export SUDO_EDITOR=nvim
 export FCEDIT=nvim
-export TERMINAL=alacritty
-export BROWSER=com.brave.Browser
+export TERMINAL=kitty
+export BROWSER=vivaldi
 if [[ -x "$(command -v bat)" ]]; then
 	export MANPAGER="sh -c 'col -bx | bat -l man -p'"
 	export PAGER=bat
