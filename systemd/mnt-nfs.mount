@@ -1,0 +1,13 @@
+[Unit]
+Description=NFS Mount for /mnt/nfs
+Requires=network-online.target
+After=network-online.target
+
+[Mount]
+What=fileserver.local:/mnt/nfsroot
+Where=/mnt/nfs
+Type=nfs4
+Options=rw,async
+
+[Install]
+WantedBy=multi-user.target
