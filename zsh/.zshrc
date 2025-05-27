@@ -200,12 +200,12 @@ export FPATH="$ZSH_CUSTOM/completions/eza:$FPATH"
 
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init - zsh)"
+#eval "$(pyenv init - zsh)"
 
-eval "$(pyenv virtualenv-init -)"
+#eval "$(pyenv virtualenv-init -)"
 
 export LS_COLORS=$(echo $LS_COLORS | sed "s/ow=34/ow=37;40/")
-eval "$(gh copilot alias -- zsh)"
+#eval "$(gh copilot alias -- zsh)"
 
 #######################################################
 # ZSH Keybindings
