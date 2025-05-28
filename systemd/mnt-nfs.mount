@@ -4,7 +4,7 @@ Requires=network-online.target
 After=network-online.target
 
 [Mount]
-What=fileserver.local:/mnt/nfsroot
+What=:192.168.0.195/mnt/nfsroot
 Where=/mnt/nfs
 Type=nfs4
 Options=rw,async
