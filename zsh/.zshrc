@@ -175,10 +175,12 @@ pathappend "$HOME/.cargo/bin"
 # MISC
 #############################
 
+# node version manager
 export NVM_DIR="$HOME/.nvm"
 
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+# nvm end
 
 # pnpm
 export PNPM_HOME="$HOME/.local/share/pnpm"
@@ -187,10 +189,6 @@ case ":$PATH:" in
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
-
-###############################
-# MISC
-###############################
 
 # Rust
 . "$HOME/.cargo/env"
@@ -206,6 +204,8 @@ export PYENV_ROOT="$HOME/.pyenv"
 
 export LS_COLORS=$(echo $LS_COLORS | sed "s/ow=34/ow=37;40/")
 #eval "$(gh copilot alias -- zsh)"
+
+export LIBVIRT_DEFAULT_URI="qemu:///system"
 
 #######################################################
 # ZSH Keybindings
