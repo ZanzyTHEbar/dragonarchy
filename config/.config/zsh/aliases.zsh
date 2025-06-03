@@ -1,4 +1,4 @@
-alias cat="batcat"
+alias cat="batcat --paging=never"
 
 #
 # # ex - archive extractor
