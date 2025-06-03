@@ -1,12 +1,17 @@
-sudo stow -R -t /etc/systemd/system -v systemd
+#sudo stow -R -t /etc/systemd/system -v systemd
+
+sudo cp ~/dotfiles/systemd/mnt-nfs.mount /etc/systemd/system/
+sudo cp ~/dotfiles/systemd/mnt-nfs.automount /etc/systemd/system/
 
 # Reload systemd to recognize new or updated units
 sudo systemctl daemon-reload
 
+
+
 # Enable and start each .automount unit
-for unit in systemd/*.automount; do
-    unit_name=$(basename "$unit")
-    echo "starting $unit_name"
-    sudo systemctl enable "$unit_name"
-    sudo systemctl start "$unit_name"
-done
+#for unit in systemd/*.automount; do
+#    unit_name=$(basename "$unit")
+#    echo "starting $unit_name"
+#    sudo systemctl enable "$unit_name"
+#    sudo systemctl start "$unit_name"
+#done
