@@ -1,6 +1,3 @@
-alias cat="batcat --paging=never"
-
-#
 # # ex - archive extractor
 # # usage: ex <file>
 ex ()
@@ -185,7 +182,7 @@ fi
 # Alias For bat
 # Link: https://github.com/sharkdp/bat
 if [[ -x "$(command -v bat)" ]]; then
-    alias cat='bat'
+    alias cat='bat --paging=never'
 fi
 
 # Alias for lazygit
