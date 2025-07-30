@@ -315,8 +315,21 @@ require('lazy').setup({
   {
     'ojroques/nvim-osc52',
     config = function()
-      require('osc52').setup()
-      vim.keymap.set('n', '<leader>c', require('osc52').copy_operator, { expr = true, desc = 'Copy to system clipboard via OSC52' })
+      require('osc52').setup {
+        max_length = 0,
+        silent = false,
+        trim = true,
+        tmux_passthrough = true,
+      }
+      -- Optional: Auto-copy to OSC 52 on yank to + register
+      vim.api.nvim_create_autocmd('TextYankPost', {
+        callback = function()
+          if vim.v.event.regname == '+' then
+            require('osc52').copy_register '+'
+          end
+        end,
+      })
+      -- vim.keymap.set('n', '<leader>c', require('osc52').copy_operator, { expr = true, desc = 'Copy to system clipboard via OSC52' })
     end,
   },
 
