@@ -131,15 +131,6 @@ alias gu=gitupdate
 alias lbrynet='/opt/LBRY/resources/static/daemon/lbrynet'
 alias update-grub='sudo grub-mkconfig -o /boot/grub/grub.cfg'
 alias prisma-go="go run github.com/steebchen/prisma-client-go"
-cursor() {
-    if [ -f ~/.local/bin/Cursor.AppImage ]; then
-        nohup ~/.local/bin/Cursor.AppImage --no-sandbox "$@" > /dev/null 2>&1 & disown
-    else
-        echo "Error: Cursor AppImage not found at ~/.local/bin/Cursor.AppImage"
-        return 1
-    fi
-}
-
 
 #######################################################
 # Aliases
