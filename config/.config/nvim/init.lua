@@ -319,12 +319,6 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>c', require('osc52').copy_operator, { expr = true, desc = 'Copy to system clipboard via OSC52' })
     end,
   },
-  {
-    git = {
-      -- Prevent branch switch conflicts
-      checkout = false,
-    },
-  },
 
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
