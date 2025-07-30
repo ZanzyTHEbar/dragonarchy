@@ -91,7 +91,7 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.o`
@@ -116,6 +116,34 @@ vim.o.showmode = false
 --  See `:help 'clipboard'`
 vim.schedule(function()
   vim.o.clipboard = 'unnamedplus'
+  vim.g.clipboard = {
+    name = 'wl-clipboard',
+    copy = {
+      ['+'] = { 'wl-copy', '--type', 'text/plain' },
+      ['*'] = { 'wl-copy', '--primary', '--type', 'text/plain' },
+    },
+    paste = {
+      ['+'] = { 'wl-paste', '--no-newline' },
+      ['*'] = { 'wl-paste', '--primary', '--no-newline' },
+    },
+    cache_enabled = 0,
+  }
+
+  -- Optional: Keymaps for explicit clipboard operations
+  vim.keymap.set({ 'n', 'v' }, '<leader>y', [["+y]], { desc = 'Yank to system clipboard' })
+  vim.keymap.set({ 'n', 'v' }, '<leader>p', [["+p]], { desc = 'Paste from system clipboard' })
+
+  -- Debug clipboard provider
+  vim.api.nvim_create_autocmd('VimEnter', {
+    callback = function()
+      vim.fn.system { 'wl-copy', '--version' }
+      if vim.v.shell_error == 0 then
+        print 'wl-clipboard detected successfully'
+      else
+        print 'wl-clipboard not detected'
+      end
+    end,
+  })
 end)
 
 -- Enable break indent
@@ -281,6 +309,20 @@ require('lazy').setup({
         topdelete = { text = '‾' },
         changedelete = { text = '~' },
       },
+    },
+  },
+
+  {
+    'ojroques/nvim-osc52',
+    config = function()
+      require('osc52').setup()
+      vim.keymap.set('n', '<leader>c', require('osc52').copy_operator, { expr = true, desc = 'Copy to system clipboard via OSC52' })
+    end,
+  },
+  {
+    git = {
+      -- Prevent branch switch conflicts
+      checkout = false,
     },
   },
 

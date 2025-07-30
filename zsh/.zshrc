@@ -77,11 +77,9 @@ COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
 #######################################################
 # Environment Variables
 #######################################################
-# export EDITOR=nvim
-# export VISUAL=nvim
-export EDITOR=nvim visudo
-export VISUAL=nvim visudo
-export SUDO_EDITOR=nvim
+export EDITOR=nvim
+export VISUAL=nvim
+export SUDO_EDITOR=nvim visudo
 export FCEDIT=nvim
 export TERMINAL=kitty
 export BROWSER=vivaldi
@@ -154,7 +152,7 @@ export GOPATH="$HOME/go"
 pathappend "$GOPATH/bin"
 
 # NFS MNT
-pathappend "/mnt/nfs/common/bin"
+pathappend "/mnt/common/bin"
 
 #######################################################
 # Add Common Binary Directories to Path
@@ -191,7 +189,10 @@ esac
 # pnpm end
 
 # Rust
-. "$HOME/.cargo/env"
+
+if [[ -x "$(command -v rust)" ]]; then
+    . "$HOME/.cargo/env"
+fi
 
 # eza
 export FPATH="$ZSH_CUSTOM/completions/eza:$FPATH"
@@ -237,7 +238,8 @@ setopt hist_ignore_dups
 setopt hist_find_no_dups
 
 # Basic auto/tab complete:
-autoload -U compinit
+# autoload -U compinit # not needed, as second call in file
+
 zstyle ':completion:*' menu select
 zmodload zsh/complist
 compinit
@@ -338,6 +340,8 @@ function random_bars() {
 
 source ~/.config/zsh/zsh-syntax-highlighting-tokyonight.zsh
 source ~/.config/zsh/aliases.zsh
+source ~/.config/zsh/install_deps.zsh
+
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh ]
 
