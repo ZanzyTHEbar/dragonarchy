@@ -1,0 +1,37 @@
+#!/bin/bash
+# Checks battery status and sends a notification if the level is low.
+
+BATTERY_THRESHOLD=10
+# Use a unique notification flag to prevent spamming
+NOTIFICATION_FLAG="/run/user/$UID/battery_low_notified"
+
+get_battery_percentage() {
+  upower -i "$(upower -e | grep 'BAT')" | grep -E "percentage" | grep -o '[0-9]\+%' | sed 's/%//'
+}
+
+get_battery_state() {
+  upower -i "$(upower -e | grep 'BAT')" | grep -E "state" | awk '{print $2}'
+}
+
+send_notification() {
+  # We use swaync-client as it's our installed notification daemon
+  swaync-client -n -t notification -ID 99 -d "Battery Low" -s "Time to recharge! (Battery is at ${1}%)" -i "battery-caution"
+}
+
+# Ensure we are on a machine with a battery
+if ! upower -e | grep -q 'BAT'; then
+    exit 0
+fi
+
+BATTERY_LEVEL=$(get_battery_percentage)
+BATTERY_STATE=$(get_battery_state)
+
+if [[ "$BATTERY_STATE" == "discharging" && "$BATTERY_LEVEL" -le "$BATTERY_THRESHOLD" ]]; then
+  if [[ ! -f "$NOTIFICATION_FLAG" ]]; then
+    send_notification "$BATTERY_LEVEL"
+    touch "$NOTIFICATION_FLAG"
+  fi
+else
+  # Reset the flag once the battery is charging again or above the threshold
+  rm -f "$NOTIFICATION_FLAG"
+fi

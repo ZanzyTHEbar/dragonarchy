@@ -1,0 +1,27 @@
+#!/bin/bash
+# A command wrapper for taking screenshots with editing and annotation.
+
+# --- Dependencies Check ---
+for cmd in hyprshot satty wl-copy; do
+    if ! command -v "$cmd" &> /dev/null; then
+        echo "Error: Required command '$cmd' not found." >&2
+        exit 1
+    fi
+done
+
+# --- Configuration ---
+# Use standard XDG pictures directory, or fallback to ~/Pictures
+[[ -f ~/.config/user-dirs.dirs ]] && source ~/.config/user-dirs.dirs
+OUTPUT_DIR="${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots"
+mkdir -p "$OUTPUT_DIR"
+
+# --- Main Logic ---
+# The logic from omarchy is excellent. It uses hyprshot for capturing,
+# satty for editing/annotating, and wl-copy for clipboard.
+pkill slurp || hyprshot -m "${1:-region}" --raw |
+  satty --filename - \
+    --output-filename "$OUTPUT_DIR/screenshot-$(date +'%Y-%m-%d_%H-%M-%S').png" \
+    --early-exit \
+    --actions-on-enter save-to-clipboard \
+    --save-after-copy \
+    --copy-command 'wl-copy'

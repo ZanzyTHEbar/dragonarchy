@@ -3,13 +3,51 @@
 PATH="$PATH:$(pwd)/packages/theme-manager/bin"
 
 main_menu() {
-  local options=("Theme" "Exit")
-  choice=$(printf "%s\n" "${options[@]}" | gum choose --header "") || exit 0
+  local options=("Theme" "Update" "Setup" "Power Menu" "Keybindings" "Font Menu" "Exit")
+  choice=$(printf "%s\n" "${options[@]}" | gum choose --header="") || exit 0
   case "$choice" in
   Theme) theme_menu ;;
+  Update)
+    "$(dirname "$0")/update.sh"
+    ack_command
+    main_menu
+    ;;
+  Setup) setup_menu ;;
+  "Power Menu")
+    power-menu
+    main_menu
+    ;;
+  "Keybindings")
+    keybindings-menu
+    main_menu
+    ;;
+  "Font Menu")
+    font-menu
+    main_menu
+    ;;
   Exit) clear && exit 0 ;;
   esac
 }
+
+setup_menu() {
+  local options=("Steam (Enable Multilib)" "Docker Databases" "Fingerprint Sensor" "FIDO2 Device" "User & Git Config" "Keyboard Layout" "Power Management" "Default Applications" "Web App Launchers" "Back")
+  choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Setup") || main_menu
+  case "$choice" in
+  "Steam (Enable Multilib)") "$(dirname "$0")/install/setup/steam.sh" ;;
+  "Docker Databases") "$(dirname "$0")/install/setup/docker-dbs.sh" ;;
+  "Fingerprint Sensor") "$(dirname "$0")/install/setup/fingerprint.sh" ;;
+  "FIDO2 Device") "$(dirname "$0")/install/setup/fido2.sh" ;;
+  "User & Git Config") "$(dirname "$0")/install/setup/user-config.sh" ;;
+  "Keyboard Layout") "$(dirname "$0")/install/setup/keyboard.sh" ;;
+  "Power Management") "$(dirname "$0")/install/setup/power-management.sh" ;;
+  "Default Applications") "$(dirname "$0")/install/setup/default-apps.sh" ;;
+  "Web App Launchers") "$(dirname "$0")/install/setup/web-apps.sh" ;;
+  "Back") main_menu ;;
+  esac
+  ack_command
+  setup_menu
+}
+
 
 theme_menu() {
   local options=("Pick" "Install" "Update" "Remove" "Back")

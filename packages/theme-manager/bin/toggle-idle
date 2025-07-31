@@ -1,0 +1,11 @@
+#!/bin/bash
+# Toggles the hypridle daemon on and off.
+
+if pgrep -x hypridle >/dev/null; then
+  pkill -x hypridle
+  swaync-client -n -t notification -ID 97 -d "Idle Inhibited" -s "Computer will not lock when idle."
+else
+  # Relaunching hypridle via uwsm as per our requirement
+  uwsm app -- hypridle >/dev/null 2>&1 &
+  swaync-client -n -t notification -ID 97 -d "Idle Enabled" -s "Computer will now lock when idle."
+fi

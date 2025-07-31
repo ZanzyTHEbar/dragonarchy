@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Dragon
+Comment=Dragon TUI
+Exec=alacritty --class=Dragon --title=Dragon -e bash -c '$HOME/.local/share/dragon/bin/dragon'
+Icon=Arch
+Terminal=false
+Categories=System;Utility;
+StartupNotify=false 

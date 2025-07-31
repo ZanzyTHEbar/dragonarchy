@@ -1,0 +1,6 @@
+[Unit]
+Description=Periodically check battery level
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/battery-monitor
