@@ -176,8 +176,13 @@ install_packages() {
     
     log_step "Installing packages..."
     
-    if [[ -x "$SCRIPTS_DIR/install-packages.sh" ]]; then
-        "$SCRIPTS_DIR/install-packages.sh" "$HOST"
+    if [[ -x "$PACKAGES_DIR/zsh/.config/zsh/install_deps.zsh" ]]; then
+        # Pass the host argument if it's set
+        if [[ -n "$HOST" ]]; then
+            "$PACKAGES_DIR/zsh/.config/zsh/install_deps.zsh" --host "$HOST"
+        else
+            "$PACKAGES_DIR/zsh/.config/zsh/install_deps.zsh"
+        fi
     else
         log_error "Package installation script not found or not executable"
         exit 1
