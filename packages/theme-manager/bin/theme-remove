@@ -1,0 +1,30 @@
+#!/bin/bash
+# theme-remove: Remove a theme by name
+# Usage: theme-remove <theme-name>
+
+if [ -z "$1" ]; then
+  echo "Usage: theme-remove <theme-name>"
+  exit 1
+fi
+
+THEME_NAME="$1"
+THEMES_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/themes"
+CURRENT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/current"
+
+THEME_PATH="$THEMES_DIR/$THEME_NAME"
+
+# Check if theme exists before attempting removal
+if [ ! -d "$THEME_PATH" ]; then
+  echo "Error: Theme '$THEME_NAME' not found."
+  exit 1
+fi
+
+# Use readlink -f to resolve symlinks and get the absolute path
+if [ "$(readlink -f "$CURRENT_DIR/theme")" = "$(readlink -f "$THEME_PATH")" ]; then
+  # ""$(dirname "$0")/theme-next""
+  echo "Current theme cannot be removed yet."
+  exit 1
+fi
+
+# Now remove the theme directory
+rm -rf "$THEME_PATH"

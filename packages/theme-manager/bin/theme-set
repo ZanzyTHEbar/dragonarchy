@@ -1,0 +1,55 @@
+#!/bin/bash
+# theme-set: Set a theme, specified by its name.
+# Usage: theme-set <theme-name>
+
+if [[ -z "$1" ]]; then
+  echo "Usage: theme-set <theme-name>" >&2
+  exit 1
+fi
+
+THEMES_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/themes/"
+CURRENT_THEME_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
+
+THEME_NAME="$1"
+THEME_PATH="$THEMES_DIR/$THEME_NAME"
+
+# Check if the theme entered exists
+if [[ ! -d "$THEME_PATH" ]]; then
+  echo "Theme '$THEME_NAME' does not exist in $THEMES_DIR" >&2
+  exit 2
+fi
+
+# Update theme symlinks
+ln -nsf "$THEME_PATH" "$CURRENT_THEME_DIR"
+
+# Change gnome modes
+if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/current/theme/light.mode" ]]; then
+  gsettings set org.gnome.desktop.interface color-scheme "prefer-light"
+  gsettings set org.gnome.desktop.interface gtk-theme "Adwaita"
+else
+  gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"
+  gsettings set org.gnome.desktop.interface gtk-theme "Adwaita-dark"
+fi
+
+# Set btop theme
+mkdir -p ~/.config/btop/themes
+ln -snf ~/.config/current/theme/btop.theme ~/.config/btop/themes/current.theme
+
+# Set walker theme
+mkdir -p ~/.config/walker/themes
+ln -snf ~/.config/current/theme/walker.css ~/.config/walker/themes/current.css
+
+# Trigger alacritty config reload
+touch "$HOME/.config/alacritty/alacritty.toml"
+
+# Restart components to apply new theme
+pkill -SIGUSR2 btop
+pkill -SIGUSR2 waybar
+# pkill swayosd-server
+# setsid uwsm app -- swayosd-server &>/dev/null &
+# makoctl reload
+hyprctl reload
+swaync-client -R
+
+# Set new background
+"$(dirname "$0")/theme-bg-next"

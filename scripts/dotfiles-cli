@@ -1,0 +1,62 @@
+#!/bin/bash
+
+PATH="$PATH:$(pwd)/packages/theme-manager/bin"
+
+main_menu() {
+  local options=("Theme" "Exit")
+  choice=$(printf "%s\n" "${options[@]}" | gum choose --header "") || exit 0
+  case "$choice" in
+  Theme) theme_menu ;;
+  Exit) clear && exit 0 ;;
+  esac
+}
+
+theme_menu() {
+  local options=("Pick" "Install" "Update" "Remove" "Back")
+  choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Theme") || main_menu
+  case "$choice" in
+  Pick)
+  theme-menu
+    ack_command
+    main_menu
+    ;;
+  Install)
+  install_theme_prompt
+    ack_command
+    theme_menu
+    ;;
+  Update)
+  theme-update
+    ack_command
+    theme_menu
+    ;;
+  Remove)
+  remove_theme_prompt
+    ack_command
+    theme_menu
+    ;;
+  Back) main_menu ;;
+  esac
+}
+
+install_theme_prompt() {
+  local url
+  url=$(gum input --placeholder="Git repo URL for theme" --header="")
+  if [[ -n "$url" ]]; then
+    theme-install "$url"
+  fi
+}
+
+remove_theme_prompt() {
+  local theme
+  theme=$(gum input --placeholder="Theme name" --header="")
+  if [[ -n "$theme" ]]; then
+    theme-remove "$theme"
+  fi
+}
+
+ack_command() {
+  gum spin --spinner "globe" --title "Done!" -- sleep 1
+}
+
+main_menu
