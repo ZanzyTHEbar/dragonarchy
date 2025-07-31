@@ -1,0 +1,28 @@
+#!/bin/bash
+# Installs and configures asdcontrol for managing Apple display brightness.
+
+set -e
+
+# --- Header and Logging ---
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+log_info() { echo -e "\n${BLUE}[INFO]${NC} $1" }
+
+log_info "Setting up Apple display brightness control (asdcontrol)..."
+
+if ! command -v asdcontrol &>/dev/null; then
+  log_info "Cloning and installing asdcontrol..."
+  git clone https://github.com/nikosdion/asdcontrol.git /tmp/asdcontrol
+  cd /tmp/asdcontrol
+  make
+  sudo make install
+  cd -
+  rm -rf /tmp/asdcontrol
+
+  log_info "Configuring passwordless sudo for asdcontrol..."
+  echo "$USER ALL=(ALL) NOPASSWD: /usr/local/bin/asdcontrol" | sudo tee /etc/sudoers.d/asdcontrol
+  sudo chmod 440 /etc/sudoers.d/asdcontrol
+  log_info "Setup complete."
+else
+  log_info "asdcontrol is already installed."
+fi

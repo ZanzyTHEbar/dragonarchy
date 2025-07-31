@@ -30,7 +30,7 @@ main_menu() {
 }
 
 setup_menu() {
-  local options=("Steam (Enable Multilib)" "Docker Databases" "Fingerprint Sensor" "FIDO2 Device" "User & Git Config" "Keyboard Layout" "Power Management" "Default Applications" "Web App Launchers" "Back")
+  local options=("Steam (Enable Multilib)" "Docker Databases" "Fingerprint Sensor" "FIDO2 Device" "User & Git Config" "Keyboard Layout" "Power Management" "Default Applications" "Web App Launchers" "Seamless Boot (Plymouth)" "System Services" "Pacman Tweaks" "Back")
   choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Setup") || main_menu
   case "$choice" in
   "Steam (Enable Multilib)") "$(dirname "$0")/install/setup/steam.sh" ;;
@@ -42,6 +42,9 @@ setup_menu() {
   "Power Management") "$(dirname "$0")/install/setup/power-management.sh" ;;
   "Default Applications") "$(dirname "$0")/install/setup/default-apps.sh" ;;
   "Web App Launchers") "$(dirname "$0")/install/setup/web-apps.sh" ;;
+  "Seamless Boot (Plymouth)") "$(dirname "$0")/install/setup/plymouth.sh" ;;
+  "System Services") "$(dirname "$0")/install/setup/system-services.sh" ;;
+  "Pacman Tweaks") "$(dirname "$0")/install/setup/pacman-tweaks.sh" ;;
   "Back") main_menu ;;
   esac
   ack_command

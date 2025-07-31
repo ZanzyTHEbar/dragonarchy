@@ -5,20 +5,28 @@ set -e
 
 # --- Header and Logging ---
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1" }
+RED='\033[0;31m'
+NC='\033[0m' 
 
 # --- Configuration ---
 ALACRITTY_CONFIG="$HOME/.config/alacritty/alacritty.toml"
 
+log_info() { 
+  echo -e "\n${BLUE}[INFO]${NC} $1"
+}
+
+log_error() { 
+  echo -e "${RED}[ERROR]${NC} $1" 
+}
+
 # --- Main Logic ---
 log_info "Searching for available monospace fonts..."
 
-font=$(
-  fc-list :spacing=100 -f "%{family[0]}\n" |
-    grep -v -i -E 'emoji|signwriting|symbols' |
-    sort -u |
-    gum choose --header "Choose a terminal font"
+font=$( \
+  fc-list :spacing=100 -f "%{family[0]}\n" | \
+    grep -v -i -E 'emoji|signwriting|symbols' | \
+    sort -u | \
+    gum choose --header "Choose a terminal font" \
 )
 
 if [[ -n "$font" ]]; then
