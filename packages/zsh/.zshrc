@@ -48,6 +48,7 @@ ZVM_NORMAL_MODE_CURSOR=$ZVM_CURSOR_BLINKING_BLOCK
 ZVM_OPPEND_MODE_CURSOR=$ZVM_CURSOR_BLINKING_UNDERLINE
 
 # Replay zinit completions
+zinit creinstall -q zsh-users/zsh-completions
 zinit cdreplay -q
 
 # Load function files
