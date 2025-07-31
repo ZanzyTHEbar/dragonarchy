@@ -124,12 +124,6 @@ if command -v helm &> /dev/null; then
     source <(helm completion zsh)
 fi
 
-if command -v docker &> /dev/null; then
-    if [[ -f /usr/share/bash-completion/completions/docker ]]; then
-        source /usr/share/bash-completion/completions/docker
-    fi
-fi
-
 # Load additional completions directory if it exists
 if [[ -d ~/.config/zsh/completions ]]; then
     fpath=(~/.config/zsh/completions $fpath)

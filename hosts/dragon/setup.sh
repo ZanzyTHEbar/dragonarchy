@@ -41,9 +41,12 @@ setup_dragon_packages() {
     # Desktop development tools
     local dragon_packages=(
         # Desktop environment
-        "plasma-desktop"
-        "plasma-workspace"
-        "sddm"
+        "hyprland"
+        "hyprpaper"
+        "waybar"
+        "dunst"
+        "swaylock"
+        "swayidle"
         
         # Development tools
         "docker"
@@ -52,12 +55,6 @@ setup_dragon_packages() {
         "qemu"
         "libvirt"
         "virt-manager"
-        
-        # Media and graphics
-        "blender"
-        "gimp"
-        "kdenlive"
-        "obs-studio"
         
         # Gaming
         "steam"
@@ -268,18 +265,6 @@ setup_amd_gpu() {
     log_success "AMD GPU optimizations configured"
 }
 
-# Setup KDE Plasma customizations
-setup_kde_customizations() {
-    log_info "Setting up KDE Plasma customizations..."
-    
-    # Create KDE configuration directory
-    mkdir -p "$HOME/.config"
-    
-    # Set up basic KDE settings (this would be expanded with actual KDE configs)
-    log_info "KDE customizations will be applied on next login"
-    log_success "KDE customizations prepared"
-}
-
 # Setup performance optimizations
 setup_performance() {
     log_info "Setting up performance optimizations..."
@@ -367,8 +352,6 @@ main() {
     setup_gaming
     echo
     setup_amd_gpu
-    echo
-    setup_kde_customizations
     echo
     setup_performance
     echo
