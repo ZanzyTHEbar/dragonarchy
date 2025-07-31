@@ -55,8 +55,8 @@ setopt HIST_FIND_NO_DUPS
 
 # Set up completion system
 autoload -Uz compinit bashcompinit
-compinit
 bashcompinit
+compinit
 
 # Completion configuration
 zstyle ':completion:*' menu select
