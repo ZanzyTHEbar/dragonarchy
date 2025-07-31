@@ -1,0 +1,45 @@
+// Zed settings
+//
+// For information on how to configure Zed, see the Zed
+// documentation: https://zed.dev/docs/configuring-zed
+//
+// To see all of Zed's default settings without changing your
+// custom settings, run `zed: open default settings` from the
+// command palette (cmd-shift-p / ctrl-shift-p)
+{
+  "features": {
+    "edit_prediction_provider": "copilot"
+  },
+  "assistant": {
+    "default_profile": "write",
+    "default_model": {
+      "provider": "google",
+      "model": "gemini-2.5-pro-exp-03-25"
+    },
+    "always_allow_tool_actions": true,
+    "enable_experimental_live_diffs": true,
+    "version": "2"
+  },
+  "autosave": {
+    "after_delay": {
+      "milliseconds": 1000
+    }
+  },
+  "icon_theme": "Material Icon Theme",
+  "telemetry": {
+    "metrics": false,
+    "diagnostics": false
+  },
+  "ui_font_size": 16,
+  "buffer_font_size": 16,
+  "ui_font_family": "CaskaydiaMono Nerd Font",
+  "buffer_font_family": "CaskaydiaMono Nerd Font",
+  "terminal": {
+    "font_family": "CaskaydiaMono Nerd Font"
+  },
+  "theme": {
+    "mode": "system",
+    "light": "One Light",
+    "dark": "One Dark Pro"
+  }
+}

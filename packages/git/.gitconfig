@@ -1,0 +1,87 @@
+[user]
+	email = zacariahheim@gmail.com
+	name = ZanzyTHEbar
+
+[init]
+	defaultBranch = main
+
+[merge]
+	conflictStyle = diff3
+	tool = meld
+
+[pull]
+	rebase = true
+
+[push]
+	default = upstream
+	followTags = true
+
+[core]
+	editor = nvim
+	autocrlf = input
+	pager = diff-so-fancy | less --tabs=4 -RFX
+
+[color]
+	ui = auto
+	status = auto
+	diff = auto
+	branch = auto
+	interactive = auto
+
+[color "diff-highlight"]
+	oldNormal = red bold
+	oldHighlight = red bold 52
+	newNormal = green bold
+	newHighlight = green bold 22
+
+[color "diff"]
+	meta = 11
+	frag = magenta bold
+	commit = yellow bold
+	old = red bold
+	new = green bold
+	whitespace = red reverse
+
+[diff]
+	tool = meld
+	colorMoved = default
+
+[difftool]
+	prompt = false
+
+[alias]
+	st = status
+	co = checkout
+	br = branch
+	ci = commit
+	ca = commit -a
+	cm = commit -m
+	cam = commit -am
+	df = diff
+	dc = diff --cached
+	lg = log --oneline --graph --decorate --all
+	lol = log --graph --decorate --pretty=oneline --abbrev-commit
+	lola = log --graph --decorate --pretty=oneline --abbrev-commit --all
+	ls = ls-files
+	ign = ls-files -o -i --exclude-standard
+	unstage = reset HEAD --
+	last = log -1 HEAD
+	visual = !gitk
+	amend = commit --amend
+	undo = reset --soft HEAD~1
+	wipe = reset --hard HEAD
+	bclean = "!f() { git branch --merged ${1-master} | grep -v " ${1-master}$" | xargs -r git branch -d; }; f"
+	bdone = "!f() { git checkout ${1-master} && git up && git bclean ${1-master}; }; f"
+
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+
+[credential]
+	helper = store
+
+# Include local gitconfig if it exists
+[include]
+	path = ~/.gitconfig.local 
