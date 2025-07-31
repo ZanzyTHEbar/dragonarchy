@@ -1,0 +1,9 @@
+omarchy/
+packages/ssh/.ssh/authorized_keys
+packages/ssh/.ssh/detos
+packages/ssh/.ssh/emissium
+packages/ssh/.ssh/known_hosts
+packages/ssh/.ssh/known_hosts.old
+packages/ssh/.ssh/spacedragon
+packages/ssh/.ssh/zac
+packages/ssh/.ssh/config
