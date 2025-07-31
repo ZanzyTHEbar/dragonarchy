@@ -10,6 +10,9 @@ RemainAfterExit=yes
 User=root
 Group=root
 
+# TODO: We need to figure out how to set the pump 
+#/usr/bin/liquidctl set fan3 speed 70 --match "h100i"'
+
 # Initialize and configure Corsair H100i Platinum SE for Dragon
 ExecStart=/bin/bash -c '\
     /usr/bin/liquidctl initialize --match "h100i" && \
@@ -21,8 +24,7 @@ ExecStart=/bin/bash -c '\
         60 80 \
         70 90 \
         80 100 && \
-    /usr/bin/liquidctl set led color fixed 000000 --match "h100i" && \
-    /usr/bin/liquidctl set pump speed 70 --match "h100i"'
+    /usr/bin/liquidctl set led color fixed 000000 --match "h100i"'
 
 # Restart the service if it fails
 Restart=on-failure

@@ -34,7 +34,7 @@ detect_platform() {
     case "$(uname -s)" in
         Darwin*)
             echo "macos"
-            ;;
+        ;;
         Linux*)
             if [[ -f /etc/os-release ]]; then
                 source /etc/os-release
@@ -42,10 +42,10 @@ detect_platform() {
             else
                 echo "linux"
             fi
-            ;;
+        ;;
         *)
             echo "unknown"
-            ;;
+        ;;
     esac
 }
 
@@ -178,7 +178,7 @@ install_arch_packages() {
 # Install packages for Hyprland on Arch Linux
 install_hyprland_packages() {
     log_info "Installing packages for Hyprland on Arch Linux..."
-
+    
     # Ensure yay is installed
     if ! command_exists yay; then
         log_info "yay not found, installing..."
@@ -187,7 +187,7 @@ install_hyprland_packages() {
         (cd /tmp/yay && makepkg -si --noconfirm)
         rm -rf /tmp/yay
     fi
-
+    
     # Add Chaotic-AUR if not already present
     if ! grep -q "chaotic-aur" /etc/pacman.conf; then
         log_info "Adding Chaotic-AUR repository..."
@@ -198,7 +198,7 @@ install_hyprland_packages() {
         echo -e "\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist" | sudo tee -a /etc/pacman.conf
         sudo pacman -Sy
     fi
-
+    
     # Hyprland specific packages
     local packages=(
         # Hyprland core
@@ -217,22 +217,22 @@ install_hyprland_packages() {
         "swayosd"
         "xdg-desktop-portal-hyprland"
         "xdg-desktop-portal-gtk"
-        "uwsm" 
+        "uwsm"
         "plymouth"
-
+        
         # Display and audio
         "brightnessctl"
         "playerctl"
         "pamixer"
-        "wiremix" 
+        "wiremix"
         "wireplumber"
-
+        
         # Input and language
         "fcitx5"
         "fcitx5-gtk"
         "fcitx5-qt"
         "wl-clip-persist"
-
+        
         # File management and media
         "nautilus"
         "sushi"
@@ -243,7 +243,7 @@ install_hyprland_packages() {
         "evince"
         "imv"
         "chromium"
-
+        
         # Fonts
         "ttf-font-awesome"
         "ttf-cascadia-mono-nerd"
@@ -255,7 +255,7 @@ install_hyprland_packages() {
         "noto-fonts-extra"
         "gnome-themes-extra"
         "kvantum-qt5"
-
+        
         # Development
         "cargo"
         "clang"
@@ -273,7 +273,7 @@ install_hyprland_packages() {
         "luarocks"
         "tree-sitter-cli"
         "gcc14"
-
+        
         # CLI tools
         "wget"
         "curl"
@@ -319,7 +319,7 @@ install_hyprland_packages() {
         "qt5-wayland"
         "qt6-wayland"
     )
-
+    
     local aur_packages=(
         "gnome-calculator"
         "gnome-keyring"
@@ -337,7 +337,7 @@ install_hyprland_packages() {
         "1password-beta"
         "1password-cli"
     )
-
+    
     log_info "Installing official packages for Hyprland..."
     for package in "${packages[@]}"; do
         if pacman -Qi "$package" &>/dev/null; then
@@ -351,7 +351,7 @@ install_hyprland_packages() {
             fi
         fi
     done
-
+    
     log_info "Installing AUR packages for Hyprland..."
     for package in "${aur_packages[@]}"; do
         if yay -Qi "$package" &>/dev/null; then
@@ -606,8 +606,28 @@ setup_development_environments() {
     # Install Python development tools
     if command_exists python3; then
         log_info "Installing Python development tools..."
-        python3 -m pip install --user --upgrade pip
-        python3 -m pip install --user pipx
+        
+        # Ensure pipx is installed
+        if ! command_exists pipx; then
+            log_info "Installing pipx..."
+            
+            sudo pacman -S python-pipx
+            
+            # Ensure pip is installed
+            #if ! command_exists pip; then
+            #    log_info "Installing pip..."
+            #    python3 -m ensurepip --upgrade
+            #fi
+            
+            export PATH="$HOME/.local/bin:$PATH"
+            python3 -m pipx ensurepath
+        fi
+        
+        # Upgrade pip and install pipx if not already installed
+        #log_info "Upgrading pip and installing pipx..."
+        #
+        #python3 -m pip install --user --upgrade pip
+        #python3 -m pip install --user pipx
         
         # Install Python tools via pipx
         if command_exists pipx; then
@@ -642,18 +662,18 @@ main() {
         case "$platform" in
             "macos")
                 install_macos_packages
-                ;;
+            ;;
             "arch"|"cachyos"|"manjaro")
                 install_arch_packages
-                ;;
+            ;;
             "ubuntu"|"debian")
                 install_debian_packages
-                ;;
+            ;;
             *)
                 log_error "Unsupported platform: $platform"
                 log_info "Trying to install additional tools..."
                 install_additional_tools
-                ;;
+            ;;
         esac
     fi
     
@@ -678,4 +698,4 @@ main() {
 # Run main function if script is executed directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
-fi 
+fi

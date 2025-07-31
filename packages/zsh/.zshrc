@@ -56,12 +56,13 @@ for func_file in ~/.config/zsh/functions/*.zsh; do
 done
 
 # Load aliases and remaining configuration
-source ~/.config/zsh/aliases.zsh
-source ~/.config/zsh/zsh-syntax-highlighting-tokyonight.zsh
-source ~/.config/zsh/autojump.zsh
+for conf_file in ~/.config/zsh/*.zsh; do
+    [[ -r "$conf_file" ]] && source "$conf_file"
+done
 
-# Load dependency management (only for non-Zinit tools)
-source ~/.config/zsh/install_deps.zsh
+for host_file in ~/.config/zsh/hosts/*.zsh; do
+    [[ -r "$host_file" ]] && source "$host_file"
+done
 
 # Powerlevel10k configuration
 POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
@@ -72,6 +73,3 @@ COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
 
 # Load icons
 [[ -f "$HOME/.config/icons-in-terminal/icons_bash.sh" ]] && source "$HOME/.config/icons-in-terminal/icons_bash.sh"
-
-# Load Powerlevel10k configuration (should be last)
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
