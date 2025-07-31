@@ -27,6 +27,11 @@ INSTALL_DOTFILES=true
 SETUP_SECRETS=true
 HOST=""
 VERBOSE=false
+PACKAGES_ONLY=false
+DOTFILES_ONLY=false
+SECRETS_ONLY=false
+SKIP_SECRETS=false
+NO_SYSTEM_CONFIG=false
 
 # Logging functions
 log_info() {
@@ -94,16 +99,19 @@ parse_args() {
                 shift 2
                 ;;
             --packages-only)
+                PACKAGES_ONLY=true
                 INSTALL_DOTFILES=false
                 SETUP_SECRETS=false
                 shift
                 ;;
             --dotfiles-only)
+                DOTFILES_ONLY=true
                 INSTALL_PACKAGES=false
                 SETUP_SECRETS=false
                 shift
                 ;;
             --secrets-only)
+                SECRETS_ONLY=true
                 INSTALL_PACKAGES=false
                 INSTALL_DOTFILES=false
                 shift
@@ -117,6 +125,7 @@ parse_args() {
                 shift
                 ;;
             --no-secrets)
+                SKIP_SECRETS=true
                 SETUP_SECRETS=false
                 shift
                 ;;
@@ -176,7 +185,7 @@ install_packages() {
     
     log_step "Installing packages..."
     
-    local install_script="$PACKAGES_DIR/zsh/.config/zsh/install_deps.zsh"
+    local install_script="$SCRIPTS_DIR/install_deps.sh"
     
     if [[ -f "$install_script" ]]; then
         # Ensure the script is executable
@@ -290,7 +299,7 @@ setup_host_config() {
 
 # Setup secrets management
 setup_secrets() {
-    if [[ "$SETUP_SECRETS" != "true" ]]; then
+    if [[ "$SETUP_SECRETS" != "true" || "$SKIP_SECRETS" == "true" ]]; then
         return 0
     fi
     
@@ -427,7 +436,7 @@ show_completion() {
 # Main execution function
 main() {
     echo
-    log_info "🚀 Starting Traditional Dotfiles Management Setup"
+    log_info "🚀 Starting Dotfiles Management Setup"
     log_info "Configuration directory: $CONFIG_DIR"
     echo
     
@@ -444,24 +453,13 @@ main() {
     # Enhanced setup to include system configuration after other steps
     
     # System configuration (requires root)
-    if [[ "${NO_SYSTEM_CONFIG:-}" != "true" && "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
+    if [[ "$NO_SYSTEM_CONFIG" != "true" && "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
         log_info "Setting up system-level configuration..."
         if [[ $EUID -eq 0 ]]; then
-            "$SCRIPT_DIR/scripts/system-config.sh" || log_warning "System configuration failed"
+            "$SCRIPTS_DIR/system-config.sh" || log_warning "System configuration failed"
         else
             log_info "System configuration requires root privileges"
-            log_info "Run: sudo $SCRIPT_DIR/scripts/system-config.sh"
-        fi
-        echo
-    fi
-    
-    # Use enhanced secrets if available
-    if [[ "${NO_SECRETS}" != "true" && "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" ]]; then
-        log_info "Setting up secrets management..."
-        if [[ -f "$SCRIPT_DIR/scripts/enhanced-secrets.sh" ]]; then
-            "$SCRIPT_DIR/scripts/enhanced-secrets.sh" setup || log_warning "Enhanced secrets setup failed"
-        else
-            "$SCRIPT_DIR/scripts/secrets.sh" setup || log_warning "Secrets setup failed"
+            log_info "Run: sudo $SCRIPTS_DIR/system_config.sh"
         fi
         echo
     fi

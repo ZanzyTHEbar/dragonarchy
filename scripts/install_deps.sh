@@ -151,7 +151,7 @@ install_additional_tools() {
 
 # --- Package Definitions ---
 # Fonts
-arch_fonts=("ttf-jetbrains-mono" "noto-fonts-emoji" "ttf-font-awesome" "noto-fonts" "noto-fonts-cjk" "noto-fonts-extra" "liberation-fonts")
+arch_fonts=("ttf-jetbrains-mono" "noto-fonts-emoji" "ttf-font-awesome" "noto-fonts" "noto-fonts-cjk" "noto-fonts-extra" "ttf-liberation" ttf-liberation-mono-nerd)
 arch_aur_fonts=("ttf-cascadia-mono-nerd" "ttf-ia-writer")
 macos_cask_fonts=("font-jetbrains-mono-nerd" "font-symbols-only-nerd-font" "font-caskaydia-mono-nerd-font" "font-iosevka" "font-ia-writer-mono")
 debian_fonts=("fonts-jetbrains-mono" "fonts-noto-color-emoji" "fonts-font-awesome" "fonts-liberation2")
@@ -218,16 +218,24 @@ setup_development_environments() {
     }
     
     # Python tools via pipx
-    command_exists pipx && {
+    if command_exists pipx; then
         log_info "Installing Python tools via pipx..."
-        for pkg in "${pipx_packages[@]}"; do pipx install "$pkg"; done
-    }
+        for pkg in "${pipx_packages[@]}"; do
+            if pipx list --json | jq -e ".venvs.\"$pkg\"" >/dev/null; then
+                log_info "Upgrading $pkg..."
+                pipx upgrade "$pkg" || true
+            else
+                log_info "Installing $pkg..."
+                pipx install "$pkg"
+            fi
+        done
+    fi
 
     # Ruby tools
-    command_exists gem && {
+    if command_exists gem; then
         log_info "Installing Ruby bundler..."
         gem install bundler
-    }
+    fi
 }
 
 finalize_setup() {
