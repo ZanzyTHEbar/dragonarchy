@@ -15,10 +15,21 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Logging functions
-log_info() { echo -e "${BLUE}[INFO]${NC} $1" }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1" }
-log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1" }
-log_error() { echo -e "${RED}[ERROR]${NC} $1" }
+log_info() { 
+    echo -e "${BLUE}[INFO]${NC} $1" 
+}
+
+log_success() { 
+    echo -e "${GREEN}[SUCCESS]${NC} $1" 
+}
+
+log_warning() { 
+    echo -e "${YELLOW}[WARNING]${NC} $1" 
+}
+
+log_error() { 
+    echo -e "${RED}[ERROR]${NC} $1" 
+}
 
 # --- Platform and Helper Functions ---
 detect_platform() {
@@ -32,7 +43,9 @@ detect_platform() {
     esac
 }
 
-command_exists() { command -v "$1" >/dev/null 2>&1 }
+command_exists() { 
+    command -v "$1" >/dev/null 2>&1 
+}
 
 # --- Package Installation Helpers ---
 install_pacman() {
@@ -157,7 +170,7 @@ macos_cask_fonts=("font-jetbrains-mono-nerd" "font-symbols-only-nerd-font" "font
 debian_fonts=("fonts-jetbrains-mono" "fonts-noto-color-emoji" "fonts-font-awesome" "fonts-liberation2")
 
 # Core CLI
-core_cli_arch=("vim" "neovim" "btop" "coreutils" "dua-cli" "duf" "entr" "fastfetch" "fd" "fzf" "gdu" "lsd" "ripgrep" "stow" "unzip" "wget" "jq" "just" "yq" "iperf3" "wakeonlan" "ffmpeg" "bat" "zoxide" "eza" "direnv" "git-delta" "lazygit" "htop" "tmux" "tree" "curl" "rsync" "age" "sops" "zsh" "zsh-autosuggestions" "zsh-syntax-highlighting" "zsh-theme-powerlevel10k")
+core_cli_arch=("vim" "neovim" "btop" "coreutils" "dua-cli" "duf" "entr" "fastfetch" "fd" "fzf" "gdu" "lsd" "ripgrep" "stow" "unzip" "wget" "jq" "just" "yq" "iperf3" "wakeonlan" "ffmpeg" "bat" "zoxide" "eza" "direnv" "git-delta" "lazygit" "htop" "tmux" "tree" "curl" "rsync" "age" "sops" "zsh" "zsh-autosuggestions" "zsh-syntax-highlighting" "zsh-theme-powerlevel10k" "gum")
 core_cli_macos=("vim" "neovim" "btop" "coreutils" "dua-cli" "duf" "entr" "fastfetch" "fd" "fzf" "lsd" "ripgrep" "stow" "wget" "jq" "just" "yq" "iperf3" "wakeonlan" "ffmpeg" "bat" "zoxide" "eza" "direnv" "git-delta" "lazygit" "htop" "tmux" "tree" "curl" "rsync" "age" "sops" "zsh" "zsh-autosuggestions" "zsh-syntax-highlighting" "powerlevel10k")
 core_cli_debian=("vim" "neovim" "btop" "coreutils" "fd-find" "fzf" "ripgrep" "stow" "unzip" "wget" "curl" "jq" "iperf3" "wakeonlan" "ffmpeg" "bat-cat" "zsh" "htop" "tmux" "tree" "rsync" "git" "zsh-autosuggestions" "zsh-syntax-highlighting" "kitty")
 

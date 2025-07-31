@@ -1,0 +1,9 @@
+[Plymouth Theme]
+Name=Dragon
+Description=Dragon splash screen.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/dragon
+ScriptFile=/usr/share/plymouth/themes/dragon/dragon.script
+ConsoleLogBackgroundColor=0x1a1b26
