@@ -1,0 +1,37 @@
+#!/bin/bash
+# A script to display Hyprland keybindings in an interactive menu.
+
+# --- Configuration ---
+HYPRLAND_CONFIG_DIR="$HOME/.config/hypr/config"
+# Add any other files that contain keybindings to this array
+ADDITIONAL_BINDING_FILES=()
+
+# --- Main Logic ---
+# Combine the main config and any additional files into a single list
+ALL_BINDING_FILES=("$HYPRLAND_CONFIG_DIR"/*.conf "${ADDITIONAL_BINDING_FILES[@]}")
+
+# Process the configuration files to extract and format keybindings
+grep -h '^[[:space:]]*bind' "${ALL_BINDING_FILES[@]}" |
+  sed 's/#.*//' |
+  sed '/^[[:space:]]*$/d' |
+  sort -u |
+  awk -F, '
+  {
+      sub(/#.*/, "");
+      sub(/^[[:space:]]*bind[^=]*=(\+[[:space:]])?(exec, )?[[:space:]]*/, "", $1);
+      key_combo = $1 " + " $2;
+      gsub(/^[ \t]*\+?[ \t]*/, "", key_combo);
+      gsub(/[ \t]+$/, "", key_combo);
+      action = "";
+      for (i = 3; i <= NF; i++) {
+          action = action $i (i < NF ? "," : "");
+      }
+      sub(/,$/, "", action);
+      gsub(/(^|,)[[:space:]]*exec[[:space:]]*,?/, "", action);
+      gsub(/^[ \t]+|[ \t]+$/, "", action);
+      gsub(/[ \t]+/, " ", key_combo);
+      if (action != "") {
+          printf "%-35s → %s\n", key_combo, action;
+      }
+  }' |
+  gum filter --placeholder="Search keybindings..."

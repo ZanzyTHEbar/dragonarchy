@@ -1,0 +1,31 @@
+#!/bin/bash
+# A script to select and set the terminal font for Alacritty.
+
+set -e
+
+# --- Header and Logging ---
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+log_info() { echo -e "\n${BLUE}[INFO]${NC} $1" }
+
+# --- Configuration ---
+ALACRITTY_CONFIG="$HOME/.config/alacritty/alacritty.toml"
+
+# --- Main Logic ---
+log_info "Searching for available monospace fonts..."
+
+font=$(
+  fc-list :spacing=100 -f "%{family[0]}\n" |
+    grep -v -i -E 'emoji|signwriting|symbols' |
+    sort -u |
+    gum choose --header "Choose a terminal font"
+)
+
+if [[ -n "$font" ]]; then
+  if [ -f "$ALACRITTY_CONFIG" ]; then
+    sed -i "s/family = \".*\"/family = \"$font\"/g" "$ALACRITTY_CONFIG"
+    log_info "Alacritty font set to: $font"
+  else
+    log_error "Alacritty config file not found at: $ALACRITTY_CONFIG"
+  fi
+fi

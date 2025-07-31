@@ -1,0 +1,10 @@
+[Unit]
+Description=Run battery monitor every 30 seconds
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=30s
+Unit=battery-monitor.service
+
+[Install]
+WantedBy=timers.target
