@@ -1,6 +1,6 @@
 [Unit]
-Description=Omarchy Battery Monitor Timer
-Requires=omarchy-battery-monitor.service
+Description=Dragon Battery Monitor Timer
+Requires=dragon-battery-monitor.service
 
 [Timer]
 OnBootSec=1min
