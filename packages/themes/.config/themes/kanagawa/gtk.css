@@ -1,0 +1,12 @@
+/*
+ * Kanagawa GTK CSS
+ *
+ * This file is managed by the dotfiles theme-manager.
+ * Any manual changes will be overwritten.
+ */
+
+/* Nemo specific styles */
+.nemo-window .sidebar .view {
+  background-color: #1f1f28;
+  color: #dcd7ba;
+}
