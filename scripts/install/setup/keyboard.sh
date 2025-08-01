@@ -7,8 +7,8 @@ set -e
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1" }
-log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1" }
+log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 
 # --- Keyboard Layout Detection ---
 log_info "Detecting keyboard layout from /etc/vconsole.conf..."

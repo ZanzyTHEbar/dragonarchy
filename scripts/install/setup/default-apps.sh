@@ -6,7 +6,7 @@ set -e
 # --- Header and Logging ---
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1" }
+log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
 
 log_info "Setting default applications..."
 
@@ -22,13 +22,18 @@ xdg-mime default imv.desktop image/bmp
 xdg-mime default imv.desktop image/tiff
 
 log_info "Setting default PDF viewer to 'Evince'..."
-# You might want to change this to a Qt-based viewer like Okular to match Dolphin.
 xdg-mime default org.gnome.Evince.desktop application/pdf
 
-log_info "Setting default web browser to 'Chromium'..."
-xdg-settings set default-web-browser chromium.desktop
-xdg-mime default chromium.desktop x-scheme-handler/http
-xdg-mime default chromium.desktop x-scheme-handler/https
+# check for $BROWSER and set default web browser to $BROWSER
+# when $BROWSER is set we cant change with xdg-settings
+if [ -n "$BROWSER" ]; then
+    log_info "We cannot change the default web browser when \$BROWSER is set. \n Please check or remove your \$BROWSER environment variable."
+else
+    log_info "Setting default web browser to '$BROWSER'..."
+    xdg-settings set default-web-browser "$BROWSER.desktop"
+    xdg-mime default "$BROWSER.desktop" x-scheme-handler/http
+    xdg-mime default "$BROWSER.desktop" x-scheme-handler/https
+fi
 
 log_info "Setting default video player to 'mpv'..."
 xdg-mime default mpv.desktop video/mp4 video/x-msvideo video/x-matroska video/x-flv video/x-ms-wmv video/mpeg video/ogg video/webm video/quicktime video/3gpp video/3gpp2 video/x-ms-asf video/x-ogm+ogg video/x-theora+ogg application/ogg

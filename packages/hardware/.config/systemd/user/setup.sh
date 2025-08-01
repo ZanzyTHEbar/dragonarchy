@@ -237,6 +237,7 @@ setup_dotfiles() {
         "xournalpp"
         "typora"
         "themes"
+        "theme-manager"
         "gpg"
         "applications"
         "icons-in-terminal"
@@ -263,6 +264,21 @@ setup_dotfiles() {
     
     log_success "Dotfiles setup completed"
 }
+
+# Stow system packages
+stow_system_packages() {
+    log_step "Stowing system packages..."
+    if [[ -x "$SCRIPTS_DIR/stow-system.sh" ]]; then
+        if [[ $EUID -eq 0 ]]; then
+            "$SCRIPTS_DIR/stow-system.sh"
+        else
+            sudo "$SCRIPTS_DIR/stow-system.sh"
+        fi
+    else
+        log_warning "stow-system.sh not found, skipping system package stowing."
+    fi
+}
+
 
 # Setup host-specific configuration
 setup_host_config() {
@@ -457,6 +473,7 @@ main() {
     check_prerequisites
     install_packages
     setup_dotfiles
+    stow_system_packages
     setup_host_config
     configure_shell
     post_setup

@@ -6,6 +6,9 @@
 
 set -euo pipefail
 
+# Script directory for consistent script referencing
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" &>/dev/null && pwd)"
+
 # --- Header and Logging ---
 # Colors for output
 RED='\033[0;31m'
@@ -174,7 +177,7 @@ install_additional_tools() {
 
 # --- Package Definitions ---
 # Fonts
-arch_fonts=("ttf-jetbrains-mono" "noto-fonts-emoji" "ttf-font-awesome" "noto-fonts" "noto-fonts-cjk" "noto-fonts-extra" "ttf-liberation" ttf-liberation-mono-nerd)
+arch_fonts=("ttf-jetbrains-mono" "noto-fonts-emoji" "ttf-font-awesome" "noto-fonts-extra" "ttf-liberation" ttf-liberation-mono-nerd)
 arch_aur_fonts=("ttf-cascadia-mono-nerd" "ttf-ia-writer")
 macos_cask_fonts=("font-jetbrains-mono-nerd" "font-symbols-only-nerd-font" "font-caskaydia-mono-nerd-font" "font-iosevka" "font-ia-writer-mono")
 debian_fonts=("fonts-jetbrains-mono" "fonts-noto-color-emoji" "fonts-font-awesome" "fonts-liberation2")
@@ -304,6 +307,9 @@ finalize_setup() {
             log_error "Failed to change default shell."
         fi
     fi
+
+    log_info "Running setup scripts..."
+    bash "$SCRIPT_DIR/install/setup.sh"
 }
 
 # --- Main Function ---
