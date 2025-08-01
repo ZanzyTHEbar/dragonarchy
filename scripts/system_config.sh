@@ -653,6 +653,18 @@ setup_user_config() {
     log_success "User configuration completed"
 }
 
+setup_plymouth() {
+    log_info "Setting up Plymouth..."
+    local plymouth_script="$SCRIPT_DIR/install/setup/plymouth.sh"
+
+    if [ -f "$plymouth_script" ]; then
+        log_info "Running Plymouth setup script..."
+        bash "$plymouth_script"
+    else
+        log_warning "Plymouth setup script not found at $plymouth_script"
+    fi
+}
+
 
 # Main function
 main() {
@@ -671,6 +683,8 @@ main() {
     setup_systemd_services
     echo
     setup_user_config
+    echo
+    setup_plymouth
     
     echo
     log_success "🎉 System configuration completed!"
