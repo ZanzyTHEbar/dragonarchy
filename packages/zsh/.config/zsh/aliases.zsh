@@ -231,7 +231,7 @@ alias unexport='unset'
 #######################################################
 
 showcalendarjd() {
-    export YEAR=2025
+    local YEAR=$(date +%Y)
     for monthly in "Jul" "Aug" "Sep" "Oct"; do
         gcal -j -s Mon -K --iso-week-number=yes ${monthly} ${YEAR}
         echo
@@ -239,7 +239,7 @@ showcalendarjd() {
 }
 
 showcalendarjdb() {
-    export YEAR=2025
+    local YEAR=$(date +%Y)
     for monthly in "Jul" "Aug" "Sep" "Oct"; do
         gcal -jb -s Mon -K --iso-week-number=yes ${monthly} ${YEAR}
         echo
@@ -247,7 +247,7 @@ showcalendarjdb() {
 }
 
 showcalendarcw() {
-    export YEAR=2025
+    local YEAR=$(date +%Y)
     for monthly in "Jul" "Aug" "Sep" "Oct"; do
         gcal -s Mon -K --iso-week-number=yes ${monthly} ${YEAR}
         echo
