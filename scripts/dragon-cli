@@ -3,7 +3,7 @@
 PATH="$PATH:$(dirname "$0")/theme-manager"
 
 main_menu() {
-  local options=("Theme" "Cursors" "Update" "Setup" "Power Menu" "Keybindings" "Font Menu" "Exit")
+  local options=("Theme" "Cursors" "Utilities" "Update" "Setup" "Power Menu" "Keybindings" "Font Menu" "Exit")
   choice=$(printf "%s\n" "${options[@]}" | gum choose --header="") || exit 0
   case "$choice" in
   Theme) theme_menu ;;
@@ -11,6 +11,7 @@ main_menu() {
     "$(dirname "$0")/theme-manager/cursors/cursor-menu"
     main_menu
     ;;
+  Utilities) utilities_menu ;;
   Update)
     "$(dirname "$0")/install/update.sh"
     ack_command
@@ -34,6 +35,44 @@ main_menu() {
     main_menu
     ;;
   Exit) clear && exit 0 ;;
+  esac
+}
+
+utilities_menu() {
+  local options=("NFS" "Web Apps" "Docker DBs" "Secrets" "Add Migration" "Netbird" "Back")
+  choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Utilities") || main_menu
+  case "$choice" in
+  NFS)
+    "$(dirname "$0")/utilities/nfs.sh"
+    ack_command
+    utilities_menu
+    ;;
+  "Web Apps")
+    "$(dirname "$0")/utilities/web-apps.sh"
+    ack_command
+    utilities_menu
+    ;;
+  "Docker DBs")
+    "$(dirname "$0")/utilities/docker-dbs.sh"
+    ack_command
+    utilities_menu
+    ;;
+  Secrets)
+    "$(dirname "$0")/utilities/secrets.sh"
+    ack_command
+    utilities_menu
+    ;;
+  "Add Migration")
+    "$(dirname "$0")/utilities/add-migration.sh"
+    ack_command
+    utilities_menu
+    ;;
+  Netbird)
+    "$(dirname "$0")/utilities/netbird-install.sh"
+    ack_command
+    utilities_menu
+    ;;
+  Back) main_menu ;;
   esac
 }
 
