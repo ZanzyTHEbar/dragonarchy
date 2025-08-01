@@ -18,6 +18,7 @@ PACKAGES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../packages" && pwd)"
 # --- Packages to Stow ---
 SYSTEM_PACKAGES=(
     "plymouth"
+    "theme-manager"
 )
 
 # --- Stow Logic ---
