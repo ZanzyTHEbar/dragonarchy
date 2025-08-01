@@ -12,4 +12,10 @@ echo "Running setup for goldendragon..."
 echo "Installing GUI NetBird client..."
 bash "$HOME/dotfiles/packages/netbird/install.sh"
 
+# Configure remote LUKS unlock
+if gum confirm "Configure remote LUKS unlock for this machine?"; then
+    echo "Configuring remote LUKS unlock..."
+    sudo "$HOME/dotfiles/scripts/utilities/dropbear-luks-unlock.sh"
+fi
+
 echo "Golden Dragon setup complete."
