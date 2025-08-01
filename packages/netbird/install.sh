@@ -14,9 +14,6 @@ curl -fsSL https://pkgs.netbird.io/install.sh | sh
 echo "Enabling and starting NetBird service..."
 sudo systemctl enable --now netbird
 
-# The 'netbird up' command is interactive and should be run by the user manually
-# after the installation script completes.
-
 # If we are not on a headless system, install the GUI client.
 if [ "$1" != "--headless" ]; then
     echo "Installing NetBird GUI..."
