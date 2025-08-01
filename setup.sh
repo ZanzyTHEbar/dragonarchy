@@ -238,6 +238,13 @@ setup_dotfiles() {
         "xournalpp"
         "typora"
         "themes"
+        "theme-manager"
+        "gpg"
+        "applications"
+        "icons-in-terminal"
+        "plymouth"
+        "tmux"
+        "zed"
     )
     
     # Install each package
@@ -451,12 +458,12 @@ main() {
     install_packages
     setup_dotfiles
     setup_host_config
-    setup_secrets
     configure_shell
     post_setup
     validate_installation
     
-    # Enhanced setup to include system configuration after other steps
+    # Lets make this secrets optional for now
+    #setup_secrets
     
     # System configuration (requires root)
     if [[ "$NO_SYSTEM_CONFIG" != "true" && "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
