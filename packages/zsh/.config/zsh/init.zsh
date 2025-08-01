@@ -73,29 +73,29 @@ zstyle ':completion:*:*:docker:*' option-stacking yes
 zstyle ':completion:*:*:docker-*:*' option-stacking yes
 
 # Load FZF if available
-if command -v fzf &> /dev/null; then
-    # Set up FZF key bindings and fuzzy completion
-    if [[ -f /usr/share/fzf/key-bindings.zsh ]]; then
-        source /usr/share/fzf/key-bindings.zsh
-    elif [[ -f /opt/homebrew/opt/fzf/shell/key-bindings.zsh ]]; then
-        source /opt/homebrew/opt/fzf/shell/key-bindings.zsh
-    fi
-    
-    if [[ -f /usr/share/fzf/completion.zsh ]]; then
-        source /usr/share/fzf/completion.zsh  
-    elif [[ -f /opt/homebrew/opt/fzf/shell/completion.zsh ]]; then
-        source /opt/homebrew/opt/fzf/shell/completion.zsh
-    fi
-    
-    # Custom FZF configuration
-    export FZF_DEFAULT_OPTS="--info=inline-right --ansi --layout=reverse --border=rounded --color=border:#27a1b9 --color=fg:#c0caf5 --color=gutter:#16161e --color=header:#ff9e64 --color=hl+:#2ac3de --color=hl:#2ac3de --color=info:#545c7e --color=marker:#ff007c --color=pointer:#ff007c --color=prompt:#2ac3de --color=query:#c0caf5:regular --color=scrollbar:#27a1b9 --color=separator:#ff9e64 --color=spinner:#ff007c"
-    
-    # Use fd for file finding if available
-    if command -v fd &> /dev/null; then
-        export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
-        export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
-    fi
-fi
+# if command -v fzf &> /dev/null; then
+#     # Set up FZF key bindings and fuzzy completion
+#     if [[ -f /usr/share/fzf/key-bindings.zsh ]]; then
+#         source /usr/share/fzf/key-bindings.zsh
+#     elif [[ -f /opt/homebrew/opt/fzf/shell/key-bindings.zsh ]]; then
+#         source /opt/homebrew/opt/fzf/shell/key-bindings.zsh
+#     fi
+#     
+#     if [[ -f /usr/share/fzf/completion.zsh ]]; then
+#         source /usr/share/fzf/completion.zsh  
+#     elif [[ -f /opt/homebrew/opt/fzf/shell/completion.zsh ]]; then
+#         source /opt/homebrew/opt/fzf/shell/completion.zsh
+#     fi
+#     
+#     # Custom FZF configuration
+#     export FZF_DEFAULT_OPTS="--info=inline-right --ansi --layout=reverse --border=rounded --color=border:#27a1b9 --color=fg:#c0caf5 --color=gutter:#16161e --color=header:#ff9e64 --color=hl+:#2ac3de --color=hl:#2ac3de --color=info:#545c7e --color=marker:#ff007c --color=pointer:#ff007c --color=prompt:#2ac3de --color=query:#c0caf5:regular --color=scrollbar:#27a1b9 --color=separator:#ff9e64 --color=spinner:#ff007c"
+#     
+#     # Use fd for file finding if available
+#     if command -v fd &> /dev/null; then
+#         export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
+#         export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+#     fi
+# fi
 
 # Set up direnv if available
 if command -v direnv &> /dev/null; then
