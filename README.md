@@ -1,6 +1,7 @@
 # Traditional Dotfiles Management with GNU Stow
 
 This is a port of the previous Nix-based configuration to use traditional tools:
+
 - **GNU Stow** for dotfiles/configuration management
 - **Zsh scripts** for automation and setup
 - **age/sops** for secrets management (keeping existing approach)
@@ -26,7 +27,7 @@ cd ~/dotfiles
 stow-config/
 ├── packages/           # Stow packages (dotfiles)
 │   ├── zsh/           # Zsh configuration
-│   ├── git/           # Git configuration  
+│   ├── git/           # Git configuration
 │   ├── kitty/         # Kitty terminal
 │   ├── nvim/          # Neovim configuration
 │   ├── ssh/           # SSH configuration
@@ -62,6 +63,7 @@ stow-config/
 ## Migration from Nix
 
 This setup provides the same functionality as the previous Nix configuration:
+
 - All packages from `common-packages.nix` are installed via platform package managers
 - All Home Manager configurations are ported to Stow packages
 - Host-specific configurations are preserved
@@ -78,4 +80,4 @@ To connect to your network, you will need to run the `netbird` command and follo
 
 - **Linux**: CachyOS, Arch Linux, other Arch-based distros
 - **macOS**: via Homebrew
-- **Other Linux**: Partial support via common package managers 
+- **Other Linux**: Partial support via common package managers
