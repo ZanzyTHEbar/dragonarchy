@@ -306,7 +306,7 @@ setup_secrets() {
     log_step "Setting up secrets management..."
     
     if [[ -x "$SCRIPTS_DIR/secrets.sh" ]]; then
-        "$SCRIPTS_DIR/secrets.sh" --setup
+        "$SCRIPTS_DIR/secrets.sh" setup
     else
         log_warning "Secrets management script not found, skipping"
     fi
@@ -439,6 +439,12 @@ main() {
     log_info "🚀 Starting Dotfiles Management Setup"
     log_info "Configuration directory: $CONFIG_DIR"
     echo
+
+    # Detect host if not specified via arguments
+    if [[ -z "$HOST" ]]; then
+        HOST=$(detect_host)
+        log_info "No host specified, detected host: $HOST"
+    fi
     
     # Run setup steps
     check_prerequisites

@@ -42,6 +42,10 @@ ln -snf ~/.config/current/theme/btop.theme ~/.config/btop/themes/current.theme
 mkdir -p ~/.config/walker/themes
 ln -snf ~/.config/current/theme/walker.css ~/.config/walker/themes/current.css
 
+# Set GTK theme for Nemo
+mkdir -p ~/.config/gtk-3.0
+ln -snf ~/.config/current/theme/gtk.css ~/.config/gtk-3.0/gtk.css
+
 # Trigger alacritty config reload
 touch "$HOME/.config/alacritty/alacritty.toml"
 
@@ -53,6 +57,10 @@ pkill -SIGUSR2 waybar
 # makoctl reload
 hyprctl reload
 swaync-client -R
+if pgrep -x "nemo" > /dev/null; then
+    nemo -q
+    setsid nemo &>/dev/null &
+fi
 
 # Set new background
 "$(dirname "$0")/theme-bg-next"

@@ -1,0 +1,12 @@
+/*
+ * Catppuccin-latte GTK CSS
+ *
+ * This file is managed by the dotfiles theme-manager.
+ * Any manual changes will be overwritten.
+ */
+
+/* Nemo specific styles */
+.nemo-window .sidebar .view {
+  background-color: #eff1f5;
+  color: #4c4f69;
+}

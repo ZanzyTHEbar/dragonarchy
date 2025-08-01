@@ -43,6 +43,21 @@ detect_platform() {
     esac
 }
 
+# Detect current host
+detect_host() {
+    local hostname
+    hostname=$(hostname | cut -d. -f1)
+    
+    case "$hostname" in
+        dragon|spacedragon|dragonsmoon|goldendragon)
+            echo "$hostname"
+            ;;
+        *)
+            echo "unknown"
+            ;;
+    esac
+}
+
 command_exists() { 
     command -v "$1" >/dev/null 2>&1 
 }
@@ -61,22 +76,23 @@ install_pacman() {
     fi
 }
 
-install_yay() {
-    command_exists yay || {
-        log_info "AUR helper 'yay' not found, installing..."
-        local tmp_dir=$(mktemp -d)
+install_paru() {
+    command_exists paru || {
+        log_info "AUR helper 'paru' not found, installing..."
+        local tmp_dir
+        tmp_dir=$(mktemp -d)
         sudo pacman -S --needed --noconfirm git base-devel
-        git clone https://aur.archlinux.org/yay.git "$tmp_dir" && (cd "$tmp_dir" && makepkg -si --noconfirm)
+        git clone https://aur.archlinux.org/paru.git "$tmp_dir" && (cd "$tmp_dir" && makepkg -si --noconfirm)
         rm -rf "$tmp_dir"
-        log_success "'yay' installed."
+        log_success "'paru' installed."
     }
-    log_info "Installing with yay: $*"
+    log_info "Installing with paru: $*"
     local pkgs_to_install=()
     for pkg in "$@"; do
-        yay -Qi "$pkg" &>/dev/null || pkgs_to_install+=("$pkg")
+        paru -Qi "$pkg" &>/dev/null || pkgs_to_install+=("$pkg")
     done
     if [[ ${#pkgs_to_install[@]} -gt 0 ]]; then
-        yay -S --noconfirm --needed "${pkgs_to_install[@]}"
+        paru -S --noconfirm --needed --removemake --sudoloop "${pkgs_to_install[@]}"
     else
         log_info "All AUR packages already installed."
     fi
@@ -138,12 +154,6 @@ install_additional_tools() {
         go install github.com/jesseduffield/lazygit@latest
     }
 
-    # Rust tools
-    command_exists cargo && {
-        log_info "Installing Rust tools..."
-        cargo install lsd bat ripgrep zoxide eza dua-cli git-delta
-    }
-
     # Binaries
     command_exists age || {
         log_info "Installing age binary..."
@@ -185,22 +195,42 @@ dev_debian=("golang-go" "ansible" "gh" "terraform" "pipx")
 pipx_packages=("poetry" "black" "flake8" "mypy")
 
 # Hyprland specific
-hyprland_arch=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "cargo" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "egl-wayland" "evince" "fcitx5-gtk" "fcitx5-im" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot" "imagemagick" "imv" "inetutils" "iwd" "kitty" "kvantum" "lazygit" "less" "libqalculate" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt5-wayland" "qt6-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "system-config-printer" "tealdear" "tree-sitter-cli" "tzupdate" "ufw" "ufw-docker" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "wl-screenrec" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
-hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "typora" "walker-bin" "wiremix" "wl-clipboard" "xournalpp" "zoom")
+hyprland_arch=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot" "imagemagick" "imv" "inetutils" "iwd" "kitty" "kvantum" "lazygit" "less" "libqalculate" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt5-wayland" "qt6-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "system-config-printer" "tree-sitter-cli" "tzupdate" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
+hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom")
+
+install_rust_tools() {
+    if command_exists rustup; then
+        log_info "Installing Rust stable toolchain..."
+        rustup toolchain install stable
+        rustup default stable
+    fi
+    
+    command_exists cargo && {
+        log_info "Installing Rust tools..."
+        cargo install lsd bat ripgrep zoxide eza dua-cli git-delta
+    }
+}
 
 # --- OS-Specific Installation Functions ---
 install_for_arch() {
     local host="$1"
+    local hyprland_hosts=("dragon" "spacedragon" "goldendragon")
     log_info "Updating pacman repositories..." && sudo pacman -Sy
     
     install_pacman "${core_cli_arch[@]}" "${dev_arch[@]}" "${arch_fonts[@]}"
-    install_yay "${gui_aur[@]}" "${arch_aur_fonts[@]}"
+    
+    # Install Rust tools before AUR packages
+    if [[ " ${hyprland_hosts[@]} " =~ " ${host} " ]]; then
+        install_rust_tools
+    fi
+    
+    install_paru "${gui_aur[@]}" "${arch_aur_fonts[@]}"
 
-    if [[ "$host" == "hyprland" ]]; then
+    if [[ " ${hyprland_hosts[@]} " =~ " ${host} " ]]; then
         log_info "Installing Hyprland specific packages for Arch..."
         add_chaotic_aur
         install_pacman "${hyprland_arch[@]}"
-        install_yay "${hyprland_aur[@]}"
+        install_paru "${hyprland_aur[@]}"
     fi
 }
 
@@ -214,7 +244,6 @@ install_for_debian() {
     install_apt "${core_cli_debian[@]}" "${dev_debian[@]}" "${debian_fonts[@]}"
     install_additional_tools
 }
-
 
 # --- Post-Install Setup ---
 setup_development_environments() {
@@ -235,8 +264,13 @@ setup_development_environments() {
         log_info "Installing Python tools via pipx..."
         for pkg in "${pipx_packages[@]}"; do
             if pipx list --json | jq -e ".venvs.\"$pkg\"" >/dev/null; then
-                log_info "Upgrading $pkg..."
-                pipx upgrade "$pkg" || true
+                # Check if the package is installed, and the current version is the latest
+                if pipx list --json | jq -e ".venvs.\"$pkg\".metadata.version" | grep -q "$(pipx list --json | jq -e ".venvs.\"$pkg\".metadata.version")"; then
+                    log_info "$pkg is already up to date."
+                else
+                    log_info "Upgrading $pkg..."
+                    pipx upgrade "$pkg" || true
+                fi
             else
                 log_info "Installing $pkg..."
                 pipx install "$pkg"
@@ -274,9 +308,30 @@ finalize_setup() {
 
 # --- Main Function ---
 main() {
-    local platform=$(detect_platform)
+    local platform
+    platform=$(detect_platform)
     local host=""
-    [[ "$1" == "--host" && -n "$2" ]] && host="$2"
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --host)
+                if [[ -n "$2" ]]; then
+                    host="$2"
+                    shift 2
+                else
+                    log_error "Missing host argument for --host"
+                    log_info "Available hosts: $(detect_host)"
+                    log_info "Usage: $0 --host <host>"
+                    exit 1
+                fi
+                ;;
+            *)
+                # Ignore unknown arguments
+                shift
+                ;;
+        esac
+    done
 
     log_info "Starting package installation on $platform (Host: ${host:-generic})..."
 

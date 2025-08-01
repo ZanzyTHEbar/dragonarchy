@@ -1,0 +1,12 @@
+/*
+ * Rose-pine GTK CSS
+ *
+ * This file is managed by the dotfiles theme-manager.
+ * Any manual changes will be overwritten.
+ */
+
+/* Nemo specific styles */
+.nemo-window .sidebar .view {
+  background-color: #faf4ed;
+  color: #575279;
+}

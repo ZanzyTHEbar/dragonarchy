@@ -1,0 +1,12 @@
+/*
+ * Everforest GTK CSS
+ *
+ * This file is managed by the dotfiles theme-manager.
+ * Any manual changes will be overwritten.
+ */
+
+/* Nemo specific styles */
+.nemo-window .sidebar .view {
+  background-color: #2d353b;
+  color: #d3c6aa;
+}
