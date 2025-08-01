@@ -6,7 +6,7 @@ set -e
 # --- Header and Logging ---
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1" }
+log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
 
 log_info "Select databases to launch as Docker containers."
 options=("MariaDB" "MySQL" "Redis" "PostgreSQL")

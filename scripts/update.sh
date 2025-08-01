@@ -7,7 +7,7 @@ set -e
 # Colors for output
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1" }
+log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
 
 # --- Migration Setup ---
 REPO_ROOT=$(git rev-parse --show-toplevel)

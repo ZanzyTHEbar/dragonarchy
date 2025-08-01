@@ -7,8 +7,8 @@ set -e
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1" }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1" }
+log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 
 # --- Web App Functions ---
 web2app() {

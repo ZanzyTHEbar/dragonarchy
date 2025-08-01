@@ -1,10 +1,11 @@
 [Unit]
-Description=Run battery monitor every 30 seconds
+Description=Dragon Battery Monitor Timer
+Requires=dragon-battery-monitor.service
 
 [Timer]
 OnBootSec=1min
-OnUnitActiveSec=30s
-Unit=battery-monitor.service
+OnUnitActiveSec=30sec
+AccuracySec=10sec
 
 [Install]
 WantedBy=timers.target
