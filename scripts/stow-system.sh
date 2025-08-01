@@ -1,5 +1,5 @@
 #!/bin/bash
-# Handles stowing packages that need to be installed system-wide.
+# Handles stowing packages that need to be installed system-wide. 
 
 set -e
 
@@ -18,7 +18,6 @@ PACKAGES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../packages" && pwd)"
 # --- Packages to Stow ---
 SYSTEM_PACKAGES=(
     "plymouth"
-    "theme-manager"
 )
 
 # --- Stow Logic ---
