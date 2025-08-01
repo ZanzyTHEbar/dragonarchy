@@ -64,7 +64,7 @@ Traditional Dotfiles Management Setup Script
 OPTIONS:
     -h, --help              Show this help message
     -v, --verbose           Enable verbose output
-    --host HOST             Setup for specific host (dragon, spacedragon, dragonsmoon)
+    --host HOST             Setup for specific host (dragon, spacedragon, microdragon, goldendragon)
     --packages-only         Only install packages
     --dotfiles-only         Only setup dotfiles
     --secrets-only          Only setup secrets
@@ -144,7 +144,7 @@ detect_host() {
     hostname=$(hostname | cut -d. -f1)
     
     case "$hostname" in
-        dragon|spacedragon|dragonsmoon)
+        dragon|spacedragon|dragonsmoon|microdragon|goldendragon)
             echo "$hostname"
             ;;
         *)
