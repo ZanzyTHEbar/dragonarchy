@@ -100,14 +100,14 @@ url = "https://github.com/abenz1267/walker"
 keywords = ["walker", "github"]
 
 [[builtins.bookmarks.entries]]
-label = "Omarchy - Github"
-url = "https://github.com/basecamp/omarchy"
-keywords = ["omarchy", "github"]
+label = "Dragon - Github"
+url = "https://github.com/basecamp/dragon"
+keywords = ["dragon", "github"]
 
 [[builtins.bookmarks.entries]]
-label = "Omarchy Manual"
-url = "https://manuals.omamix.org/2/the-omarchy-manual"
-keywords = ["omarchy"]
+label = "Dragon Manual"
+url = "https://manuals.omamix.org/2/the-dragon-manual"
+keywords = ["dragon"]
 
 [builtins.xdph_picker]
 hidden = true

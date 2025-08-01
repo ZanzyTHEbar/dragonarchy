@@ -22,8 +22,8 @@ fm() {
         Linux*)
             if command -v nautilus >/dev/null 2>&1; then
                 runfree nautilus "$path"
-            elif command -v dolphin >/dev/null 2>&1; then
-                runfree dolphin "$path"
+            elif command -v nemo >/dev/null 2>&1; then
+                runfree nemo "$path"
             elif command -v thunar >/dev/null 2>&1; then
                 runfree thunar "$path"
             else

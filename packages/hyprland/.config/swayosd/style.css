@@ -1,4 +1,4 @@
-@import "../omarchy/current/theme/swayosd.css";
+@import "../dragon/current/theme/swayosd.css";
 
 window {
   border-radius: 0;
@@ -9,7 +9,7 @@ window {
 }
 
 label {
-  font-family: 'CaskaydiaMono Nerd Font', monospace;
+  font-family: "CaskaydiaMono Nerd Font", monospace;
   font-size: 11pt;
 
   color: @label;

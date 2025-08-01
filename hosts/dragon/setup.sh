@@ -40,14 +40,6 @@ setup_dragon_packages() {
     
     # Desktop development tools
     local dragon_packages=(
-        # Desktop environment
-        "hyprland"
-        "hyprpaper"
-        "waybar"
-        "dunst"
-        "swaylock"
-        "swayidle"
-        
         # Development tools
         "docker"
         "docker-compose"

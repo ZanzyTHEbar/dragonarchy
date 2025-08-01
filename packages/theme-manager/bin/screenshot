@@ -16,7 +16,7 @@ OUTPUT_DIR="${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots"
 mkdir -p "$OUTPUT_DIR"
 
 # --- Main Logic ---
-# The logic from omarchy is excellent. It uses hyprshot for capturing,
+# The logic from dragon is excellent. It uses hyprshot for capturing,
 # satty for editing/annotating, and wl-copy for clipboard.
 pkill slurp || hyprshot -m "${1:-region}" --raw |
   satty --filename - \
