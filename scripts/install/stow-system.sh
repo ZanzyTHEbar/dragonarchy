@@ -12,13 +12,8 @@ log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 
-# --- Script Configuration ---
-PACKAGES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../packages" && pwd)"
-
 # --- Packages to Stow ---
-SYSTEM_PACKAGES=(
-    "plymouth"
-)
+SYSTEM_PACKAGES=( "" )
 
 # --- Stow Logic ---
 log_info "Stowing system packages..."
@@ -28,7 +23,16 @@ if ! command -v stow &>/dev/null; then
     exit 1
 fi
 
+# --- Script Configuration ---
+PACKAGES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../packages" && pwd)"
+
 cd "$PACKAGES_DIR"
+
+# Check if the SYSTEM_PACKAGES array is empty
+if [ ${#SYSTEM_PACKAGES[@]} -eq 0 ]; then
+    log_warning "No system packages to stow."
+    exit 0
+fi
 
 for package in "${SYSTEM_PACKAGES[@]}"; do
     if [ -d "$package" ]; then

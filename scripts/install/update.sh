@@ -48,6 +48,6 @@ yay -Syu --noconfirm
 
 # 4. Update Themes
 log_info "Updating all installed themes..."
-"$(dirname "$0")/../packages/theme-manager/bin/theme-update"
+"$(dirname "$0")/../theme-manager/theme-update"
 
 log_info "System update complete!"

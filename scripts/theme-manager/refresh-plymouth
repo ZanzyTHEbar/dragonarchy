@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Detect if theme is already installed
+if [[ -d "/usr/share/plymouth/themes/dragon" ]]; then
+  echo "Plymouth theme is already installed, Refreshing..."
+  
+   if [[ "$1" == "-y" ]] || gum confirm "Refresh Plymouth theme? This will replace your current startup screen with Dragon defaults."; then
+     sudo cp ~/dotfiles/scripts/theme-manager/plymouth/dragon/* /usr/share/plymouth/themes/dragon/
+     sudo plymouth-set-default-theme -R dragon
+   fi
+
+  exit 0
+else
+  echo "Plymouth theme is not installed, Installing..."
+  sudo cp -r ~/dotfiles/scripts/theme-manager/plymouth/dragon /usr/share/plymouth/themes/
+  sudo plymouth-set-default-theme -R dragon
+fi
+
+exit 0
