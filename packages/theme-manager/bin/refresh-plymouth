@@ -1,0 +1,6 @@
+#!/bin/bash
+
+if [[ "$1" == "-y" ]] || gum confirm "Refresh Plymouth theme? This will replace your current startup screen with Dragon defaults."; then
+  sudo cp ~/dotfiles/packages/plymouth/dragon/* /usr/share/plymouth/themes/dragon/
+  sudo plymouth-set-default-theme -R dragon
+fi
