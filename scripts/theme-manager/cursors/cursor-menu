@@ -1,0 +1,80 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" &>/dev/null && pwd)"
+
+show_cursor_menu() {
+    local options=("Pick" "Install" "Remove" "Back")
+    local choice
+    choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Cursor Theme")
+    
+    case "$choice" in
+        Pick)
+            pick_cursor
+            ;;
+        Install)
+            install_cursor
+            ;;
+        Remove)
+            remove_cursor
+            ;;
+        Back)
+            return
+            ;;
+    esac
+}
+
+pick_cursor() {
+    local installed_cursors
+    installed_cursors=($(find "$HOME/.local/share/icons" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;))
+    
+    if [[ ${#installed_cursors[@]} -eq 0 ]]; then
+        gum confirm "No cursors installed. Install one?" && install_cursor
+        return
+    fi
+    
+    local selected_cursor
+    selected_cursor=$(printf "%s\n" "${installed_cursors[@]}" | gum choose --header="Select a cursor theme")
+    
+    if [[ -n "$selected_cursor" ]]; then
+        bash "$SCRIPT_DIR/set-cursor.sh" "$selected_cursor"
+        gum spin --spinner "dot" --title "Cursor set to $selected_cursor" -- sleep 1
+    fi
+    show_cursor_menu
+}
+
+install_cursor() {
+    local available_cursors
+    available_cursors=($(find "$SCRIPT_DIR" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;))
+    
+    local cursor_to_install
+    cursor_to_install=$(printf "%s\n" "${available_cursors[@]}" | gum choose --header="Select a cursor to install")
+    
+    if [[ -n "$cursor_to_install" ]]; then
+        bash "$SCRIPT_DIR/$cursor_to_install/install.sh"
+        gum spin --spinner "dot" --title "Installed $cursor_to_install" -- sleep 1
+    fi
+    show_cursor_menu
+}
+
+remove_cursor() {
+    local installed_cursors
+    installed_cursors=($(find "$HOME/.local/share/icons" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;))
+    
+    if [[ ${#installed_cursors[@]} -eq 0 ]]; then
+        echo "No cursors to remove."
+        return
+    fi
+    
+    local cursor_to_remove
+    cursor_to_remove=$(printf "%s\n" "${installed_cursors[@]}" | gum choose --header="Select a cursor to remove")
+    
+    if [[ -n "$cursor_to_remove" ]]; then
+        rm -rf "$HOME/.local/share/icons/$cursor_to_remove"
+        gum spin --spinner "dot" --title "Removed $cursor_to_remove" -- sleep 1
+    fi
+    show_cursor_menu
+}
+
+show_cursor_menu

@@ -199,7 +199,7 @@ pipx_packages=("poetry" "black" "flake8" "mypy")
 
 # Hyprland specific
 hyprland_arch=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot" "imagemagick" "imv" "inetutils" "iwd" "kitty" "kvantum" "lazygit" "less" "libqalculate" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt5-wayland" "qt6-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "system-config-printer" "tree-sitter-cli" "tzupdate" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
-hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom")
+hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme")
 
 install_rust_tools() {
     if command_exists rustup; then
@@ -309,7 +309,7 @@ finalize_setup() {
     fi
 
     log_info "Running setup scripts..."
-    bash "$SCRIPT_DIR/install/setup.sh"
+    bash "$SCRIPT_DIR/setup.sh"
 }
 
 # --- Main Function ---

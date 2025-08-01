@@ -7,7 +7,7 @@ if [[ -z "$1" ]]; then
   exit 1
 fi
 
-THEMES_DIR="$(dirname "$0")/../../themes/.config/themes"
+THEMES_DIR="$(dirname "$0")/../../packages/themes/.config/themes"
 CURRENT_THEME_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
 
 THEME_NAME="$1"

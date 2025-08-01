@@ -1,18 +1,26 @@
 #!/bin/bash
 
-PATH="$PATH:$(pwd)/packages/theme-manager/bin"
+PATH="$PATH:$(dirname "$0")/theme-manager"
 
 main_menu() {
-  local options=("Theme" "Update" "Setup" "Power Menu" "Keybindings" "Font Menu" "Exit")
+  local options=("Theme" "Cursors" "Update" "Setup" "Power Menu" "Keybindings" "Font Menu" "Exit")
   choice=$(printf "%s\n" "${options[@]}" | gum choose --header="") || exit 0
   case "$choice" in
   Theme) theme_menu ;;
+  Cursors)
+    "$(dirname "$0")/theme-manager/cursors/cursor-menu"
+    main_menu
+    ;;
   Update)
-    "$(dirname "$0")/update.sh"
+    "$(dirname "$0")/install/update.sh"
     ack_command
     main_menu
     ;;
-  Setup) setup_menu ;;
+  Setup)
+    "$(dirname "$0")/../setup.sh"
+    ack_command
+    main_menu
+    ;;
   "Power Menu")
     power-menu
     main_menu
@@ -28,29 +36,6 @@ main_menu() {
   Exit) clear && exit 0 ;;
   esac
 }
-
-setup_menu() {
-  local options=("Steam (Enable Multilib)" "Docker Databases" "Fingerprint Sensor" "FIDO2 Device" "User & Git Config" "Keyboard Layout" "Power Management" "Default Applications" "Web App Launchers" "Seamless Boot (Plymouth)" "System Services" "Pacman Tweaks" "Back")
-  choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Setup") || main_menu
-  case "$choice" in
-  "Steam (Enable Multilib)") "$(dirname "$0")/install/setup/steam.sh" ;;
-  "Docker Databases") "$(dirname "$0")/install/setup/docker-dbs.sh" ;;
-  "Fingerprint Sensor") "$(dirname "$0")/install/setup/fingerprint.sh" ;;
-  "FIDO2 Device") "$(dirname "$0")/install/setup/fido2.sh" ;;
-  "User & Git Config") "$(dirname "$0")/install/setup/user-config.sh" ;;
-  "Keyboard Layout") "$(dirname "$0")/install/setup/keyboard.sh" ;;
-  "Power Management") "$(dirname "$0")/install/setup/power-management.sh" ;;
-  "Default Applications") "$(dirname "$0")/install/setup/default-apps.sh" ;;
-  "Web App Launchers") "$(dirname "$0")/install/setup/web-apps.sh" ;;
-  "Seamless Boot (Plymouth)") "$(dirname "$0")/install/setup/plymouth.sh" ;;
-  "System Services") "$(dirname "$0")/install/setup/system-services.sh" ;;
-  "Pacman Tweaks") "$(dirname "$0")/install/setup/pacman-tweaks.sh" ;;
-  "Back") main_menu ;;
-  esac
-  ack_command
-  setup_menu
-}
-
 
 theme_menu() {
   local options=("Pick" "Install" "Update" "Remove" "Back")
