@@ -653,6 +653,19 @@ setup_user_config() {
     log_success "User configuration completed"
 }
 
+# Setup networking configuration
+setup_networking() {
+    log_info "Setting up networking configuration..."
+
+    # Run netbird install script
+    if [[ -f "$CONFIG_DIR/packages/netbird/install.sh" ]]; then
+        bash "$CONFIG_DIR/packages/netbird/install.sh"
+    fi
+
+    log_success "Networking configuration completed"
+}
+
+
 # Main function
 main() {
     echo
@@ -670,6 +683,8 @@ main() {
     setup_systemd_services
     echo
     setup_user_config
+    echo
+    setup_networking
     
     echo
     log_success "🎉 System configuration completed!"

@@ -44,6 +44,7 @@ stow-config/
 - ✅ **Host-Specific**: Different configs per machine
 - ✅ **Secrets Management**: Encrypted secrets with age/sops
 - ✅ **Package Management**: Platform-appropriate package installation
+- ✅ **Networking**: NetBird integration for secure networking
 - ✅ **Modular**: Enable/disable components as needed
 
 ## Commands
@@ -66,6 +67,12 @@ This setup provides the same functionality as the previous Nix configuration:
 - Host-specific configurations are preserved
 - Secrets management workflow remains the same
 - Automation scripts replace the justfile functionality
+
+## Networking with NetBird
+
+This setup includes NetBird for creating a secure peer-to-peer VPN. The `system_config.sh` script will automatically install and enable the NetBird service.
+
+To connect to your network, you will need to run the `netbird` command and follow the instructions.
 
 ## Supported Platforms
 
