@@ -23,7 +23,7 @@ alias mem-usage='free -h && echo && ps aux --sort=-%mem | head -10'
 # Dragon-specific environment variables
 export GAMING_MODE=true
 export GPU_TYPE="AMD"
-export DESKTOP_SESSION="plasma"
+export DESKTOP_SESSION="wayland"
 
 # Load gaming-specific functions
 if [[ -f "$HOME/.config/functions/gaming-utils.zsh" ]]; then
