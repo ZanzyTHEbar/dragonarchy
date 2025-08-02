@@ -74,4 +74,7 @@ COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
 # Load icons
 [[ -f "$HOME/.config/icons-in-terminal/icons_bash.sh" ]] && source "$HOME/.config/icons-in-terminal/icons_bash.sh"
 
-unalias zi
+# Load .p10k.zsh
+[[ -f "$HOME/.config/zsh/.p10k.zsh" ]] && source "$HOME/.config/zsh/.p10k.zsh"
+
+unalias zi 2>/dev/null
