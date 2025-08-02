@@ -42,15 +42,16 @@ else
     )
     # Clean up the temporary directory
     rm -rf "$INSTALL_DIR"
+
+    # Now that the package is installed, we need to ensure the service is running.
+    echo "Ensuring the NetBird service is enabled and running..."
+
+    # Install the service
+    sudo netbird service install
+    sudo netbird service start
+
+    sudo systemctl enable netbird
 fi
-
-# Now that the package is installed, we need to ensure the service is running.
-echo "Ensuring the NetBird service is enabled and running..."
-
-sudo netbird service install
-sudo netbird service start
-
-sudo systemctl enable netbird
 
 echo "NetBird installation complete."
 echo

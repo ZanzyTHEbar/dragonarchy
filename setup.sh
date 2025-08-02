@@ -242,6 +242,7 @@ setup_dotfiles() {
         "icons-in-terminal"
         "tmux"
         "zed"
+        "dragon-cli"
     )
     
     # Install each package

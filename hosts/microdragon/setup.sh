@@ -8,9 +8,9 @@ set -e
 
 echo "Running setup for microdragon..."
 
-# Install headless NetBird client
-echo "Installing headless NetBird client..."
-bash "$HOME/dotfiles/packages/netbird/install.sh" --headless
+# Install NetBird
+echo "Installing NetBird ..."
+bash "$HOME/dotfiles/scripts/utilities/netbird-install.sh"
 
 # Enable IP forwarding
 echo "Enabling IP forwarding..."
