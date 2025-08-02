@@ -4,7 +4,7 @@ if [[ ! "$PATH" == */usr/bin/fzf* ]]; then
   # Add fzf to path if not already there
   if command -v fzf >/dev/null 2>&1; then
     # FZF is installed via package manager
-    export FZF_BASE=$(dirname $(which fzf))
+    export FZF_BASE=$(dirname $(command which fzf))
   fi
 fi
 

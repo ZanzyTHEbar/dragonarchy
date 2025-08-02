@@ -185,14 +185,6 @@ alias gp=gitpush
 alias gu=gitupdate
 alias update-grub='sudo grub-mkconfig -o /boot/grub/grub.cfg'
 
-
-
-
-
-
-
-
-
 #######################################################
 # Global Aliases (ZSH specific)
 #######################################################
