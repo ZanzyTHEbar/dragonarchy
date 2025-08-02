@@ -146,3 +146,6 @@ case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
+
+
+[ "$TERM" = "xterm-kitty" ] && alias ssh="kitty +kitten ssh"

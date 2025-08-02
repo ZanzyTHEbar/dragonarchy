@@ -12,4 +12,13 @@ echo "Running setup for dragon..."
 echo "Installing NetBird ..."
 bash "$HOME/dotfiles/scripts/utilities/netbird-install.sh"
 
+# Copy host-specific system configs
+echo "Copying host-specific system configs..."
+sudo cp -rT "$HOME/dotfiles/hosts/dragon/etc/" /etc/
+
+# Apply DNS changes
+echo "Restarting systemd-resolved to apply DNS changes..."
+sudo systemctl restart systemd-resolved
+
+
 echo "Dragon setup complete."
