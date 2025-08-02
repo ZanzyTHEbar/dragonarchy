@@ -48,7 +48,6 @@ ZVM_NORMAL_MODE_CURSOR=$ZVM_CURSOR_BLINKING_BLOCK
 ZVM_OPPEND_MODE_CURSOR=$ZVM_CURSOR_BLINKING_UNDERLINE
 
 # Replay zinit completions
-zinit creinstall -q zsh-users/zsh-completions
 zinit cdreplay -q
 
 # Load function files
@@ -74,3 +73,5 @@ COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
 
 # Load icons
 [[ -f "$HOME/.config/icons-in-terminal/icons_bash.sh" ]] && source "$HOME/.config/icons-in-terminal/icons_bash.sh"
+
+unalias zi
