@@ -2,7 +2,7 @@
 Version=1.0
 Name=Docker
 Comment=Manage Docker containers with LazyDocker
-Exec=alacritty --class=Docker --title=Docker -e lazydocker
+Exec=kitty --class=Docker --title=Docker lazydocker
 Terminal=false
 Type=Application
 Icon=Docker

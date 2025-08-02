@@ -8,8 +8,8 @@ set -e
 
 echo "Running setup for dragon..."
 
-# Install GUI NetBird client
-echo "Installing GUI NetBird client..."
-bash "$HOME/dotfiles/packages/netbird/install.sh"
+# Install NetBird
+echo "Installing NetBird ..."
+bash "$HOME/dotfiles/scripts/utilities/netbird-install.sh"
 
 echo "Dragon setup complete."

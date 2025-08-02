@@ -559,16 +559,16 @@ vm.dirty_background_ratio = 5
 vm.dirty_ratio = 10
 
 # Network performance
-net.core.rmem_max = 16777216
-net.core.wmem_max = 16777216
-net.core.rmem_default = 262144
-net.core.wmem_default = 262144
-net.core.netdev_max_backlog = 5000
-
-# TCP optimizations
-net.ipv4.tcp_rmem = 4096 65536 16777216
-net.ipv4.tcp_wmem = 4096 65536 16777216
-net.ipv4.tcp_congestion_control = bbr
+#net.core.rmem_max = 16777216
+#net.core.wmem_max = 16777216
+#net.core.rmem_default = 262144
+#net.core.wmem_default = 262144
+#net.core.netdev_max_backlog = 5000
+#
+## TCP optimizations
+#net.ipv4.tcp_rmem = 4096 65536 16777216
+#net.ipv4.tcp_wmem = 4096 65536 16777216
+#net.ipv4.tcp_congestion_control = bbr
 
 # File system performance
 fs.file-max = 2097152
