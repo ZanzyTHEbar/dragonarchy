@@ -47,10 +47,16 @@ else
     echo "Ensuring the NetBird service is enabled and running..."
 
     # Install the service
-    sudo netbird service install
     sudo netbird service start
 
     sudo systemctl enable netbird
+
+    # We need to fix systemd-resolved to use the correct DNS servers. https://github.com/netbirdio/netbird/issues/1483#issuecomment-2774324545
+    sudo mv /etc/resolv.conf /etc/resolv.conf.bak
+
+    sudo ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+
+    sudo systemctl restart netbird
 fi
 
 echo "NetBird installation complete."
