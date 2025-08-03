@@ -171,6 +171,17 @@ install_apt() {
     fi
 }
 
+# --- Application-Specific Installers ---
+install_cursor_app() {
+    log_info "Installing Cursor..."
+    if command -v cursor >/dev/null 2>&1; then
+        log_info "Cursor is already installed."
+    else
+        curl -fsSL https://raw.githubusercontent.com/watzon/cursor-linux-installer/main/install.sh | bash -s -- latest
+        log_success "Cursor installed successfully."
+    fi
+}
+
 # --- Additional Tool Installation (for Debian/source) ---
 install_additional_tools() {
     log_info "Installing additional tools from source or binary..."
@@ -233,6 +244,7 @@ install_for_arch() {
         add_chaotic_aur
         install_pacman "${hyprland_arch[@]}"
         install_paru "${hyprland_aur[@]}"
+        install_cursor_app
     fi
 }
 
