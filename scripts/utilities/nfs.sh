@@ -14,7 +14,7 @@ readonly NFS_SERVER_DRAGONNET="$NFS_SERVER_HOST:$NFS_SERVER_BASE/data"
 readonly NFS_SERVER_COMMON="$NFS_SERVER_HOST:$NFS_SERVER_BASE/common"
 
 # NFS mount options optimized for performance and reliability
-readonly NFS_OPTIONS="nfs4 rw,async,rsize=65536,wsize=65536,proto=tcp,vers=4.1,noatime,actimeo=10,intr,cto,soft,timeo=200,retrans=3,x-systemd.automount,x-systemd.idle-timeout=60,_netdev 0 0"
+readonly NFS_OPTIONS="nfs4 rw,async,rsize=65536,wsize=65536,proto=tcp,vers=4.1,noatime,actimeo=10,intr,cto,soft,timeo=60,retrans=3,x-systemd.automount,x-systemd.idle-timeout=60,_netdev 0 0"
 
 # Fstab entries array
 readonly FSTAB_ENTRIES=(
