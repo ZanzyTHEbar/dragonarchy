@@ -386,16 +386,11 @@ post_setup() {
     fi
     
     log_info "Setting default theme to tokyo-night..."
-<<<<<<< Updated upstream
-    bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
-    bash "$SCRIPTS_DIR/install/setup/keyboard.sh"
-||||||| Stash base
-    bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
-
-=======
     dbus-run-session -- bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
 
->>>>>>> Stashed changes
+    #bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
+    bash "$SCRIPTS_DIR/install/setup/keyboard.sh"
+
     log_success "Post-setup tasks completed"
 }
 
