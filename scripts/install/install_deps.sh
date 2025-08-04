@@ -1,8 +1,4 @@
 #!/usr/bin/env sh
-#
-# File: packages/zsh/.config/zsh/install_deps.zsh
-#
-# Consolidated package and font installation script.
 
 set -euo pipefail
 
