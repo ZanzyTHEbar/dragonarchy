@@ -385,8 +385,8 @@ post_setup() {
         "$SCRIPTS_DIR/install/setup/post-install.sh"
     fi
     
-    log_info "Setting default theme to tokyo-night..."
-    dbus-run-session -- bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
+    #log_info "Setting default theme to tokyo-night..."
+    #dbus-run-session -- bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
 
     #bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
     bash "$SCRIPTS_DIR/install/setup/keyboard.sh"
