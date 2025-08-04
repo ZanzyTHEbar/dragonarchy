@@ -47,6 +47,7 @@ else
     echo "Ensuring the NetBird service is enabled and running..."
 
     # Install the service
+    sudo netbird service install
     sudo netbird service start
 
     sudo systemctl enable netbird
