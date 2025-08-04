@@ -27,11 +27,10 @@ run_script() {
 log_info "Starting setup orchestration..."
 
 run_script "default-apps.sh"
-run_script "keyboard.sh"
 run_script "pacman-tweaks.sh"
 run_script "power-management.sh"
 run_script "steam.sh"
 run_script "system-services.sh"
-run_script "user-config.sh"
+#run_script "user-config.sh"
 
 log_info "Setup orchestration complete."
