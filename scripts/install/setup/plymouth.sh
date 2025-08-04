@@ -55,13 +55,22 @@ if [ -d "/boot/loader/entries" ]; then
             fi
         fi
     done
-elif [ -f "/boot/limine.cfg" ]; then
+elif [ -f "/boot/limine.conf" ] || [ -f "/boot/limine/limine.conf" ]; then
     log_info "Detected Limine. Adding kernel parameters..."
-    if ! grep -q "quiet splash" /boot/limine.cfg; then
-        sudo sed -i '/^CMDLINE/ s/"$/ quiet splash"/' /boot/limine.cfg
-        log_info "Added 'quiet splash' to limine.cfg"
+    
+    # Determine the correct path for limine.conf
+    local limine_cfg_path=""
+    if [ -f "/boot/limine.conf" ]; then
+        limine_cfg_path="/boot/limine.conf"
     else
-        log_info "'quiet splash' already present in limine.cfg"
+        limine_cfg_path="/boot/limine/limine.conf"
+    fi
+
+    if ! grep -q "quiet splash" "$limine_cfg_path"; then
+        sudo sed -i '/^CMDLINE/ s/"$/ quiet splash"/' "$limine_cfg_path"
+        log_info "Added 'quiet splash' to $limine_cfg_path"
+    else
+        log_info "'quiet splash' already present in $limine_cfg_path"
     fi
 elif [ -f "/etc/default/grub" ]; then
     log_info "Detected GRUB. Adding kernel parameters..."
