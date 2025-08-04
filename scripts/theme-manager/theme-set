@@ -20,6 +20,7 @@ if [[ ! -d "$THEME_PATH" ]]; then
 fi
 
 # Update theme symlinks (for Alacritty, btop, etc.)
+mkdir -p "$(dirname "$CURRENT_THEME_DIR")"
 ln -nsf "$THEME_PATH" "$CURRENT_THEME_DIR"
 
 # "Compile" the dynamic theme colors into a static file for Hyprland to source
