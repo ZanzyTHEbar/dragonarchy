@@ -385,9 +385,6 @@ post_setup() {
         "$SCRIPTS_DIR/install/setup/post-install.sh"
     fi
     
-    log_info "Running plymouth setup scripts..."
-    bash "$SCRIPTS_DIR/install/setup/plymouth.sh"
-
     log_info "Setting default theme to tokyo-night..."
     bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
 
@@ -481,11 +478,11 @@ main() {
     check_prerequisites
     install_packages
     setup_dotfiles
+    setup_host_config
 
     log_info "Setting plymouth theme..."
     bash "$SCRIPTS_DIR/theme-manager/refresh-plymouth"
 
-    setup_host_config
     configure_shell
     post_setup
     validate_installation
