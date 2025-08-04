@@ -294,6 +294,9 @@ setup_host_config() {
     if [[ -d "$host_config_dir" ]]; then
         log_info "Loading host-specific configuration from $host_config_dir"
         
+        # Stow host-specific system files first
+        stow_system_packages
+        
         # Source host-specific setup script if it exists
         if [[ -f "$host_config_dir/setup.sh" ]]; then
             log_info "Running host-specific setup script..."
@@ -421,7 +424,6 @@ validate_installation() {
             "git"
             "nvim"
             "stow"
-            "jq"
         )
         
         for cmd in "${key_commands[@]}"; do
@@ -478,7 +480,6 @@ main() {
     check_prerequisites
     install_packages
     setup_dotfiles
-    stow_system_packages
 
     log_info "Setting plymouth theme..."
     bash "$SCRIPTS_DIR/theme-manager/refresh-plymouth"
