@@ -47,9 +47,9 @@ case "$PLATFORM" in
                 alias paci='sudo pacman -S'
                 alias pacr='sudo pacman -R'
                 alias pacclean='sudo pacman -Sc'
-                alias yayu='yay -Syu'
-                alias yays='yay -Ss'
-                alias yayi='yay -S'
+                alias paruu='paru -Syu'
+                alias parus='paru -Ss'
+                alias parui='paru -S'
                 ;;
             "ubuntu"|"debian")
                 # Debian-based distributions

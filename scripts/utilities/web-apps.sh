@@ -46,7 +46,7 @@ EOF
 
   chmod +x "$DESKTOP_FILE"
   log_success "Web app '$APP_NAME' created."
-  update-desktop-database "$DESKTOP_DIR"
+  sudo update-desktop-database "$DESKTOP_DIR"
 }
 
 web2app-remove() {
@@ -65,7 +65,7 @@ web2app-remove() {
     rm "$DESKTOP_FILE"
     rm "$ICON_PATH"
     log_success "Web app '$APP_NAME' removed."
-    update-desktop-database "$DESKTOP_DIR"
+    sudo update-desktop-database "$DESKTOP_DIR"
   else
     log_error "Web app '$APP_NAME' not found."
   fi

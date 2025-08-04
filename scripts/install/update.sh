@@ -43,8 +43,8 @@ if [ -d "$MIGRATIONS_DIR" ]; then
 fi
 
 # 3. Update System Packages
-log_info "Updating system packages with yay..."
-yay -Syu --noconfirm
+log_info "Updating system packages with paru..."
+paru -Syu --noconfirm
 
 # 4. Update Themes
 log_info "Updating all installed themes..."

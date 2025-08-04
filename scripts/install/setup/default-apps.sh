@@ -11,7 +11,21 @@ log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
 log_info "Setting default applications..."
 
 log_info "Updating application database..."
-update-desktop-database ~/.local/share/applications
+
+
+DIR="$HOME/.local/share/applications"
+
+if [[ ! -d "$DIR" ]]; then
+
+    log_info "$DIR directory does not exist"
+    log_info "Creating $DIR"
+    mkdir -p $DIR
+
+else
+    log_info "$DIR exists, proceeding ..."
+fi
+
+sudo update-desktop-database $DIR
 
 log_info "Setting default image viewer to 'imv'..."
 xdg-mime default imv.desktop image/png
