@@ -26,7 +26,7 @@ core_cli_macos=("vim" "neovim" "btop" "coreutils" "dua-cli" "duf" "entr" "fastfe
 core_cli_debian=("vim" "neovim" "btop" "coreutils" "fd-find" "fzf" "ripgrep" "stow" "unzip" "wget" "curl" "jq" "iperf3" "wakeonlan" "ffmpeg" "bat-cat" "zsh" "htop" "tmux" "tree" "rsync" "git" "zsh-autosuggestions" "zsh-syntax-highlighting" "kitty")
 
 # GUI
-gui_aur=("joplin-desktop" "difftastic" "visual-studio-code-bin" "visual-studio-code-insiders-bin")
+gui_aur=("joplin-desktop" "vivaldi" "difftastic" "visual-studio-code-bin" "visual-studio-code-insiders-bin")
 gui_cask=("kitty" "vivaldi" "visual-studio-code" "visual-studio-code-insiders" "joplin" "aerospace")
 
 # Development
