@@ -1,4 +1,4 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env sh
 #
 # File: packages/zsh/.config/zsh/install_deps.zsh
 #
