@@ -271,16 +271,11 @@ setup_development_environments() {
     
     # Python tools via pipx
     if command_exists pipx; then
-        log_info "Installing Python tools via pipx..."
+        log_info "Installing or upgrading Python tools via pipx..."
         for pkg in "${pipx_packages[@]}"; do
             if pipx list --json | jq -e ".venvs.\"$pkg\"" >/dev/null; then
-                # Check if the package is installed, and the current version is the latest
-                if pipx list --json | jq -e ".venvs.\"$pkg\".metadata.version" | grep -q "$(pipx list --json | jq -e ".venvs.\"$pkg\".metadata.version")"; then
-                    log_info "$pkg is already up to date."
-                else
-                    log_info "Upgrading $pkg..."
-                    pipx upgrade "$pkg" || true
-                fi
+                log_info "Upgrading $pkg..."
+                pipx upgrade "$pkg"
             else
                 log_info "Installing $pkg..."
                 pipx install "$pkg"
@@ -329,7 +324,7 @@ main() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --host)
-                if [[ -n "$2" ]]; then
+                if [[ -n "$2" && ! "$2" =~ ^-- ]]; then
                     host="$2"
                     shift 2
                 else
@@ -340,8 +335,9 @@ main() {
                 fi
                 ;;
             *)
-                # Ignore unknown arguments
-                shift
+                log_error "Unknown argument: $1"
+                log_info "Usage: $0 --host <host>"
+                exit 1
                 ;;
         esac
     done

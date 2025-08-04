@@ -10,7 +10,7 @@
 	tool = meld
 
 [pull]
-	rebase = true
+	rebase = false
 
 [push]
 	default = upstream

@@ -54,7 +54,6 @@ check_essential_commands() {
         "grep"
         "sed"
         "awk"
-        "jq"
     )
     
     for cmd in "${essential_commands[@]}"; do
