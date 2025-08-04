@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -210,7 +210,7 @@ install_additional_tools() {
 install_rust_tools() {
     if command_exists rustup; then
         log_info "Installing Rust stable toolchain..."
-        rustup toolchain install stable
+        rustup toolchain install stable -y
         rustup default stable
     fi
     
@@ -224,22 +224,19 @@ install_rust_tools() {
 install_for_arch() {
     local host="$1"
     local hyprland_hosts=("dragon" "spacedragon" "goldendragon")
+    
     log_info "Updating pacman repositories..." && sudo pacman -Sy
     
     install_pacman "${core_cli_arch[@]}" "${dev_arch[@]}" "${arch_fonts[@]}"
     
-    # Install Rust tools before AUR packages
-    if [[ " ${hyprland_hosts[@]} " =~ " ${host} " ]]; then
-        install_rust_tools
-    fi
-    
     install_paru "${gui_aur[@]}" "${arch_aur_fonts[@]}"
 
     if [[ " ${hyprland_hosts[@]} " =~ " ${host} " ]]; then
-        log_info "Installing Hyprland specific packages for Arch..."
+        log_info "Installing Hyprland specific packages for host: $host"
         add_chaotic_aur
         install_pacman "${hyprland_arch[@]}"
         install_paru "${hyprland_aur[@]}"
+        install_rust_tools
         install_cursor_app
     fi
 }
