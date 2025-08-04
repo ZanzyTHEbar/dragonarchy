@@ -387,7 +387,7 @@ post_setup() {
     
     log_info "Setting default theme to tokyo-night..."
     bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
-
+    bash "$SCRIPTS_DIR/install/setup/keyboard.sh"
     log_success "Post-setup tasks completed"
 }
 
