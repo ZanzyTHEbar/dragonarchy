@@ -485,9 +485,6 @@ main() {
     log_info "Setting plymouth theme..."
     bash "$SCRIPTS_DIR/theme-manager/refresh-plymouth"
 
-    log_info "Setting default theme to tokyo-night..."
-    bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
-
     setup_host_config
     configure_shell
     post_setup

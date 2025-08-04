@@ -210,7 +210,7 @@ install_additional_tools() {
 install_rust_tools() {
     if command_exists rustup; then
         log_info "Installing Rust stable toolchain..."
-        rustup toolchain install stable -y
+        rustup toolchain install stable
         rustup default stable
     fi
     
