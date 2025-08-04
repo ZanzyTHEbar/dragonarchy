@@ -13,7 +13,7 @@ log_info "Setting up power management..."
 # Install power-profiles-daemon if not already installed
 if ! command -v powerprofilesctl &>/dev/null; then
     log_info "Installing power-profiles-daemon..."
-    yay -S --noconfirm --needed power-profiles-daemon
+    paru -S --noconfirm --needed power-profiles-daemon
 fi
 
 # Set power profile based on battery presence

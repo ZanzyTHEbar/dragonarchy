@@ -14,11 +14,11 @@ log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 
 # --- 1. Install Dependencies ---
 log_info "Installing Plymouth and UWSM..."
-if ! command -v yay &>/dev/null; then
-    log_warning "yay not found. Please install it first."
+if ! command -v paru &>/dev/null; then
+    log_warning "paru not found. Please install it first."
     exit 1
 fi
-yay -S --noconfirm --needed uwsm plymouth
+paru -S --noconfirm --needed uwsm plymouth
 
 # --- 2. Configure mkinitcpio ---
 log_info "Configuring mkinitcpio for Plymouth hook..."

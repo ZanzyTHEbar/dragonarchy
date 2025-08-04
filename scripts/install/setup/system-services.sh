@@ -11,12 +11,12 @@ log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 
 # --- List of services to enable ---
+# "docker.service" - TODO - need to add docker installation to setup BEFORE setting up the service
 services=(
   "bluetooth.service"
   "cups.service"
   "power-profiles-daemon.service"
   "iwd.service"
-  "docker.service"
 )
 
 log_info "Enabling essential system services..."

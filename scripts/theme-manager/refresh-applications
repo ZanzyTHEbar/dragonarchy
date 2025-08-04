@@ -11,4 +11,4 @@ mkdir -p ~/.local/share/applications
 cp -f "$(dirname "$0")/../../packages/applications/.local/share/applications/"*.desktop ~/.local/share/applications/
 cp -f "$(dirname "$0")/../../packages/applications/.local/share/applications/hidden/"*.desktop ~/.local/share/applications/
 
-update-desktop-database ~/.local/share/applications
+sudo update-desktop-database ~/.local/share/applications
