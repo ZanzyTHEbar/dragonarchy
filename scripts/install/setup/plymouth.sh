@@ -43,16 +43,59 @@ fi
 # --- 3. Add Kernel Parameters ---
 log_info "Adding kernel parameters for bootloader..."
 
-if [ -d "/boot/loader/entries" ]; then
+# Function to add kernel parameters to a config file
+add_kernel_parameters() {
+    local config_file="$1"
+    local parameters="$2"
+    if ! grep -q "$parameters" "$config_file"; then
+        log_info "Adding '$parameters' to $(basename "$config_file")"
+        sudo sed -i "/^options/ s/$/ $parameters/" "$config_file"
+    else
+        log_info "'$parameters' already present in $(basename "$config_file")"
+    fi
+}
+
+# Unified Kernel Image (UKI) detection
+is_uki_boot() {
+    # If a .conf file in /boot/loader/entries/ points to a UKI in /boot/efi/EFI/Linux
+    if [ -d "/boot/loader/entries" ] && [ -d "/boot/efi/EFI/Linux" ]; then
+        for entry in /boot/loader/entries/*.conf; do
+            if [ -f "$entry" ] && grep -q "/boot/efi/EFI/Linux" "$entry"; then
+                return 0 # UKI boot detected
+            fi
+        done
+    fi
+    # If UKI is directly in /boot/efi
+    if [ -f "/boot/efi/EFI/Linux/linux.efi" ]; then
+        return 0
+    fi
+    return 1 # Not a UKI boot
+}
+
+if is_uki_boot; then
+    log_info "Detected a UKI setup with systemd-boot. Adding kernel parameters..."
+    # UKI with systemd-boot typically uses /etc/kernel/cmdline
+    if [ -f "/etc/kernel/cmdline" ]; then
+        add_kernel_parameters "/etc/kernel/cmdline" "splash quiet"
+        sudo mkinitcpio -P
+        log_info "Updated UKI kernel command line and regenerated initramfs."
+    elif [ -d "/etc/cmdline.d" ]; then
+        if ! grep -q "splash" /etc/cmdline.d/*.conf 2>/dev/null; then
+            echo "splash" | sudo tee -a /etc/cmdline.d/dragon.conf
+        fi
+        if ! grep -q "quiet" /etc/cmdline.d/*.conf 2>/dev/null; then
+            echo "quiet" | sudo tee -a /etc/cmdline.d/dragon.conf
+        fi
+        sudo mkinitcpio -P
+        log_info "Updated UKI kernel command line and regenerated initramfs."
+    else
+        log_warning "Could not determine how to set kernel parameters for this UKI setup."
+    fi
+elif [ -d "/boot/loader/entries" ]; then
     log_info "Detected systemd-boot. Adding kernel parameters..."
     for entry in /boot/loader/entries/*.conf; do
         if [ -f "$entry" ] && [[ ! "$(basename "$entry")" == *"fallback"* ]]; then
-            if ! grep -q "splash" "$entry"; then
-                log_info "Adding 'splash quiet' to $(basename "$entry")"
-                sudo sed -i '/^options/ s/$/ splash quiet/' "$entry"
-            else
-                log_info "'splash quiet' already present in $(basename "$entry")"
-            fi
+            add_kernel_parameters "$entry" "splash quiet"
         fi
     done
 elif [ -f "/boot/limine.conf" ] || [ -f "/boot/limine/limine.conf" ]; then
@@ -86,24 +129,6 @@ elif [ -f "/etc/default/grub" ]; then
     else
         log_info "GRUB already configured with splash parameters."
     fi
-elif [ -d "/etc/cmdline.d" ] || [ -f "/etc/kernel/cmdline" ]; then
-    log_info "Detected a UKI setup. Adding kernel parameters..."
-    if [ -d "/etc/cmdline.d" ]; then
-        if ! grep -q splash /etc/cmdline.d/*.conf 2>/dev/null; then
-            echo "splash" | sudo tee -a /etc/cmdline.d/dragon.conf
-        fi
-        if ! grep -q quiet /etc/cmdline.d/*.conf 2>/dev/null; then
-            echo "quiet" | sudo tee -a /etc/cmdline.d/dragon.conf
-        fi
-    elif [ -f "/etc/kernel/cmdline" ]; then
-        current_cmdline=$(cat /etc/kernel/cmdline)
-        new_cmdline="$current_cmdline"
-        if [[ ! "$current_cmdline" =~ splash ]]; then new_cmdline="$new_cmdline splash"; fi
-        if [[ ! "$current_cmdline" =~ quiet ]]; then new_cmdline="$new_cmdline quiet"; fi
-        echo "$new_cmdline" | xargs | sudo tee /etc/kernel/cmdline > /dev/null
-    fi
-    sudo mkinitcpio -P
-    log_info "Updated UKI kernel command line and regenerated initramfs."
 else
     log_warning "No supported bootloader (systemd-boot, Limine, GRUB, UKI) detected. Please add 'splash quiet' to your kernel parameters manually."
 fi
