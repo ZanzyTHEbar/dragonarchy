@@ -421,6 +421,7 @@ validate_installation() {
             "git"
             "nvim"
             "stow"
+            "jq"
         )
         
         for cmd in "${key_commands[@]}"; do
