@@ -1,6 +1,6 @@
 # Traditional Dotfiles Management with GNU Stow
 
-This is a port of the previous Nix-based configuration to use traditional tools:
+This is a very opinionated Archy Linux configuration, using hyprland, that is built on-top of CachyOS.
 
 - **GNU Stow** for dotfiles/configuration management
 - **Zsh scripts** for automation and setup
@@ -59,16 +59,6 @@ stow-config/
 ./scripts/update.sh           # Update packages and configs
 ./scripts/validate.sh         # Validate setup
 ```
-
-## Migration from Nix
-
-This setup provides the same functionality as the previous Nix configuration:
-
-- All packages from `common-packages.nix` are installed via platform package managers
-- All Home Manager configurations are ported to Stow packages
-- Host-specific configurations are preserved
-- Secrets management workflow remains the same
-- Automation scripts replace the justfile functionality
 
 ## Networking with NetBird
 
