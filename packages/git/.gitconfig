@@ -80,7 +80,7 @@
 	required = true
 
 [credential]
-	helper = store
+	helper = /usr/lib/git-core/git-credential-libsecret
 
 # Include local gitconfig if it exists
 [include]
