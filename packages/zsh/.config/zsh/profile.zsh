@@ -130,8 +130,9 @@ pathprepend() {
 }
 
 # Apply PATH configuration using path functions
-pathprepend "$HOME/bin" "$HOME/sbin" "$HOME/.local/bin" "$HOME/local/bin" "$HOME/.bin"
+pathprepend "$HOME/bin" "$HOME/sbin" "$HOME/.local/bin" "$HOME/local/bin" "$HOME/.bin" "$HOME/.local/share/dragon"
 pathappend "/usr/local/bin" "/usr/local/go/bin"
+pathappend 
 
 # Development environment paths
 if [[ -n "$GOPATH" ]]; then
