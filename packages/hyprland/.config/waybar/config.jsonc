@@ -16,6 +16,7 @@
     "network",
     "pulseaudio",
     "cpu",
+    "session-mgmnt",
     "battery"
   ],
   "hyprland/workspaces": {
@@ -133,7 +134,7 @@
         ""
       ]
     }
-  },
+  }, 
   "group/tray-expander": {
     "orientation": "inherit",
     "drawer": {
