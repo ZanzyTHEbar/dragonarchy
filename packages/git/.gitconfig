@@ -85,3 +85,5 @@
 # Include local gitconfig if it exists
 [include]
 	path = ~/.gitconfig.local 
+[safe]
+	directory = /mnt/common/Projects/Personal/OpenSource/mcp-memory-libsql-go
