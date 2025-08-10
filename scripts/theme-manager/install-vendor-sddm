@@ -42,7 +42,22 @@ install_flateos() {
     fi
 }
 
+install_marianarlt() {
+    # sugar-dark, sugar-light, chili
+    for name in sugar-dark sugar-light chili; do
+        local src="$VENDOR_DIR/$name"
+        local dst="$DEST_DIR/$name"
+        if [[ -d "$src" ]]; then
+            echo "Installing $name → $dst"
+            rm -rf "$dst"
+            mkdir -p "$dst"
+            rsync -a --delete "$src/" "$dst/"
+        fi
+    done
+}
+
 install_darkevi
 install_flateos
+install_marianarlt
 
 echo "Vendor SDDM themes installed."
