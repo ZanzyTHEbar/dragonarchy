@@ -5,7 +5,8 @@ THEMES_DIR="$(dirname "$0")/../../packages/themes/.config/themes"
 
 hex6() { # input: 1a1b26ff (no rgba()) or rgba(1a1b26ff)
   local v="$1"
-  v=${v#rgba(}; v=${v%)}}
+  v=${v#rgba(}
+  v=${v%)}}
   printf '#%s' "${v:0:6}"
 }
 
@@ -32,7 +33,12 @@ for theme in "$THEMES_DIR"/*/; do
   cy=$(get_rgba "$palette" cyan)
 
   # Fallbacks if missing
-  : "${y:=$o}"; : "${bl:=$a}"; : "${m:=$a}"; : "${cy:=$a}"; : "${c:=$f}"; : "${a:=$f}"
+  : "${y:=$o}"
+  : "${bl:=$a}"
+  : "${m:=$a}"
+  : "${cy:=$a}"
+  : "${c:=$f}"
+  : "${a:=$f}"
 
   cat >"${theme%/}/kitty.conf" <<EOF
 # Auto-generated from hyprland-palette.conf. Do not edit by hand.
@@ -45,6 +51,12 @@ cursor_text_color $(hex6 "$b")
 selection_background $(hex6 "$a")
 selection_foreground $(hex6 "$b")
 url_color $(hex6 "$a")
+
+# Inline hints / autocomplete colors
+shell_integration    enabled
+shell               zsh
+zsh_autosuggestion   $(hex6 "$a")
+url_style            none
 
 color0  $(hex6 "$b")
 color1  $(hex6 "$r")
@@ -66,5 +78,3 @@ color15 $(hex6 "$f")
 EOF
   echo "Wrote ${theme}kitty.conf"
 done
-
-

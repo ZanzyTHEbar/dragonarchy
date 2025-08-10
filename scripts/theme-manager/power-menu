@@ -15,10 +15,8 @@ if command -v hyprlock >/dev/null 2>&1; then
   "$SCRIPT_DIR/hyprlock-setup" >/dev/null 2>&1 || true
 fi
 
-# If wlogout is present and not explicitly disabled, prefer it
+# If wlogout is present and not explicitly disabled, prefer it using stowed config
 if command -v wlogout >/dev/null 2>&1 && [ -z "${DRAGON_TUI_ONLY:-}" ]; then
-  # Ensure wlogout layout uses a logout action that returns to SDDM
-  "$SCRIPT_DIR/wlogout-setup" >/dev/null 2>&1 || true
   exec wlogout
 else
   show_power_menu() {

@@ -40,8 +40,13 @@ fi
 for package in "${SYSTEM_PACKAGES[@]}"; do
     if [ -d "$package" ]; then
         log_info "Stowing $package to /"
-        stow -D "$package" -t / 2>/dev/null # Unstow first
-        stow "$package" -t /
+        stow -D "$package" -t / 2>/dev/null || true
+        # Use --adopt to take over existing files safely; ignore sddm/vendor so it doesn't create /vendor
+        if [[ "$package" == "sddm" ]]; then
+            sudo stow --adopt -t / --ignore='^vendor(/|$)' "$package"
+        else
+            sudo stow --adopt -t / "$package"
+        fi
     else
         log_warning "Package $package not found in $PACKAGES_DIR"
     fi

@@ -1,0 +1,15 @@
+[sddm-themes]
+Name=sddm-themes
+Description=Sddm Themes: Themes for all.
+Author=DarkevilPT
+Copyright=(c) 2025 DarkevilPT
+License=GPL-3.0-or-later
+Type=sddm-themes
+Version=0.4.4
+Website=https://github.com/DarkevilPT/sddm-themes
+Screenshot=backgrounds/sddm-themes.png
+MainScript=Main.qml
+ConfigFile=theme.conf
+TranslationsDirectory=translations
+Theme-Id=sddm-themes
+Theme-API=2.6

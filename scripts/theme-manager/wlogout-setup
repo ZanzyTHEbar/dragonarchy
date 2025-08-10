@@ -9,7 +9,7 @@ STYLE_FILE="$CONF_DIR/style.css"
 
 if [ ! -f "$LAYOUT_FILE" ]; then
   cat >"$LAYOUT_FILE" <<'EOF'
-label,lock,Lock,hyprlock
+label,lock,Lock,bash -lc "hyprlock -c ~/.config/hypr/hyprlock.conf || hyprlock; sleep 0.05; pkill -x wlogout"
 label,logout,Logout,bash -lc "loginctl terminate-session $XDG_SESSION_ID"
 label,suspend,Suspend,systemctl suspend
 label,reboot,Reboot,systemctl reboot
