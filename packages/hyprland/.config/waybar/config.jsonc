@@ -51,7 +51,7 @@
     "interval": 5,
     "tooltip": true,
     "tooltip-format": "Click to toggle idle",
-    "on-click": "/home/daofficialwizard/dotfiles/scripts/theme-manager/toggle-idle"
+    "on-click": "bash -lc '/home/daofficialwizard/dotfiles/scripts/theme-manager/toggle-idle >/dev/null 2>&1'"
   },
   "custom/session": {
     "format": "",
