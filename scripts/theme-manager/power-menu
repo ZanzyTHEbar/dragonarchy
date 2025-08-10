@@ -2,14 +2,14 @@
 # Displays a power menu.
 
 show_power_menu() {
-  local options=("Lock" "Suspend" "Relaunch WM" "Restart" "Shutdown" "Cancel")
+  local options=("Lock" "Logout" "Suspend" "Reboot" "Shutdown" "Cancel")
   local choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Power Menu")
 
   case "$choice" in
   "Lock") hyprlock ;;
+  "Logout") uwsm stop ;;
   "Suspend") systemctl suspend ;;
-  "Relaunch WM") uwsm stop ;;
-  "Restart") systemctl reboot ;;
+  "Reboot") systemctl reboot ;;
   "Shutdown") systemctl poweroff ;;
   "Cancel") exit 0 ;;
   esac

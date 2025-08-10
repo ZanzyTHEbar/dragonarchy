@@ -16,7 +16,7 @@
     "network",
     "pulseaudio",
     "cpu",
-    "session-mgmnt",
+    "custom/session",
     "battery"
   ],
   "hyprland/workspaces": {
@@ -42,6 +42,14 @@
       "4": [],
       "5": []
     }
+  },
+  "custom/session": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Left: power menu | Middle: settings | Right: toggle idle",
+    "on-click": "/home/daofficialwizard/dotfiles/scripts/dragon-cli Power Menu",
+    "on-click-middle": "/home/daofficialwizard/dotfiles/scripts/dragon-cli",
+    "on-click-right": "/home/daofficialwizard/dotfiles/scripts/theme-manager/toggle-idle"
   },
   "cpu": {
     "interval": 5,
@@ -134,7 +142,7 @@
         ""
       ]
     }
-  }, 
+  },
   "group/tray-expander": {
     "orientation": "inherit",
     "drawer": {
