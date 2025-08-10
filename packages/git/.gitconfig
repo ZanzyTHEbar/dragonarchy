@@ -88,3 +88,4 @@
 [safe]
 	directory = /mnt/common/Projects/Personal/OpenSource/mcp-memory-libsql-go
 	directory = /mnt/common/projects/ai/mcp-memory-libsql-go
+	directory = /mnt/common/projects/ai/ai-hedge-fund

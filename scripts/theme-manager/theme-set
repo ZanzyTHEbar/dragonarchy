@@ -54,6 +54,11 @@ ln -snf ~/.config/current/theme/gtk.css ~/.config/gtk-3.0/gtk.css
 mkdir -p "$HOME/.config/kitty"
 ln -snf "$CURRENT_THEME_DIR/kitty.conf" "$HOME/.config/kitty/colors.conf"
 
+# Also write a kitty include to ensure autosuggestion color is applied
+if ! grep -q "^include colors.conf$" "$HOME/.config/kitty/kitty.conf" 2>/dev/null; then
+  echo "include colors.conf" >>"$HOME/.config/kitty/kitty.conf" 2>/dev/null || true
+fi
+
 # Trigger kitty reload (send SIGUSR1 to all kitty instances)
 pkill -USR1 -x kitty || true
 
@@ -72,6 +77,21 @@ fi
 
 # Set new background
 "$(dirname "$0")/theme-bg-next"
+
+# Link wlogout CSS for this theme if provided
+if [[ -f "$CURRENT_THEME_DIR/wlogout.css" ]]; then
+  mkdir -p "$HOME/.config/wlogout"
+  ln -snf "$CURRENT_THEME_DIR/wlogout.css" "$HOME/.config/wlogout/wlogout.css"
+fi
+
+# Configure zsh autosuggestions to use theme accent
+if [[ -f "$CURRENT_THEME_DIR/hyprland-palette.conf" ]]; then
+  ACCENT_HEX=$(awk '$1=="$accent"{print $3}' "$CURRENT_THEME_DIR/hyprland-palette.conf" | sed -E 's/rgba\(([^)]*)\)/#\1/' | cut -c1-7)
+  if [[ -n "$ACCENT_HEX" ]]; then
+    mkdir -p "$HOME/.config/zsh"
+    echo "export ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE=fg=$ACCENT_HEX" >"$HOME/.config/zsh/autosuggest-theme.zsh"
+  fi
+fi
 
 # Best-effort: align SDDM theme family with current theme name if matching exists
 SDDM_THEMES_DIR="$(dirname "$0")/../../packages/sddm/usr/share/sddm/themes"

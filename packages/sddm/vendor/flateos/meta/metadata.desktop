@@ -1,0 +1,11 @@
+Description=Minimalist theme for FlateOS
+Type=sddm-theme
+Author=Romullo @hiukky
+Copyright=(c) 2021, Romullo @hiukky
+License=GPL
+Version=0.3
+MainScript=Main.qml
+ConfigFile=theme.conf
+Theme-Id=sddm
+Theme-API=2.0
+Website=https://github.com/flateos
