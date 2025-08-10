@@ -14,9 +14,7 @@ log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 
 # --- Packages to Stow ---
 # Add global system packages that should be stowed to /
-SYSTEM_PACKAGES=(
-    "sddm"
-)
+SYSTEM_PACKAGES=("")
 
 # --- Stow Logic ---
 log_info "Stowing system packages..."
