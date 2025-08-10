@@ -1,7 +1,7 @@
 {
     "label" : "lock",
     "action" : "bash -lc 'hyprlock -c ~/.config/hypr/hyprlock.conf || hyprlock; sleep 0.05; pkill -x wlogout'",
-    "text" : "",
+    "text" : "Lock",
     "keybind" : "l"
 }
 {
@@ -12,25 +12,25 @@
 }
 {
     "label" : "logout",
-    "action" : "hyprctl dispatch exit",
-    "text" : "󰍃",
+    "action" : "uwsm stop",
+    "text" : "Logout",
     "keybind" : "e"
 }
 {
     "label" : "shutdown",
     "action" : "systemctl poweroff",
-    "text" : "⏻",
+    "text" : "Shutdown",
     "keybind" : "s"
 }
 {
     "label" : "suspend",
     "action" : "systemctl suspend",
-    "text" : "⏾",
+    "text" : "Suspend",
     "keybind" : "u"
 }
 {
     "label" : "reboot",
     "action" : "systemctl reboot",
-    "text" : "↻",
+    "text" : "Reboot",
     "keybind" : "r"
 }
