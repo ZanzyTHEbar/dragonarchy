@@ -1,28 +1,42 @@
 #!/bin/bash
-# Set the SDDM theme and restart sddm if appropriate
-# Usage: sddm-set <theme-name>
+# Set the SDDM theme. Ensures files exist under /usr/share/sddm/themes first.
+# Usage: sddm-set <theme-name> [--restart]
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -P "$(dirname "$0")" && pwd)"
+
 if [[ -z "${1:-}" ]]; then
-    echo "Usage: sddm-set <theme-name>" >&2
+    echo "Usage: sddm-set <theme-name> [--restart]" >&2
     exit 1
 fi
 
 THEME_NAME="$1"
+shift || true
+RESTART=false
+if [[ "${1:-}" == "--restart" ]]; then RESTART=true; fi
 
-# Prefer systemd override if present
-if command -v kwriteconfig5 >/dev/null 2>&1; then
-    # Fallback approach for systems with Qt tools
-    :
+# Ensure packaged themes are copied to system location
+"$SCRIPT_DIR/refresh-sddm"
+
+THEME_DIR="/usr/share/sddm/themes/$THEME_NAME"
+if [[ ! -f "$THEME_DIR/Main.qml" ]]; then
+    echo "Theme '$THEME_NAME' not found at $THEME_DIR or missing Main.qml" >&2
+    exit 2
 fi
 
 SDDM_CONF_DIR="/etc/sddm.conf.d"
 SDDM_CONF_FILE="$SDDM_CONF_DIR/10-theme.conf"
 
 sudo mkdir -p "$SDDM_CONF_DIR"
-echo -e "[Theme]\nCurrent=$THEME_NAME" | sudo tee "$SDDM_CONF_FILE" >/dev/null
+printf "[Theme]\nCurrent=%s\n" "$THEME_NAME" | sudo tee "$SDDM_CONF_FILE" >/dev/null
+echo "Set SDDM theme to '$THEME_NAME' in $SDDM_CONF_FILE."
 
-echo "Set SDDM theme to '$THEME_NAME' in $SDDM_CONF_FILE (applies on next login)."
+if $RESTART; then
+    echo "Restarting sddm... (this will end the current session)"
+    sudo systemctl restart sddm
+else
+    echo "Change will apply on next login. Use '--restart' to apply immediately."
+fi
 
 exit 0
