@@ -1,4 +1,4 @@
-# Zen SDDM theme mapping
+# SDDM theme mapping
 
 This directory intentionally documents SDDM themes shipped via `packages/sddm`.
 

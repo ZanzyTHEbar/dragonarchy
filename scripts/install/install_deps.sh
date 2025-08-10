@@ -36,7 +36,7 @@ dev_debian=("golang-go" "git" "diff-so-fancy" "ansible" "gh" "terraform" "pipx")
 pipx_packages=("poetry" "black" "flake8" "mypy")
 
 # Hyprland specific
-hyprland_arch=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "nemo-fileroller" "nemo-preview" "nemo-seahorse" "nemo-share" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot" "imagemagick" "imv" "inetutils" "iwd" "kvantum" "lazygit" "less" "libqalculate" "libsecret" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt5-wayland" "qt6-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "system-config-printer" "tree-sitter-cli" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
+hyprland_arch=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "nemo-fileroller" "nemo-preview" "nemo-seahorse" "nemo-share" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot" "imagemagick" "imv" "inetutils" "iwd" "kvantum" "lazygit" "less" "libqalculate" "libsecret" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt6-svg" "qt6-declarative" "qt5-quickcontrols2" "qt5-graphicaleffects" "qt6-5compat" "qt6-wayland" "qt5-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "system-config-printer" "tree-sitter-cli" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
 hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate")
 
 # Logging functions
@@ -228,14 +228,6 @@ install_for_arch() {
     log_info "Updating pacman repositories..." && sudo pacman -Sy
 
     install_pacman "${core_cli_arch[@]}" "${dev_arch[@]}" "${arch_fonts[@]}"
-    # SDDM theme QML deps
-    # Qt Wayland bridges
-    install_pacman qt6-wayland qt5-wayland || true
-    # QtQuick Controls and effects (Qt5; most SDDM themes target Controls 2.x on Qt5)
-    install_pacman qt5-quickcontrols2 qt5-graphicaleffects || true
-    # Qt6 declarative + 5compat for GraphicalEffects in Qt6-based SDDM
-    install_pacman qt6-declarative qt6-svg qt6-5compat || true
-
     install_paru "${gui_aur[@]}" "${arch_aur_fonts[@]}"
 
     if [[ " ${hyprland_hosts[@]} " =~ " ${host} " ]]; then

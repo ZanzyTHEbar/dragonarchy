@@ -7,14 +7,28 @@
 
 window {
   background-color: var(--wlogout-bg);
+  font-family: "Symbols Nerd Font", "Font Awesome 6 Free", "Noto Sans", "Inter",
+    sans-serif;
 }
 button {
   color: var(--wlogout-fg);
   background: transparent;
   border: 2px solid color-mix(in srgb, var(--wlogout-fg) 27%, transparent);
   margin: 10px;
-  padding: 20px 28px;
+  padding: 36px 42px;
   border-radius: 12px;
+  font-family: "Symbols Nerd Font", "Font Awesome 6 Free", "Noto Sans", "Inter",
+    sans-serif;
+  font-size: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+button label {
+  font-size: 44px;
+  margin: 0;
+  padding: 0;
+  text-align: center;
 }
 button:hover {
   border-color: var(--wlogout-accent);
