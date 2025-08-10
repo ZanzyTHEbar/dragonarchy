@@ -1,0 +1,48 @@
+#!/bin/bash
+set -euo pipefail
+
+VENDOR_DIR="$(cd "$(dirname "$0")/../../packages/sddm/vendor" && pwd)"
+DEST_DIR="/usr/share/sddm/themes"
+
+if [[ $EUID -ne 0 ]]; then
+    echo "This action requires sudo to install themes into $DEST_DIR"
+    exec sudo -p "[sudo] password for %u: " "$0" "$@"
+fi
+
+mkdir -p "$DEST_DIR"
+
+install_darkevi() {
+    local src="$VENDOR_DIR/darkevil"
+    local dst="$DEST_DIR/darkevil"
+    if [[ -d "$src" ]]; then
+        echo "Installing darkevil → $dst"
+        rm -rf "$dst"
+        mkdir -p "$dst"
+        rsync -a --delete "$src/" "$dst/"
+    fi
+}
+
+install_flateos() {
+    local src="$VENDOR_DIR/flateos"
+    local dst="$DEST_DIR/flateos"
+    if [[ -d "$src" ]]; then
+        echo "Installing flateos → $dst"
+        rm -rf "$dst"
+        mkdir -p "$dst"
+        # Copy core files
+        install -Dm0644 "$src/Main.qml" "$dst/Main.qml" || true
+        [[ -d "$src/assets" ]] && rsync -a "$src/assets/" "$dst/assets/" || true
+        [[ -d "$src/translations" ]] && rsync -a "$src/translations/" "$dst/translations/" || true
+        # Metadata lives under meta/
+        if [[ -f "$src/meta/metadata.desktop" ]]; then
+            install -Dm0644 "$src/meta/metadata.desktop" "$dst/metadata.desktop"
+        fi
+        # Optional config
+        [[ -f "$src/theme.conf" ]] && install -Dm0644 "$src/theme.conf" "$dst/theme.conf" || true
+    fi
+}
+
+install_darkevi
+install_flateos
+
+echo "Vendor SDDM themes installed."

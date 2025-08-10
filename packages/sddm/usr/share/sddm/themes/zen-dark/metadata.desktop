@@ -1,0 +1,12 @@
+[SddmGreeterTheme]
+Name=Zen Dark
+Description=Minimalist dark variant
+Type=sddm-theme
+Version=1.0
+ConfigFile=theme.conf
+MainScript=Main.qml
+Theme-API=2.0
+Theme-Id=ZenDark
+QtVersion=6
+
+

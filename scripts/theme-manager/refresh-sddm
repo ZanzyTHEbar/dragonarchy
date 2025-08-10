@@ -1,0 +1,17 @@
+#!/bin/bash
+set -euo pipefail
+
+# Link packaged SDDM themes into /usr/share/sddm/themes via stow or rsync
+PKG_DIR="$(cd "$(dirname "$0")/../../packages/sddm" && pwd)"
+DEST_DIR="/usr/share/sddm/themes"
+
+if [[ $EUID -ne 0 ]]; then
+    echo "This action requires sudo to copy themes into $DEST_DIR"
+    exec sudo -p "[sudo] password for %u: " "$0" "$@"
+fi
+
+mkdir -p "$DEST_DIR"
+rsync -a --delete "$PKG_DIR/usr/share/sddm/themes/" "$DEST_DIR/"
+echo "SDDM themes refreshed to $DEST_DIR"
+
+exit 0

@@ -1,0 +1,28 @@
+#!/bin/bash
+# Set the SDDM theme and restart sddm if appropriate
+# Usage: sddm-set <theme-name>
+
+set -euo pipefail
+
+if [[ -z "${1:-}" ]]; then
+    echo "Usage: sddm-set <theme-name>" >&2
+    exit 1
+fi
+
+THEME_NAME="$1"
+
+# Prefer systemd override if present
+if command -v kwriteconfig5 >/dev/null 2>&1; then
+    # Fallback approach for systems with Qt tools
+    :
+fi
+
+SDDM_CONF_DIR="/etc/sddm.conf.d"
+SDDM_CONF_FILE="$SDDM_CONF_DIR/10-theme.conf"
+
+sudo mkdir -p "$SDDM_CONF_DIR"
+echo -e "[Theme]\nCurrent=$THEME_NAME" | sudo tee "$SDDM_CONF_FILE" >/dev/null
+
+echo "Set SDDM theme to '$THEME_NAME' in $SDDM_CONF_FILE (applies on next login)."
+
+exit 0

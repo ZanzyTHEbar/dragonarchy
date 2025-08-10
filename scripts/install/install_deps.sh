@@ -40,31 +40,31 @@ hyprland_arch=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessct
 hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate")
 
 # Logging functions
-log_info() { 
-    echo -e "${BLUE}[INFO]${NC} $1" 
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-log_success() { 
-    echo -e "${GREEN}[SUCCESS]${NC} $1" 
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
-log_warning() { 
-    echo -e "${YELLOW}[WARNING]${NC} $1" 
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-log_error() { 
-    echo -e "${RED}[ERROR]${NC} $1" 
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
 }
 
 # --- Platform and Helper Functions ---
 detect_platform() {
     case "$(uname -s)" in
-        Darwin*) echo "macos" ;;
-        Linux*)
-            [[ -f /etc/os-release ]] && source /etc/os-release
-            echo "${ID:-linux}"
-            ;;
-        *) echo "unknown" ;;
+    Darwin*) echo "macos" ;;
+    Linux*)
+        [[ -f /etc/os-release ]] && source /etc/os-release
+        echo "${ID:-linux}"
+        ;;
+    *) echo "unknown" ;;
     esac
 }
 
@@ -72,19 +72,19 @@ detect_platform() {
 detect_host() {
     local hostname
     hostname=$(hostname | cut -d. -f1)
-    
+
     case "$hostname" in
-        dragon|spacedragon|dragonsmoon|goldendragon)
-            echo "$hostname"
-            ;;
-        *)
-            echo "unknown"
-            ;;
+    dragon | spacedragon | dragonsmoon | goldendragon)
+        echo "$hostname"
+        ;;
+    *)
+        echo "unknown"
+        ;;
     esac
 }
 
-command_exists() { 
-    command -v "$1" >/dev/null 2>&1 
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
 }
 
 # --- Package Installation Helpers ---
@@ -140,7 +140,7 @@ install_brew() {
     command_exists brew || {
         log_info "Installing Homebrew..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+        echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >>~/.zprofile
         eval "$(/opt/homebrew/bin/brew shellenv)"
     }
     log_info "Updating Homebrew..." && brew update
@@ -213,7 +213,7 @@ install_rust_tools() {
         rustup toolchain install stable
         rustup default stable
     fi
-    
+
     command_exists cargo && {
         log_info "Installing Rust tools..."
         cargo install lsd bat ripgrep zoxide eza dua-cli git-delta
@@ -224,11 +224,14 @@ install_rust_tools() {
 install_for_arch() {
     local host="$1"
     local hyprland_hosts=("dragon" "spacedragon" "goldendragon")
-    
+
     log_info "Updating pacman repositories..." && sudo pacman -Sy
-    
+
     install_pacman "${core_cli_arch[@]}" "${dev_arch[@]}" "${arch_fonts[@]}"
-    
+    # SDDM theme QML deps (Qt6 Controls + Wayland glue). Package names may vary on CachyOS; handle common Arch names.
+    install_pacman qt6-wayland || true
+    install_paru qt6-quickcontrols2 || true
+
     install_paru "${gui_aur[@]}" "${arch_aur_fonts[@]}"
 
     if [[ " ${hyprland_hosts[@]} " =~ " ${host} " ]]; then
@@ -255,7 +258,7 @@ install_for_debian() {
 # --- Post-Install Setup ---
 setup_development_environments() {
     log_info "Setting up development environments..."
-    
+
     # Node.js via fnm
     command_exists node || {
         log_info "Installing Node.js via fnm..."
@@ -265,7 +268,7 @@ setup_development_environments() {
         fnm install --lts
         fnm use lts-latest
     }
-    
+
     # Python tools via pipx
     if command_exists pipx; then
         log_info "Installing or upgrading Python tools via pipx..."
@@ -320,34 +323,34 @@ main() {
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --host)
-                if [[ -n "$2" && ! "$2" =~ ^-- ]]; then
-                    host="$2"
-                    shift 2
-                else
-                    log_error "Missing host argument for --host"
-                    log_info "Available hosts: $(detect_host)"
-                    log_info "Usage: $0 --host <host>"
-                    exit 1
-                fi
-                ;;
-            *)
-                log_error "Unknown argument: $1"
+        --host)
+            if [[ -n "$2" && ! "$2" =~ ^-- ]]; then
+                host="$2"
+                shift 2
+            else
+                log_error "Missing host argument for --host"
+                log_info "Available hosts: $(detect_host)"
                 log_info "Usage: $0 --host <host>"
                 exit 1
-                ;;
+            fi
+            ;;
+        *)
+            log_error "Unknown argument: $1"
+            log_info "Usage: $0 --host <host>"
+            exit 1
+            ;;
         esac
     done
 
     log_info "Starting package installation on $platform (Host: ${host:-generic})..."
 
     case "$platform" in
-        "arch"|"cachyos"|"manjaro") install_for_arch "$host" ;;
-        "macos") install_for_macos ;;
-        "ubuntu"|"debian") install_for_debian ;;
-        *) log_error "Unsupported platform: $platform" && exit 1 ;;
+    "arch" | "cachyos" | "manjaro") install_for_arch "$host" ;;
+    "macos") install_for_macos ;;
+    "ubuntu" | "debian") install_for_debian ;;
+    *) log_error "Unsupported platform: $platform" && exit 1 ;;
     esac
-    
+
     setup_development_environments
     finalize_setup
 
