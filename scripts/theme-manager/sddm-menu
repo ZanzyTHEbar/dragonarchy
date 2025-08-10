@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+
+THEMES_DIR="$(dirname "$0")/../../packages/sddm/usr/share/sddm/themes"
+
+mapfile -t themes < <(find "$THEMES_DIR" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort)
+
+if [[ ${#themes[@]} -eq 0 ]]; then
+    echo "No SDDM themes found in $THEMES_DIR" >&2
+    exit 1
+fi
+
+display=()
+for t in "${themes[@]}"; do
+    display+=("$(echo "$t" | sed -E 's/(^|-)([a-z])/(\1\U\2)/g; s/-/ /g')")
+done
+
+choice=$(printf '%s\n' "${display[@]}" | gum choose --header="Select an SDDM theme")
+sel=$(echo "$choice" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+
+"$(dirname "$0")/sddm-set" "$sel"

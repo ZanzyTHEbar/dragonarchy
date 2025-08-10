@@ -1,0 +1,12 @@
+[SddmGreeterTheme]
+Name=Zen
+Description=Clean minimalist zen theme
+Type=sddm-theme
+Version=1.0
+ConfigFile=theme.conf
+MainScript=Main.qml
+Theme-API=2.0
+Theme-Id=Zen
+QtVersion=6
+
+
