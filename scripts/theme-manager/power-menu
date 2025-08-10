@@ -25,7 +25,7 @@ else
 
     case "$choice" in
     "Lock") hyprlock ;;
-    "Logout") bash -lc 'loginctl terminate-session "$XDG_SESSION_ID" || loginctl terminate-user "$USER" || uwsm stop || hyprctl dispatch exit' ;;
+    "Logout") uwsm stop ;;
     "Suspend") systemctl suspend ;;
     "Reboot") systemctl reboot ;;
     "Shutdown") systemctl poweroff ;;

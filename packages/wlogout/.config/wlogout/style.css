@@ -7,8 +7,8 @@
 
 window {
   background-color: var(--wlogout-bg);
-  font-family: "Symbols Nerd Font", "Font Awesome 6 Free", "Noto Sans", "Inter",
-    sans-serif;
+  font-family: "CaskaydiaMono Nerd Font Propo", "Symbols Nerd Font",
+    "Font Awesome 6 Free", "Noto Sans", "Inter", sans-serif;
 }
 button {
   color: var(--wlogout-fg);
@@ -17,8 +17,8 @@ button {
   margin: 10px;
   padding: 36px 42px;
   border-radius: 12px;
-  font-family: "Symbols Nerd Font", "Font Awesome 6 Free", "Noto Sans", "Inter",
-    sans-serif;
+  font-family: "CaskaydiaMono Nerd Font Propo", "Symbols Nerd Font",
+    "Font Awesome 6 Free", "Noto Sans", "Inter", sans-serif;
   font-size: 44px;
   display: flex;
   align-items: center;
