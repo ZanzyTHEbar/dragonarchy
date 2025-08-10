@@ -56,7 +56,7 @@ log_step() {
 
 # Show usage information
 usage() {
-    cat << EOF
+    cat <<EOF
 Usage: $0 [OPTIONS]
 
 Traditional Dotfiles Management Setup Script
@@ -86,54 +86,54 @@ EOF
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
-            -h|--help)
-                usage
-                exit 0
-                ;;
-            -v|--verbose)
-                VERBOSE=true
-                shift
-                ;;
-            --host)
-                HOST="$2"
-                shift 2
-                ;;
-            --packages-only)
-                PACKAGES_ONLY=true
-                INSTALL_DOTFILES=false
-                SETUP_SECRETS=false
-                shift
-                ;;
-            --dotfiles-only)
-                DOTFILES_ONLY=true
-                INSTALL_PACKAGES=false
-                SETUP_SECRETS=false
-                shift
-                ;;
-            --secrets-only)
-                SECRETS_ONLY=true
-                INSTALL_PACKAGES=false
-                INSTALL_DOTFILES=false
-                shift
-                ;;
-            --no-packages)
-                INSTALL_PACKAGES=false
-                shift
-                ;;
-            --no-dotfiles)
-                INSTALL_DOTFILES=false
-                shift
-                ;;
-            --no-secrets)
-                SKIP_SECRETS=true
-                SETUP_SECRETS=false
-                shift
-                ;;
-            *)
-                log_error "Unknown option: $1"
-                usage
-                exit 1
-                ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        -v | --verbose)
+            VERBOSE=true
+            shift
+            ;;
+        --host)
+            HOST="$2"
+            shift 2
+            ;;
+        --packages-only)
+            PACKAGES_ONLY=true
+            INSTALL_DOTFILES=false
+            SETUP_SECRETS=false
+            shift
+            ;;
+        --dotfiles-only)
+            DOTFILES_ONLY=true
+            INSTALL_PACKAGES=false
+            SETUP_SECRETS=false
+            shift
+            ;;
+        --secrets-only)
+            SECRETS_ONLY=true
+            INSTALL_PACKAGES=false
+            INSTALL_DOTFILES=false
+            shift
+            ;;
+        --no-packages)
+            INSTALL_PACKAGES=false
+            shift
+            ;;
+        --no-dotfiles)
+            INSTALL_DOTFILES=false
+            shift
+            ;;
+        --no-secrets)
+            SKIP_SECRETS=true
+            SETUP_SECRETS=false
+            shift
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            usage
+            exit 1
+            ;;
         esac
     done
 }
@@ -142,38 +142,38 @@ parse_args() {
 detect_host() {
     local hostname
     hostname=$(hostname | cut -d. -f1)
-    
+
     case "$hostname" in
-        dragon|spacedragon|dragonsmoon|microdragon|goldendragon)
-            echo "$hostname"
-            ;;
-        *)
-            echo "unknown"
-            ;;
+    dragon | spacedragon | dragonsmoon | microdragon | goldendragon)
+        echo "$hostname"
+        ;;
+    *)
+        echo "unknown"
+        ;;
     esac
 }
 
 # Check prerequisites
 check_prerequisites() {
     log_step "Checking prerequisites..."
-    
+
     # Check if git is available
     if ! command -v git >/dev/null 2>&1; then
         log_error "Git is required but not installed"
         exit 1
     fi
-    
+
     # Check if stow is available or can be installed
     if ! command -v stow >/dev/null 2>&1; then
         log_warning "GNU Stow not found, will be installed during package installation"
     fi
-    
+
     # Check if we're in the right directory
     if [[ ! -d "$PACKAGES_DIR" ]]; then
         log_error "Packages directory not found. Are you running this from the correct location?"
         exit 1
     fi
-    
+
     log_success "Prerequisites check completed"
 }
 
@@ -182,15 +182,15 @@ install_packages() {
     if [[ "$INSTALL_PACKAGES" != "true" ]]; then
         return 0
     fi
-    
+
     log_step "Installing packages..."
-    
+
     local install_script="$SCRIPTS_DIR/install/install_deps.sh"
-    
+
     if [[ -f "$install_script" ]]; then
         # Ensure the script is executable
         chmod +x "$install_script"
-        
+
         # Pass the host argument if it's set
         if [[ -n "$HOST" ]]; then
             "$install_script" --host "$HOST"
@@ -201,7 +201,7 @@ install_packages() {
         log_error "Package installation script not found: $install_script"
         exit 1
     fi
-    
+
     log_success "Package installation completed"
 }
 
@@ -210,18 +210,18 @@ setup_dotfiles() {
     if [[ "$INSTALL_DOTFILES" != "true" ]]; then
         return 0
     fi
-    
+
     log_step "Setting up dotfiles with GNU Stow..."
-    
+
     # Ensure stow is available
     if ! command -v stow >/dev/null 2>&1; then
         log_error "GNU Stow is required but not available"
         exit 1
     fi
-    
+
     # Change to packages directory
     cd "$PACKAGES_DIR"
-    
+
     # List of stow packages to install
     local packages=(
         "zsh"
@@ -243,8 +243,9 @@ setup_dotfiles() {
         "tmux"
         "zed"
         "dragon-cli"
+        "wlogout"
     )
-    
+
     # Install each package
     for package in "${packages[@]}"; do
         if [[ -d "$package" ]]; then
@@ -258,10 +259,10 @@ setup_dotfiles() {
             log_warning "Package directory $package not found, skipping"
         fi
     done
-    
+
     # Return to original directory
     cd "$CONFIG_DIR"
-    
+
     log_success "Dotfiles setup completed"
 }
 
@@ -286,23 +287,23 @@ setup_host_config() {
     if [[ -z "$HOST" ]]; then
         HOST=$(detect_host)
     fi
-    
+
     log_step "Setting up host-specific configuration for: $HOST"
-    
+
     local host_config_dir="$HOSTS_DIR/$HOST"
-    
+
     if [[ -d "$host_config_dir" ]]; then
         log_info "Loading host-specific configuration from $host_config_dir"
-        
+
         # Stow host-specific system files first
         stow_system_packages
-        
+
         # Source host-specific setup script if it exists
         if [[ -f "$host_config_dir/setup.sh" ]]; then
             log_info "Running host-specific setup script..."
             bash "$host_config_dir/setup.sh"
         fi
-        
+
         # Install host-specific dotfiles if they exist
         if [[ -d "$host_config_dir/dotfiles" ]]; then
             log_info "Installing host-specific dotfiles..."
@@ -314,7 +315,7 @@ setup_host_config() {
             fi
             cd "$CONFIG_DIR"
         fi
-        
+
         log_success "Host-specific configuration completed"
     else
         log_warning "No host-specific configuration found for $HOST"
@@ -326,22 +327,22 @@ setup_secrets() {
     if [[ "$SETUP_SECRETS" != "true" || "$SKIP_SECRETS" == "true" ]]; then
         return 0
     fi
-    
+
     log_step "Setting up secrets management..."
-    
+
     if [[ -x "$SCRIPTS_DIR/utilities/secrets.sh" ]]; then
         "$SCRIPTS_DIR/utilities/secrets.sh" setup
     else
         log_warning "Secrets management script not found, skipping"
     fi
-    
+
     log_success "Secrets setup completed"
 }
 
 # Configure shell
 configure_shell() {
     log_step "Configuring shell..."
-    
+
     # Set zsh as default shell if not already
     if [[ "$SHELL" != */zsh ]]; then
         if command -v zsh >/dev/null 2>&1; then
@@ -354,37 +355,37 @@ configure_shell() {
     else
         log_info "zsh is already the default shell"
     fi
-    
+
     # Create necessary directories
     mkdir -p "$HOME/.config/zsh/hosts"
     mkdir -p "$HOME/.config/functions"
     mkdir -p "$HOME/.local/bin"
-    
+
     log_success "Shell configuration completed"
 }
 
 # Post-setup tasks
 post_setup() {
     log_step "Running post-setup tasks..."
-    
+
     # Create symlinks for compatibility
     if [[ ! -L "$HOME/.zshrc" && -f "$HOME/.zshrc" ]]; then
         log_info "Backing up existing .zshrc"
         mv "$HOME/.zshrc" "$HOME/.zshrc.backup"
     fi
-    
+
     # Reload shell configuration if possible
     if [[ -n "${ZSH_VERSION:-}" ]]; then
         log_info "Reloading zsh configuration..."
         source "$HOME/.zshrc" 2>/dev/null || true
     fi
-    
+
     # Install additional tools
     if [[ -x "$SCRIPTS_DIR/install/setup/post-install.sh" ]]; then
         log_info "Running post-installation script..."
         "$SCRIPTS_DIR/install/setup/post-install.sh"
     fi
-    
+
     #log_info "Setting default theme to tokyo-night..."
     #dbus-run-session -- bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
 
@@ -397,19 +398,19 @@ post_setup() {
 # Validate installation
 validate_installation() {
     log_step "Validating installation..."
-    
+
     if [[ -x "$SCRIPTS_DIR/install/validate.sh" ]]; then
         "$SCRIPTS_DIR/install/validate.sh"
     else
         log_info "Running basic validation..."
-        
+
         # Check if key files exist
         local key_files=(
             "$HOME/.zshrc"
             "$HOME/.gitconfig"
             "$HOME/.config/kitty/kitty.conf"
         )
-        
+
         for file in "${key_files[@]}"; do
             if [[ -f "$file" ]]; then
                 log_success "✓ $file exists"
@@ -417,7 +418,7 @@ validate_installation() {
                 log_warning "✗ $file missing"
             fi
         done
-        
+
         # Check if key commands are available
         local key_commands=(
             "zsh"
@@ -426,7 +427,7 @@ validate_installation() {
             "stow"
             "jq"
         )
-        
+
         for cmd in "${key_commands[@]}"; do
             if command -v "$cmd" >/dev/null 2>&1; then
                 log_success "✓ $cmd is available"
@@ -435,7 +436,7 @@ validate_installation() {
             fi
         done
     fi
-    
+
     log_success "Validation completed"
 }
 
@@ -449,14 +450,14 @@ show_completion() {
     echo "  2. Review configuration files in ~/.config/"
     echo "  3. Customize settings as needed"
     echo
-    
+
     if [[ "$SETUP_SECRETS" == "true" ]]; then
         log_info "Secrets management:"
         echo "  • Use './scripts/utilities/secrets.sh --help' for secrets management"
         echo "  • Configure age keys if not already done"
         echo
     fi
-    
+
     log_info "For updates and maintenance:"
     echo "  • Use './scripts/install/update.sh' to update packages and configs"
     echo "  • Use './scripts/install/validate.sh' to check system health"
@@ -476,7 +477,7 @@ main() {
         HOST=$(detect_host)
         log_info "No host specified, detected host: $HOST"
     fi
-    
+
     # Run setup steps
     check_prerequisites
     install_packages
@@ -489,10 +490,10 @@ main() {
     configure_shell
     post_setup
     validate_installation
-    
+
     # Lets make this secrets optional for now
     #setup_secrets
-    
+
     # System configuration (requires root)
     if [[ "$NO_SYSTEM_CONFIG" != "true" && "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
         log_info "Setting up system-level configuration..."
@@ -504,7 +505,7 @@ main() {
         fi
         echo
     fi
-    
+
     show_completion
 }
 
@@ -512,12 +513,12 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Parse arguments
     parse_args "$@"
-    
+
     # Enable verbose mode if requested
     if [[ "$VERBOSE" == "true" ]]; then
         set -x
     fi
-    
+
     # Run main function
     main "$@"
 fi

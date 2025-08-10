@@ -1,0 +1,22 @@
+/* Variables will be overridden via ~/.config/current/theme/wlogout.css */
+:root {
+  --wlogout-bg: rgba(17, 17, 17, 0.8);
+  --wlogout-fg: #dddddd;
+  --wlogout-accent: #88c0d0;
+}
+
+window {
+  background-color: var(--wlogout-bg);
+}
+button {
+  color: var(--wlogout-fg);
+  background: transparent;
+  border: 2px solid color-mix(in srgb, var(--wlogout-fg) 27%, transparent);
+  margin: 10px;
+  padding: 20px 28px;
+  border-radius: 12px;
+}
+button:hover {
+  border-color: var(--wlogout-accent);
+  color: var(--wlogout-accent);
+}
