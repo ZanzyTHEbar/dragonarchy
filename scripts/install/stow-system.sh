@@ -1,5 +1,5 @@
 #!/bin/bash
-# Handles stowing packages that need to be installed system-wide. 
+# Handles stowing packages that need to be installed system-wide.
 
 set -e
 
@@ -13,7 +13,10 @@ log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 
 # --- Packages to Stow ---
-SYSTEM_PACKAGES=( "" )
+# Add global system packages that should be stowed to /
+SYSTEM_PACKAGES=(
+    "sddm"
+)
 
 # --- Stow Logic ---
 log_info "Stowing system packages..."
