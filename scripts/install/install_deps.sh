@@ -228,9 +228,13 @@ install_for_arch() {
     log_info "Updating pacman repositories..." && sudo pacman -Sy
 
     install_pacman "${core_cli_arch[@]}" "${dev_arch[@]}" "${arch_fonts[@]}"
-    # SDDM theme QML deps (Qt6 Controls + Wayland glue). Package names may vary on CachyOS; handle common Arch names.
-    install_pacman qt6-wayland || true
-    install_paru qt6-quickcontrols2 || true
+    # SDDM theme QML deps
+    # Qt Wayland bridges
+    install_pacman qt6-wayland qt5-wayland || true
+    # QtQuick Controls and effects (Qt5; most SDDM themes target Controls 2.x on Qt5)
+    install_pacman qt5-quickcontrols2 qt5-graphicaleffects || true
+    # Qt6 declarative + 5compat for GraphicalEffects in Qt6-based SDDM
+    install_pacman qt6-declarative qt6-svg qt6-5compat || true
 
     install_paru "${gui_aur[@]}" "${arch_aur_fonts[@]}"
 
