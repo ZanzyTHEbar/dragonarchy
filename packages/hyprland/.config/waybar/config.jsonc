@@ -48,7 +48,7 @@
     "format": "{text}",
     "return-type": "json",
     "exec": "/home/daofficialwizard/dotfiles/scripts/theme-manager/idle-status",
-    "interval": 5,
+    "interval": 1,
     "tooltip": true,
     "tooltip-format": "Click to toggle idle",
     "on-click": "bash -lc '/home/daofficialwizard/dotfiles/scripts/theme-manager/toggle-idle >/dev/null 2>&1'"
