@@ -47,8 +47,13 @@ ln -snf ~/.config/current/theme/walker.css ~/.config/walker/themes/current.css
 mkdir -p ~/.config/gtk-3.0
 ln -snf ~/.config/current/theme/gtk.css ~/.config/gtk-3.0/gtk.css
 
-# Trigger alacritty config reload
-touch "$HOME/.config/alacritty/alacritty.toml"
+# Generate kitty theme from palettes and link current
+"$(dirname "$0")/generate-kitty-themes" >/dev/null 2>&1 || true
+mkdir -p "$HOME/.config/kitty"
+ln -snf "$CURRENT_THEME_DIR/kitty.conf" "$HOME/.config/kitty/colors.conf"
+
+# Trigger kitty reload (send SIGUSR1 to all kitty instances)
+pkill -USR1 -x kitty || true
 
 # Restart components to apply new theme
 pkill -SIGUSR2 btop
