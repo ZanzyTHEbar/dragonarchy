@@ -86,7 +86,7 @@ utilities_menu() {
 }
 
 theme_menu() {
-  local options=("Pick" "Install" "Update" "Remove" "Back")
+  local options=("Pick" "Install" "Update" "Remove" "Change Background" "Back")
   choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Theme") || main_menu
   case "$choice" in
   Pick)
@@ -106,6 +106,11 @@ theme_menu() {
     ;;
   Remove)
   remove_theme_prompt
+    ack_command
+    theme_menu
+    ;;
+  "Change Background")
+    theme-bg-menu
     ack_command
     theme_menu
     ;;

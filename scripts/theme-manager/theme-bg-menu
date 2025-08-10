@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Background manager: pick from installed themes or add a background to a theme
+
+SCRIPT_DIR=$(cd -P "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)
+THEMES_DIR="${SCRIPT_DIR}/../../packages/themes/.config/themes"
+CURRENT_THEME_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
+CURRENT_BG_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
+
+# Require gum
+if ! command -v gum >/dev/null 2>&1; then
+  echo "gum is required (to render the menu). Install gum and retry." >&2
+  exit 1
+fi
+
+title_case() { sed -E 's/(^|-)([a-z])/\1\U\2/g; s/-/ /g'; }
+
+resolve_current_theme_name() {
+  if [[ -L "${CURRENT_THEME_LINK}" ]]; then
+    basename "$(readlink -f "${CURRENT_THEME_LINK}")"
+  else
+    echo ""
+  fi
+}
+
+list_themes() {
+  find "${THEMES_DIR}" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) 2>/dev/null | sort
+}
+
+pick_theme() {
+  local current_name; current_name="$(resolve_current_theme_name)"
+  mapfile -t items < <(list_themes | while read -r path; do
+    local name base count
+    base=$(basename "$path")
+    name=$(echo "$base" | title_case)
+    if [[ -d "$path/backgrounds" ]]; then
+      count=$(find "$path/backgrounds" -maxdepth 1 -type f | wc -l | awk '{print $1}')
+    else
+      count=0
+    fi
+    if [[ "$base" == "$current_name" ]]; then
+      printf "Current: %s (%s)\n" "$name" "$count"
+    else
+      printf "%s (%s)\n" "$name" "$count"
+    fi
+  done)
+  local sel; sel=$(printf '%s\n' "${items[@]}" | gum choose --header="Select Theme" || true)
+  [[ -z "${sel}" ]] && return 1
+  sel=$(sed -E 's/^Current: //; s/ \([0-9]+\)$//' <<<"$sel")
+  # back to slug
+  echo "$sel" | tr '[:upper:]' '[:lower:]' | tr ' ' '-'
+}
+
+pick_background_from_theme() {
+  local theme_slug="$1"
+  local tdir="${THEMES_DIR}/${theme_slug}"
+  local bdir="${tdir}/backgrounds"
+  if [[ ! -d "$bdir" ]]; then
+    echo "No backgrounds directory for theme: $theme_slug" >&2
+    return 1
+  fi
+  mapfile -t files < <(find "$bdir" -maxdepth 1 -type f | sort)
+  if [[ ${#files[@]} -eq 0 ]]; then
+    echo "No backgrounds found in: $bdir" >&2
+    return 1
+  fi
+  local current_target=""
+  [[ -L "${CURRENT_BG_LINK}" ]] && current_target="$(readlink -f "${CURRENT_BG_LINK}")"
+  mapfile -t items < <(for f in "${files[@]}"; do
+    base=$(basename "$f")
+    if [[ -n "$current_target" && "$f" == "$current_target" ]]; then
+      echo "* ${base}"
+    else
+      echo "  ${base}"
+    fi
+  done)
+  local choice; choice=$(printf '%s\n' "${items[@]}" | gum choose --header="Choose Background (${theme_slug})" || true)
+  [[ -z "${choice}" ]] && return 1
+  choice=$(sed -E 's/^\*\s+|^\s+//' <<<"${choice}")
+  echo "${bdir}/${choice}"
+}
+
+add_background_to_theme() {
+  local theme_slug="$1"
+  local tdir="${THEMES_DIR}/${theme_slug}"
+  local bdir="${tdir}/backgrounds"
+  mkdir -p "$bdir"
+
+  local src; src=$(gum input --header="Path to image to add to ${theme_slug}" --placeholder="/path/to/image.png" || true)
+  [[ -z "${src}" ]] && return 1
+  if [[ ! -f "${src}" ]]; then
+    echo "File not found: ${src}" >&2
+    return 1
+  fi
+  local mime; mime=$(file --mime-type -b "${src}" 2>/dev/null || echo image/unknown)
+  if [[ "${mime}" != image/* ]]; then
+    echo "Warning: selected file does not appear to be an image (${mime}). Continuing..." >&2
+  fi
+  local base; base=$(basename "${src}")
+  local dest="${bdir}/${base}"
+  if [[ -e "${dest}" ]]; then
+    local ts; ts=$(date +%Y%m%d_%H%M%S)
+    dest="${bdir}/${ts}_${base}"
+  fi
+  cp -f "${src}" "${dest}"
+  echo "${dest}"
+}
+
+# Main menu
+action=$(printf '%s\n' "Pick background from installed themes" "Add background to a theme" | gum choose --header="Background Manager" || true)
+[[ -z "${action}" ]] && exit 0
+
+case "${action}" in
+  "Pick background from installed themes")
+    theme=$(pick_theme) || exit 0
+    file=$(pick_background_from_theme "$theme") || exit 0
+    ln -nsf "$file" "$CURRENT_BG_LINK"
+    echo "Background link set to $(basename "$file")"
+    ;;
+  "Add background to a theme")
+    theme=$(pick_theme) || exit 0
+    file=$(add_background_to_theme "$theme") || exit 0
+    if gum confirm "Set as current background now?"; then
+      ln -nsf "$file" "$CURRENT_BG_LINK"
+      echo "Background link set to $(basename "$file")"
+    else
+      echo "Added $(basename "$file") to ${theme}"
+    fi
+    ;;
+esac
+
+
