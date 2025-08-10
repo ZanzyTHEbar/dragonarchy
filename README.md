@@ -1,10 +1,10 @@
 # Traditional Dotfiles Management with GNU Stow
 
-This is a very opinionated Archy Linux configuration, using hyprland, that is built on-top of CachyOS.
+This is a very opinionated Arch Linux configuration, using hyprland, that is built on-top of CachyOS and inspired from Omarchy.
 
 - **GNU Stow** for dotfiles/configuration management
 - **Zsh scripts** for automation and setup
-- **age/sops** for secrets management (keeping existing approach)
+- **age/sops** for secrets management
 - **Platform-specific package managers** for software installation
 
 ## Quick Start
@@ -25,17 +25,17 @@ cd ~/dotfiles
 
 ```
 stow-config/
-├── packages/           # Stow packages (dotfiles)
+├── packages/      # Stow packages (dotfiles)
 │   ├── zsh/           # Zsh configuration
-│   ├── git/           # Git configuration
-│   ├── kitty/         # Kitty terminal
-│   ├── nvim/          # Neovim configuration
+│   ├── git/             # Git configuration
+│   ├── kitty/          # Kitty terminal
+│   ├── nvim/         # Neovim configuration
 │   ├── ssh/           # SSH configuration
 │   └── ...
-├── scripts/           # Installation and setup scripts
-├── hosts/             # Host-specific configurations
-├── secrets/           # Encrypted secrets management
-└── setup.sh           # Main setup script
+├── scripts/          # Installation and setup scripts
+├── hosts/            # Host-specific configurations
+├── secrets/         # Encrypted secrets management
+└── setup.sh        # Main setup script
 ```
 
 ## Features
