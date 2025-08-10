@@ -1,8 +1,19 @@
 #!/bin/bash
 # Displays a power menu.
 
+# Resolve script dir for calling helpers
+SOURCE=${BASH_SOURCE[0]}
+while [ -h "$SOURCE" ]; do
+  DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+  SOURCE=$(readlink "$SOURCE")
+  [[ $SOURCE != /* ]] && SOURCE=$DIR/$SOURCE
+done
+SCRIPT_DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+
 # If wlogout is present and not explicitly disabled, prefer it
 if command -v wlogout >/dev/null 2>&1 && [ -z "${DRAGON_TUI_ONLY:-}" ]; then
+  # Ensure wlogout layout uses a logout action that returns to SDDM
+  "$SCRIPT_DIR/wlogout-setup" >/dev/null 2>&1 || true
   exec wlogout
 else
   show_power_menu() {
@@ -11,7 +22,7 @@ else
 
     case "$choice" in
     "Lock") hyprlock ;;
-    "Logout") uwsm stop ;;
+    "Logout") bash -lc 'loginctl terminate-session "$XDG_SESSION_ID" || loginctl terminate-user "$USER" || uwsm stop || hyprctl dispatch exit' ;;
     "Suspend") systemctl suspend ;;
     "Reboot") systemctl reboot ;;
     "Shutdown") systemctl poweroff ;;

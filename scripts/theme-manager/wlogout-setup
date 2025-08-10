@@ -10,11 +10,14 @@ STYLE_FILE="$CONF_DIR/style.css"
 if [ ! -f "$LAYOUT_FILE" ]; then
   cat >"$LAYOUT_FILE" <<'EOF'
 label,lock,Lock,hyprlock
-label,logout,Logout,uwsm stop
+label,logout,Logout,bash -lc "loginctl terminate-session $XDG_SESSION_ID"
 label,suspend,Suspend,systemctl suspend
 label,reboot,Reboot,systemctl reboot
 label,shutdown,Shutdown,systemctl poweroff
 EOF
+else
+  # Ensure logout returns to DM by terminating the current session via systemd-logind
+  sed -i -E "s|^(label,logout,Logout,).*|\1bash -lc \"loginctl terminate-session \$XDG_SESSION_ID\"|" "$LAYOUT_FILE"
 fi
 
 if [ ! -f "$STYLE_FILE" ]; then

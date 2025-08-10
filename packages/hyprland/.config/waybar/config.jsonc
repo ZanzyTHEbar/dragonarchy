@@ -45,23 +45,19 @@
     }
   },
   "custom/idle": {
-    "format": "{icon}",
+    "format": "{text}",
     "return-type": "json",
     "exec": "/home/daofficialwizard/dotfiles/scripts/theme-manager/idle-status",
     "interval": 5,
     "tooltip": true,
     "tooltip-format": "Click to toggle idle",
-    "on-click": "/home/daofficialwizard/dotfiles/scripts/theme-manager/toggle-idle",
-    "format-icon": {
-      "idle": "󰂺",
-      "active": "󰂻"
-    }
+    "on-click": "/home/daofficialwizard/dotfiles/scripts/theme-manager/toggle-idle"
   },
   "custom/session": {
     "format": "",
     "tooltip": true,
     "tooltip-format": "Left: power menu | Middle: rerun autostart | Right: settings",
-    "on-click": "bash -lc 'if command -v wlogout >/dev/null 2>&1; then wlogout; else kitty --class=Dragon --title=PowerMenu /home/daofficialwizard/dotfiles/scripts/theme-manager/power-menu & sleep 0.15; fi'",
+    "on-click": "/home/daofficialwizard/dotfiles/scripts/theme-manager/power-menu",
     "on-click-middle": "/home/daofficialwizard/dotfiles/scripts/theme-manager/restart-autostart",
     "on-click-right": "bash -lc 'kitty --class=Dragon --title=Dragon /home/daofficialwizard/dotfiles/scripts/dragon-cli & sleep 0.15;'"
   },
