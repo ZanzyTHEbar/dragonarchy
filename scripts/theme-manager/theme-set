@@ -54,9 +54,20 @@ ln -snf ~/.config/current/theme/gtk.css ~/.config/gtk-3.0/gtk.css
 mkdir -p "$HOME/.config/kitty"
 ln -snf "$CURRENT_THEME_DIR/kitty.conf" "$HOME/.config/kitty/colors.conf"
 
-# Also write a kitty include to ensure autosuggestion color is applied
-if ! grep -q "^include colors.conf$" "$HOME/.config/kitty/kitty.conf" 2>/dev/null; then
-  echo "include colors.conf" >>"$HOME/.config/kitty/kitty.conf" 2>/dev/null || true
+# Ensure kitty includes colors.conf exactly once
+mkdir -p "$HOME/.config/kitty"
+touch "$HOME/.config/kitty/kitty.conf"
+if grep -Eq '^[[:space:]]*include[[:space:]]+colors\.conf([[:space:]]|$)' "$HOME/.config/kitty/kitty.conf"; then
+  # De-duplicate existing include lines (keep the first one)
+  tmpkitty=$(mktemp)
+  awk 'BEGIN{found=0} { if ($0 ~ /^[ \t]*include[ \t]+colors\.conf([ \t]|$)/) { if (!found) { print; found=1 } } else { print } }' "$HOME/.config/kitty/kitty.conf" >"$tmpkitty" && mv "$tmpkitty" "$HOME/.config/kitty/kitty.conf"
+else
+  # Prepend include at the top
+  tmpkitty=$(mktemp)
+  {
+    echo "include colors.conf"
+    cat "$HOME/.config/kitty/kitty.conf"
+  } >"$tmpkitty" && mv "$tmpkitty" "$HOME/.config/kitty/kitty.conf"
 fi
 
 # Trigger kitty reload (send SIGUSR1 to all kitty instances)
