@@ -1,12 +1,18 @@
 #!/bin/bash
 
-THEMES_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/themes/"
+# Use repo themes directory (aligned with theme-set)
+THEMES_DIR="$(dirname "$0")/../../packages/themes/.config/themes"
 CURRENT_THEME_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
-CURRENT_THEME_NAME=$(basename "$(realpath "$CURRENT_THEME_DIR")")
+
+if [[ -e "$CURRENT_THEME_DIR" ]]; then
+  CURRENT_THEME_NAME=$(basename "$(readlink -f "$CURRENT_THEME_DIR")")
+else
+  CURRENT_THEME_NAME=""
+fi
 
 # Build themes list with pretty display names
 mapfile -t themes < <(
-  find "$THEMES_DIR" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) | sort | while read -r path; do
+  find "$THEMES_DIR" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) 2>/dev/null | sort | while read -r path; do
     filename=$(basename "$path")
     display_name=$(echo "$filename" | sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g')
 

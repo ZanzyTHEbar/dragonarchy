@@ -48,20 +48,27 @@
     "format": "{icon}",
     "return-type": "json",
     "exec": "/home/daofficialwizard/dotfiles/scripts/theme-manager/idle-status",
-    "interval": 5
+    "interval": 5,
+    "tooltip": true,
+    "tooltip-format": "Click to toggle idle",
+    "on-click": "/home/daofficialwizard/dotfiles/scripts/theme-manager/toggle-idle",
+    "format-icon": {
+      "idle": "󰂺",
+      "active": "󰂻"
+    }
   },
   "custom/session": {
     "format": "",
     "tooltip": true,
-    "tooltip-format": "Left: power menu | Middle: settings | Right: toggle idle",
-    "on-click": "/home/daofficialwizard/dotfiles/scripts/dragon-cli Power Menu",
-    "on-click-middle": "/home/daofficialwizard/dotfiles/scripts/dragon-cli",
-    "on-click-right": "/home/daofficialwizard/dotfiles/scripts/theme-manager/toggle-idle"
+    "tooltip-format": "Left: power menu | Middle: rerun autostart | Right: settings",
+    "on-click": "bash -lc 'if command -v wlogout >/dev/null 2>&1; then wlogout; else kitty --class=Dragon --title=PowerMenu /home/daofficialwizard/dotfiles/scripts/theme-manager/power-menu & sleep 0.15; fi'",
+    "on-click-middle": "/home/daofficialwizard/dotfiles/scripts/theme-manager/restart-autostart",
+    "on-click-right": "bash -lc 'kitty --class=Dragon --title=Dragon /home/daofficialwizard/dotfiles/scripts/dragon-cli & sleep 0.15;'"
   },
   "cpu": {
     "interval": 5,
     "format": "󰍛",
-    "on-click": "kitty btop"
+    "on-click": "kitty --class=Btop btop"
   },
   "clock": {
     "format": "{:%A %H:%M}",
@@ -86,7 +93,7 @@
     "tooltip-format-disconnected": "Disconnected",
     "interval": 3,
     "nospacing": 1,
-    "on-click": "kitty --class=Impala impala"
+    "on-click": "kitty --class=Impala --title=Impala impala"
   },
   "battery": {
     "format": "{capacity}% {icon}",
@@ -137,7 +144,7 @@
   },
   "pulseaudio": {
     "format": "{icon}",
-    "on-click": "kitty --class=Wiremix wiremix",
+    "on-click": "kitty --class=Wiremix --title=Wiremix wiremix",
     "on-click-right": "pamixer -t",
     "tooltip-format": "Playing at {volume}%",
     "scroll-step": 5,

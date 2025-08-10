@@ -1,8 +1,8 @@
 #!/bin/bash
 # Displays a power menu.
 
-if command -v wlogout >/dev/null 2>&1; then
-  # Prefer graphical wlogout if installed
+# If wlogout is present and not explicitly disabled, prefer it
+if command -v wlogout >/dev/null 2>&1 && [ -z "${DRAGON_TUI_ONLY:-}" ]; then
   exec wlogout
 else
   show_power_menu() {
