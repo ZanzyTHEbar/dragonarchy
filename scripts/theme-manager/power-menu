@@ -1,18 +1,23 @@
 #!/bin/bash
 # Displays a power menu.
 
-show_power_menu() {
-  local options=("Lock" "Logout" "Suspend" "Reboot" "Shutdown" "Cancel")
-  local choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Power Menu")
+if command -v wlogout >/dev/null 2>&1; then
+  # Prefer graphical wlogout if installed
+  exec wlogout
+else
+  show_power_menu() {
+    local options=("Lock" "Logout" "Suspend" "Reboot" "Shutdown" "Cancel")
+    local choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Power Menu")
 
-  case "$choice" in
-  "Lock") hyprlock ;;
-  "Logout") uwsm stop ;;
-  "Suspend") systemctl suspend ;;
-  "Reboot") systemctl reboot ;;
-  "Shutdown") systemctl poweroff ;;
-  "Cancel") exit 0 ;;
-  esac
-}
+    case "$choice" in
+    "Lock") hyprlock ;;
+    "Logout") uwsm stop ;;
+    "Suspend") systemctl suspend ;;
+    "Reboot") systemctl reboot ;;
+    "Shutdown") systemctl poweroff ;;
+    "Cancel") exit 0 ;;
+    esac
+  }
 
-show_power_menu
+  show_power_menu
+fi

@@ -16,6 +16,7 @@
     "network",
     "pulseaudio",
     "cpu",
+    "custom/idle",
     "custom/session",
     "battery"
   ],
@@ -42,6 +43,12 @@
       "4": [],
       "5": []
     }
+  },
+  "custom/idle": {
+    "format": "{icon}",
+    "return-type": "json",
+    "exec": "/home/daofficialwizard/dotfiles/scripts/theme-manager/idle-status",
+    "interval": 5
   },
   "custom/session": {
     "format": "",
