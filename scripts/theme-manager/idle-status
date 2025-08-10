@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Outputs Waybar JSON with icon reflecting whether hypridle is active
+
+if pgrep -x hypridle >/dev/null; then
+  echo '{"text":"on","alt":"on","tooltip":"Idle: Enabled","class":"on","percentage":100,"icon":"󰒳"}'
+else
+  echo '{"text":"off","alt":"off","tooltip":"Idle: Inhibited","class":"off","percentage":0,"icon":"󰒲"}'
+fi
+
+

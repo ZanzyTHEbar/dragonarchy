@@ -33,7 +33,8 @@
 #bluetooth,
 #pulseaudio,
 #clock,
-#custom-session {
+#custom-session,
+#custom-idle {
   min-width: 12px;
   margin: 0 7.5px;
 }

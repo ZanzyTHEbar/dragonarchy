@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Creates a minimal wlogout layout and style using current theme, if none exists
+
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/wlogout"
+mkdir -p "$CONF_DIR"
+
+LAYOUT_FILE="$CONF_DIR/layout"
+STYLE_FILE="$CONF_DIR/style.css"
+
+if [ ! -f "$LAYOUT_FILE" ]; then
+  cat >"$LAYOUT_FILE" <<'EOF'
+label,lock,Lock,hyprlock
+label,logout,Logout,uwsm stop
+label,suspend,Suspend,systemctl suspend
+label,reboot,Reboot,systemctl reboot
+label,shutdown,Shutdown,systemctl poweroff
+EOF
+fi
+
+if [ ! -f "$STYLE_FILE" ]; then
+  # Prefer Hyprland palette from current theme
+  THEME_PALETTE="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme/hyprland-palette.conf"
+  BG="#111111"; FG="#dddddd"; ACC="#88c0d0"
+  if [ -f "$THEME_PALETTE" ]; then
+    hex_from_rgba() {
+      # input like rgba(1a1b26ff) → 1a1b26ff
+      sed -E 's/.*rgba\(([^)]*)\).*/\1/' | tr -d ' \n' | head -n1
+    }
+    six_from_eight() {
+      # take first 6 chars if 8 provided
+      local v="$1"; echo "#${v:0:6}"
+    }
+    bhex=$(grep -E '^\$background\s*=' "$THEME_PALETTE" | hex_from_rgba)
+    fhex=$(grep -E '^\$foreground\s*=' "$THEME_PALETTE" | hex_from_rgba)
+    ahex=$(grep -E '^\$accent\s*=' "$THEME_PALETTE" | hex_from_rgba)
+    [ -n "$bhex" ] && BG=$(six_from_eight "$bhex")
+    [ -n "$fhex" ] && FG=$(six_from_eight "$fhex")
+    [ -n "$ahex" ] && ACC=$(six_from_eight "$ahex")
+  fi
+
+  cat >"$STYLE_FILE" <<EOF
+window { background-color: ${BG}cc; }
+button { color: ${FG}; background: transparent; border: 2px solid ${FG}44; margin: 10px; padding: 20px 28px; border-radius: 12px; }
+button:hover { border-color: ${ACC}; color: ${ACC}; }
+EOF
+fi
+
+echo "wlogout config ensured at $CONF_DIR"
+
+
