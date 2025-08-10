@@ -4,11 +4,16 @@
 # Resolve script dir for calling helpers
 SOURCE=${BASH_SOURCE[0]}
 while [ -h "$SOURCE" ]; do
-  DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+  DIR=$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)
   SOURCE=$(readlink "$SOURCE")
   [[ $SOURCE != /* ]] && SOURCE=$DIR/$SOURCE
 done
-SCRIPT_DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+SCRIPT_DIR=$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)
+
+# Ensure hyprlock has a minimal config (prevents white screen on first run)
+if command -v hyprlock >/dev/null 2>&1; then
+  "$SCRIPT_DIR/hyprlock-setup" >/dev/null 2>&1 || true
+fi
 
 # If wlogout is present and not explicitly disabled, prefer it
 if command -v wlogout >/dev/null 2>&1 && [ -z "${DRAGON_TUI_ONLY:-}" ]; then

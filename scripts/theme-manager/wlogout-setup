@@ -23,7 +23,9 @@ fi
 if [ ! -f "$STYLE_FILE" ]; then
   # Prefer Hyprland palette from current theme
   THEME_PALETTE="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme/hyprland-palette.conf"
-  BG="#111111"; FG="#dddddd"; ACC="#88c0d0"
+  BG="#111111"
+  FG="#dddddd"
+  ACC="#88c0d0"
   if [ -f "$THEME_PALETTE" ]; then
     hex_from_rgba() {
       # input like rgba(1a1b26ff) → 1a1b26ff
@@ -31,7 +33,8 @@ if [ ! -f "$STYLE_FILE" ]; then
     }
     six_from_eight() {
       # take first 6 chars if 8 provided
-      local v="$1"; echo "#${v:0:6}"
+      local v="$1"
+      echo "#${v:0:6}"
     }
     bhex=$(grep -E '^\$background\s*=' "$THEME_PALETTE" | hex_from_rgba)
     fhex=$(grep -E '^\$foreground\s*=' "$THEME_PALETTE" | hex_from_rgba)
@@ -48,6 +51,9 @@ button:hover { border-color: ${ACC}; color: ${ACC}; }
 EOF
 fi
 
+# Ensure hyprlock has a basic config to avoid white screen / missing config
+if command -v hyprlock >/dev/null 2>&1; then
+  "$(dirname "$0")/hyprlock-setup" >/dev/null 2>&1 || true
+fi
+
 echo "wlogout config ensured at $CONF_DIR"
-
-
