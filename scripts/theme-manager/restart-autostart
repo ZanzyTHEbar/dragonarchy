@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Safer rerun of essential autostart services with idempotency checks.
+
+run_exec() {
+  local cmd="$1"
+  echo "[autostart] exec: $cmd"
+  hyprctl dispatch exec "$cmd" >/dev/null 2>&1 || true
+}
+
+start_if_missing() {
+  local pname="$1"; shift
+  local cmd="$*"
+  if ! pgrep -x "$pname" >/dev/null 2>&1; then
+    run_exec "$cmd"
+  fi
+}
+
+restart_proc() {
+  local pname="$1"; shift
+  local cmd="$*"
+  pkill -x "$pname" >/dev/null 2>&1 || true
+  sleep 0.05
+  run_exec "$cmd"
+}
+
+# Background (swaybg)
+restart_proc swaybg "uwsm app -- swaybg -i ~/.config/current/background -m fill"
+
+# Waybar
+restart_proc waybar "uwsm app -- waybar"
+
+# Input/IME
+start_if_missing fcitx5 "uwsm app -- fcitx5"
+
+# Notifications
+if pgrep -x swaync >/dev/null 2>&1; then
+  command -v swaync-client >/dev/null 2>&1 && swaync-client -R >/dev/null 2>&1 || true
+else
+  run_exec "uwsm app -- swaync"
+fi
+
+# Idle daemon
+start_if_missing hypridle "uwsm app -- hypridle"
+
+# OSD server
+start_if_missing swayosd-server "uwsm app -- swayosd-server"
+
+# Runner/service
+start_if_missing walker "uwsm app -- walker --gapplication-service"
+
+# Polkit agent
+start_if_missing polkit-gnome-authentication-agent-1 "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+
+# Gnome keyring
+start_if_missing gnome-keyring-daemon "/usr/bin/gnome-keyring-daemon --start --components=pkcs11,secrets,ssh"
+
+# Network applet
+start_if_missing nm-applet "nm-applet --indicator"
+
+# WOB pipe + server
+if ! pgrep -x wob >/dev/null 2>&1; then
+  rm -f /tmp/${HYPRLAND_INSTANCE_SIGNATURE:-hypr}.wob || true
+  run_exec "bash -c 'mkfifo /tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob && tail -f /tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob | wob & disown'"
+fi
+
+# Clipboard helpers
+start_if_missing clipse "clipse -listen"
+start_if_missing wl-clip-persist "wl-clip-persist --clipboard regular --all-mime-type-regex '^(?!x-kde-passwordManagerHint).+'"
+
+echo "Autostart services checked/restarted."
+
+
