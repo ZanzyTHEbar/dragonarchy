@@ -1,32 +1,22 @@
 #!/bin/bash
 
 # NFS Systemd Automount Configuration Script
-# This script configures NFS mounts with systemd automount for dragonserver
+# Dynamically configures NFS mounts with systemd automount for specified host, base path, and datasets
 
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
 
 # Variables
 readonly FSTAB="/etc/fstab"
 readonly MOUNT_POINT="/mnt"
-readonly NFS_SERVER_HOST="dragonserver.local"
-readonly NFS_SERVER_BASE="/mainpool/nfsroot"
-readonly NFS_SERVER_DRAGONNET="$NFS_SERVER_HOST:$NFS_SERVER_BASE/data"
-readonly NFS_SERVER_COMMON="$NFS_SERVER_HOST:$NFS_SERVER_BASE/common"
+NFS_SERVER_HOST="$1"
+NFS_SERVER_BASE="$2"
+shift 2
+declare -a NFS_SERVER_DATASETS=("$@")
+declare -a FSTAB_ENTRIES=()
+declare -a AUTOMOUNT_UNITS=()
 
 # NFS mount options optimized for performance and reliability
 readonly NFS_OPTIONS="nfs4 rw,async,rsize=65536,wsize=65536,proto=tcp,vers=4.1,noatime,actimeo=10,intr,cto,soft,timeo=60,retrans=3,x-systemd.automount,x-systemd.idle-timeout=60,_netdev 0 0"
-
-# Fstab entries array
-readonly FSTAB_ENTRIES=(
-    "$NFS_SERVER_DRAGONNET $MOUNT_POINT/dragonnet $NFS_OPTIONS"
-    "$NFS_SERVER_COMMON $MOUNT_POINT/common $NFS_OPTIONS"
-)
-
-# Corresponding automount units
-readonly AUTOMOUNT_UNITS=(
-    "mnt-dragonnet.automount"
-    "mnt-common.automount"
-)
 
 # Logging functions
 log_info() {
@@ -80,6 +70,14 @@ check_nfs_server() {
         log_error "Please check network connectivity and server availability"
         exit 1
     fi
+
+    log_info "Checking NFS server exports..."
+    
+    if ! showmount -e "$NFS_SERVER_HOST" &> /dev/null; then
+        log_error "No NFS exports found on server: $NFS_SERVER_HOST"
+        log_error "Please verify NFS server configuration and exports"
+        exit 1
+    fi
     
     log_success "NFS server $NFS_SERVER_HOST is reachable"
 }
@@ -120,6 +118,16 @@ backup_fstab() {
     log_info "Creating fstab backup: $backup_file"
     sudo cp "$FSTAB" "$backup_file"
     log_success "Fstab backed up successfully"
+}
+
+# Function to generate fstab entries and automount units
+generate_entries() {
+    for dataset in "${NFS_SERVER_DATASETS[@]}"; do
+        local safe_dataset
+        safe_dataset=$(echo "$dataset" | tr '/' '-' | sed 's/[^a-zA-Z0-9-]//g')
+        FSTAB_ENTRIES+=("$NFS_SERVER_HOST:$NFS_SERVER_BASE/$dataset $MOUNT_POINT/$safe_dataset $NFS_OPTIONS")
+        AUTOMOUNT_UNITS+=("mnt-${safe_dataset}.automount")
+    done
 }
 
 # Function to add NFS entries to fstab
@@ -213,7 +221,6 @@ test_mounts() {
         
         log_info "Testing access to: $mount_point"
         
-        # Trigger automount by listing directory
         if timeout 10 ls "$mount_point" &> /dev/null; then
             log_success "Mount test successful: $mount_point"
         else
@@ -252,7 +259,15 @@ show_status() {
 
 # Main function
 main() {
+    if [[ ${#NFS_SERVER_DATASETS[@]} -eq 0 ]]; then
+        log_error "No datasets provided. Usage: $0 <host> <base_path> <dataset1> [dataset2 ...]"
+        exit 1
+    fi
+    
     log_info "Starting NFS systemd automount configuration..."
+    
+    # Generate dynamic fstab entries and automount units
+    generate_entries
     
     # Pre-flight checks
     check_privileges
