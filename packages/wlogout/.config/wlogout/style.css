@@ -1,19 +1,20 @@
-/* Variables will be overridden via ~/.config/current/theme/wlogout.css */
-:root {
-  --wlogout-bg: rgba(17, 17, 17, 0.8);
-  --wlogout-fg: #dddddd;
-  --wlogout-accent: #88c0d0;
+/* Theme overrides: create ~/.config/current/theme/wlogout.css with concrete colors.
+   This file imports it at the end to avoid CSS custom properties. */
+* {
+  background-image: none;
+  box-shadow: none;
 }
 
 window {
-  background-color: var(--wlogout-bg);
+  background-color: rgba(17, 17, 17, 0.8);
   font-family: "CaskaydiaMono Nerd Font Propo", "Symbols Nerd Font",
     "Font Awesome 6 Free", "Noto Sans", "Inter", sans-serif;
 }
 button {
-  color: var(--wlogout-fg);
-  background: transparent;
-  border: 2px solid color-mix(in srgb, var(--wlogout-fg) 27%, transparent);
+  color: #dddddd;
+  /* Use background-color to avoid clearing background-image */
+  background-color: transparent;
+  border: 2px solid rgba(221, 221, 221, 0.27);
   margin: 10px;
   padding: 36px 42px;
   border-radius: 12px;
@@ -23,14 +24,66 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 25%;
 }
 button label {
-  font-size: 44px;
+  /* Hide textual labels to let PNG icons be primary */
+  color: transparent;
+  text-shadow: none;
+  font-size: 0;
   margin: 0;
   padding: 0;
   text-align: center;
 }
 button:hover {
-  border-color: var(--wlogout-accent);
-  color: var(--wlogout-accent);
+  border-color: #88c0d0;
+  color: #88c0d0;
 }
+
+/* Icon backgrounds (PNG with fallback path) */
+#lock {
+  background-image: image(
+    url("/usr/share/wlogout/icons/lock.png"),
+    url("/usr/local/share/wlogout/icons/lock.png")
+  ) !important;
+}
+
+#logout {
+  background-image: image(
+    url("/usr/share/wlogout/icons/logout.png"),
+    url("/usr/local/share/wlogout/icons/logout.png")
+  ) !important;
+}
+
+#suspend {
+  background-image: image(
+    url("/usr/share/wlogout/icons/suspend.png"),
+    url("/usr/local/share/wlogout/icons/suspend.png")
+  ) !important;
+}
+
+#hibernate {
+  background-image: image(
+    url("/usr/share/wlogout/icons/hibernate.png"),
+    url("/usr/local/share/wlogout/icons/hibernate.png")
+  ) !important;
+}
+
+#shutdown {
+  background-image: image(
+    url("/usr/share/wlogout/icons/shutdown.png"),
+    url("/usr/local/share/wlogout/icons/shutdown.png")
+  ) !important;
+}
+
+#reboot {
+  background-image: image(
+    url("/usr/share/wlogout/icons/reboot.png"),
+    url("/usr/local/share/wlogout/icons/reboot.png")
+  ) !important;
+}
+
+/* Import theme overrides last (relative to ~/.config/wlogout/style.css) */
+@import url("../current/theme/wlogout.css");
