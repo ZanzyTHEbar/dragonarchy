@@ -244,6 +244,7 @@ setup_dotfiles() {
         "zed"
         "dragon-cli"
         "wlogout"
+	"gh-extensions"
     )
 
     # Install each package
