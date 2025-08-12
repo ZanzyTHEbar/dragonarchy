@@ -1,0 +1,47 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# Auto-detect current repo in "owner/repo" format
+repo="$(gh repo view --json owner,name --jq '.owner.login + "/" + .name')"
+
+usage() {
+    echo "Usage: gh branch [list|create|delete|rename] ..."
+    echo "  list                       List all remote branches"
+    echo "  create <name>              Create new branch from default branch"
+    echo "  delete <name>              Delete remote branch"
+    echo "  rename <old> <new>         Rename remote branch"
+    exit 1
+}
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+    list)
+        gh api "repos/$repo/branches" --jq '.[].name'
+        ;;
+    create)
+        new_branch="${1:-}"; [[ -z "$new_branch" ]] && usage
+        default_branch=$(gh api "repos/$repo" --jq .default_branch)
+        sha=$(gh api "repos/$repo/git/ref/heads/$default_branch" --jq .object.sha)
+        gh api -X POST "repos/$repo/git/refs" \
+            -f ref="refs/heads/$new_branch" \
+            -f sha="$sha"
+        echo "✅ Created branch '$new_branch' from '$default_branch'"
+        ;;
+    delete)
+        branch="${1:-}"; [[ -z "$branch" ]] && usage
+        gh api -X DELETE "repos/$repo/git/refs/heads/$branch"
+        echo "🗑️ Deleted branch '$branch'"
+        ;;
+    rename)
+        old="${1:-}"; new="${2:-}"
+        [[ -z "$old" || -z "$new" ]] && usage
+        gh api -X POST "repos/$repo/branches/$old/rename" -f new_name="$new"
+        echo "✏️ Renamed branch '$old' → '$new'"
+        ;;
+    *)
+        usage
+        ;;
+esac
+
