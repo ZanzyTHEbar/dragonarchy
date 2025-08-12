@@ -53,7 +53,13 @@ setopt HIST_SAVE_NO_DUPS
 setopt HIST_IGNORE_DUPS
 setopt HIST_FIND_NO_DUPS
 
-# Set up completion system
+
+
+
+# ==== Set up completion system ==== #
+
+fpath=(~/.local/share/gh/extensions/gh-branch $fpath)
+
 autoload -Uz compinit bashcompinit
 bashcompinit
 compinit

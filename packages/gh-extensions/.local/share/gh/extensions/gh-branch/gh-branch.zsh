@@ -1,6 +1,5 @@
 #compdef gh-branch
 
-# Completion function for `gh branch`
 _gh_branch() {
     local -a commands
     commands=(
@@ -21,10 +20,25 @@ _gh_branch() {
             ;;
         args)
             case $words[2] in
-                delete|rename)
+                delete)
                     local branches
-                    branches=(${(f)"$(gh api "repos/$(gh repo view --json owner,name --jq '.owner.login + \"/\" + .name')/branches" --jq '.[].name')"})
+                    branches=(${(f)"$(gh api "repos/$(gh repo view --json owner,name --jq '.owner.login + \"/\" + .name')/branches" --jq '.[].name' 2>/dev/null)"})
                     _describe 'branch' branches
+                    ;;
+                rename)
+                    if (( CURRENT == 3 )); then
+                        # First argument to rename: old branch name
+                        local branches
+                        branches=(${(f)"$(gh api "repos/$(gh repo view --json owner,name --jq '.owner.login + \"/\" + .name')/branches" --jq '.[].name' 2>/dev/null)"})
+                        _describe 'branch' branches
+                    elif (( CURRENT == 4 )); then
+                        # Second argument to rename: new branch name (free text)
+                        _message 'new branch name'
+                    fi
+                    ;;
+                create)
+                    # No enforced completion, just a hint message
+                    _message 'new branch name (from default branch)'
                     ;;
             esac
             ;;
@@ -32,4 +46,5 @@ _gh_branch() {
 }
 
 _gh_branch "$@"
+
 
