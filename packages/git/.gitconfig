@@ -92,3 +92,5 @@
 	directory = /mnt/common/projects/tools/file4you
 	directory = /mnt/common/projects/tools/file4you
 	directory = /mnt/common/projects/clients/emissium/zephyr
+	directory = /mnt/common/projects/clients/emissium/trading/alpha-engine
+	directory = /mnt/common/projects/ai/agentic-rag
