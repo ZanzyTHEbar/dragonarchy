@@ -184,6 +184,8 @@ gitupdate() {
 alias gp=gitpush
 alias gu=gitupdate
 alias update-grub='sudo grub-mkconfig -o /boot/grub/grub.cfg'
+alias gh-work='GH_CONFIG_DIR=~/.config/gh-work gh'
+alias gh-personal='GH_CONFIG_DIR=~/.config/gh-personal gh'
 
 #######################################################
 # Global Aliases (ZSH specific)
