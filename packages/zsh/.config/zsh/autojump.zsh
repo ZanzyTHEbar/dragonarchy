@@ -13,7 +13,7 @@ autojump_paths=(
   /usr/pkg/share/autojump/autojump.zsh                     # NetBSD installation
   /opt/local/etc/profile.d/autojump.sh                     # macOS with MacPorts
   /usr/local/etc/profile.d/autojump.sh                     # macOS with Homebrew (default)
-  /opt/homebrew/etc/profile.d/autojump.sh                  # macOS with Homebrew (default on M1 macs)
+  /opt$HOMEbrew/etc/profile.d/autojump.sh                  # macOS with Homebrew (default on M1 macs)
   /opt/pkg/share/autojump/autojump.zsh                     # macOS with pkgsrc
   /etc/profiles/per-user/$USER/etc/profile.d/autojump.sh   # macOS Nix, Home Manager and flakes
   /nix/var/nix/gcroots/current-system/sw/share/zsh/site-functions/autojump.zsh  # macOS Nix, nix-darwin
