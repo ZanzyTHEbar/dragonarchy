@@ -47,19 +47,19 @@
   "custom/idle": {
     "format": "{text}",
     "return-type": "json",
-    "exec": "/home/daofficialwizard/dotfiles/scripts/theme-manager/idle-status",
+    "exec": "$HOME/dotfiles/scripts/theme-manager/idle-status",
     "interval": 1,
     "tooltip": true,
     "tooltip-format": "Click to toggle idle",
-    "on-click": "bash -lc '/home/daofficialwizard/dotfiles/scripts/theme-manager/toggle-idle >/dev/null 2>&1'"
+    "on-click": "bash -lc '$HOME/dotfiles/scripts/theme-manager/toggle-idle >/dev/null 2>&1'"
   },
   "custom/session": {
     "format": "",
     "tooltip": true,
     "tooltip-format": "Left: power menu | Middle: rerun autostart | Right: settings",
-    "on-click": "/home/daofficialwizard/dotfiles/scripts/theme-manager/power-menu",
-    "on-click-middle": "/home/daofficialwizard/dotfiles/scripts/theme-manager/restart-autostart",
-    "on-click-right": "bash -lc 'kitty --class=Dragon --title=Dragon /home/daofficialwizard/dotfiles/scripts/dragon-cli & sleep 0.15;'"
+    "on-click": "$HOME/dotfiles/scripts/theme-manager/power-menu",
+    "on-click-middle": "$HOME/dotfiles/scripts/theme-manager/restart-autostart",
+    "on-click-right": "bash -lc 'kitty --class=Dragon --title=Dragon $HOME/dotfiles/scripts/dragon-cli & sleep 0.15;'"
   },
   "cpu": {
     "interval": 5,

@@ -139,9 +139,9 @@ add_chaotic_aur() {
 install_brew() {
     command_exists brew || {
         log_info "Installing Homebrew..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >>~/.zprofile
-        eval "$(/opt/homebrew/bin/brew shellenv)"
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com$HOMEbrew/install/HEAD/install.sh)"
+        echo 'eval "$(/opt$HOMEbrew/bin/brew shellenv)"' >>~/.zprofile
+        eval "$(/opt$HOMEbrew/bin/brew shellenv)"
     }
     log_info "Updating Homebrew..." && brew update
     log_info "Installing formulas: $*"
