@@ -24,7 +24,7 @@ export HOSTNAME="$(hostname | cut -d. -f1)"
 case "$PLATFORM" in
     "macos")
         # macOS specific exports
-        export HOMEBREW_PREFIX="/opt/homebrew"
+        export HOMEBREW_PREFIX="/opt$HOMEbrew"
         export PATH="$HOMEBREW_PREFIX/bin:$HOMEBREW_PREFIX/sbin:$PATH"
         
         # Load Homebrew environment if available

@@ -83,14 +83,14 @@ zstyle ':completion:*:*:docker-*:*' option-stacking yes
 #     # Set up FZF key bindings and fuzzy completion
 #     if [[ -f /usr/share/fzf/key-bindings.zsh ]]; then
 #         source /usr/share/fzf/key-bindings.zsh
-#     elif [[ -f /opt/homebrew/opt/fzf/shell/key-bindings.zsh ]]; then
-#         source /opt/homebrew/opt/fzf/shell/key-bindings.zsh
+#     elif [[ -f /opt$HOMEbrew/opt/fzf/shell/key-bindings.zsh ]]; then
+#         source /opt$HOMEbrew/opt/fzf/shell/key-bindings.zsh
 #     fi
 #     
 #     if [[ -f /usr/share/fzf/completion.zsh ]]; then
 #         source /usr/share/fzf/completion.zsh  
-#     elif [[ -f /opt/homebrew/opt/fzf/shell/completion.zsh ]]; then
-#         source /opt/homebrew/opt/fzf/shell/completion.zsh
+#     elif [[ -f /opt$HOMEbrew/opt/fzf/shell/completion.zsh ]]; then
+#         source /opt$HOMEbrew/opt/fzf/shell/completion.zsh
 #     fi
 #     
 #     # Custom FZF configuration
