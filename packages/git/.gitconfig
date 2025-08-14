@@ -86,7 +86,6 @@
 [include]
 	path = ~/.gitconfig.local 
 [safe]
-	directory = /mnt/common/Projects/Personal/OpenSource/mcp-memory-libsql-go
 	directory = /mnt/common/projects/ai/mcp-memory-libsql-go
 	directory = /mnt/common/projects/ai/ai-hedge-fund
 	directory = /mnt/common/projects/tools/file4you
@@ -94,3 +93,6 @@
 	directory = /mnt/common/projects/clients/emissium/zephyr
 	directory = /mnt/common/projects/clients/emissium/trading/alpha-engine
 	directory = /mnt/common/projects/ai/agentic-rag
+	directory = /mnt/common/projects/clients/emissium/zephyr-client
+	directory = /mnt/common/projects/clients/emissium/zephyr/zephyr-client
+	directory = /mnt/common/projects/ai/consequence-engine
