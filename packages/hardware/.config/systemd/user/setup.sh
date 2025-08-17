@@ -138,19 +138,26 @@ parse_args() {
     done
 }
 
+# Get list of available hosts from hosts directory
+get_available_hosts() {
+    if [[ -d "$HOSTS_DIR" ]]; then
+        find "$HOSTS_DIR" -maxdepth 1 -type d ! -path "$HOSTS_DIR" -exec basename {} \; | sort
+    fi
+}
+
 # Detect current host
 detect_host() {
     local hostname
     hostname=$(hostname | cut -d. -f1)
     
-    case "$hostname" in
-        dragon|spacedragon|dragonsmoon|microdragon|goldendragon)
-            echo "$hostname"
-            ;;
-        *)
-            echo "unknown"
-            ;;
-    esac
+    # Check if a host-specific configuration directory exists
+    if [[ -d "$HOSTS_DIR/$hostname" ]]; then
+        echo "$hostname"
+    else
+        # Return the actual hostname even if no specific config exists
+        # This allows for dynamic hostname support
+        echo "$hostname"
+    fi
 }
 
 # Check prerequisites
