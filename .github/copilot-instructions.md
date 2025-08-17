@@ -7,7 +7,15 @@ This is a dotfiles management repository using GNU Stow for Arch Linux-based sys
 ## Working Effectively
 
 Bootstrap and setup the repository:
-- `sudo apt-get update && sudo apt-get install -y zsh stow git curl grep sed gawk jq neovim ripgrep fd-find fzf tmux htop tree rsync` -- Install basic dependencies on Ubuntu/Debian
+- **Install core dependencies (Ubuntu/Debian):**
+  - `sudo apt-get update`
+  - `sudo apt-get install -y zsh stow git curl grep sed gawk jq`
+- **Install recommended development tools:**
+  - `sudo apt-get install -y neovim ripgrep fd-find fzf tmux htop tree rsync`
+- *Note:*
+  - Some packages may have different names on other distributions (e.g., `fd-find` on Ubuntu/Debian, `fd` on Arch).
+  - If a package is not available, you may skip it or install it manually.
+  - The above lists are for convenience; you may install only the packages you need.
 - `./setup.sh --help` -- View all available options
 - `./setup.sh --dotfiles-only --no-secrets` -- Quick dotfiles setup (takes 1-2 seconds). NEVER CANCEL. Creates symlinks for all dotfiles.
 - `./setup.sh --packages-only` -- Install packages only (may take 10-30 minutes on Arch, WILL FAIL on non-Arch systems). NEVER CANCEL. Set timeout to 45+ minutes.
