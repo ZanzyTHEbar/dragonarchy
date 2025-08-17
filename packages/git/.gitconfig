@@ -15,6 +15,7 @@
 [push]
 	default = upstream
 	followTags = true
+	autoSetupRemote = true
 
 [core]
 	editor = nvim
@@ -96,3 +97,8 @@
 	directory = /mnt/common/projects/clients/emissium/zephyr-client
 	directory = /mnt/common/projects/clients/emissium/zephyr/zephyr-client
 	directory = /mnt/common/projects/ai/consequence-engine
+	directory = /mnt/common/projects/ai/n8n-workflows
+	directory = /mnt/common/projects/ai/mcp-fix-docker
+	directory = /mnt/common/projects/ai/mcp-fix-prompts
+	directory = /mnt/common/projects/ai/worktree-fix-prompts
+	directory = /mnt/common/projects/ai/poml
