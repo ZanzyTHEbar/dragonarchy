@@ -149,7 +149,7 @@ Arch-specific packages:
 
 ### Troubleshooting
 - If stow fails: Remove conflicting files in home directory first with `rm ~/.zshrc ~/.gitconfig` etc.
-- If packages fail on non-Arch: Many packages may not be available (e.g., bat-cat, diff-so-fancy, terraform on Ubuntu)
+- If packages fail on non-Arch: Many packages may not be available (e.g., bat (use command `batcat`), diff-so-fancy, terraform on Ubuntu)
 - If secrets fail: Ensure age and sops are installed and keys are generated
 - If validation fails: Check missing dependencies and install manually
 - If zsh config has warnings: Ignore "insecure directories" warnings - this is normal on shared systems
