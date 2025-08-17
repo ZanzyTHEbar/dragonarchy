@@ -4,6 +4,14 @@ set -euo pipefail
 
 # Script directory for consistent script referencing
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" &>/dev/null && pwd)"
+# CONFIG_DIR is two levels above SCRIPT_DIR.
+# Expected structure:
+#   repo_root/
+#     config/         <-- CONFIG_DIR
+#       hosts/        <-- HOSTS_DIR
+#     scripts/
+#       install/
+#         install_deps.sh  <-- SCRIPT_DIR
 CONFIG_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 HOSTS_DIR="$CONFIG_DIR/hosts"
 
