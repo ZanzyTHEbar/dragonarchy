@@ -158,7 +158,7 @@ Arch-specific packages:
 On Ubuntu/Debian systems:
 - Use `./setup.sh --dotfiles-only --no-secrets` for configuration files only
 - Install available packages manually: `sudo apt-get install neovim ripgrep fd-find fzf bat tmux`
-- Note package name differences: `bat` → `batcat`, `fd` → `fdfind`
+- Note package/command differences on Ubuntu/Debian: package `bat` installs the command `batcat`; package `fd-find` installs the command `fdfind`
 - Skip package installation completely with `./setup.sh --no-packages`
 
 ## Critical Warnings
