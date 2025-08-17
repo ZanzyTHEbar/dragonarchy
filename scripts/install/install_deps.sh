@@ -4,6 +4,8 @@ set -euo pipefail
 
 # Script directory for consistent script referencing
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" &>/dev/null && pwd)"
+CONFIG_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+HOSTS_DIR="$CONFIG_DIR/hosts"
 
 # --- Header and Logging ---
 # Colors for output
@@ -68,19 +70,26 @@ detect_platform() {
     esac
 }
 
+# Get list of available hosts from hosts directory
+get_available_hosts() {
+    if [[ -d "$HOSTS_DIR" ]]; then
+        find "$HOSTS_DIR" -maxdepth 1 -type d ! -path "$HOSTS_DIR" -exec basename {} \; | sort
+    fi
+}
+
 # Detect current host
 detect_host() {
     local hostname
     hostname=$(hostname | cut -d. -f1)
 
-    case "$hostname" in
-    dragon | spacedragon | dragonsmoon | goldendragon)
+    # Check if a host-specific configuration directory exists
+    if [[ -d "$HOSTS_DIR/$hostname" ]]; then
         echo "$hostname"
-        ;;
-    *)
-        echo "unknown"
-        ;;
-    esac
+    else
+        # Return the actual hostname even if no specific config exists
+        # This allows for dynamic hostname support
+        echo "$hostname"
+    fi
 }
 
 command_exists() {
@@ -320,12 +329,12 @@ main() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
         --host)
-            if [[ -n "$2" && ! "$2" =~ ^-- ]]; then
+            if [[ $# -gt 1 && -n "${2:-}" && ! "${2:-}" =~ ^-- ]]; then
                 host="$2"
                 shift 2
             else
                 log_error "Missing host argument for --host"
-                log_info "Available hosts: $(detect_host)"
+                log_info "Available host configurations: $(get_available_hosts | tr '\n' ' ')"
                 log_info "Usage: $0 --host <host>"
                 exit 1
             fi

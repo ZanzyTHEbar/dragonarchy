@@ -64,7 +64,7 @@ Traditional Dotfiles Management Setup Script
 OPTIONS:
     -h, --help              Show this help message
     -v, --verbose           Enable verbose output
-    --host HOST             Setup for specific host (dragon, spacedragon, microdragon, goldendragon)
+    --host HOST             Setup for specific host (any hostname supported)
     --packages-only         Only install packages
     --dotfiles-only         Only setup dotfiles
     --secrets-only          Only setup secrets
@@ -138,19 +138,26 @@ parse_args() {
     done
 }
 
+# Get list of available hosts from hosts directory
+get_available_hosts() {
+    if [[ -d "$HOSTS_DIR" ]]; then
+        find "$HOSTS_DIR" -maxdepth 1 -type d ! -path "$HOSTS_DIR" -exec basename {} \; | sort
+    fi
+}
+
 # Detect current host
 detect_host() {
     local hostname
     hostname=$(hostname | cut -d. -f1)
 
-    case "$hostname" in
-    dragon | spacedragon | dragonsmoon | microdragon | goldendragon)
+    # Check if a host-specific configuration directory exists
+    if [[ -d "$HOSTS_DIR/$hostname" ]]; then
         echo "$hostname"
-        ;;
-    *)
-        echo "unknown"
-        ;;
-    esac
+    else
+        # Return the actual hostname even if no specific config exists
+        # This allows for dynamic hostname support
+        echo "$hostname"
+    fi
 }
 
 # Check prerequisites
