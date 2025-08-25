@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Name=Zoom (Wayland)
+Comment=Zoom client (try Wayland runtime)
+Exec=env QT_QPA_PLATFORM=wayland /opt/zoom/zoom %U
+Terminal=false
+Type=Application
+Icon=zoom
+Categories=Network;Video;
+StartupNotify=false
+
+
