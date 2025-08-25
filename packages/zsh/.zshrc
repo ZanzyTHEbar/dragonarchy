@@ -78,3 +78,11 @@ COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
 [[ -f "$HOME/.config/zsh/.p10k.zsh" ]] && source "$HOME/.config/zsh/.p10k.zsh"
 
 unalias zi 2>/dev/null
+
+# pnpm
+export PNPM_HOME="/home/goldendragon/.local/share/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end

@@ -1,5 +1,5 @@
 #!/bin/bash
-# A script to select and set the terminal font for Alacritty.
+# A script to select and set the terminal font for Alacritty and Kitty.
 
 set -e
 
@@ -10,6 +10,7 @@ NC='\033[0m'
 
 # --- Configuration ---
 ALACRITTY_CONFIG="$HOME/.config/alacritty/alacritty.toml"
+KITTY_CONFIG="$HOME/.config/kitty/kitty.conf"
 
 log_info() { 
   echo -e "\n${BLUE}[INFO]${NC} $1"
@@ -37,3 +38,5 @@ if [[ -n "$font" ]]; then
     log_error "Alacritty config file not found at: $ALACRITTY_CONFIG"
   fi
 fi
+
+# TODO: Add kitty support
