@@ -23,7 +23,7 @@
 	pager = diff-so-fancy | less --tabs=4 -RFX
 
 [color]
-	ui = auto
+	ui = always
 	status = auto
 	diff = auto
 	branch = auto
@@ -103,3 +103,5 @@
 	directory = /mnt/common/projects/ai/worktree-fix-prompts
 	directory = /mnt/common/projects/ai/poml
 	directory = /mnt/common/projects/tools/cursor-rules
+	directory = /mnt/common/projects/tools/firedragon-go
+	directory = /mnt/dragonnet/catalyst-protocol
