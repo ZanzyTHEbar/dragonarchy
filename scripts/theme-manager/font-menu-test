@@ -9,8 +9,8 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 # --- Configuration ---
-ALACRITTY_CONFIG="$HOME/.config/alacritty/alacritty.toml"
-KITTY_CONFIG="$HOME/.config/kitty/kitty.conf"
+ALACRITTY_CONFIG="$HOME/.config/alacritty/missing.toml"
+KITTY_CONFIG="$HOME/.config/kitty/kitty.conf.test"
 
 log_info() {
   echo -e "\n${BLUE}[INFO]${NC} $1"
@@ -23,12 +23,8 @@ log_error() {
 # --- Main Logic ---
 log_info "Searching for available monospace fonts..."
 
-font=$(
-  fc-list :spacing=100 -f "%{family[0]}\n" |
-    grep -v -i -E 'emoji|signwriting|symbols' |
-    sort -u |
-    gum choose --header "Choose a terminal font"
-)
+# For testing purposes, use a hardcoded font instead of interactive selection
+font="Hack"
 
 if [[ -n "$font" ]]; then
   # Update Alacritty config
