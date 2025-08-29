@@ -1,0 +1,231 @@
+---
+alwaysApply: true
+applyTo: "**"
+description: Canonical workflow for creating GitHub Issues and PRs (newline-safe bodies, smart labels, auto-assign)
+version: 1.2
+---
+
+# GitHub Issues & PR Creation (Canonical, Idempotent, Newline-Safe)
+
+## Purpose
+
+Standardize creation of GitHub issues and pull requests so they are:
+
+- newline-safe (no `\n` artifacts; bodies preserved via file `-F`)
+- deduplicated before creation
+- labeled consistently and thoughtfully
+- auto-assigned to the requestor
+- linked to Knowledge Graph (`Task:* → GitHub: <url>`) with a single canonical link
+
+This rule builds on the repo workflow policy and must be followed for all task/feature/bug work.
+
+## Prerequisites
+
+- Authenticated GitHub CLI:
+  - `gh auth status`
+- Dynamic repo slug (never hardcode):
+  - `SLUG=$(gh repo view --json nameWithOwner -q .nameWithOwner)`
+- If unset default repo causes errors:
+  - `gh repo set-default "$SLUG"`
+
+## Title & Label Conventions
+
+- Issue titles follow: `P{0|1|2}: <TaskName> — <short description>`
+- Labels policy:
+  - Default type: `enhancement` for tasks/features; use `bug` for defects
+  - Priority: add exactly one of `priority:P0|priority:P1|priority:P2` based on title prefix
+  - Area: add one or more of: `area:api`, `area:worker`, `area:infra`, `area:docs`, `area:client`
+  - Kind: optionally add `kind:refactor`, `kind:perf`, `kind:security`, `kind:ci`
+  - Status: optionally add `status:ready` | `status:blocked`
+
+Recommended minimal label sets:
+
+- Features: `enhancement`, `priority:P?`, `area:<x>`
+- Bugs: `bug`, `priority:P?`, `area:<x>`
+
+## Assignment
+
+- Always assign the creator: `--assignee "@me"`
+- Optional reviewers for PRs: `--reviewer "@me"` (self-review placeholder) and add teammates as needed.
+
+## Newline-Safe Bodies (Fix for `\n` token bleed)
+
+ALWAYS write the body to a file and pass with `-F`/`--body-file`. Use single-quoted heredocs to preserve literal newlines and avoid shell interpolation.
+
+Example:
+
+```sh
+cat > /tmp/issue.md <<'EOF'
+Context: why this is needed
+Acceptance criteria:
+- item 1
+- item 2
+EOF
+
+gh issue create --repo "$SLUG" -t "P1: My Task — short" -F /tmp/issue.md \
+  --label enhancement --label "priority:P1" --label "area:api" \
+  --assignee "@me"
+```
+
+## Deduplication (Required)
+
+Before creating an issue, search by normalized title/label. If a matching issue exists, DO NOT create a new one.
+
+```sh
+SLUG=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+TITLE="P1: My Task — short"
+
+EXISTING=$(gh issue list --repo "$SLUG" --search "in:title \"$TITLE\"" --json number,title,url -q '.[0].url' 2>/dev/null || true)
+if [ -n "$EXISTING" ]; then
+  echo "Issue exists: $EXISTING"
+  # Knowledge Graph: ensure canonical single observation → "GitHub: $EXISTING"
+  exit 0
+fi
+```
+
+## Smart Label Selection (Shell Snippet)
+
+Derive labels from the title and optional env hints. Defaults are safe and extendable.
+
+```sh
+# Inputs
+TITLE=${TITLE:-"P2: Example — improve thing"}
+TYPE=${TYPE:-enhancement}  # enhancement|bug|docs|chore
+AREAS=${AREAS:-"area:api"} # space-separated areas
+KIND=${KIND:-}             # kind:refactor|kind:perf|kind:security|kind:ci
+STATUS=${STATUS:-}         # status:ready|status:blocked
+
+# Priority from title prefix
+case "$TITLE" in
+  P0:*) PRI="priority:P0" ;;
+  P1:*) PRI="priority:P1" ;;
+  P2:*) PRI="priority:P2" ;;
+  *)    PRI="priority:P2" ;;
+esac
+
+# Compose label flags
+LABELS=("$TYPE" "$PRI")
+for a in $AREAS; do LABELS+=("$a"); done
+[ -n "$KIND" ] && LABELS+=("$KIND")
+[ -n "$STATUS" ] && LABELS+=("$STATUS")
+
+LABEL_FLAGS=()
+for l in "${LABELS[@]}"; do LABEL_FLAGS+=(--label "$l"); done
+```
+
+## Issue Creation (Canonical Flow)
+
+```sh
+set -euo pipefail
+SLUG=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+
+# 1) Dedup
+EXISTING=$(gh issue list --repo "$SLUG" --search "in:title \"$TITLE\"" --json number,title,url -q '.[0].url' 2>/dev/null || true)
+if [ -n "$EXISTING" ]; then
+  echo "Issue exists: $EXISTING"
+  # KG: write/replace single observation → "GitHub: $EXISTING"
+  exit 0
+fi
+
+# 2) Body file (newline-safe)
+BODY_FILE=${BODY_FILE:-/tmp/issue.md}
+[ -f "$BODY_FILE" ] || { echo "Missing body file: $BODY_FILE" >&2; exit 1; }
+
+# 3) Create
+URL=$(gh issue create --repo "$SLUG" -t "$TITLE" -F "$BODY_FILE" \
+  "${LABEL_FLAGS[@]}" --assignee "@me" --json url -q .url)
+
+echo "Created: $URL"
+# 4) KG: write/replace single observation → "GitHub: $URL"
+```
+
+## PR Creation (Canonical Flow)
+
+- Use body file for newline-safe formatting
+- Deduplicate by searching open PRs with the same title
+- Apply thoughtful labels mirroring the issue
+- Auto-assign and optionally add reviewers
+
+```sh
+set -euo pipefail
+SLUG=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+PR_TITLE=${PR_TITLE:-"feat: implement X (P1)"}
+PR_BODY_FILE=${PR_BODY_FILE:-/tmp/pr.md}
+
+# Dedup
+EXISTING_PR=$(gh pr list --repo "$SLUG" --search "in:title \"$PR_TITLE\"" --state open --json number,title,url -q '.[0].url' 2>/dev/null || true)
+if [ -n "$EXISTING_PR" ]; then
+  echo "PR exists: $EXISTING_PR"
+  exit 0
+fi
+
+# Create PR (newline-safe)
+PR_URL=$(gh pr create --repo "$SLUG" -t "$PR_TITLE" -F "$PR_BODY_FILE" \
+  "${LABEL_FLAGS[@]}" --assignee "@me" --reviewer "@me" --json url -q .url)
+
+echo "Created PR: $PR_URL"
+```
+
+Notes:
+
+- For PR labels, reuse the same `LABEL_FLAGS` strategy used for issues.
+- Map Conventional Commits to type labels automatically when convenient:
+  - `feat:` → `enhancement`
+  - `fix:` → `bug`
+  - `docs:` → `docs`
+  - `chore:` → `chore`
+
+## Knowledge Graph Sync (Single Canonical Link)
+
+- After creating an Issue for a `Task:*`, record exactly one observation: `GitHub: <url>`
+- If an observation exists, UPDATE/REPLACE it—do not append duplicates
+- Link `Task:*` to `Repo:*` via relation `tracks`
+- On mistakes (duplicates): close the dup on GitHub and remove stale KG links so only the canonical link remains
+
+## Verification
+
+- Open issue count:
+  - `gh issue list --repo "$SLUG" --state open --json number -q 'length'`
+- Ensure no `\n` artifacts by previewing body files before creation
+- Confirm labels and assignment present on created resources
+
+## Quick Reference
+
+```sh
+# Derive slug
+SLUG=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+
+# Create issue (newline-safe, auto-assign)
+cat > /tmp/issue.md <<'EOF'
+Context: <why>
+Acceptance criteria:
+- item 1
+- item 2
+EOF
+TITLE="P0: Implement rate limiter — base throughput"
+TYPE=enhancement AREAS="area:api area:infra" KIND="kind:perf" STATUS="status:ready"
+# Build LABEL_FLAGS using Smart Label snippet, then:
+gh issue create --repo "$SLUG" -t "$TITLE" -F /tmp/issue.md "${LABEL_FLAGS[@]}" --assignee "@me"
+
+# Create PR (newline-safe, auto-assign)
+cat > /tmp/pr.md <<'EOF'
+Summary:
+- What changed
+- Why
+
+Testing:
+- Steps
+
+Risks:
+- Notes
+EOF
+PR_TITLE="feat(api)!: add rate limiter (P0)"
+gh pr create --repo "$SLUG" -t "$PR_TITLE" -F /tmp/pr.md "${LABEL_FLAGS[@]}" --assignee "@me" --reviewer "@me"
+```
+
+## Idempotency & Safety
+
+- All flows must be rerunnable without duplication
+- Dedup search precedes creation
+- Bodies are always provided via file to preserve formatting
+- Labels and assignment are explicit

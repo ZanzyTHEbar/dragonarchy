@@ -1,0 +1,48 @@
+---
+alwaysApply: false
+description: Rules for the First Look Analysis, how to analyze a project
+---
+
+This is your first time seeing this repository. Perform a deep-drive into the codebase, the logic, the architecture, and the details of the project. Write a detailed report on your findings. Make sure to build up a robust context of the project, its purpose, and how it works.
+
+# First Look Report
+
+## Overview
+
+Provide a brief summary of the project, its main features, and its intended use case.
+
+## Architecture
+
+Describe the overall architecture of the project. Include details about the main components, how they interact, and any architectural patterns used (e.g., MVC, microservices).
+
+## Code Structure
+
+Outline the structure of the codebase. Discuss the organization of files and directories, naming conventions, and any notable patterns in the code organization.
+
+## Key Components
+
+Identify and describe the key components of the project. Discuss their roles, how they interact with each other, and any dependencies they have.
+
+## Logic and Algorithms
+
+Discuss the main logic and algorithms used in the project. Highlight any complex algorithms, data structures, or design patterns that are employed.
+
+## Dependencies
+
+List the main dependencies of the project. Include libraries, frameworks, and any external services that the project relies on. Discuss how these dependencies are managed (e.g., package managers, version control).
+
+## Testing
+
+Describe the testing strategy used in the project. Include details about unit tests, integration tests, and any testing frameworks employed. Discuss the coverage of tests and how they contribute to the reliability of the codebase.
+
+## Documentation
+
+Discuss the documentation provided with the project. Include details about inline comments, README files, and any external documentation resources. Evaluate the clarity and completeness of the documentation.
+
+## Areas for Improvement
+
+Identify any areas where the project could be improved. This could include code quality, performance optimizations, better documentation, or additional features.
+
+## Conclusion
+
+Summarize your findings and provide an overall assessment of the project. Discuss its strengths, weaknesses, and potential for future development.
