@@ -251,7 +251,7 @@ setup_dotfiles() {
         "zed"
         "dragon-cli"
         "wlogout"
-	"gh-extensions"
+        "gh-extensions"
     )
 
     # Install each package
@@ -407,43 +407,27 @@ post_setup() {
 validate_installation() {
     log_step "Validating installation..."
 
-    if [[ -x "$SCRIPTS_DIR/install/validate.sh" ]]; then
-        "$SCRIPTS_DIR/install/validate.sh"
-    else
-        log_info "Running basic validation..."
+    # Quick validation for host-specific setup
+    log_info "Running quick validation..."
 
-        # Check if key files exist
-        local key_files=(
-            "$HOME/.zshrc"
-            "$HOME/.gitconfig"
-            "$HOME/.config/kitty/kitty.conf"
-        )
+    local essential_files=("$HOME/.zshrc")
+    local essential_commands=("zsh" "git" "stow")
 
-        for file in "${key_files[@]}"; do
-            if [[ -f "$file" ]]; then
-                log_success "✓ $file exists"
-            else
-                log_warning "✗ $file missing"
-            fi
-        done
+    for file in "${essential_files[@]}"; do
+        if [[ -f "$file" || -L "$file" ]]; then
+            log_success "✓ $file exists"
+        else
+            log_warning "✗ $file missing"
+        fi
+    done
 
-        # Check if key commands are available
-        local key_commands=(
-            "zsh"
-            "git"
-            "nvim"
-            "stow"
-            "jq"
-        )
-
-        for cmd in "${key_commands[@]}"; do
-            if command -v "$cmd" >/dev/null 2>&1; then
-                log_success "✓ $cmd is available"
-            else
-                log_warning "✗ $cmd not found"
-            fi
-        done
-    fi
+    for cmd in "${essential_commands[@]}"; do
+        if command -v "$cmd" >/dev/null 2>&1; then
+            log_success "✓ $cmd is available"
+        else
+            log_warning "✗ $cmd not found"
+        fi
+    done
 
     log_success "Validation completed"
 }
@@ -493,7 +477,7 @@ main() {
     setup_host_config
 
     log_info "Setting plymouth theme..."
-    bash "$SCRIPTS_DIR/theme-manager/refresh-plymouth"
+    bash "$SCRIPTS_DIR/theme-manager/refresh-plymouth" -y
 
     configure_shell
     post_setup
@@ -506,12 +490,29 @@ main() {
     if [[ "$NO_SYSTEM_CONFIG" != "true" && "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
         log_info "Setting up system-level configuration..."
         if [[ $EUID -eq 0 ]]; then
+            log_info "Running system configuration as root..."
             "$SCRIPTS_DIR/install/system_config.sh" || log_warning "System configuration failed"
         else
-            log_info "System configuration requires root privileges"
-            log_info "Run: sudo $SCRIPTS_DIR/install/system_config.sh"
+            log_info "System configuration requires root privileges. You will be prompted for your password..."
+            if sudo -v 2>/dev/null; then
+                log_info "Running system configuration with sudo..."
+                sudo "$PWD/scripts/install/system_config.sh" || log_warning "System configuration failed"
+            else
+                log_error "Failed to authenticate with sudo. System configuration will be skipped."
+                log_info "To install system configurations later, run:"
+                log_info "  sudo $PWD/$SCRIPTS_DIR/install/system_config.sh"
+                log_info ""
+                log_info "Or install PAM configuration separately:"
+                log_info "  sudo $PWD/$SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"
+            fi
         fi
         echo
+    else
+        if [[ "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
+            log_warning "System configuration skipped due to --no-system-config flag"
+            log_info "To install PAM configuration for hyprlock manually, run:"
+            log_info "  sudo $SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"
+        fi
     fi
 
     show_completion

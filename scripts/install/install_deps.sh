@@ -40,9 +40,9 @@ gui_aur=("joplin-desktop" "vivaldi" "difftastic" "visual-studio-code-bin" "visua
 gui_cask=("kitty" "vivaldi" "visual-studio-code" "visual-studio-code-insiders" "joplin" "aerospace")
 
 # Development
-dev_arch=("go" "git" "diff-so-fancy" "ansible" "github-cli" "terraform" "python-pipx")
-dev_macos=("go" "git" "diff-so-fancy" "ansible" "gh" "terraform")
-dev_debian=("golang-go" "git" "diff-so-fancy" "ansible" "gh" "terraform" "pipx")
+dev_arch=("git" "diff-so-fancy" "ansible" "github-cli" "terraform" "python-pipx")
+dev_macos=("git" "diff-so-fancy" "ansible" "gh" "terraform")
+dev_debian=("git" "diff-so-fancy" "ansible" "gh" "terraform" "pipx")
 pipx_packages=("poetry" "black" "flake8" "mypy")
 
 # Hyprland specific
@@ -184,6 +184,136 @@ install_apt() {
     fi
 }
 
+# --- Go Installation ---
+get_latest_go_version() {
+    log_info "Checking latest Go version from go.dev..." >&2
+    local latest_version
+    latest_version=$(curl -s https://go.dev/VERSION?m=text | head -n1)
+
+    if [[ -z "$latest_version" ]]; then
+        log_error "Failed to fetch latest Go version" >&2
+        return 1
+    fi
+
+    # Remove 'go' prefix if present
+    latest_version=${latest_version#go}
+    echo "$latest_version"
+}
+
+install_go_from_source() {
+    local platform="$1"
+    local latest_version
+
+    # Get latest Go version
+    local version_output
+    if ! version_output=$(get_latest_go_version 2>/dev/null) || [[ -z "$version_output" ]]; then
+        log_error "Failed to get latest Go version, falling back to package manager installation"
+        return 1
+    fi
+    latest_version="$version_output"
+
+    log_info "Latest Go version available: $latest_version"
+
+    # Check if Go is already installed and remove it
+    if command_exists go; then
+        local current_version
+        current_version=$(go version | grep -oP 'go\d+\.\d+(?:\.\d+)?' | sed 's/go//')
+        log_info "Found existing Go installation (version: $current_version)"
+
+        # Remove existing installation
+        if [[ -d "/usr/local/go" ]]; then
+            log_info "Removing existing Go installation from /usr/local/go..."
+            sudo rm -rf /usr/local/go
+        fi
+
+        # Also remove package manager installed Go if it exists
+        case "$platform" in
+        "arch" | "cachyos" | "manjaro")
+            if pacman -Qi go &>/dev/null; then
+                log_info "Removing Go from pacman..."
+                sudo pacman -Rns --noconfirm go
+            fi
+            ;;
+        "ubuntu" | "debian")
+            if dpkg -l | grep -q "^ii.*golang-go"; then
+                log_info "Removing golang-go from apt..."
+                sudo apt-get remove --purge -y golang-go
+            fi
+            ;;
+        "macos")
+            if brew list go &>/dev/null; then
+                log_info "Removing Go from brew..."
+                brew uninstall go
+            fi
+            ;;
+        esac
+    fi
+
+    # Determine OS and architecture
+    local os_type arch filename download_url
+    case "$(uname -s)" in
+    Linux*) os_type="linux" ;;
+    Darwin*) os_type="darwin" ;;
+    *)
+        log_error "Unsupported OS: $(uname -s)"
+        return 1
+        ;;
+    esac
+
+    case "$(uname -m)" in
+    x86_64) arch="amd64" ;;
+    aarch64) arch="arm64" ;;
+    arm64) arch="arm64" ;;
+    *)
+        log_error "Unsupported architecture: $(uname -m)"
+        return 1
+        ;;
+    esac
+
+    filename="go${latest_version}.${os_type}-${arch}.tar.gz"
+    download_url="https://go.dev/dl/${filename}"
+
+    log_info "Downloading Go $latest_version for ${os_type}-${arch}..."
+
+    # Try wget first, fallback to curl
+    if command_exists wget; then
+        if ! wget -q "$download_url" -O "/tmp/${filename}"; then
+            log_error "Failed to download Go from $download_url using wget"
+            return 1
+        fi
+    elif command_exists curl; then
+        if ! curl -sL "$download_url" -o "/tmp/${filename}"; then
+            log_error "Failed to download Go from $download_url using curl"
+            return 1
+        fi
+    else
+        log_error "Neither wget nor curl is available for downloading"
+        return 1
+    fi
+
+    log_info "Extracting Go to /usr/local..."
+    if ! sudo tar -C /usr/local -xzf "/tmp/${filename}"; then
+        log_error "Failed to extract Go archive"
+        rm -f "/tmp/${filename}"
+        return 1
+    fi
+
+    # Clean up
+    rm -f "/tmp/${filename}"
+
+    # Verify installation
+    if command_exists /usr/local/go/bin/go; then
+        local installed_version
+        installed_version=$(/usr/local/go/bin/go version | grep -oP 'go\d+\.\d+(?:\.\d+)?' | sed 's/go//')
+        log_success "Go $installed_version installed successfully!"
+        log_info "Go binary location: /usr/local/go/bin/go"
+        return 0
+    else
+        log_error "Go installation verification failed"
+        return 1
+    fi
+}
+
 # --- Application-Specific Installers ---
 install_cursor_app() {
     log_info "Installing Cursor..."
@@ -247,6 +377,12 @@ install_for_arch() {
     install_pacman "${core_cli_arch[@]}" "${dev_arch[@]}" "${arch_fonts[@]}"
     install_paru "${gui_aur[@]}" "${arch_aur_fonts[@]}"
 
+    # Install Go from source (latest version)
+    if ! install_go_from_source "arch"; then
+        log_error "Failed to install Go from source, skipping Go installation"
+        return 1
+    fi
+
     if [[ " ${hyprland_hosts[@]} " =~ " ${host} " ]]; then
         log_info "Installing Hyprland specific packages for host: $host"
         add_chaotic_aur
@@ -261,10 +397,23 @@ install_for_macos() {
     install_brew "${core_cli_macos[@]}" "${dev_macos[@]}"
     brew tap homebrew/cask-fonts
     install_brew_cask "${macos_cask_fonts[@]}" "${gui_cask[@]}"
+
+    # Install Go from source (latest version)
+    if ! install_go_from_source "macos"; then
+        log_error "Failed to install Go from source, skipping Go installation"
+        return 1
+    fi
 }
 
 install_for_debian() {
     install_apt "${core_cli_debian[@]}" "${dev_debian[@]}" "${debian_fonts[@]}"
+
+    # Install Go from source (latest version)
+    if ! install_go_from_source "debian"; then
+        log_error "Failed to install Go from source, skipping Go installation"
+        return 1
+    fi
+
     install_additional_tools
 }
 
