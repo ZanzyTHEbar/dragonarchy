@@ -1,0 +1,13 @@
+# PAM configuration for hyprlock
+# This file should be installed as /etc/pam.d/hyprlock
+
+auth        include     system-auth
+account     include     system-auth
+password    include     system-auth
+session     include     system-auth
+
+# Alternative configuration (uncomment if system-auth doesn't work):
+# auth        include     login
+# account     include     login
+# password    include     login
+# session     include     login

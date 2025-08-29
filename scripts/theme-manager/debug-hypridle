@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# Debug script for hypridle and hyprlock issues
+
+set -euo pipefail
+
+echo "🔍 Hypridle & Hyprlock Debug Report"
+echo "===================================="
+
+# Check if services are running
+echo ""
+echo "📊 Service Status:"
+echo "hypridle running: $(pgrep -x hypridle >/dev/null && echo "✅ YES" || echo "❌ NO")"
+echo "hyprlock running: $(pgrep -x hyprlock >/dev/null && echo "✅ YES" || echo "❌ NO")"
+
+# Check configuration files
+echo ""
+echo "📁 Configuration Files:"
+HYPRIDLE_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/config/hypridle.conf"
+HYPRLOCK_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprlock.conf"
+
+if [[ -f "$HYPRIDLE_CONF" ]]; then
+    echo "✅ hypridle.conf exists: $HYPRIDLE_CONF"
+    echo "   Last modified: $(stat -c %y "$HYPRIDLE_CONF" 2>/dev/null || stat -f %Sm -t %Y-%m-%d_%H:%M:%S "$HYPRIDLE_CONF")"
+else
+    echo "❌ hypridle.conf missing: $HYPRIDLE_CONF"
+fi
+
+if [[ -f "$HYPRLOCK_CONF" ]]; then
+    echo "✅ hyprlock.conf exists: $HYPRLOCK_CONF"
+    echo "   Last modified: $(stat -c %y "$HYPRLOCK_CONF" 2>/dev/null || stat -f %Sm -t %Y-%m-%d_%H:%M:%S "$HYPRLOCK_CONF")"
+else
+    echo "❌ hyprlock.conf missing: $HYPRLOCK_CONF"
+fi
+
+# Check PAM configuration
+echo ""
+echo "🔐 PAM Configuration:"
+if [[ -f "/etc/pam.d/hyprlock" ]]; then
+    echo "✅ PAM config exists: /etc/pam.d/hyprlock"
+    echo "   Contents:"
+    cat /etc/pam.d/hyprlock | sed 's/^/   /'
+else
+    echo "❌ PAM config missing: /etc/pam.d/hyprlock"
+fi
+
+# Check systemd services
+echo ""
+echo "⚙️ Systemd Services:"
+for service in "sleep.target" "suspend.target" "hibernate.target"; do
+    if systemctl is-active "$service" >/dev/null 2>&1; then
+        echo "✅ $service: ACTIVE"
+    else
+        echo "❌ $service: INACTIVE"
+    fi
+done
+
+# Check logind configuration
+echo ""
+echo "📋 Logind Configuration:"
+if [[ -f "/etc/systemd/logind.conf" ]]; then
+    echo "✅ logind.conf exists"
+    grep -E "^(HandleLidSwitch|HandlePowerKey|IdleAction)=" /etc/systemd/logind.conf || echo "   No power management settings found"
+else
+    echo "❌ logind.conf missing"
+fi
+
+# Test basic hyprlock functionality
+echo ""
+echo "🧪 Testing hyprlock (will timeout after 5 seconds):"
+timeout 5s hyprlock --help >/dev/null 2>&1 && echo "✅ hyprlock command works" || echo "❌ hyprlock command failed"
+
+# Check for common issues
+echo ""
+echo "🔧 Common Issues Check:"
+if ! pgrep -x "gdm" >/dev/null 2>&1 && ! pgrep -x "sddm" >/dev/null 2>&1 && ! pgrep -x "lightdm" >/dev/null 2>&1; then
+    echo "⚠️  No display manager detected - ensure you're running in a proper desktop session"
+fi
+
+if ! groups | grep -q "wheel\|sudo"; then
+    echo "⚠️  User not in sudo group - may cause authentication issues"
+fi
+
+# Check environment variables
+echo ""
+echo "🌍 Environment Variables:"
+echo "XDG_SESSION_TYPE: ${XDG_SESSION_TYPE:-NOT_SET}"
+echo "WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-NOT_SET}"
+echo "HYPRLAND_INSTANCE_SIGNATURE: ${HYPRLAND_INSTANCE_SIGNATURE:-NOT_SET}"
+
+echo ""
+echo "📝 Recommendations:"
+if [[ ! -f "$HYPRIDLE_CONF" ]]; then
+    echo "- Create hypridle.conf configuration file"
+fi
+if [[ ! -f "/etc/pam.d/hyprlock" ]]; then
+    echo "- Configure PAM for hyprlock authentication"
+fi
+if ! pgrep -x hypridle >/dev/null; then
+    echo "- Start hypridle service"
+fi
+
+echo ""
+echo "Debug report complete."
