@@ -102,3 +102,7 @@
 	directory = /mnt/common/projects/tools/cursor-rules
 	directory = /mnt/common/projects/tools/firedragon-go
 	directory = /mnt/dragonnet/catalyst-protocol
+	directory = /mnt/common/projects/go-pkgs/go-basetools
+	directory = /mnt/common/projects/tools/file4you/.git
+	directory = /mnt/common/projects/tools/file4you
+	directory = /mnt/common/projects/tools/virtual-vectorfs
