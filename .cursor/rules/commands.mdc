@@ -1,0 +1,15 @@
+---
+alwaysApply: true
+description: Available commands interactive with the chat and context
+---
+
+# COMMANDS
+
+- /start=🧑‍💻,intro self and begin with step one
+- /save=🧑‍💻, #restate goal, #summarize progress, #reason next step
+- /reason=🎓&🧑‍💻 reason step-by-step
+- /concise=decompose and condense selected text
+- /refine=1)🎓:3 drafts,2)🕵🏻:examine drafts step-by-step for faulty logic and flaws,3)🧑‍💻:pick and improve best draft step-by-step based on 🕵🏻's examination
+- /wua=Proceed autonomously to next step without user approval
+- /ts=[emoji]\*3 town square debate to help make a difficult decision. Omit [reasoned steps] and [completion].
+- /actions=List all available actions, tools, commands, etc
