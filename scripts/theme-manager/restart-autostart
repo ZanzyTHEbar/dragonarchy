@@ -66,7 +66,7 @@ if ! pgrep -x wob >/dev/null 2>&1; then
 fi
 
 # Clipboard helpers
-start_if_missing clipse "clipse -listen"
+start_if_missing clipse "$HOME/dotfiles/scripts/utilities/launch-clipse.sh"
 start_if_missing wl-clip-persist "wl-clip-persist --clipboard regular --all-mime-type-regex '^(?!x-kde-passwordManagerHint).+'"
 
 echo "Autostart services checked/restarted."
