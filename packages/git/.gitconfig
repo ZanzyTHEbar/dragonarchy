@@ -106,3 +106,5 @@
 	directory = /mnt/common/projects/tools/file4you/.git
 	directory = /mnt/common/projects/tools/file4you
 	directory = /mnt/common/projects/tools/virtual-vectorfs
+	directory = /mnt/common/projects/go-pkgs/virtual-vectorfs
+	directory = /mnt/common/projects/tools/riscv-dev-standalone
