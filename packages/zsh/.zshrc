@@ -31,11 +31,14 @@ zinit light zsh-users/zsh-completions
 zinit light zsh-users/zsh-autosuggestions
 zinit light Aloxaf/fzf-tab
 zinit light jeffreytse/zsh-vi-mode
+zinit light zdharma-continuum/fast-syntax-highlighting
+zinit light zdharma-continuum/history-search-multi-word
 
 # Add in snippets
 zinit snippet OMZP::git
 zinit snippet OMZP::sudo
-zinit snippet OMZP::autojump
+zinit snippet OMZP::zoxide
+zinit snippet OMZP::direnv
 zinit snippet OMZP::nvm
 zinit snippet OMZP::npm
 zinit snippet OMZP::docker-compose
