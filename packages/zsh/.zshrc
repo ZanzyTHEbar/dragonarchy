@@ -60,9 +60,9 @@ for conf_file in ~/.config/zsh/*.zsh; do
     [[ -r "$conf_file" ]] && source "$conf_file"
 done
 
-for host_file in ~/.config/zsh/hosts/*.zsh; do
-    [[ -r "$host_file" ]] && source "$host_file"
-done
+if [[ -f ~/.config/zsh/hosts/$HOSTNAME.zsh ]]; then
+    source ~/.config/zsh/hosts/$HOSTNAME.zsh
+fi
 
 # Powerlevel10k configuration
 POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
@@ -77,12 +77,5 @@ COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
 # Load .p10k.zsh
 [[ -f "$HOME/.config/zsh/.p10k.zsh" ]] && source "$HOME/.config/zsh/.p10k.zsh"
 
+# Unalias zi from zinit to avoid conflicts with zoxide zi command
 unalias zi 2>/dev/null
-
-# pnpm
-export PNPM_HOME="/home/goldendragon/.local/share/pnpm"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
-# pnpm end
