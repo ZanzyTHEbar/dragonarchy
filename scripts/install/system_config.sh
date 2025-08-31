@@ -655,7 +655,7 @@ setup_user_config() {
 
 setup_plymouth() {
     log_info "Setting up Plymouth..."
-    local plymouth_script="$SCRIPT_DIR/install/setup/plymouth.sh"
+    local plymouth_script="$SCRIPT_DIR/setup/plymouth.sh"
 
     if [ -f "$plymouth_script" ]; then
         log_info "Running Plymouth setup script..."
