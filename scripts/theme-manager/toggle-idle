@@ -1,9 +1,9 @@
 #!/bin/bash
 # Toggles the hypridle daemon on and off, with a desktop notification.
 
-set -euo pipefail
+#set -euo pipefail
 
-HYPRIDLE_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/config/hypridle.conf"
+HYPRIDLE_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hypridle.conf"
 
 if pgrep -x hypridle >/dev/null 2>&1; then
   pkill -x hypridle || true
