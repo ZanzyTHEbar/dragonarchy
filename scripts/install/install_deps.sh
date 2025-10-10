@@ -47,7 +47,7 @@ pipx_packages=("poetry" "black" "flake8" "mypy")
 
 # Hyprland specific
 hyprland_arch=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "nemo-fileroller" "nemo-preview" "nemo-seahorse" "nemo-share" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot" "imagemagick" "imv" "inetutils" "iwd" "kvantum" "lazygit" "less" "libqalculate" "libsecret" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt6-svg" "qt6-declarative" "qt5-quickcontrols2" "qt5-graphicaleffects" "qt6-5compat" "qt6-wayland" "qt5-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "system-config-printer" "tree-sitter-cli" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
-hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse")
+hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse" "elephant-bin" "elephant-desktopapplications-bin" "elephant-files-bin" "elephant-runner-bin" "elephant-clipboard-bin" "elephant-providerlist-bin")
 
 # Logging functions
 log_info() {
@@ -156,9 +156,9 @@ add_chaotic_aur() {
 install_brew() {
     command_exists brew || {
         log_info "Installing Homebrew..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com$HOMEbrew/install/HEAD/install.sh)"
-        echo 'eval "$(/opt$HOMEbrew/bin/brew shellenv)"' >>~/.zprofile
-        eval "$(/opt$HOMEbrew/bin/brew shellenv)"
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com"$HOMEbrew"/install/HEAD/install.sh)"
+        echo "eval $(/opt"$HOMEbrew"/bin/brew shellenv)" >>~/.zprofile
+        eval "$(/opt"$HOMEbrew"/bin/brew shellenv)"
     }
     log_info "Updating Homebrew..." && brew update
     log_info "Installing formulas: $*"
@@ -340,7 +340,8 @@ install_additional_tools() {
     # Binaries
     command_exists age || {
         log_info "Installing age binary..."
-        local tmp_dir=$(mktemp -d)
+        local tmp_dir
+        tmp_dir=$(mktemp -d)
         curl -L "https://github.com/FiloSottile/age/releases/latest/download/age-v1.1.1-linux-amd64.tar.gz" | tar -xz -C "$tmp_dir" --strip-components=1
         sudo mv "$tmp_dir/age" /usr/local/bin/
         sudo mv "$tmp_dir/age-keygen" /usr/local/bin/
@@ -383,7 +384,7 @@ install_for_arch() {
         return 1
     fi
 
-    if [[ " ${hyprland_hosts[@]} " =~ " ${host} " ]]; then
+    if [[ " ${hyprland_hosts[*]} " =~ ${host} ]]; then
         log_info "Installing Hyprland specific packages for host: $host"
         add_chaotic_aur
         install_pacman "${hyprland_arch[@]}"
@@ -453,7 +454,8 @@ setup_development_environments() {
 }
 
 finalize_setup() {
-    local platform=$(detect_platform)
+    local platform
+    platform=$(detect_platform)
     log_info "Finalizing setup..."
 
     # Refresh font cache on Linux
