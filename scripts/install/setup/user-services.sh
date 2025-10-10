@@ -38,7 +38,7 @@ After=graphical-session.target
 Type=simple
 Environment=XDG_RUNTIME_DIR=%t
 ExecStartPre=/usr/bin/rm -f /tmp/elephant.sock
-ExecStart=/usr/local/bin/elephant
+ExecStart=/usr/bin/elephant
 Restart=on-failure
 RestartSec=1
 
@@ -49,7 +49,7 @@ log_ok "Wrote $ELEPHANT_UNIT_PATH"
 
 # --- Reload and enable user service ---
 systemctl --user daemon-reload
-systemctl --user enable --now elephant || log_warn "Failed to start elephant; ensure /usr/local/bin/elephant exists"
+systemctl --user enable --now elephant || log_warn "Failed to start elephant; ensure /usr/bin/elephant exists"
 
 # --- Quick hints ---
 log_info "Verify: systemctl --user status elephant"
