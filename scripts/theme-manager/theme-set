@@ -41,9 +41,14 @@ fi
 mkdir -p ~/.config/btop/themes
 ln -snf ~/.config/current/theme/btop.theme ~/.config/btop/themes/current.theme
 
-# Set walker theme
-mkdir -p ~/.config/walker/themes
-ln -snf ~/.config/current/theme/walker.css ~/.config/walker/themes/current.css
+# Set walker theme (Walker expects themes/current/style.css and optional layout.toml)
+mkdir -p ~/.config/walker/themes/current
+ln -snf ~/.config/current/theme/walker.css ~/.config/walker/themes/current/style.css
+if [ -f ~/.config/current/theme/walker.toml ]; then
+  ln -snf ~/.config/current/theme/walker.toml ~/.config/walker/themes/current/layout.toml
+else
+  [ -f ~/.config/walker/themes/default.toml ] && ln -snf ~/.config/walker/themes/default.toml ~/.config/walker/themes/current/layout.toml || true
+fi
 
 # Set GTK theme for Nemo
 mkdir -p ~/.config/gtk-3.0

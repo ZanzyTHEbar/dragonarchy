@@ -69,6 +69,9 @@ export SUDO_EDITOR="nvim visudo"
 export FCEDIT=nvim
 export TERMINAL=kitty
 export BROWSER=vivaldi
+export PROTON_ENABLE_WAYLAND=1
+export CHROME_EXECUTABLE=/usr/bin/vivaldi-stable
+
 if [[ -x "$(command -v bat)" ]]; then
     export MANPAGER="sh -c 'col -bx | bat -l man -p'"
     export PAGER=bat
@@ -136,8 +139,17 @@ pathappend
 if [[ -n "$GOPATH" ]]; then
     pathappend "$GOPATH/bin"
 fi
+
 pathappend "$HOME/.cargo/bin"
 pathappend "/mnt/common/bin"
+pathappend "/mnt/common/bin/flutter/bin"
+pathappend "/mnt/common/bin/cmdline-tools/bin"
+
+
+export ANDROID_SDK_ROOT=/mnt/common/bin
+export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+export PATH=$PATH:$ANDROID_SDK_ROOT/platform-tools
+export ANDROID_HOME=$ANDROID_SDK_ROOT
 
 # PNPM setup
 export PNPM_HOME="$HOME/.local/share/pnpm"

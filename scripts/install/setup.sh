@@ -32,5 +32,6 @@ run_script "power-management.sh"
 run_script "steam.sh"
 run_script "system-services.sh"
 #run_script "user-config.sh"
+run_script "user-services.sh"
 
 log_info "Setup orchestration complete."
