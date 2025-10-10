@@ -159,3 +159,4 @@ case ":$PATH:" in
 esac
 
 [ "$TERM" = "xterm-kitty" ] && alias ssh="kitty +kitten ssh"
+export GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
