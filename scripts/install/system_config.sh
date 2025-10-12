@@ -412,10 +412,10 @@ setup_amd_nvidia_configuration() {
 
     # Load modules
     mkdir -p /etc/modules-load.d
-    echo "nvidia" >>/etc/modules-load.d/nvidia.conf
-    echo "nvidia_modeset" >>/etc/modules-load.d/nvidia.conf
-    echo "nvidia_uvm" >>/etc/modules-load.d/nvidia.conf
-    echo "nvidia_drm" >>/etc/modules-load.d/nvidia.conf
+    echo "nvidia" >> /etc/modules-load.d/nvidia.conf
+    echo "nvidia_modeset" >> /etc/modules-load.d/nvidia.conf
+    echo "nvidia_uvm" >> /etc/modules-load.d/nvidia.conf
+    echo "nvidia_drm" >> /etc/modules-load.d/nvidia.conf
 
     log_success "AMD CPU + NVIDIA GPU configuration applied"
 }
@@ -695,7 +695,7 @@ main() {
 
     check_privileges
 
-    setup_btrfs_config
+    #setup_btrfs_config
     echo
     setup_hardware_config
     echo
