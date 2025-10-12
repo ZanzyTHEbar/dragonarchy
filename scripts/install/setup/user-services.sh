@@ -33,10 +33,12 @@ cat > "$ELEPHANT_UNIT_PATH" <<'EOF'
 [Unit]
 Description=Elephant
 After=graphical-session.target
+Wants=graphical-session.target
 
 [Service]
 Type=simple
 Environment=XDG_RUNTIME_DIR=%t
+Environment="ELEPHANT_RUNPREFIX=uwsm app -- "
 ExecStartPre=/usr/bin/systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DESKTOP_SESSION
 ExecStartPre=/usr/bin/rm -f /tmp/elephant.sock
 ExecStart=/usr/bin/elephant
@@ -51,6 +53,7 @@ log_ok "Wrote $ELEPHANT_UNIT_PATH"
 # --- Elephant config: force correct runprefix for app launches ---
 ELEPHANT_CFG_DIR="$HOME/.config/elephant"
 mkdir -p "$ELEPHANT_CFG_DIR"
+mkdir -p "$ELEPHANT_CFG_DIR/providers"
 cat > "$ELEPHANT_CFG_DIR/elephant.toml" <<'EOF'
 # Force launcher prefix (overrides autodetect like systemd-run)
 runprefix = "uwsm app -- "
@@ -67,6 +70,17 @@ cat > "$ELEPHANT_CFG_DIR/runner.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
 log_ok "Wrote $ELEPHANT_CFG_DIR/runner.toml (runprefix)"
+
+# Duplicate provider configs under providers/ (some builds read from providers/*)
+cat > "$ELEPHANT_CFG_DIR/providers/desktopapplications.toml" <<'EOF'
+runprefix = "uwsm app -- "
+EOF
+log_ok "Wrote $ELEPHANT_CFG_DIR/providers/desktopapplications.toml (runprefix)"
+
+cat > "$ELEPHANT_CFG_DIR/providers/runner.toml" <<'EOF'
+runprefix = "uwsm app -- "
+EOF
+log_ok "Wrote $ELEPHANT_CFG_DIR/providers/runner.toml (runprefix)"
 
 # --- Reload and enable user service ---
 systemctl --user daemon-reload
