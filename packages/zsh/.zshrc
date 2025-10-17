@@ -82,3 +82,11 @@ COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
 
 # Unalias zi from zinit to avoid conflicts with zoxide zi command
 unalias zi 2>/dev/null
+
+# pnpm
+export PNPM_HOME="/home/daofficialwizard/.local/share/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
