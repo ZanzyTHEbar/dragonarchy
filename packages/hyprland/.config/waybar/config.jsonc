@@ -15,6 +15,7 @@
     "bluetooth",
     "network",
     "pulseaudio",
+    "custom/thermals",
     "cpu",
     "custom/idle",
     "custom/session",
@@ -43,6 +44,15 @@
       "4": [],
       "5": []
     }
+  },
+  "custom/thermals": {
+    "format": "{text}",
+    "return-type": "json",
+    "exec": "$HOME/dotfiles/packages/hardware/bin/thermals",
+    "interval": 3,
+    "tooltip": true,
+    "on-click": "$HOME/dotfiles/packages/hardware/bin/thermal-profile-cycle",
+    "signal": 11
   },
   "custom/idle": {
     "format": "{text}",

@@ -34,7 +34,8 @@
 #pulseaudio,
 #clock,
 #custom-session,
-#custom-idle {
+#custom-idle,
+#custom-thermals {
   min-width: 12px;
   margin: 0 7.5px;
 }
@@ -45,4 +46,12 @@
 
 tooltip {
   padding: 2px;
+}
+
+#custom-thermals.warning {
+  color: @warning;
+}
+
+#custom-thermals.critical {
+  color: @error;
 }
