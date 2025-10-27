@@ -2,11 +2,10 @@
 Version=1.0
 Name=Vivaldi (Wayland)
 Comment=Vivaldi browser (force Wayland)
-Exec=/opt/vivaldi/vivaldi-bin --ozone-platform=wayland --enable-features=WaylandWindowDecorations %U
+Exec=/opt/vivaldi/vivaldi-bin --disable-gpu-sandbox --ozone-platform=wayland --enable-features=WaylandWindowDecorations %U
 Terminal=false
 Type=Application
 Icon=vivaldi
 Categories=Network;WebBrowser;
 StartupNotify=false
-
 
