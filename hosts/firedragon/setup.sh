@@ -80,6 +80,7 @@ setup_firedragon_packages() {
     
     local gesture_build_deps=(
         "glm"                    # OpenGL mathematics library (for hyprgrass)
+        "cmake"                  # CMake build system (needed by wf-touch to find GLM)
         "meson"                  # Build system
         "ninja"                  # Build tool
         "git"                    # Version control (for plugin sources)
@@ -726,25 +727,28 @@ setup_mt7902_wifi() {
 setup_gesture_plugins() {
     log_info "Setting up advanced touchpad gesture plugins..."
     
-    # GLM should already be installed from package list
-    # If not, skip gesture plugin build
-    if ! command -v meson >/dev/null 2>&1 || ! pacman -Qi glm &>/dev/null 2>&1; then
-        log_warning "Build dependencies not available, skipping gesture plugin build"
+    # Check build dependencies
+    if ! command -v meson >/dev/null 2>&1 || ! command -v cmake >/dev/null 2>&1; then
+        log_warning "Build tools (meson/cmake) not fully installed"
+        log_info "CMake is required by wf-touch submodule to detect GLM"
+        log_info "Gesture plugins are optional - touchpad still works without them"
         return 0
     fi
+    
+    log_info "Building hyprgrass gesture plugin..."
+    log_info "CMake installed - wf-touch should be able to find GLM"
     
     local plugin_dir="$HOME/.local/share/hyprland-plugins"
     mkdir -p "$plugin_dir"
     
     # Install hyprgrass for advanced touchpad/touchscreen gestures
-    log_info "Installing hyprgrass plugin..."
     if [[ ! -d "$plugin_dir/hyprgrass" ]]; then
         cd "$plugin_dir"
         if git clone https://github.com/horriblename/hyprgrass.git; then
             cd hyprgrass
-            log_info "Building hyprgrass (this may take a minute)..."
-            if meson setup build 2>&1 | tee /tmp/hyprgrass-build.log && ninja -C build; then
-                log_success "hyprgrass built successfully"
+            log_info "Building hyprgrass with cmake support..."
+            if meson setup build && ninja -C build; then
+                log_success "✓ Hyprgrass plugin built successfully!"
                 
                 # Create autostart script to load plugin
                 mkdir -p "$HOME/.config/hypr/scripts"
@@ -760,25 +764,33 @@ if [[ -f "$PLUGIN_DIR/hyprgrass/build/hyprgrass.so" ]]; then
 fi
 EOF
                 chmod +x "$HOME/.config/hypr/scripts/load-gesture-plugins.sh"
-                
-                log_success "hyprgrass plugin installed"
+                log_success "Hyprgrass plugin installed and ready to load"
+                log_info "Plugin location: $plugin_dir/hyprgrass/build/hyprgrass.so"
             else
-                log_error "Failed to build hyprgrass - check /tmp/hyprgrass-build.log for details"
-                log_warning "Gesture plugin will not be available"
+                log_error "⚠ Hyprgrass build failed"
+                log_info "Check build output above for errors"
+                log_info "Touchpad gestures will still work via Hyprland's built-in support"
+                # Clean up failed build
+                cd "$HOME"
+                rm -rf "$plugin_dir/hyprgrass" 2>/dev/null
             fi
         else
-            log_error "Failed to clone hyprgrass repository"
+            log_info "Could not clone hyprgrass (optional feature)"
         fi
     else
-        log_info "hyprgrass already exists, skipping rebuild"
-        log_info "To rebuild: rm -rf $plugin_dir/hyprgrass and re-run setup"
+        log_info "hyprgrass directory exists - skipping rebuild"
+        if [[ -f "$plugin_dir/hyprgrass/build/hyprgrass.so" ]]; then
+            log_success "Hyprgrass plugin already built"
+        else
+            log_info "Previous build incomplete - remove and re-run to retry"
+        fi
     fi
     
-    # Note: hyprexpo is built into Hyprland 0.40+, so no separate installation needed
-    log_info "hyprexpo is included in Hyprland 0.40+, no separate installation needed"
+    # Note: hyprexpo is built into Hyprland 0.40+
+    log_info "Note: hyprexpo gesture support is built into Hyprland 0.40+"
     
     cd "$HOME"
-    log_success "Gesture plugins setup completed"
+    log_success "Gesture configuration completed"
 }
 
 # Rebuild initramfs to apply module changes

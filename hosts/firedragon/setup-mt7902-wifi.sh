@@ -102,12 +102,54 @@ clone_driver_repo() {
     log_success "Driver source ready"
 }
 
+# Detect kernel version and find driver directory
+detect_driver_path() {
+    local kernel_version
+    kernel_version=$(uname -r | cut -d'.' -f1-2)  # e.g., 6.17
+    
+    log_info "Detected kernel version: $(uname -r)"
+    
+    # Try kernel-specific directory first
+    local kernel_path="$DRIVER_DIR/linux-${kernel_version}/drivers/net/wireless/mediatek/mt76"
+    if [[ -d "$kernel_path" ]]; then
+        echo "$kernel_path"
+        return 0
+    fi
+    
+    # Fall back to finding any available linux-* directory
+    local latest_linux
+    latest_linux=$(find "$DRIVER_DIR" -maxdepth 1 -type d -name 'linux-*' | sort -V | tail -1)
+    if [[ -n "$latest_linux" ]]; then
+        echo "$latest_linux/drivers/net/wireless/mediatek/mt76"
+        return 0
+    fi
+    
+    # Fall back to old structure (mt76 at root)
+    if [[ -d "$DRIVER_DIR/mt76" ]]; then
+        echo "$DRIVER_DIR/mt76"
+        return 0
+    fi
+    
+    return 1
+}
+
 # Build the driver
 build_driver() {
     log_info "Building MT7902 driver..."
     
-    cd "$DRIVER_DIR/mt76" || {
+    local mt76_dir
+    mt76_dir=$(detect_driver_path) || {
         log_error "Driver source directory not found"
+        log_error "Checked paths:"
+        log_error "  - $DRIVER_DIR/linux-*/drivers/net/wireless/mediatek/mt76"
+        log_error "  - $DRIVER_DIR/mt76"
+        return 1
+    }
+    
+    log_info "Using driver path: $mt76_dir"
+    
+    cd "$mt76_dir" || {
+        log_error "Failed to enter driver directory: $mt76_dir"
         return 1
     }
     
@@ -130,6 +172,13 @@ setup_dkms() {
     
     local dkms_dir="/usr/src/${DKMS_MODULE_NAME}-${DKMS_MODULE_VERSION}"
     
+    # Get the correct driver path
+    local mt76_dir
+    mt76_dir=$(detect_driver_path) || {
+        log_error "Cannot find driver source for DKMS setup"
+        return 1
+    }
+    
     # Remove old DKMS module if exists
     if dkms status | grep -q "$DKMS_MODULE_NAME"; then
         log_info "Removing old DKMS module..."
@@ -138,7 +187,7 @@ setup_dkms() {
     
     # Copy driver source to DKMS directory
     sudo mkdir -p "$dkms_dir"
-    sudo cp -r "$DRIVER_DIR/mt76"/* "$dkms_dir/"
+    sudo cp -r "$mt76_dir"/* "$dkms_dir/"
     
     # Create dkms.conf
     sudo tee "$dkms_dir/dkms.conf" > /dev/null << EOF
@@ -169,19 +218,29 @@ EOF
 load_modules_manual() {
     log_info "Loading MT7902 modules manually..."
     
-    cd "$DRIVER_DIR/mt76" || return 1
+    local mt76_dir
+    mt76_dir=$(detect_driver_path) || {
+        log_error "Cannot find driver source for manual loading"
+        return 1
+    }
+    
+    cd "$mt76_dir" || return 1
     
     # Load dependencies first
+    # Note: For mt7902, we typically use mt7921 or mt7925 modules
     local modules=(
-        "mt76/mt76-connac-lib.ko"
-        "mt76/mt76.ko"
-        "mt76/mt76-sdio.ko"
-        "mt76/mt76-usb.ko"
+        "mt76-connac-lib.ko"
+        "mt76.ko"
+        "mt76-sdio.ko"
+        "mt76-usb.ko"
         "mt76x02-lib.ko"
         "mt76x02-usb.ko"
         "mt792x-lib.ko"
         "mt792x-usb.ko"
-        "mt7902/mt7902.ko"
+        "mt7921/mt7921-common.ko"
+        "mt7921/mt7921u.ko"
+        "mt7925/mt7925-common.ko"
+        "mt7925/mt7925u.ko"
     )
     
     for module in "${modules[@]}"; do
