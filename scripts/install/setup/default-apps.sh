@@ -38,15 +38,30 @@ xdg-mime default imv.desktop image/tiff
 log_info "Setting default PDF viewer to 'Evince'..."
 xdg-mime default org.gnome.Evince.desktop application/pdf
 
-# check for $BROWSER and set default web browser to $BROWSER
-# when $BROWSER is set we cant change with xdg-settings
-if [ -n "$BROWSER" ]; then
-    log_info "We cannot change the default web browser when \$BROWSER is set. \n Please check or remove your \$BROWSER environment variable."
+# Set default web browser
+# Try to detect installed browsers, preferring vivaldi, then firefox, then chromium
+BROWSER_DESKTOP=""
+if command -v vivaldi >/dev/null 2>&1; then
+    BROWSER_DESKTOP="vivaldi-stable.desktop"
+elif command -v firefox >/dev/null 2>&1; then
+    BROWSER_DESKTOP="firefox.desktop"
+elif command -v chromium >/dev/null 2>&1; then
+    BROWSER_DESKTOP="chromium.desktop"
+fi
+
+if [ -n "$BROWSER_DESKTOP" ]; then
+    log_info "Setting default web browser to '$BROWSER_DESKTOP'..."
+    # Only set if $BROWSER env var is not set (which prevents xdg-settings from working)
+    if [ -z "$BROWSER" ]; then
+        xdg-settings set default-web-browser "$BROWSER_DESKTOP" 2>/dev/null || log_info "Could not set default web browser via xdg-settings (may require manual setup)"
+    else
+        log_info "Skipping browser setting: \$BROWSER is set to '$BROWSER', which prevents xdg-settings from working"
+    fi
+    # Set MIME types regardless of $BROWSER env var
+    xdg-mime default "$BROWSER_DESKTOP" x-scheme-handler/http 2>/dev/null || true
+    xdg-mime default "$BROWSER_DESKTOP" x-scheme-handler/https 2>/dev/null || true
 else
-    log_info "Setting default web browser to '$BROWSER'..."
-    xdg-settings set default-web-browser "$BROWSER.desktop"
-    xdg-mime default "$BROWSER.desktop" x-scheme-handler/http
-    xdg-mime default "$BROWSER.desktop" x-scheme-handler/https
+    log_info "No supported browser found (vivaldi/firefox/chromium). Skipping browser default setup."
 fi
 
 log_info "Setting default video player to 'mpv'..."
