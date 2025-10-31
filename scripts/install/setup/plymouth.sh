@@ -102,7 +102,7 @@ elif [ -f "/boot/limine.conf" ] || [ -f "/boot/limine/limine.conf" ]; then
     log_info "Detected Limine. Adding kernel parameters..."
     
     # Determine the correct path for limine.conf
-    local limine_cfg_path=""
+    limine_cfg_path=""
     if [ -f "/boot/limine.conf" ]; then
         limine_cfg_path="/boot/limine.conf"
     else
