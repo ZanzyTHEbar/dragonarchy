@@ -295,8 +295,12 @@ EOF
     # Verify touchpad has multi-touch support
     log_info "Verifying touchpad capabilities..."
     if command_exists libinput; then
-        log_info "Touchpad devices detected:"
-        libinput list-devices | grep -A 20 "Touchpad" || log_warning "No touchpad detected"
+        log_info "Checking for touchpad devices..."
+        if sudo libinput list-devices | grep -q "Touchpad"; then
+            log_success "Touchpad detected with libinput support"
+        else
+            log_warning "No touchpad detected - may not be needed for desktop systems"
+        fi
     fi
     
     log_success "Touchpad configuration created with gesture support"
@@ -451,7 +455,10 @@ EOF
     log_info "Creating Hyprland laptop-specific configuration..."
     mkdir -p "$HOME/.config/hypr/config"
     
-    cat > "$HOME/.config/hypr/config/host-config.conf" << 'EOF'
+    # Only create if it doesn't exist or isn't a symlink (managed by stow)
+    if [[ ! -e "$HOME/.config/hypr/config/host-config.conf" ]] || [[ ! -L "$HOME/.config/hypr/config/host-config.conf" ]]; then
+        log_info "Creating host-config.conf for laptop..."
+        cat > "$HOME/.config/hypr/config/host-config.conf" << 'EOF'
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃              FireDragon Laptop-Specific Configuration       ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -467,6 +474,9 @@ source = ~/.config/hypr/config/gestures.conf
 # - Battery-aware rules
 # - Touch screen settings
 EOF
+    else
+        log_info "host-config.conf already exists (managed by stow or previous run)"
+    fi
     
     log_success "FireDragon-specific configuration created"
 }
