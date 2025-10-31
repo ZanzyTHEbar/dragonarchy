@@ -47,7 +47,9 @@ pipx_packages=("poetry" "black" "flake8" "mypy")
 
 # Hyprland specific
 hyprland_arch=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "nemo-fileroller" "nemo-preview" "nemo-seahorse" "nemo-share" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot" "imagemagick" "imv" "inetutils" "iwd" "kvantum" "lazygit" "less" "libqalculate" "libsecret" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt6-svg" "qt6-declarative" "qt5-quickcontrols2" "qt5-graphicaleffects" "qt6-5compat" "qt6-wayland" "qt5-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "system-config-printer" "tree-sitter-cli" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
-hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse" "elephant-bin" "elephant-desktopapplications-bin" "elephant-files-bin" "elephant-runner-bin" "elephant-clipboard-bin" "elephant-providerlist-bin")
+hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse")
+# Elephant packages - base must be installed first to satisfy plugin dependencies
+hyprland_aur_elephant=("elephant-bin" "elephant-desktopapplications-bin" "elephant-files-bin" "elephant-runner-bin" "elephant-clipboard-bin" "elephant-providerlist-bin")
 
 # Logging functions
 log_info() {
@@ -389,6 +391,9 @@ install_for_arch() {
         add_chaotic_aur
         install_pacman "${hyprland_arch[@]}"
         install_paru "${hyprland_aur[@]}"
+        # Install elephant packages separately - base first, then plugins
+        log_info "Installing Elephant and plugins..."
+        install_paru "${hyprland_aur_elephant[@]}"
         install_rust_tools
         install_cursor_app
     fi

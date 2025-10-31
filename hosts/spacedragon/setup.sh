@@ -368,6 +368,27 @@ if command -v tlp-stat >/dev/null 2>&1; then
 fi
 EOF
     
+    # Create Hyprland host-specific configuration for laptops
+    log_info "Creating Hyprland laptop-specific configuration..."
+    mkdir -p "$HOME/.config/hypr/config"
+    
+    cat > "$HOME/.config/hypr/config/host-config.conf" << 'EOF'
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃              Spacedragon Laptop-Specific Configuration      ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+# This file is created by the Spacedragon host setup
+# It sources laptop-specific configurations like touchpad gestures
+
+# Enable touchpad gesture support
+source = ~/.config/hypr/config/gestures.conf
+
+# You can add other laptop-specific Hyprland settings here
+# For example:
+# - Laptop-specific monitor configurations
+# - Battery-aware rules
+# - Touch screen settings
+EOF
+    
     log_success "Spacedragon-specific configuration created"
 }
 

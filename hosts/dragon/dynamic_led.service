@@ -1,0 +1,12 @@
+[Unit]
+Description=Dynamic LED based on liquid temperature
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env python3 /usr/local/bin/dynamic_led.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
