@@ -258,10 +258,19 @@ setup_dotfiles() {
     for package in "${packages[@]}"; do
         if [[ -d "$package" ]]; then
             log_info "Installing dotfiles package: $package"
-            if stow -t "$HOME" "$package"; then
+            # Use --restow to handle re-runs and existing symlinks
+            # --no-folding prevents stow from folding entire directories
+            if stow --restow --no-folding -t "$HOME" "$package" 2>&1 | grep -v "BUG in find_stowed_path"; then
                 log_success "Installed $package dotfiles"
             else
-                log_warning "Failed to install $package dotfiles (might already exist)"
+                # On conflict, try to unstow first then restow
+                log_warning "$package has conflicts, attempting to resolve..."
+                stow -D -t "$HOME" "$package" 2>/dev/null || true
+                if stow -t "$HOME" "$package"; then
+                    log_success "Installed $package dotfiles after cleanup"
+                else
+                    log_warning "Failed to install $package dotfiles - manual intervention may be needed"
+                fi
             fi
         else
             log_warning "Package directory $package not found, skipping"
@@ -531,3 +540,4 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Run main function
     main "$@"
 fi
+
