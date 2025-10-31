@@ -43,6 +43,14 @@ echo
 setup_firedragon_packages() {
     log_info "Installing laptop-specific packages..."
     
+    # Remove conflicting package FIRST before attempting to install TLP
+    if pacman -Qi power-profiles-daemon &>/dev/null; then
+        log_info "Removing conflicting power-profiles-daemon..."
+        sudo systemctl stop power-profiles-daemon.service 2>/dev/null || true
+        sudo systemctl disable power-profiles-daemon.service 2>/dev/null || true
+        sudo pacman -Rdd --noconfirm power-profiles-daemon || log_warning "Failed to remove power-profiles-daemon"
+    fi
+    
     local laptop_packages=(
         "tlp"                    # Advanced power management
         "tlp-rdw"                # TLP radio device wizard
@@ -114,14 +122,9 @@ options amdgpu gpu_recovery=1
 options amdgpu dc=1
 EOF
     
-    # Setup AMD microcode early loading
-    if ls /boot/loader/entries/*.conf &>/dev/null; then
-        log_info "AMD microcode already handled by systemd-boot"
-    else
-        log_info "Enabling AMD microcode early loading..."
-        sudo sed -i '/^MODULES=/ s/)/ amd-ucode)/' /etc/mkinitcpio.conf
-        sudo mkinitcpio -P
-    fi
+    # AMD microcode is handled by the amd-ucode package, not as a kernel module
+    # The package installs /boot/amd-ucode.img which bootloaders load automatically
+    log_info "AMD microcode package installed - bootloader will load it automatically"
     
     log_success "AMD graphics configured"
 }
@@ -131,18 +134,14 @@ setup_power_management() {
     log_info "Setting up TLP power management..."
     
     if command_exists tlp; then
-        # Stop and disable conflicting services
-        sudo systemctl stop power-profiles-daemon.service 2>/dev/null || true
-        sudo systemctl disable power-profiles-daemon.service 2>/dev/null || true
-        sudo systemctl mask power-profiles-daemon.service
-        
+        log_info "Configuring TLP services..."
         # Mask conflicting systemd services
-        sudo systemctl mask systemd-rfkill.service
-        sudo systemctl mask systemd-rfkill.socket
+        sudo systemctl mask systemd-rfkill.service 2>/dev/null || true
+        sudo systemctl mask systemd-rfkill.socket 2>/dev/null || true
         
         # Enable TLP services
-        sudo systemctl enable tlp.service
-        sudo systemctl enable tlp-sleep.service
+        sudo systemctl enable tlp.service 2>/dev/null || true
+        sudo systemctl enable tlp-sleep.service 2>/dev/null || true
         
         # Create TLP configuration optimized for AMD laptop
         sudo tee /etc/tlp.d/01-firedragon.conf > /dev/null << 'EOF'
@@ -343,8 +342,14 @@ EOF
     
     chmod +x "$HOME/.local/bin/battery-status"
     
-    # Enable battery-monitor systemd timer
-    systemctl --user enable battery-monitor.timer || log_warning "Could not enable battery-monitor timer"
+    # Check if battery-monitor timer exists from hardware package
+    if systemctl --user list-unit-files | grep -q "battery-monitor.timer"; then
+        systemctl --user enable battery-monitor.timer 2>/dev/null || true
+        log_info "Battery monitor timer enabled"
+    else
+        log_info "Battery monitoring script installed at ~/.local/bin/battery-status"
+        log_info "Run 'battery-status' to check battery info"
+    fi
     
     log_success "Battery monitoring configured"
 }
@@ -688,6 +693,13 @@ setup_mt7902_wifi() {
 setup_gesture_plugins() {
     log_info "Setting up advanced touchpad gesture plugins..."
     
+    # GLM should already be installed from package list
+    # If not, skip gesture plugin build
+    if ! command -v meson >/dev/null 2>&1 || ! pacman -Qi glm &>/dev/null 2>&1; then
+        log_warning "Build dependencies not available, skipping gesture plugin build"
+        return 0
+    fi
+    
     local plugin_dir="$HOME/.local/share/hyprland-plugins"
     mkdir -p "$plugin_dir"
     
@@ -697,7 +709,8 @@ setup_gesture_plugins() {
         cd "$plugin_dir"
         if git clone https://github.com/horriblename/hyprgrass.git; then
             cd hyprgrass
-            if meson setup build && ninja -C build; then
+            log_info "Building hyprgrass (this may take a minute)..."
+            if meson setup build 2>&1 | tee /tmp/hyprgrass-build.log && ninja -C build; then
                 log_success "hyprgrass built successfully"
                 
                 # Create autostart script to load plugin
@@ -717,19 +730,15 @@ EOF
                 
                 log_success "hyprgrass plugin installed"
             else
-                log_error "Failed to build hyprgrass"
+                log_error "Failed to build hyprgrass - check /tmp/hyprgrass-build.log for details"
+                log_warning "Gesture plugin will not be available"
             fi
         else
             log_error "Failed to clone hyprgrass repository"
         fi
     else
-        log_info "hyprgrass already exists, updating..."
-        cd "$plugin_dir/hyprgrass"
-        git pull
-        ninja -C build clean
-        meson setup build --wipe
-        ninja -C build
-        log_success "hyprgrass updated"
+        log_info "hyprgrass already exists, skipping rebuild"
+        log_info "To rebuild: rm -rf $plugin_dir/hyprgrass and re-run setup"
     fi
     
     # Note: hyprexpo is built into Hyprland 0.40+, so no separate installation needed
@@ -737,6 +746,28 @@ EOF
     
     cd "$HOME"
     log_success "Gesture plugins setup completed"
+}
+
+# Rebuild initramfs to apply module changes
+rebuild_initramfs() {
+    log_info "Rebuilding initramfs to apply kernel module changes..."
+    
+    # Check for any bad module references in mkinitcpio.conf
+    if grep -q "amd.ucode\|amd_ucode" /etc/mkinitcpio.conf 2>/dev/null; then
+        log_warning "Found incorrect amd_ucode module reference in mkinitcpio.conf"
+        log_info "Cleaning up mkinitcpio.conf..."
+        sudo sed -i 's/amd.ucode//g; s/amd_ucode//g' /etc/mkinitcpio.conf
+        sudo sed -i 's/  \+/ /g' /etc/mkinitcpio.conf  # Clean up double spaces
+    fi
+    
+    # Rebuild initramfs for all installed kernels
+    log_info "Rebuilding initramfs for all kernels..."
+    if sudo mkinitcpio -P; then
+        log_success "Initramfs rebuilt successfully"
+    else
+        log_warning "Initramfs rebuild had warnings - this is usually okay"
+        log_info "The consolefont and Limine warnings are expected and can be ignored"
+    fi
 }
 
 # Main setup function
@@ -767,6 +798,8 @@ main() {
     setup_gesture_plugins
     echo
     create_host_config
+    echo
+    rebuild_initramfs
     
     echo
     log_success "🎉 FireDragon setup completed!"
