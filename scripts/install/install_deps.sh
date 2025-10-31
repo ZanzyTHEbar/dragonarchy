@@ -202,6 +202,21 @@ get_latest_go_version() {
     echo "$latest_version"
 }
 
+# Compare two version strings (e.g., "1.25.3" vs "1.24.5")
+# Returns 0 if version1 < version2, 1 if version1 >= version2
+version_less_than() {
+    local version1="$1"
+    local version2="$2"
+    
+    # Use sort -V for version comparison
+    # If version1 < version2, version1 will be first in sorted order
+    if [[ "$(printf '%s\n' "$version1" "$version2" | sort -V | head -n1)" == "$version1" ]] && [[ "$version1" != "$version2" ]]; then
+        return 0  # version1 < version2
+    else
+        return 1  # version1 >= version2
+    fi
+}
+
 install_go_from_source() {
     local platform="$1"
     local latest_version
@@ -216,11 +231,19 @@ install_go_from_source() {
 
     log_info "Latest Go version available: $latest_version"
 
-    # Check if Go is already installed and remove it
+    # Check if Go is already installed and compare versions
     if command_exists go; then
         local current_version
         current_version=$(go version | grep -oP 'go\d+\.\d+(?:\.\d+)?' | sed 's/go//')
         log_info "Found existing Go installation (version: $current_version)"
+
+        # Compare versions - only upgrade if current version is less than latest
+        if version_less_than "$current_version" "$latest_version"; then
+            log_info "Current version ($current_version) is older than latest ($latest_version). Upgrading..."
+        else
+            log_info "Go is already at the latest version ($current_version). Skipping installation."
+            return 0
+        fi
 
         # Remove existing installation
         if [[ -d "/usr/local/go" ]]; then
@@ -389,7 +412,16 @@ install_for_arch() {
     if [[ " ${hyprland_hosts[*]} " =~ ${host} ]]; then
         log_info "Installing Hyprland specific packages for host: $host"
         add_chaotic_aur
-        install_pacman "${hyprland_arch[@]}"
+        # Filter out power-profiles-daemon if TLP is installed (they conflict)
+        local filtered_hyprland_arch=()
+        for pkg in "${hyprland_arch[@]}"; do
+            if [[ "$pkg" == "power-profiles-daemon" ]] && command -v tlp &>/dev/null; then
+                log_info "Skipping power-profiles-daemon (TLP is installed)"
+                continue
+            fi
+            filtered_hyprland_arch+=("$pkg")
+        done
+        install_pacman "${filtered_hyprland_arch[@]}"
         install_paru "${hyprland_aur[@]}"
         # Install elephant packages separately - base first, then plugins
         log_info "Installing Elephant and plugins..."

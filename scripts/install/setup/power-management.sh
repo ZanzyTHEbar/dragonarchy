@@ -1,28 +1,46 @@
 #!/bin/bash
-# Installs power-profiles-daemon and sets the appropriate power profile.
+# Installs power management tools (TLP for laptops, power-profiles-daemon for desktops)
 
-set -e
+# Don't use set -e - we want to continue even if commands fail
+# set -e
 
 # --- Header and Logging ---
 BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
+log_warning() { echo -e "\n${YELLOW}[WARNING]${NC} $1"; }
 
 log_info "Setting up power management..."
 
-# Install power-profiles-daemon if not already installed
-if ! command -v powerprofilesctl &>/dev/null; then
-    log_info "Installing power-profiles-daemon..."
-    paru -S --noconfirm --needed power-profiles-daemon
-fi
-
-# Set power profile based on battery presence
-if ls /sys/class/power_supply/BAT* &>/dev/null; then
-  log_info "Battery detected. Setting power profile to 'balanced'."
-  powerprofilesctl set balanced || true
+# Check if TLP is installed (laptop setup)
+if command -v tlp &>/dev/null; then
+    log_info "TLP detected - using TLP for power management (laptop configuration)"
+    log_info "Skipping power-profiles-daemon (conflicts with TLP)"
+    
+    # Start TLP if not running
+    if ! systemctl is-active --quiet tlp.service; then
+        log_info "Starting TLP service..."
+        sudo systemctl start tlp.service 2>/dev/null || log_warning "Could not start TLP"
+    fi
+    
+elif command -v powerprofilesctl &>/dev/null; then
+    # power-profiles-daemon already installed
+    log_info "power-profiles-daemon detected - configuring..."
+    
+    # Set power profile based on battery presence
+    if ls /sys/class/power_supply/BAT* &>/dev/null 2>&1; then
+        log_info "Battery detected. Setting power profile to 'balanced'."
+        powerprofilesctl set balanced 2>/dev/null || true
+    else
+        log_info "No battery detected. Setting power profile to 'performance'."
+        powerprofilesctl set performance 2>/dev/null || true
+    fi
 else
-  log_info "No battery detected. Setting power profile to 'performance'."
-  powerprofilesctl set performance || true
+    # Neither TLP nor power-profiles-daemon installed
+    log_info "No power management tool detected"
+    log_info "For desktops: power-profiles-daemon will be installed from hyprland packages"
+    log_info "For laptops: TLP is installed by host-specific setup (e.g., firedragon)"
 fi
 
 log_info "Power management setup complete."
