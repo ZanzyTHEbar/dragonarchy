@@ -561,10 +561,16 @@ EOF
     # Kernel parameters for Asus ACPI fixes
     local asus_params="acpi_osi=! acpi_osi='Windows 2020' acpi_backlight=native"
     
+    # Check if parameters are already in the current kernel cmdline
+    if grep -q "acpi_osi=!" /proc/cmdline; then
+        log_success "ACPI parameters already applied in current boot"
+        return 0
+    fi
+    
     # Detect bootloader and apply parameters
-    if [ -f "/boot/limine.conf" ]; then
+    if sudo test -f "/boot/limine.conf"; then
         log_info "Detected Limine bootloader at /boot/limine.conf"
-        if ! grep -q "acpi_osi=!" /boot/limine.conf; then
+        if ! sudo grep -q "acpi_osi=!" /boot/limine.conf; then
             log_info "Adding Asus ACPI parameters to Limine configuration..."
             sudo cp /boot/limine.conf "/boot/limine.conf.backup.$(date +%Y%m%d_%H%M%S)"
             sudo sed -i "/^CMDLINE/ s/\"$/ $asus_params\"/" /boot/limine.conf
@@ -572,9 +578,9 @@ EOF
         else
             log_info "Asus ACPI parameters already present in Limine config"
         fi
-    elif [ -f "/boot/limine/limine.conf" ]; then
+    elif sudo test -f "/boot/limine/limine.conf"; then
         log_info "Detected Limine bootloader at /boot/limine/limine.conf"
-        if ! grep -q "acpi_osi=!" /boot/limine/limine.conf; then
+        if ! sudo grep -q "acpi_osi=!" /boot/limine/limine.conf; then
             log_info "Adding Asus ACPI parameters to Limine configuration..."
             sudo cp /boot/limine/limine.conf "/boot/limine/limine.conf.backup.$(date +%Y%m%d_%H%M%S)"
             sudo sed -i "/^CMDLINE/ s/\"$/ $asus_params\"/" /boot/limine/limine.conf
@@ -582,12 +588,12 @@ EOF
         else
             log_info "Asus ACPI parameters already present in Limine config"
         fi
-    elif [ -d "/boot/loader/entries" ]; then
+    elif sudo test -d "/boot/loader/entries"; then
         log_info "Detected systemd-boot"
         local boot_entry
-        boot_entry=$(find /boot/loader/entries -name "*.conf" | head -1)
+        boot_entry=$(sudo find /boot/loader/entries -name "*.conf" | head -1)
         if [ -n "$boot_entry" ]; then
-            if ! grep -q "acpi_osi=!" "$boot_entry"; then
+            if ! sudo grep -q "acpi_osi=!" "$boot_entry"; then
                 log_info "Adding Asus ACPI parameters to systemd-boot..."
                 sudo cp "$boot_entry" "${boot_entry}.backup.$(date +%Y%m%d_%H%M%S)"
                 sudo sed -i "/^options/ s/$/ $asus_params/" "$boot_entry"
@@ -609,8 +615,25 @@ EOF
         log_info "Created /etc/default/grub.d/asus-vivobook.cfg"
         log_warning "Remember to run: sudo grub-mkconfig -o /boot/grub/grub.cfg"
     else
-        log_warning "No supported bootloader detected. Add these parameters manually:"
-        log_warning "  $asus_params"
+        log_warning "Could not detect bootloader configuration"
+        log_info "Common bootloader locations:"
+        echo "  • Limine: /boot/limine.conf or /boot/limine/limine.conf"
+        echo "  • systemd-boot: /boot/loader/entries/*.conf"
+        echo "  • GRUB: /etc/default/grub"
+        echo ""
+        log_warning "Add these ACPI parameters manually to your bootloader:"
+        echo "  $asus_params"
+        echo ""
+        log_info "After adding, verify with: cat /proc/cmdline | grep acpi_osi"
+        
+        # Try to identify bootloader by checking running system
+        if command -v bootctl &>/dev/null && bootctl is-installed &>/dev/null 2>&1; then
+            log_info "Detected: systemd-boot is installed"
+            log_info "Edit your boot entry in /boot/loader/entries/"
+        elif command -v grub-mkconfig &>/dev/null; then
+            log_info "Detected: GRUB is installed"
+            log_info "Add parameters to /etc/default/grub then run: sudo grub-mkconfig -o /boot/grub/grub.cfg"
+        fi
     fi
     
     # Add keyboard backlight control via udev
