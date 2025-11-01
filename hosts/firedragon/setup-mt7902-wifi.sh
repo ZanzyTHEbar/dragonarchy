@@ -192,15 +192,24 @@ build_driver() {
         return 1
     }
     
+    # Make source directory writable for build (kernel build system needs to write temp files)
+    # Use sudo to ensure we can write to the source directory
+    log_info "Making source directory writable for build..."
+    sudo chmod -R u+w "$mt76_dir" 2>/dev/null || log_warning "Could not make source writable, build may fail"
+    
     # Build using kernel build system
     log_info "Building using kernel build system from $kernel_root..."
     log_info "Building module: $rel_path"
-    if make -C "$kernel_build" M="$rel_path" modules -j"$(nproc)"; then
+    if sudo make -C "$kernel_build" M="$rel_path" modules -j"$(nproc)"; then
         log_success "Driver built successfully"
+        # Restore permissions
+        sudo chmod -R u-w "$mt76_dir" 2>/dev/null || true
         return 0
     else
         log_warning "Direct build failed - DKMS will handle building"
         log_info "This is normal - kernel modules are better built via DKMS"
+        # Restore permissions
+        sudo chmod -R u-w "$mt76_dir" 2>/dev/null || true
         return 0  # Don't fail, let DKMS handle it
     fi
 }
@@ -226,7 +235,9 @@ setup_dkms() {
     
     # Copy driver source to DKMS directory
     sudo mkdir -p "$dkms_dir"
+    sudo rm -rf "$dkms_dir"/* 2>/dev/null || true  # Clean any existing files
     sudo cp -r "$mt76_dir"/* "$dkms_dir/"
+    sudo chown -R root:root "$dkms_dir"  # Ensure proper ownership for DKMS
     
     # Create dkms.conf
     sudo tee "$dkms_dir/dkms.conf" > /dev/null << EOF
@@ -242,6 +253,21 @@ EOF
     
     # Add and build DKMS module
     log_info "Building DKMS module..."
+    
+    # Verify dkms.conf and source files are in place
+    if [[ ! -f "$dkms_dir/dkms.conf" ]]; then
+        log_error "dkms.conf not found in $dkms_dir"
+        return 1
+    fi
+    
+    if [[ ! -f "$dkms_dir/Makefile" ]]; then
+        log_error "Makefile not found in $dkms_dir - source copy may have failed"
+        return 1
+    fi
+    
+    log_info "DKMS source directory: $dkms_dir"
+    log_info "DKMS source contains: $(ls -1 "$dkms_dir" | head -5 | tr '\n' ' ')..."
+    
     if sudo dkms add -m "$DKMS_MODULE_NAME" -v "$DKMS_MODULE_VERSION" &&
        sudo dkms build -m "$DKMS_MODULE_NAME" -v "$DKMS_MODULE_VERSION" &&
        sudo dkms install -m "$DKMS_MODULE_NAME" -v "$DKMS_MODULE_VERSION"; then
@@ -249,6 +275,7 @@ EOF
         return 0
     else
         log_warning "DKMS setup failed, will try manual module loading"
+        log_info "Check /var/lib/dkms/$DKMS_MODULE_NAME/$DKMS_MODULE_VERSION/build/make.log for details"
         return 1
     fi
 }
