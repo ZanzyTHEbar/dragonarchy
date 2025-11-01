@@ -330,19 +330,44 @@ load_modules_manual() {
 create_modprobe_conf() {
     log_info "Creating modprobe configuration..."
     
-    # Prefer mt7925u if present, otherwise mt7921u
-    local primary_module="mt7925u"
-    if ! modinfo mt7925u >/dev/null 2>&1; then
-        primary_module="mt7921u"
+    # Determine a preferred variant if present (USB preferred by default)
+    local preferred_variant="mt7925u"
+    if modinfo mt7925e >/dev/null 2>&1; then
+        preferred_variant="mt7925e"
+    elif ! modinfo mt7925u >/dev/null 2>&1; then
+        # Fall back to mt7921 variants
+        if modinfo mt7921e >/dev/null 2>&1; then
+            preferred_variant="mt7921e"
+        else
+            preferred_variant="mt7921u"
+        fi
     fi
     
     sudo tee /etc/modprobe.d/mt7902.conf > /dev/null << EOF
 # MT7902 WiFi driver configuration
-# Load modules in correct order for MediaTek mt76 stack
-softdep ${primary_module} pre: mt76-connac-lib mt76 mt76-sdio mt76-usb mt76x02-lib mt76x02-usb mt792x-lib mt792x-usb
 
-# Power management
-# Note: driver-specific power options may vary by kernel/driver version
+# Treat 'mt7902' as the public module name. Loading it will load the mt76 stack
+# and then the best variant for this system.
+softdep mt7902 pre: mt76-connac-lib mt76 mt76-sdio mt76-usb mt76x02-lib mt76x02-usb mt792x-lib mt792x-usb
+
+# Chain-load underlying modules; try preferred variant then reasonable fallbacks.
+install mt7902 \
+  /usr/bin/modprobe --ignore-install mt76-connac-lib && \
+  /usr/bin/modprobe --ignore-install mt76 && \
+  /usr/bin/modprobe --ignore-install mt76-sdio && \
+  /usr/bin/modprobe --ignore-install mt76-usb && \
+  /usr/bin/modprobe --ignore-install mt76x02-lib && \
+  /usr/bin/modprobe --ignore-install mt76x02-usb && \
+  /usr/bin/modprobe --ignore-install mt792x-lib && \
+  /usr/bin/modprobe --ignore-install mt792x-usb && \
+  ( /usr/bin/modprobe --ignore-install ${preferred_variant} || \
+    /usr/bin/modprobe --ignore-install mt7925u || \
+    /usr/bin/modprobe --ignore-install mt7925e || \
+    /usr/bin.modprobe --ignore-install mt7921u || \
+    /usr/bin/modprobe --ignore-install mt7921e )
+
+# Optional driver options (tune as needed)
+# options mt7902 power_save=1
 EOF
     
     log_success "Modprobe configuration created"
@@ -352,15 +377,9 @@ EOF
 create_modules_load() {
     log_info "Creating modules-load configuration..."
     
-    # Prefer mt7925u if present, otherwise mt7921u
-    local primary_module="mt7925u"
-    if ! modinfo mt7925u >/dev/null 2>&1; then
-        primary_module="mt7921u"
-    fi
-    
     sudo tee /etc/modules-load.d/mt7902.conf > /dev/null << EOF
-# Load MT7902-compatible WiFi driver at boot
-${primary_module}
+# Load virtual MT7902 module at boot (modprobe will chain-load the right stack)
+mt7902
 EOF
     
     log_success "Modules-load configuration created"
