@@ -18,11 +18,14 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Configuration
 KERNEL_VERSION=$(uname -r)
-KERNEL_SOURCE_DIR="/usr/lib/modules/$KERNEL_VERSION/build"
+KERNEL_BUILD_DIR="/usr/lib/modules/$KERNEL_VERSION/build"
+DRIVER_DIR="$HOME/.local/src/mt7902_driver"
 BLUETOOTH_BUILD_DIR="$HOME/.local/src/mt7902_bluetooth"
 BACKUP_DIR="$HOME/.config/mt7902_bluetooth_backup"
 DKMS_MODULE_NAME="mt7902-bluetooth"
 DKMS_MODULE_VERSION="1.0"
+# DRIVER_DIR is not defined in the original file, but it's used in the new_code.
+# KERNEL_BUILD_DIR is not defined in the original file, but it's used in the new_code.
 
 # Check if MT7902 chip is present
 check_mt7902_present() {
@@ -71,10 +74,15 @@ install_dependencies() {
         "base-devel"
         "linux-headers"
         "dkms"
+        "clang"
+        "llvm"
+        "lld"
         "bluez"
         "bluez-utils"
         "bc"
         "pahole"
+        "git"
+        "elfutils"
     )
     
     for dep in "${deps[@]}"; do
@@ -89,77 +97,72 @@ install_dependencies() {
 
 # Check for kernel source
 check_kernel_source() {
-    log_info "Checking for kernel source..."
-    
-    if [[ ! -d "$KERNEL_SOURCE_DIR" ]]; then
-        log_error "Kernel source not found at: $KERNEL_SOURCE_DIR"
+    log_info "Checking for kernel build directory..."
+    if [[ ! -d "$KERNEL_BUILD_DIR" ]]; then
+        log_error "Kernel build directory not found at: $KERNEL_BUILD_DIR"
         log_info "Install kernel headers: sudo pacman -S linux-headers"
         return 1
     fi
-    
-    if [[ ! -d "$KERNEL_SOURCE_DIR/drivers/bluetooth" ]]; then
-        log_error "Bluetooth drivers directory not found in kernel source"
-        return 1
-    fi
-    
-    log_success "Kernel source found: $KERNEL_SOURCE_DIR"
+    log_success "Kernel build directory found: $KERNEL_BUILD_DIR"
     return 0
+}
+
+# Detect bluetooth source path inside the mt7902 repo
+detect_bluetooth_repo_path() {
+    local kernel_mm
+    kernel_mm=$(uname -r | cut -d'.' -f1-2)  # e.g., 6.17
+    local bt_path="$DRIVER_DIR/linux-${kernel_mm}/drivers/bluetooth"
+    if [[ -d "$bt_path" ]]; then
+        echo "$bt_path"
+        return 0
+    fi
+    local latest
+    latest=$(find "$DRIVER_DIR" -maxdepth 1 -type d -name 'linux-*' | sort -V | tail -1)
+    if [[ -n "$latest" ]] && [[ -d "$latest/drivers/bluetooth" ]]; then
+        echo "$latest/drivers/bluetooth"
+        return 0
+    fi
+    return 1
 }
 
 # Build Bluetooth modules
 build_bluetooth_modules() {
     log_info "Building MT7902 Bluetooth modules..."
     
-    # Create build directory
     mkdir -p "$BLUETOOTH_BUILD_DIR"
-    cd "$BLUETOOTH_BUILD_DIR"
     
-    # Copy bluetooth driver source from kernel
-    log_info "Copying Bluetooth driver source..."
-    cp -r "$KERNEL_SOURCE_DIR/drivers/bluetooth" "$BLUETOOTH_BUILD_DIR/" 2>/dev/null || {
-        log_error "Failed to copy Bluetooth drivers"
-        return 1
-    }
-    
-    cd "$BLUETOOTH_BUILD_DIR/bluetooth"
-    
-    # Create Makefile if it doesn't exist
-    if [[ ! -f "Makefile" ]]; then
-        log_info "Creating Makefile..."
-        cat > Makefile << 'EOF'
-# Bluetooth driver Makefile for out-of-tree build
-obj-m += btusb.o btmtk.o
-
-KDIR := /lib/modules/$(shell uname -r)/build
-PWD := $(shell pwd)
-
-all:
-	$(MAKE) -C $(KDIR) M=$(PWD) modules
-
-clean:
-	$(MAKE) -C $(KDIR) M=$(PWD) clean
-
-install:
-	$(MAKE) -C $(KDIR) M=$(PWD) modules_install
-EOF
+    # Ensure driver repo exists
+    if [[ ! -d "$DRIVER_DIR/.git" ]]; then
+        log_info "Cloning driver repository..."
+        git clone --depth 1 https://github.com/OnlineLearningTutorials/mt7902_temp.git "$DRIVER_DIR" || {
+            log_error "Failed to clone driver repository"
+            return 1
+        }
+    else
+        (cd "$DRIVER_DIR" && git pull >/dev/null 2>&1 || true)
     fi
     
-    # Clean previous builds
-    make clean 2>/dev/null || true
+    local bt_src
+    bt_src=$(detect_bluetooth_repo_path) || {
+        log_error "Could not find bluetooth source in repo"
+        return 1
+    }
+    log_info "Using Bluetooth source: $bt_src"
     
-    # Build modules
-    log_info "Compiling Bluetooth modules (this may take a moment)..."
-    if make -j$(nproc) 2>&1 | tee "$BLUETOOTH_BUILD_DIR/build.log"; then
+    # Clean previous builds in place
+    make -C "$KERNEL_BUILD_DIR" LLVM=1 LLVM_IAS=1 M="$bt_src" clean 2>/dev/null || true
+    
+    # Build modules with LLVM toolchain
+    log_info "Compiling Bluetooth modules (LLVM)…"
+    if make -C "$KERNEL_BUILD_DIR" LLVM=1 LLVM_IAS=1 M="$bt_src" modules -j"$(nproc)" 2>&1 | tee "$BLUETOOTH_BUILD_DIR/build.log"; then
         log_success "Bluetooth modules built successfully"
-        
-        # Verify modules were created
-        if [[ -f "btusb.ko" ]] && [[ -f "btmtk.ko" ]]; then
+        if [[ -f "$bt_src/btusb.ko" ]] && [[ -f "$bt_src/btmtk.ko" ]]; then
             log_success "Found btusb.ko and btmtk.ko"
+            echo "$bt_src" > "$BLUETOOTH_BUILD_DIR/.bt_src_path"
             return 0
-        else
-            log_error "Modules not found after build"
-            return 1
         fi
+        log_error "Modules not found after build"
+        return 1
     else
         log_error "Build failed. Check: $BLUETOOTH_BUILD_DIR/build.log"
         return 1
@@ -193,7 +196,16 @@ backup_existing_modules() {
 install_bluetooth_modules() {
     log_info "Installing MT7902 Bluetooth modules..."
     
-    cd "$BLUETOOTH_BUILD_DIR/bluetooth"
+    local bt_src
+    if [[ -f "$BLUETOOTH_BUILD_DIR/.bt_src_path" ]]; then
+        bt_src=$(cat "$BLUETOOTH_BUILD_DIR/.bt_src_path")
+    else
+        bt_src=$(detect_bluetooth_repo_path) || {
+            log_error "Bluetooth source path not found"
+            return 1
+        }
+    fi
+    cd "$bt_src"
     
     # Unload existing modules
     log_info "Unloading existing Bluetooth modules..."
@@ -237,8 +249,17 @@ setup_dkms() {
     sudo mkdir -p "$dkms_dir"
     
     # Copy Bluetooth driver source to DKMS directory
+    local bt_src
+    if [[ -f "$BLUETOOTH_BUILD_DIR/.bt_src_path" ]]; then
+        bt_src=$(cat "$BLUETOOTH_BUILD_DIR/.bt_src_path")
+    else
+        bt_src=$(detect_bluetooth_repo_path) || {
+            log_warning "Bluetooth source path not found for DKMS"
+            return 1
+        }
+    fi
     log_info "Copying Bluetooth drivers to DKMS directory..."
-    sudo cp -r "$BLUETOOTH_BUILD_DIR/bluetooth"/* "$dkms_dir/" || {
+    sudo cp -r "$bt_src"/* "$dkms_dir/" || {
         log_warning "Failed to copy source to DKMS directory"
         return 1
     }
@@ -259,9 +280,9 @@ DEST_MODULE_LOCATION[1]="/updates"
 
 AUTOINSTALL="yes"
 
-# Use existing Makefile
-MAKE[0]="make -j\$(nproc)"
-CLEAN="make clean"
+# Build using kernel build system and LLVM toolchain
+MAKE[0]="make -C /lib/modules/\${kernelver}/build LLVM=1 LLVM_IAS=1 M=/usr/src/\${PACKAGE_NAME}-\${PACKAGE_VERSION} modules -j\$(nproc)"
+CLEAN[0]="make -C /lib/modules/\${kernelver}/build LLVM=1 LLVM_IAS=1 M=/usr/src/\${PACKAGE_NAME}-\${PACKAGE_VERSION} clean"
 EOF
     
     # Add and build DKMS module
