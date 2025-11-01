@@ -480,6 +480,15 @@ install_for_arch() {
             filtered_hyprland_arch+=("$pkg")
         done
         install_pacman "${filtered_hyprland_arch[@]}"
+        
+        # Configure rustup BEFORE building AUR packages (some require Rust)
+        if command_exists rustup; then
+            log_info "Configuring Rust toolchain..."
+            rustup toolchain install stable --profile minimal --no-self-update 2>/dev/null || true
+            rustup default stable 2>/dev/null || true
+            log_success "Rust toolchain configured"
+        fi
+        
         install_paru "${hyprland_aur[@]}"
         # Install elephant packages separately - base first, then plugins
         log_info "Installing Elephant and plugins..."
