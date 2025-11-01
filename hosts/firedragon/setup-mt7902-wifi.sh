@@ -67,6 +67,9 @@ install_dependencies() {
         "base-devel"
         "linux-headers"
         "dkms"
+        "clang"
+        "llvm"
+        "lld"
         "git"
         "bc"
         "iw"
@@ -165,7 +168,7 @@ build_driver() {
     # This mirrors: make -C /lib/modules/`uname -r`/build M=`pwd` modules
     log_info "Building using kernel build system..."
     log_info "Building module from: $mt76_dir"
-    if sudo make -C "$kernel_build" M="$mt76_dir" modules -j"$(nproc)"; then
+    if sudo make -C "$kernel_build" LLVM=1 LLVM_IAS=1 M="$mt76_dir" modules -j"$(nproc)"; then
         log_success "Driver built successfully"
         return 0
     else
@@ -245,8 +248,8 @@ BUILT_MODULE_NAME[7]="mt7925u"
 BUILT_MODULE_LOCATION[7]="mt76/mt7925/"
 DEST_MODULE_LOCATION[7]="/kernel/drivers/net/wireless/mediatek/mt76/mt7925"
 AUTOINSTALL="yes"
-MAKE[0]="make -C /lib/modules/\${kernelver}/build M=/usr/src/\${PACKAGE_NAME}-\${PACKAGE_VERSION}/mt76 modules -j\$(nproc)"
-CLEAN[0]="make -C /lib/modules/\${kernelver}/build M=/usr/src/\${PACKAGE_NAME}-\${PACKAGE_VERSION}/mt76 clean"
+MAKE[0]="make -C /lib/modules/\${kernelver}/build LLVM=1 LLVM_IAS=1 M=/usr/src/\${PACKAGE_NAME}-\${PACKAGE_VERSION}/mt76 modules -j\$(nproc)"
+CLEAN[0]="make -C /lib/modules/\${kernelver}/build LLVM=1 LLVM_IAS=1 M=/usr/src/\${PACKAGE_NAME}-\${PACKAGE_VERSION}/mt76 clean"
 EOF
     
     # Add and build DKMS module
