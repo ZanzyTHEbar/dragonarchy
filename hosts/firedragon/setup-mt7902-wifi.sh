@@ -149,21 +149,59 @@ build_driver() {
     
     log_info "Using driver path: $mt76_dir"
     
-    cd "$mt76_dir" || {
-        log_error "Failed to enter driver directory: $mt76_dir"
+    # Find kernel source root (linux-X.Y directory)
+    # mt76_dir is: $DRIVER_DIR/linux-X.Y/drivers/net/wireless/mediatek/mt76
+    # kernel_root should be: $DRIVER_DIR/linux-X.Y
+    local kernel_root
+    kernel_root=$(dirname "$(dirname "$(dirname "$(dirname "$(dirname "$mt76_dir")")")")")
+    
+    if [[ ! -d "$kernel_root" ]] || [[ ! "$kernel_root" =~ ^"$DRIVER_DIR"/linux- ]]; then
+        # Fallback: try to find linux-* directory in DRIVER_DIR
+        kernel_root=$(find "$DRIVER_DIR" -maxdepth 1 -type d -name 'linux-*' | head -1)
+        if [[ -z "$kernel_root" ]] || [[ ! -d "$kernel_root" ]]; then
+            log_warning "Kernel source root not found, skipping direct build"
+            log_info "DKMS will handle building from kernel source"
+            return 0
+        fi
+    fi
+    
+    log_info "Kernel source root: $kernel_root"
+    
+    # Check for kernel build directory (usually /usr/lib/modules/$(uname -r)/build)
+    local kernel_build="/usr/lib/modules/$(uname -r)/build"
+    if [[ ! -d "$kernel_build" ]]; then
+        log_warning "Kernel build directory not found: $kernel_build"
+        log_info "Skipping direct build - will use DKMS instead"
+        log_info "DKMS will handle building from kernel source"
+        return 0
+    fi
+    
+    # Calculate relative path from kernel root to mt76 directory
+    # e.g., if kernel_root = $DRIVER_DIR/linux-6.17 and mt76_dir = $DRIVER_DIR/linux-6.17/drivers/net/wireless/mediatek/mt76
+    # then rel_path = drivers/net/wireless/mediatek/mt76
+    local rel_path="${mt76_dir#$kernel_root/}"
+    
+    if [[ "$rel_path" == "$mt76_dir" ]]; then
+        log_error "Failed to calculate relative path from kernel root"
+        log_warning "Skipping direct build - will use DKMS instead"
+        return 0
+    fi
+    
+    cd "$kernel_root" || {
+        log_error "Failed to enter kernel source directory: $kernel_root"
         return 1
     }
     
-    # Clean previous builds
-    make clean 2>/dev/null || true
-    
-    # Build the driver
-    if make -j"$(nproc)"; then
+    # Build using kernel build system
+    log_info "Building using kernel build system from $kernel_root..."
+    log_info "Building module: $rel_path"
+    if make -C "$kernel_build" M="$rel_path" modules -j"$(nproc)"; then
         log_success "Driver built successfully"
         return 0
     else
-        log_error "Driver build failed"
-        return 1
+        log_warning "Direct build failed - DKMS will handle building"
+        log_info "This is normal - kernel modules are better built via DKMS"
+        return 0  # Don't fail, let DKMS handle it
     fi
 }
 
@@ -198,8 +236,8 @@ BUILT_MODULE_NAME[0]="mt7902"
 BUILT_MODULE_LOCATION[0]="."
 DEST_MODULE_LOCATION[0]="/kernel/drivers/net/wireless/mediatek/mt76"
 AUTOINSTALL="yes"
-MAKE[0]="make -j\$(nproc)"
-CLEAN="make clean"
+MAKE[0]="make -C /lib/modules/\${kernelver}/build M=\$PWD modules -j\$(nproc)"
+CLEAN="make -C /lib/modules/\${kernelver}/build M=\$PWD clean"
 EOF
     
     # Add and build DKMS module
