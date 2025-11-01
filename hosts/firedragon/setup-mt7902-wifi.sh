@@ -107,7 +107,8 @@ detect_driver_path() {
     local kernel_version
     kernel_version=$(uname -r | cut -d'.' -f1-2)  # e.g., 6.17
     
-    log_info "Detected kernel version: $(uname -r)"
+    # Log to stderr to avoid polluting stdout (which gets captured)
+    log_info "Detected kernel version: $(uname -r)" >&2
     
     # Try kernel-specific directory first
     local kernel_path="$DRIVER_DIR/linux-${kernel_version}/drivers/net/wireless/mediatek/mt76"
