@@ -459,7 +459,7 @@ EOF
     # Only create if it doesn't exist or isn't a symlink (managed by stow)
     if [[ ! -e "$HOME/.config/hypr/config/host-config.conf" ]] || [[ ! -L "$HOME/.config/hypr/config/host-config.conf" ]]; then
         log_info "Creating host-config.conf for laptop..."
-        cat > "$HOME/.config/hypr/config/host-config.conf" << 'EOF'
+    cat > "$HOME/.config/hypr/config/host-config.conf" << 'EOF'
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃              FireDragon Laptop-Specific Configuration       ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -815,6 +815,36 @@ rebuild_initramfs() {
     fi
 }
 
+# Setup SDDM theme
+setup_sddm_theme() {
+    log_info "Setting up SDDM theme..."
+    
+    # Check if SDDM is installed
+    if ! command -v sddm &>/dev/null; then
+        log_info "SDDM not installed, skipping theme setup"
+        return 0
+    fi
+    
+    local theme_scripts_dir="$HOME/dotfiles/scripts/theme-manager"
+    
+    # Refresh SDDM themes (copies from packages/sddm to /usr/share/sddm/themes)
+    if [[ -x "$theme_scripts_dir/refresh-sddm" ]]; then
+        log_info "Refreshing SDDM themes..."
+        bash "$theme_scripts_dir/refresh-sddm"
+    else
+        log_warning "refresh-sddm script not found"
+    fi
+    
+    # Set the catppuccin theme
+    if [[ -x "$theme_scripts_dir/sddm-set" ]]; then
+        log_info "Setting SDDM theme to catppuccin-mocha-sky-sddm..."
+        bash "$theme_scripts_dir/sddm-set" "catppuccin-mocha-sky-sddm"
+        log_success "SDDM theme configured"
+    else
+        log_warning "sddm-set script not found"
+    fi
+}
+
 # Main setup function
 main() {
     log_info "🚀 Setting up FireDragon AMD Laptop..."
@@ -845,6 +875,8 @@ main() {
     create_host_config
     echo
     rebuild_initramfs
+    echo
+    setup_sddm_theme
     
     echo
     log_success "🎉 FireDragon setup completed!"
