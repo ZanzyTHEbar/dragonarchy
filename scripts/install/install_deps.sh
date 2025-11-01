@@ -102,6 +102,64 @@ detect_host() {
     fi
 }
 
+# Detect if a host needs Hyprland packages
+# Checks for multiple indicators in the host directory:
+# 1. Presence of .hyprland marker file
+# 2. Presence of HYPRLAND marker file
+# 3. Hyprland mentioned in setup.sh
+# 4. Hyprland config directories
+is_hyprland_host() {
+    local hostname="$1"
+    local host_dir="$HOSTS_DIR/$hostname"
+    
+    # Host directory must exist
+    [[ ! -d "$host_dir" ]] && return 1
+    
+    # Method 1: Check for explicit marker files
+    if [[ -f "$host_dir/.hyprland" ]] || [[ -f "$host_dir/HYPRLAND" ]]; then
+        log_info "Host '$hostname' detected as Hyprland (marker file found)"
+        return 0
+    fi
+    
+    # Method 2: Check if setup.sh mentions Hyprland
+    if [[ -f "$host_dir/setup.sh" ]]; then
+        if grep -qi "hyprland\|hyprlock\|hypridle\|waybar" "$host_dir/setup.sh"; then
+            log_info "Host '$hostname' detected as Hyprland (setup.sh mentions Hyprland)"
+            return 0
+        fi
+    fi
+    
+    # Method 3: Check for Hyprland config directories in docs
+    if [[ -d "$host_dir/docs" ]]; then
+        if find "$host_dir/docs" -type f -name "*.md" -exec grep -qi "hyprland" {} \; 2>/dev/null; then
+            log_info "Host '$hostname' detected as Hyprland (documentation mentions Hyprland)"
+            return 0
+        fi
+    fi
+    
+    # Not a Hyprland host
+    return 1
+}
+
+# Get list of all Hyprland hosts by scanning host directories
+get_hyprland_hosts() {
+    local hyprland_hosts=()
+    
+    if [[ ! -d "$HOSTS_DIR" ]]; then
+        echo "${hyprland_hosts[@]}"
+        return
+    fi
+    
+    # Scan all host directories
+    while IFS= read -r host; do
+        if is_hyprland_host "$host"; then
+            hyprland_hosts+=("$host")
+        fi
+    done < <(get_available_hosts)
+    
+    echo "${hyprland_hosts[@]}"
+}
+
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
@@ -158,9 +216,9 @@ add_chaotic_aur() {
 install_brew() {
     command_exists brew || {
         log_info "Installing Homebrew..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com"$HOMEbrew"/install/HEAD/install.sh)"
-        echo "eval $(/opt"$HOMEbrew"/bin/brew shellenv)" >>~/.zprofile
-        eval "$(/opt"$HOMEbrew"/bin/brew shellenv)"
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >>~/.zprofile
+        eval "$(/opt/homebrew/bin/brew shellenv)"
     }
     log_info "Updating Homebrew..." && brew update
     log_info "Installing formulas: $*"
@@ -396,7 +454,6 @@ install_rust_tools() {
 # --- OS-Specific Installation Functions ---
 install_for_arch() {
     local host="$1"
-    local hyprland_hosts=("dragon" "spacedragon" "goldendragon")
 
     log_info "Updating pacman repositories..." && sudo pacman -Sy
 
@@ -409,7 +466,8 @@ install_for_arch() {
         return 1
     fi
 
-    if [[ " ${hyprland_hosts[*]} " =~ ${host} ]]; then
+    # Automatically detect if this host needs Hyprland packages
+    if is_hyprland_host "$host"; then
         log_info "Installing Hyprland specific packages for host: $host"
         add_chaotic_aur
         # Filter out power-profiles-daemon if TLP is installed (they conflict)
@@ -428,6 +486,8 @@ install_for_arch() {
         install_paru "${hyprland_aur_elephant[@]}"
         install_rust_tools
         install_cursor_app
+    else
+        log_info "Host '$host' is not configured for Hyprland, skipping Hyprland packages"
     fi
 }
 
