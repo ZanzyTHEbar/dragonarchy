@@ -54,7 +54,7 @@ if [ -n "$BROWSER_DESKTOP" ]; then
     # Only set if $BROWSER env var is not set (which prevents xdg-settings from working)
     if [ -z "$BROWSER" ]; then
         xdg-settings set default-web-browser "$BROWSER_DESKTOP" 2>/dev/null || log_info "Could not set default web browser via xdg-settings (may require manual setup)"
-    else
+else
         log_info "Skipping browser setting: \$BROWSER is set to '$BROWSER', which prevents xdg-settings from working"
     fi
     # Set MIME types regardless of $BROWSER env var

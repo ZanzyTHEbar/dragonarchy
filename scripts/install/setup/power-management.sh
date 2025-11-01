@@ -27,13 +27,13 @@ if command -v tlp &>/dev/null; then
 elif command -v powerprofilesctl &>/dev/null; then
     # power-profiles-daemon already installed
     log_info "power-profiles-daemon detected - configuring..."
-    
-    # Set power profile based on battery presence
+
+# Set power profile based on battery presence
     if ls /sys/class/power_supply/BAT* &>/dev/null 2>&1; then
-        log_info "Battery detected. Setting power profile to 'balanced'."
+  log_info "Battery detected. Setting power profile to 'balanced'."
         powerprofilesctl set balanced 2>/dev/null || true
-    else
-        log_info "No battery detected. Setting power profile to 'performance'."
+else
+  log_info "No battery detected. Setting power profile to 'performance'."
         powerprofilesctl set performance 2>/dev/null || true
     fi
 else
