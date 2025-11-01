@@ -284,8 +284,8 @@ BUILT_MODULE_NAME[7]="mt7925u"
 BUILT_MODULE_LOCATION[7]="mt76/mt7925/"
 DEST_MODULE_LOCATION[7]="/kernel/drivers/net/wireless/mediatek/mt76/mt7925"
 AUTOINSTALL="yes"
-MAKE[0]="make -C /lib/modules/\${kernelver}/build M=\$PWD/mt76 modules -j\$(nproc)"
-CLEAN="make -C /lib/modules/\${kernelver}/build M=\$PWD/mt76 clean"
+MAKE[0]="make -C /lib/modules/\${kernelver}/build M=/usr/src/\${PACKAGE_NAME}-\${PACKAGE_VERSION}/mt76 modules -j\$(nproc)"
+CLEAN="make -C /lib/modules/\${kernelver}/build M=/usr/src/\${PACKAGE_NAME}-\${PACKAGE_VERSION}/mt76 clean"
 EOF
     
     # Add and build DKMS module
