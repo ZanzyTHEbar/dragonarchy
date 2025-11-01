@@ -490,8 +490,16 @@ install_for_arch() {
         fi
         
         install_paru "${hyprland_aur[@]}"
+        
         # Install elephant packages separately - base first, then plugins
         log_info "Installing Elephant and plugins..."
+        
+        # Handle elephant-bin conflict with elephant (non-bin version)
+        if paru -Qi elephant &>/dev/null && ! paru -Qi elephant-bin &>/dev/null; then
+            log_warning "Removing conflicting 'elephant' package to install 'elephant-bin'"
+            paru -Rdd --noconfirm elephant 2>/dev/null || true
+        fi
+        
         install_paru "${hyprland_aur_elephant[@]}"
         install_rust_tools
         install_cursor_app
