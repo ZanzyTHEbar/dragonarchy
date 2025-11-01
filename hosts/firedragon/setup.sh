@@ -568,6 +568,14 @@ EOF
         return 0
     fi
     
+    # Ensure sudo access before checking bootloader files
+    log_info "Checking bootloader configuration (requires sudo)..."
+    if ! sudo -v 2>/dev/null; then
+        log_warning "Cannot access bootloader files (sudo required)"
+        log_info "Run manually after setup: bash ~/dotfiles/hosts/firedragon/fix-acpi-boot.sh"
+        return 0
+    fi
+    
     # Detect bootloader and apply parameters
     if sudo test -f "/boot/limine.conf"; then
         log_info "Detected Limine bootloader at /boot/limine.conf"
