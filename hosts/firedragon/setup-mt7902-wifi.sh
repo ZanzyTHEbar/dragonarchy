@@ -227,28 +227,65 @@ setup_dkms() {
         return 1
     }
     
+    # Find the mediatek directory (parent of mt76)
+    # mt76_dir is: $DRIVER_DIR/linux-X.Y/drivers/net/wireless/mediatek/mt76
+    # mediatek_dir should be: $DRIVER_DIR/linux-X.Y/drivers/net/wireless/mediatek
+    local mediatek_dir
+    mediatek_dir=$(dirname "$mt76_dir")
+    
+    if [[ ! -d "$mediatek_dir" ]]; then
+        log_error "MediaTek directory not found: $mediatek_dir"
+        return 1
+    fi
+    
+    log_info "Using MediaTek source directory: $mediatek_dir"
+    
     # Remove old DKMS module if exists
     if dkms status | grep -q "$DKMS_MODULE_NAME"; then
         log_info "Removing old DKMS module..."
         sudo dkms remove "$DKMS_MODULE_NAME/$DKMS_MODULE_VERSION" --all 2>/dev/null || true
     fi
     
-    # Copy driver source to DKMS directory
+    # Copy the entire mediatek directory structure to DKMS
+    # This preserves the full directory hierarchy needed for kernel build system
     sudo mkdir -p "$dkms_dir"
     sudo rm -rf "$dkms_dir"/* 2>/dev/null || true  # Clean any existing files
-    sudo cp -r "$mt76_dir"/* "$dkms_dir/"
+    sudo cp -r "$mediatek_dir"/* "$dkms_dir/"
     sudo chown -R root:root "$dkms_dir"  # Ensure proper ownership for DKMS
     
     # Create dkms.conf
+    # Since we copied the entire mediatek directory, we need to build the mt76 subdirectory
     sudo tee "$dkms_dir/dkms.conf" > /dev/null << EOF
 PACKAGE_NAME="$DKMS_MODULE_NAME"
 PACKAGE_VERSION="$DKMS_MODULE_VERSION"
-BUILT_MODULE_NAME[0]="mt7902"
-BUILT_MODULE_LOCATION[0]="."
+# Build all mt76 modules
+BUILT_MODULE_NAME[0]="mt76"
+BUILT_MODULE_LOCATION[0]="mt76/"
 DEST_MODULE_LOCATION[0]="/kernel/drivers/net/wireless/mediatek/mt76"
+BUILT_MODULE_NAME[1]="mt76-usb"
+BUILT_MODULE_LOCATION[1]="mt76/"
+DEST_MODULE_LOCATION[1]="/kernel/drivers/net/wireless/mediatek/mt76"
+BUILT_MODULE_NAME[2]="mt76-sdio"
+BUILT_MODULE_LOCATION[2]="mt76/"
+DEST_MODULE_LOCATION[2]="/kernel/drivers/net/wireless/mediatek/mt76"
+BUILT_MODULE_NAME[3]="mt76-connac-lib"
+BUILT_MODULE_LOCATION[3]="mt76/"
+DEST_MODULE_LOCATION[3]="/kernel/drivers/net/wireless/mediatek/mt76"
+BUILT_MODULE_NAME[4]="mt792x-lib"
+BUILT_MODULE_LOCATION[4]="mt76/"
+DEST_MODULE_LOCATION[4]="/kernel/drivers/net/wireless/mediatek/mt76"
+BUILT_MODULE_NAME[5]="mt792x-usb"
+BUILT_MODULE_LOCATION[5]="mt76/"
+DEST_MODULE_LOCATION[5]="/kernel/drivers/net/wireless/mediatek/mt76"
+BUILT_MODULE_NAME[6]="mt7925-common"
+BUILT_MODULE_LOCATION[6]="mt76/mt7925/"
+DEST_MODULE_LOCATION[6]="/kernel/drivers/net/wireless/mediatek/mt76/mt7925"
+BUILT_MODULE_NAME[7]="mt7925u"
+BUILT_MODULE_LOCATION[7]="mt76/mt7925/"
+DEST_MODULE_LOCATION[7]="/kernel/drivers/net/wireless/mediatek/mt76/mt7925"
 AUTOINSTALL="yes"
-MAKE[0]="make -C /lib/modules/\${kernelver}/build M=\$PWD modules -j\$(nproc)"
-CLEAN="make -C /lib/modules/\${kernelver}/build M=\$PWD clean"
+MAKE[0]="make -C /lib/modules/\${kernelver}/build M=\$PWD/mt76 modules -j\$(nproc)"
+CLEAN="make -C /lib/modules/\${kernelver}/build M=\$PWD/mt76 clean"
 EOF
     
     # Add and build DKMS module
@@ -260,13 +297,19 @@ EOF
         return 1
     fi
     
-    if [[ ! -f "$dkms_dir/Makefile" ]]; then
-        log_error "Makefile not found in $dkms_dir - source copy may have failed"
+    if [[ ! -d "$dkms_dir/mt76" ]]; then
+        log_error "mt76 directory not found in $dkms_dir - source copy may have failed"
+        return 1
+    fi
+    
+    if [[ ! -f "$dkms_dir/mt76/Makefile" ]]; then
+        log_error "mt76/Makefile not found in $dkms_dir - source copy may have failed"
         return 1
     fi
     
     log_info "DKMS source directory: $dkms_dir"
-    log_info "DKMS source contains: $(ls -1 "$dkms_dir" | head -5 | tr '\n' ' ')..."
+    log_info "DKMS source contains: $(ls -1 "$dkms_dir" | tr '\n' ' ')..."
+    log_info "mt76 directory contains: $(ls -1 "$dkms_dir/mt76" | head -5 | tr '\n' ' ')..."
     
     if sudo dkms add -m "$DKMS_MODULE_NAME" -v "$DKMS_MODULE_VERSION" &&
        sudo dkms build -m "$DKMS_MODULE_NAME" -v "$DKMS_MODULE_VERSION" &&
