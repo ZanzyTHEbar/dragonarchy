@@ -23,6 +23,9 @@ DRIVER_DIR="$HOME/.local/src/mt7902_driver"
 DKMS_MODULE_NAME="mt7902"
 DKMS_MODULE_VERSION="1.0"
 
+# Note: MT7902 is supported by mt7921/mt7925 drivers in modern kernels
+# This script primarily installs firmware and ensures the right modules are loaded
+
 # Check if MT7902 chip is present
 check_mt7902_present() {
     log_info "Checking for MT7902 WiFi chip..."
@@ -149,24 +152,6 @@ build_driver() {
     
     log_info "Using driver path: $mt76_dir"
     
-    # Find kernel source root (linux-X.Y directory)
-    # mt76_dir is: $DRIVER_DIR/linux-X.Y/drivers/net/wireless/mediatek/mt76
-    # kernel_root should be: $DRIVER_DIR/linux-X.Y
-    local kernel_root
-    kernel_root=$(dirname "$(dirname "$(dirname "$(dirname "$(dirname "$mt76_dir")")")")")
-    
-    if [[ ! -d "$kernel_root" ]] || [[ ! "$kernel_root" =~ ^"$DRIVER_DIR"/linux- ]]; then
-        # Fallback: try to find linux-* directory in DRIVER_DIR
-        kernel_root=$(find "$DRIVER_DIR" -maxdepth 1 -type d -name 'linux-*' | head -1)
-        if [[ -z "$kernel_root" ]] || [[ ! -d "$kernel_root" ]]; then
-            log_warning "Kernel source root not found, skipping direct build"
-            log_info "DKMS will handle building from kernel source"
-            return 0
-        fi
-    fi
-    
-    log_info "Kernel source root: $kernel_root"
-    
     # Check for kernel build directory (usually /usr/lib/modules/$(uname -r)/build)
     local kernel_build="/usr/lib/modules/$(uname -r)/build"
     if [[ ! -d "$kernel_build" ]]; then
@@ -176,40 +161,16 @@ build_driver() {
         return 0
     fi
     
-    # Calculate relative path from kernel root to mt76 directory
-    # e.g., if kernel_root = $DRIVER_DIR/linux-6.17 and mt76_dir = $DRIVER_DIR/linux-6.17/drivers/net/wireless/mediatek/mt76
-    # then rel_path = drivers/net/wireless/mediatek/mt76
-    local rel_path="${mt76_dir#$kernel_root/}"
-    
-    if [[ "$rel_path" == "$mt76_dir" ]]; then
-        log_error "Failed to calculate relative path from kernel root"
-        log_warning "Skipping direct build - will use DKMS instead"
-        return 0
-    fi
-    
-    cd "$kernel_root" || {
-        log_error "Failed to enter kernel source directory: $kernel_root"
-        return 1
-    }
-    
-    # Make source directory writable for build (kernel build system needs to write temp files)
-    # Use sudo to ensure we can write to the source directory
-    log_info "Making source directory writable for build..."
-    sudo chmod -R u+w "$mt76_dir" 2>/dev/null || log_warning "Could not make source writable, build may fail"
-    
-    # Build using kernel build system
-    log_info "Building using kernel build system from $kernel_root..."
-    log_info "Building module: $rel_path"
-    if sudo make -C "$kernel_build" M="$rel_path" modules -j"$(nproc)"; then
+    # Build using kernel build system with absolute M path (as in repo Makefile)
+    # This mirrors: make -C /lib/modules/`uname -r`/build M=`pwd` modules
+    log_info "Building using kernel build system..."
+    log_info "Building module from: $mt76_dir"
+    if sudo make -C "$kernel_build" M="$mt76_dir" modules -j"$(nproc)"; then
         log_success "Driver built successfully"
-        # Restore permissions
-        sudo chmod -R u-w "$mt76_dir" 2>/dev/null || true
         return 0
     else
         log_warning "Direct build failed - DKMS will handle building"
         log_info "This is normal - kernel modules are better built via DKMS"
-        # Restore permissions
-        sudo chmod -R u-w "$mt76_dir" 2>/dev/null || true
         return 0  # Don't fail, let DKMS handle it
     fi
 }
@@ -285,7 +246,7 @@ BUILT_MODULE_LOCATION[7]="mt76/mt7925/"
 DEST_MODULE_LOCATION[7]="/kernel/drivers/net/wireless/mediatek/mt76/mt7925"
 AUTOINSTALL="yes"
 MAKE[0]="make -C /lib/modules/\${kernelver}/build M=/usr/src/\${PACKAGE_NAME}-\${PACKAGE_VERSION}/mt76 modules -j\$(nproc)"
-CLEAN="make -C /lib/modules/\${kernelver}/build M=/usr/src/\${PACKAGE_NAME}-\${PACKAGE_VERSION}/mt76 clean"
+CLEAN[0]="make -C /lib/modules/\${kernelver}/build M=/usr/src/\${PACKAGE_NAME}-\${PACKAGE_VERSION}/mt76 clean"
 EOF
     
     # Add and build DKMS module
@@ -366,13 +327,19 @@ load_modules_manual() {
 create_modprobe_conf() {
     log_info "Creating modprobe configuration..."
     
-    sudo tee /etc/modprobe.d/mt7902.conf > /dev/null << 'EOF'
+    # Prefer mt7925u if present, otherwise mt7921u
+    local primary_module="mt7925u"
+    if ! modinfo mt7925u >/dev/null 2>&1; then
+        primary_module="mt7921u"
+    fi
+    
+    sudo tee /etc/modprobe.d/mt7902.conf > /dev/null << EOF
 # MT7902 WiFi driver configuration
-# Load modules in correct order
-softdep mt7902 pre: mt76-connac-lib mt76 mt76-sdio mt76-usb mt76x02-lib mt76x02-usb mt792x-lib mt792x-usb
+# Load modules in correct order for MediaTek mt76 stack
+softdep ${primary_module} pre: mt76-connac-lib mt76 mt76-sdio mt76-usb mt76x02-lib mt76x02-usb mt792x-lib mt792x-usb
 
 # Power management
-options mt7902 power_save=1
+# Note: driver-specific power options may vary by kernel/driver version
 EOF
     
     log_success "Modprobe configuration created"
@@ -382,9 +349,15 @@ EOF
 create_modules_load() {
     log_info "Creating modules-load configuration..."
     
-    sudo tee /etc/modules-load.d/mt7902.conf > /dev/null << 'EOF'
-# Load MT7902 WiFi driver at boot
-mt7902
+    # Prefer mt7925u if present, otherwise mt7921u
+    local primary_module="mt7925u"
+    if ! modinfo mt7925u >/dev/null 2>&1; then
+        primary_module="mt7921u"
+    fi
+    
+    sudo tee /etc/modules-load.d/mt7902.conf > /dev/null << EOF
+# Load MT7902-compatible WiFi driver at boot
+${primary_module}
 EOF
     
     log_success "Modules-load configuration created"
