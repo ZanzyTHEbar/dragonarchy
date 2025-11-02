@@ -252,6 +252,7 @@ setup_dotfiles() {
         "dragon-cli"
         "wlogout"
         "gh-extensions"
+        "hardware"
     )
 
     # Install each package
