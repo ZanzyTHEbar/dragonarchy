@@ -7,7 +7,9 @@ if [[ -z "$1" ]]; then
   exit 1
 fi
 
-THEMES_DIR="$(dirname "$0")/../../packages/themes/.config/themes"
+# Get the script directory and resolve to absolute path
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+THEMES_DIR="$(cd "$SCRIPT_DIR/../../packages/themes/.config/themes" && pwd)"
 CURRENT_THEME_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
 
 THEME_NAME="$1"
@@ -19,7 +21,7 @@ if [[ ! -d "$THEME_PATH" ]]; then
   exit 2
 fi
 
-# Update theme symlink
+# Update theme symlink with absolute path
 mkdir -p "$(dirname "$CURRENT_THEME_DIR")"
 ln -Tnsf "$THEME_PATH" "$CURRENT_THEME_DIR"
 
