@@ -3,6 +3,7 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 THEMES_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/themes/"
 CURRENT_THEME_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
 
@@ -39,7 +40,7 @@ NEW_THEME=${THEMES[$NEXT_INDEX]}
 NEW_THEME_NAME=$(basename "$NEW_THEME")
 
 # Set the new theme
-"$(dirname "$0")/theme-set" "$NEW_THEME_NAME"
+"$SCRIPT_DIR/theme-set" "$NEW_THEME_NAME"
 
 # Notify user of the change
 swaync-client -n -t notification -ID 98 -d "Theme Changed" -s "Switched to $NEW_THEME_NAME"
