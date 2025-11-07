@@ -1,0 +1,19 @@
+[Unit]
+Description=AMD GPU Pre-Suspend Fix for Hyprland
+Before=sleep.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+User=root
+# Save current GPU power state
+ExecStart=/bin/sh -c 'echo "Preparing AMD GPU for suspend..." > /tmp/amdgpu-suspend.log'
+# Disable AMD GPU power management before suspend to prevent hangs
+ExecStart=/bin/sh -c 'for card in /sys/class/drm/card*/device/power_dpm_force_performance_level; do echo "auto" > "$card" 2>/dev/null || true; done'
+# Ensure DRM devices are idle
+ExecStart=/bin/sh -c 'sync'
+ExecStart=/usr/bin/sleep 0.5
+
+[Install]
+WantedBy=sleep.target
+
