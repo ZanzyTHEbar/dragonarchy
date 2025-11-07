@@ -1,10 +1,22 @@
 #!/bin/bash
 # Cycles through the background images available
 
-BACKGROUNDS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme/backgrounds/"
+CURRENT_THEME_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
 CURRENT_BACKGROUND_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
 
-mapfile -d '' -t BACKGROUNDS < <(find "$BACKGROUNDS_DIR" -type f -print0 | sort -z)
+# Resolve the real path to the theme directory (follow all symlinks)
+if [ ! -L "$CURRENT_THEME_LINK" ] && [ ! -d "$CURRENT_THEME_LINK" ]; then
+  echo "No current theme set" >&2
+  pkill -x swaybg
+  setsid uwsm app -- swaybg --color '#000000' >/dev/null 2>&1 &
+  exit 1
+fi
+
+THEME_REAL_PATH=$(readlink -f "$CURRENT_THEME_LINK")
+BACKGROUNDS_DIR="${THEME_REAL_PATH}/backgrounds/"
+
+# Find all background files, following symlinks
+mapfile -d '' -t BACKGROUNDS < <(find -L "$BACKGROUNDS_DIR" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.webp" \) -print0 2>/dev/null | sort -z)
 TOTAL=${#BACKGROUNDS[@]}
 
 if [[ $TOTAL -eq 0 ]]; then
