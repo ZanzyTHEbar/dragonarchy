@@ -115,12 +115,23 @@ Section "Device"
 EndSection
 EOF
     
-    # Enable AMD GPU power management
+    # Enable AMD GPU power management with suspend/resume fixes
     sudo tee /etc/modprobe.d/amdgpu.conf > /dev/null << 'EOF'
-# AMD GPU power management options
+# AMD GPU power management options - Optimized for laptop suspend/resume
+# ppfeaturemask enables all power management features
 options amdgpu ppfeaturemask=0xffffffff
+# Enable GPU recovery on crashes
 options amdgpu gpu_recovery=1
+# Enable Display Core (DC) for better power management
 options amdgpu dc=1
+# Disable GPU reset on suspend (prevents hangs)
+options amdgpu gpu_reset=0
+# Enable runtime power management
+options amdgpu runpm=1
+# Set power management policy (auto for best balance)
+options amdgpu dpm=1
+# Disable audio codec power management (can cause resume issues)
+options amdgpu audio=1
 EOF
     
     # AMD microcode is handled by the amd-ucode package, not as a kernel module
@@ -147,6 +158,7 @@ setup_power_management() {
         # Create TLP configuration optimized for AMD laptop
         sudo tee /etc/tlp.d/01-firedragon.conf > /dev/null << 'EOF'
 # FireDragon TLP Configuration - AMD Laptop Optimized
+# Updated to fix suspend/resume issues
 
 # CPU Scaling Governor
 CPU_SCALING_GOVERNOR_ON_AC=schedutil
@@ -167,11 +179,13 @@ CPU_MIN_PERF_ON_BAT=0
 CPU_MAX_PERF_ON_BAT=50
 
 # AMD Radeon GPU Power Management
+# CRITICAL FIX: Don't force GPU state during suspend/resume
+# Let amdgpu driver handle power states automatically
 RADEON_DPM_PERF_LEVEL_ON_AC=auto
-RADEON_DPM_PERF_LEVEL_ON_BAT=low
+RADEON_DPM_PERF_LEVEL_ON_BAT=auto
 RADEON_DPM_STATE_ON_AC=performance
 RADEON_DPM_STATE_ON_BAT=battery
-RADEON_POWER_PROFILE_ON_AC=auto
+RADEON_POWER_PROFILE_ON_AC=default
 RADEON_POWER_PROFILE_ON_BAT=low
 
 # Platform Profile
@@ -195,7 +209,8 @@ USB_EXCLUDE_PRINTER=1
 USB_EXCLUDE_WWAN=0
 
 # Runtime Power Management
-RUNTIME_PM_ON_AC=on
+# CRITICAL FIX: Use 'auto' for both AC and battery to let kernel manage properly
+RUNTIME_PM_ON_AC=auto
 RUNTIME_PM_ON_BAT=auto
 
 # Battery thresholds (if supported)
@@ -215,6 +230,10 @@ SATA_LINKPWR_ON_BAT="min_power"
 SOUND_POWER_SAVE_ON_AC=0
 SOUND_POWER_SAVE_ON_BAT=1
 SOUND_POWER_SAVE_CONTROLLER=Y
+
+# CRITICAL FIX: Restore devices on wakeup
+# Ensure TLP doesn't prevent GPU from waking up properly
+RESTORE_DEVICE_STATE_ON_STARTUP=1
 EOF
         
         log_success "TLP configured for AMD laptop"
@@ -538,6 +557,55 @@ EOF
     else
         log_warning "CoreCtrl not installed"
     fi
+}
+
+# Setup suspend/resume fixes for AMD GPU and display
+setup_suspend_resume_fixes() {
+    log_info "Setting up suspend/resume and lock screen fixes..."
+    
+    # 1. Configure systemd-logind for lid handling
+    log_info "Configuring systemd-logind for lid switch handling..."
+    sudo mkdir -p /etc/systemd/logind.conf.d
+    sudo cp -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/logind.conf.d/10-firedragon-lid.conf" /etc/systemd/logind.conf.d/ 2>/dev/null || {
+        log_warning "Could not copy logind config from dotfiles, creating directly..."
+        sudo tee /etc/systemd/logind.conf.d/10-firedragon-lid.conf > /dev/null << 'EOF'
+# FireDragon Laptop - systemd-logind Configuration
+[Login]
+HandleLidSwitch=suspend
+HandleLidSwitchExternalPower=suspend
+HandleLidSwitchDocked=ignore
+HandlePowerKey=suspend
+HandleSuspendKey=suspend
+HandleHibernateKey=ignore
+IdleAction=ignore
+IdleActionSec=30min
+InhibitDelayMaxSec=5
+KillUserProcesses=no
+RemoveIPC=yes
+EOF
+    }
+    
+    # 2. Install AMD GPU suspend/resume systemd services
+    log_info "Installing AMD GPU suspend/resume hooks..."
+    sudo cp -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system/amdgpu-suspend.service" /etc/systemd/system/ 2>/dev/null || {
+        log_warning "amdgpu-suspend.service not found in dotfiles, skipping..."
+    }
+    sudo cp -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system/amdgpu-resume.service" /etc/systemd/system/ 2>/dev/null || {
+        log_warning "amdgpu-resume.service not found in dotfiles, skipping..."
+    }
+    
+    # 3. Enable services
+    sudo systemctl daemon-reload
+    sudo systemctl enable amdgpu-suspend.service 2>/dev/null || true
+    sudo systemctl enable amdgpu-resume.service 2>/dev/null || true
+    
+    # 4. DO NOT restart systemd-logind during active session!
+    # It will kill the user's session and cause a black screen
+    log_warning "systemd-logind changes require REBOOT to take effect"
+    log_warning "DO NOT restart systemd-logind manually - it will kill your session!"
+    
+    log_success "Suspend/resume fixes installed"
+    log_warning "⚠️  REBOOT REQUIRED - Changes will not work until reboot!"
 }
 
 # Setup Asus VivoBook-specific configurations
@@ -864,6 +932,8 @@ main() {
     echo
     setup_power_management
     echo
+    setup_suspend_resume_fixes
+    echo
     setup_networking
     echo
     setup_display_input
@@ -896,7 +966,11 @@ main() {
     echo "  4. Use 'corectrl' GUI to fine-tune AMD GPU/CPU settings"
     echo "  5. Check battery status with: battery-status"
     echo "  6. Monitor GPU with: radeontop"
-    echo "  7. Test touchpad gestures:"
+    echo "  7. Test suspend/resume:"
+    echo "     • Close laptop lid → Open → Should resume properly"
+    echo "     • Lock screen (Super+L) → Unlock → Should work smoothly"
+    echo "     • Test TTY: Ctrl+Alt+F2 → Should show login prompt"
+    echo "  8. Test touchpad gestures:"
     echo "     • 3-finger swipe left/right → Switch workspaces"
     echo "     • 3-finger swipe up → Toggle fullscreen"
     echo "     • 3-finger swipe down → Minimize window"

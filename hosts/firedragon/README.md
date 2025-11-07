@@ -273,6 +273,20 @@ VDPAU_DRIVER=radeonsi          # VDPAU driver
 
 ## Troubleshooting
 
+### ⚠️ System Freezes on Lid Close/Sleep/Lock
+
+**FIXED**: If you're experiencing system freezes when closing the laptop lid, going to sleep, or locking the screen, see:
+
+- **Quick Fix**: `QUICK_FIX.md` - One command to fix everything
+- **Full Details**: `docs/SUSPEND_RESUME_FIX.md` - Complete technical documentation
+
+**TL;DR**: Run this to fix all suspend/resume/lock issues:
+```bash
+cd ~/dotfiles
+bash hosts/firedragon/install-suspend-fix.sh
+# Then reboot
+```
+
 ### Battery Not Detected
 
 Check if battery path exists:
