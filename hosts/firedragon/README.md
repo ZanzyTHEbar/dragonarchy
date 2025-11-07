@@ -118,7 +118,11 @@ Comprehensive power profiles optimized for AMD hardware:
 - **WiFi**: NetworkManager with power saving
 - **Bluetooth**: Enabled with power management
 - **VPN**: NetBird for secure mesh networking
-- **DNS**: Custom DNS server (192.168.0.218)
+- **DNS**: Custom DNS server (192.168.0.218) with domain routing
+- **Commands**:
+  - `netbird-status` or `nb` - Check VPN connection
+  - `netbird-up` / `netbird-down` - Connect/disconnect VPN
+  - `wifi` / `wifi-list` - WiFi management
 
 ### 💻 System Optimizations
 
