@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-THEMES_DIR="$(dirname "$0")/../../packages/themes/.config/themes"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+THEMES_DIR="$(cd "$SCRIPT_DIR/../../packages/themes/.config/themes" && pwd)"
 
 hex6() { # input: 1a1b26ff (no rgba()) or rgba(1a1b26ff)
   local v="$1"
