@@ -57,7 +57,7 @@ mkdir -p ~/.config/gtk-3.0
 ln -snf ~/.config/current/theme/gtk.css ~/.config/gtk-3.0/gtk.css
 
 # Generate kitty theme from palettes and link current
-"$(dirname "$0")/generate-kitty-themes" >/dev/null 2>&1 || true
+"$SCRIPT_DIR/generate-kitty-themes" >/dev/null 2>&1 || true
 mkdir -p "$HOME/.config/kitty"
 ln -snf "$CURRENT_THEME_DIR/kitty.conf" "$HOME/.config/kitty/colors.conf"
 
@@ -94,7 +94,7 @@ if command pgrep -x "nemo" >/dev/null 2>&1; then
 fi
 
 # Set new background
-"$(dirname "$0")/theme-bg-next"
+"$SCRIPT_DIR/theme-bg-next"
 
 # Link wlogout CSS for this theme if provided
 if [[ -f "$CURRENT_THEME_DIR/wlogout.css" ]]; then
