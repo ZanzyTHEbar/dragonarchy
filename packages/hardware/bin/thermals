@@ -1,1 +1,180 @@
-../.local/bin/thermals
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Outputs Waybar JSON with CPU/GPU temperatures.
+# Tries multiple backends for robustness: sysfs hwmon, sensors, nvidia-smi.
+
+to_celsius() {
+  # Convert millidegree value to integer Celsius
+  local milli="$1"
+  if [[ -n "$milli" && "$milli" =~ ^[0-9]+$ ]]; then
+    printf '%d' "$((milli / 1000))"
+  fi
+}
+
+read_temp_from_hwmon_by_labels() {
+  # $1: hwmon dir, remaining args: preferred labels
+  local hwdir="$1"; shift || true
+  local label
+  # Prefer labeled temp*_label entries
+  if compgen -G "$hwdir/temp*_*" > /dev/null; then
+    for label in "$@"; do
+      while IFS= read -r -d '' labelfile; do
+        if [[ -f "$labelfile" ]] && grep -qi "^${label}$" "$labelfile" 2>/dev/null; then
+          local idx
+          idx=$(basename "$labelfile" | sed -E 's/^temp([0-9]+)_label$/\1/')
+          local valfile="$hwdir/temp${idx}_input"
+          if [[ -f "$valfile" ]]; then
+            local v; v=$(<"$valfile")
+            "$(to_celsius "$v")"
+            return 0
+          fi
+        fi
+      done < <(find "$hwdir" -maxdepth 1 -type f -name 'temp*_label' -print0 2>/dev/null)
+    done
+    # Fallback to the first temp*_input if no preferred label found
+    local first
+    first=$(find "$hwdir" -maxdepth 1 -type f -name 'temp*_input' | sort | head -n1)
+    if [[ -n "$first" && -f "$first" ]]; then
+      local v; v=$(<"$first")
+      "$(to_celsius "$v")"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+find_hwmon_by_names() {
+  # echo the first hwmon dir whose name matches any of the provided tokens
+  local token
+  for d in /sys/class/hwmon/hwmon*; do
+    [[ -r "$d/name" ]] || continue
+    local n; n=$(<"$d/name")
+    for token in "$@"; do
+      if [[ "$n" == "$token" ]]; then
+        echo "$d"
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+get_cpu_temp() {
+  local hw
+  # Prefer k10temp/zenpower (AMD), coretemp (Intel)
+  if hw=$(find_hwmon_by_names k10temp zenpower coretemp 2>/dev/null); then
+    # Prefer labels commonly representing package temp
+    read_temp_from_hwmon_by_labels "$hw" Tctl Tdie "Package id 0" 2>/dev/null && return 0
+  fi
+  # Fallback: parse sensors
+  if command -v sensors >/dev/null 2>&1; then
+    local line
+    line=$(sensors 2>/dev/null | grep -E 'Tctl:|Tdie:|Package id 0:' -m1 || true)
+    if [[ -n "$line" ]]; then
+      # Extract number like 65.0 or 65
+      local t
+      t=$(grep -oE '[0-9]+(\.[0-9]+)?' <<<"$line" | head -n1)
+      if [[ -n "$t" ]]; then
+        printf '%.0f' "$t"
+        return 0
+      fi
+    fi
+  fi
+  return 1
+}
+
+get_gpu_temp() {
+  # NVIDIA
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    local t
+    t=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null | head -n1 | tr -d '[:space:]') || true
+    if [[ -n "$t" && "$t" =~ ^[0-9]+$ ]]; then
+      echo "$t"
+      return 0
+    fi
+  fi
+  # AMDGPU via hwmon
+  local hw
+  if hw=$(find_hwmon_by_names amdgpu 2>/dev/null); then
+    # Prefer 'edge', then 'junction'
+    read_temp_from_hwmon_by_labels "$hw" edge junction 2>/dev/null && return 0
+  fi
+  # Fallback: parse sensors (amdgpu block edge)
+  if command -v sensors >/dev/null 2>&1; then
+    local lines t
+    lines=$(sensors 2>/dev/null | awk '/amdgpu/{f=1} f && NF==0{f=0} f{print}')
+    t=$(grep -E '^\s*edge:' <<<"$lines" | head -n1 | grep -oE '[0-9]+(\.[0-9]+)?' | head -n1)
+    if [[ -n "$t" ]]; then
+      printf '%.0f' "$t"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+cpu_t=""; gpu_t=""
+cpu_t=$(get_cpu_temp || true)
+gpu_t=$(get_gpu_temp || true)
+
+# Build text and tooltip
+display_text=""
+tooltip=""
+if [[ -n "$cpu_t" ]]; then
+  display_text+="CPU:${cpu_t}°"
+  tooltip+="CPU: ${cpu_t}°C"
+fi
+if [[ -n "$gpu_t" ]]; then
+  [[ -n "$display_text" ]] && display_text+=" "
+  display_text+="GPU:${gpu_t}°"
+  [[ -n "$tooltip" ]] && tooltip+=$'\n'
+  tooltip+="GPU: ${gpu_t}°C"
+fi
+
+# Determine class based on max temp
+class="normal"
+max_t=0
+if [[ "$cpu_t" =~ ^[0-9]+$ && "$cpu_t" -gt "$max_t" ]]; then max_t="$cpu_t"; fi
+if [[ "$gpu_t" =~ ^[0-9]+$ && "$gpu_t" -gt "$max_t" ]]; then max_t="$gpu_t"; fi
+if (( max_t >= 85 )); then
+  class="critical"
+elif (( max_t >= 75 )); then
+  class="warning"
+else
+  class=""
+fi
+
+# Fallback text if nothing found
+if [[ -z "$display_text" ]]; then
+  display_text="Temps N/A"
+  tooltip="Temperatures unavailable"
+fi
+
+# Icon-only display; details in tooltip + current profile
+display_text=""
+
+# Read current profile if available
+STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/waybar_thermals_profile"
+if [[ -f "$STATE_FILE" ]]; then
+  prof=$(<"$STATE_FILE")
+  if [[ -n "$prof" ]]; then
+    if [[ -n "$tooltip" ]]; then tooltip+=$'\n'; fi
+    tooltip+="Profile: ${prof}"
+  fi
+fi
+
+# JSON-safe output (prefer jq, fallback to sed escaping)
+if command -v jq >/dev/null 2>&1; then
+  text_json=$(printf '%s' "$display_text" | jq -R -s .)
+  tooltip_json=$(printf '%s' "$tooltip" | jq -R -s .)
+  class_json=$(printf '%s' "$class" | jq -R -s .)
+  printf '{"text":%s,"tooltip":%s,"class":%s}\n' "$text_json" "$tooltip_json" "$class_json"
+else
+  escape() {
+    # Escape backslash, quotes, and control characters
+    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' -e $'s/\n/\\n/g' -e $'s/\r/\\r/g' -e $'s/\t/\\t/g'
+  }
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$(escape "$display_text")" "$(escape "$tooltip")" "$(escape "$class")"
+fi
+
+
