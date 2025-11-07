@@ -35,4 +35,4 @@ clean_selection=$(echo "$selection" | sed -E 's/^Current: //g')
 selected_theme=$(echo "$clean_selection" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
 
 # Apply the selected theme
-"$(dirname "$0")/theme-set" "$selected_theme"
+"$SCRIPT_DIR/theme-set" "$selected_theme"
