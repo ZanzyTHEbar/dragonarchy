@@ -271,18 +271,18 @@ setup_networking() {
     fi
     
     # Install NetBird for secure networking
-    log_info "Installing NetBird..."
+    log_info "Installing NetBird VPN..."
     bash "$HOME/dotfiles/scripts/utilities/netbird-install.sh"
     
     # Copy host-specific system configs (DNS)
-    log_info "Copying host-specific system configs..."
+    log_info "Copying host-specific system configs (DNS)..."
     sudo cp -rT "$HOME/dotfiles/hosts/firedragon/etc/" /etc/
     
     # Apply DNS changes
     log_info "Restarting systemd-resolved to apply DNS changes..."
     sudo systemctl restart systemd-resolved
     
-    log_success "Networking configured"
+    log_success "Networking configured (NetBird VPN + Custom DNS)"
 }
 
 # Setup display and touchpad
