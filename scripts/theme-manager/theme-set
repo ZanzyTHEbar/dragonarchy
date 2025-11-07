@@ -78,17 +78,17 @@ else
 fi
 
 # Trigger kitty reload (send SIGUSR1 to all kitty instances)
-pkill -USR1 -x kitty || true
+command pkill -USR1 -x kitty || true
 
 # Restart components to apply new theme (best-effort)
-pkill -SIGUSR2 btop 2>/dev/null || true
-pkill -SIGUSR2 waybar 2>/dev/null || true
+command pkill -SIGUSR2 btop 2>/dev/null || true
+command pkill -SIGUSR2 waybar 2>/dev/null || true
 # pkill swayosd-server
 # setsid uwsm app -- swayosd-server &>/dev/null &
 # makoctl reload
 command -v hyprctl >/dev/null 2>&1 && hyprctl reload >/dev/null 2>&1 || true
-command -v swaync-client >/dev/null 2>&1 && pgrep -x swaync >/dev/null 2>&1 && swaync-client -R >/dev/null 2>&1 || true
-if pgrep -x "nemo" >/dev/null 2>&1; then
+command -v swaync-client >/dev/null 2>&1 && command pgrep -x swaync >/dev/null 2>&1 && swaync-client -R >/dev/null 2>&1 || true
+if command pgrep -x "nemo" >/dev/null 2>&1; then
   nemo -q
   setsid nemo &>/dev/null &
 fi
@@ -112,8 +112,8 @@ if [[ -f "$CURRENT_THEME_DIR/hyprland-palette.conf" ]]; then
 fi
 
 # Best-effort: align SDDM theme family with current theme name if matching exists
-SDDM_THEMES_DIR="$(dirname "$0")/../../packages/sddm/usr/share/sddm/themes"
-if [[ -d "$SDDM_THEMES_DIR/$THEME_NAME" ]]; then
+SDDM_THEMES_DIR="$(cd "$SCRIPT_DIR/../../packages/sddm/usr/share/sddm/themes" 2>/dev/null && pwd || echo '')"
+if [[ -n "$SDDM_THEMES_DIR" && -d "$SDDM_THEMES_DIR/$THEME_NAME" ]]; then
   echo "Found matching SDDM theme '$THEME_NAME'. Applying..."
-  "$(dirname "$0")/sddm-set" "$THEME_NAME" || true
+  "$SCRIPT_DIR/sddm-set" "$THEME_NAME" || true
 fi

@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Use repo themes directory (aligned with theme-set)
-THEMES_DIR="$(dirname "$0")/../../packages/themes/.config/themes"
+# Get the script directory and resolve to absolute path
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+THEMES_DIR="$(cd "$SCRIPT_DIR/../../packages/themes/.config/themes" && pwd)"
 CURRENT_THEME_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
 
 if [[ -e "$CURRENT_THEME_DIR" ]]; then
