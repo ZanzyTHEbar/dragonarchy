@@ -3,10 +3,18 @@
 # NFS Systemd Automount Configuration Script
 # Dynamically configures NFS mounts with systemd automount for specified host, base path, and datasets
 
-## Usage: ./nfs.sh <nfs_server_host> <nfs_server_base> <dataset1> [dataset2 ...]
-## Example: ./nfs.sh 192.168.1.100 /mnt/nfs datasets/dataset1 datasets/dataset2
-## This will configure NFS mounts for the datasets dataset1 and dataset2 on the server 192.168.1.100 at the base path /mnt/nfs
-## The datasets will be mounted to /mnt/datasets/dataset1 and /mnt/datasets/dataset2 respectively
+## Usage: ./nfs.sh <nfs_server_host> <nfs_server_base> <dataset1[:mountpoint1]> [dataset2[:mountpoint2] ...]
+## 
+## Examples:
+##   Basic usage (auto-generate mount points):
+##     ./nfs.sh 192.168.1.100 /mnt/nfs datasets/dataset1 datasets/dataset2
+##     -> Mounts to /mnt/dataset1 and /mnt/dataset2
+##
+##   Custom mount points:
+##     ./nfs.sh dragonserver.local mainpool/nfsroot common data:dragonnet
+##     -> Mounts common to /mnt/common and data to /mnt/dragonnet
+##
+## This will configure NFS mounts with systemd automount for the specified datasets
 ## The fstab entry will be added to /etc/fstab and the automount unit will be created and started
 ## The mount points will be created if they do not exist
 ## The fstab backup will be created before adding the entries
@@ -121,14 +129,47 @@ backup_fstab() {
     log_success "Fstab backed up successfully"
 }
 
+# Function to parse dataset:mountpoint syntax
+parse_dataset_entry() {
+    local entry="$1"
+    local dataset mount_name
+    
+    if [[ "$entry" == *":"* ]]; then
+        # Custom mount point specified (dataset:mountpoint)
+        dataset="${entry%%:*}"
+        mount_name="${entry#*:}"
+    else
+        # Auto-generate mount point from dataset name
+        dataset="$entry"
+        mount_name=$(echo "$dataset" | tr '/' '-' | sed 's/[^a-zA-Z0-9-]//g')
+    fi
+    
+    # Return both values via echo (caller will capture)
+    echo "$dataset|$mount_name"
+}
+
 # Function to generate fstab entries and automount units
 generate_entries() {
-    for dataset in "${NFS_SERVER_DATASETS[@]}"; do
-        local safe_dataset
-        safe_dataset=$(echo "$dataset" | tr '/' '-' | sed 's/[^a-zA-Z0-9-]//g')
-        FSTAB_ENTRIES+=("$NFS_SERVER_HOST:$NFS_SERVER_BASE/$dataset $MOUNT_POINT/$safe_dataset $NFS_OPTIONS")
-        AUTOMOUNT_UNITS+=("mnt-${safe_dataset}.automount")
+    log_info "Processing ${#NFS_SERVER_DATASETS[@]} dataset(s)..."
+    
+    for entry in "${NFS_SERVER_DATASETS[@]}"; do
+        local parsed dataset mount_name safe_mount_name
+        
+        # Parse the entry to get dataset and mount point
+        parsed=$(parse_dataset_entry "$entry")
+        dataset="${parsed%%|*}"
+        mount_name="${parsed#*|}"
+        
+        # Ensure mount name is safe for systemd unit names
+        safe_mount_name=$(echo "$mount_name" | tr '/' '-' | sed 's/[^a-zA-Z0-9-]//g')
+        
+        log_info "Dataset: $dataset -> Mount point: /mnt/$safe_mount_name"
+        
+        FSTAB_ENTRIES+=("$NFS_SERVER_HOST:$NFS_SERVER_BASE/$dataset $MOUNT_POINT/$safe_mount_name $NFS_OPTIONS")
+        AUTOMOUNT_UNITS+=("mnt-${safe_mount_name}.automount")
     done
+    
+    log_info "Generated ${#FSTAB_ENTRIES[@]} fstab entry/entries"
 }
 
 # Function to add NFS entries to fstab
@@ -138,21 +179,42 @@ add_fstab_entries() {
     backup_fstab
     
     log_info "Checking and adding NFS entries to $FSTAB..."
+    log_info "Total entries to process: ${#FSTAB_ENTRIES[@]}"
     
+    # Debug: Show array contents
+    local debug_idx=0
+    for debug_entry in "${FSTAB_ENTRIES[@]}"; do
+        log_info "DEBUG: FSTAB_ENTRIES[$debug_idx] = '$debug_entry'"
+        debug_idx=$((debug_idx + 1))
+    done
+    
+    local entry_num=0
     for entry in "${FSTAB_ENTRIES[@]}"; do
+        entry_num=$((entry_num + 1))
+        log_info "Processing entry $entry_num of ${#FSTAB_ENTRIES[@]}..."
+        
         local nfs_path mount_point
         nfs_path=$(echo "$entry" | awk '{print $1}')
         mount_point=$(echo "$entry" | awk '{print $2}')
         
-        if check_fstab_entry "$nfs_path" "$mount_point"; then
+        # Check if entry exists (use || true to prevent set -e from exiting)
+        if check_fstab_entry "$nfs_path" "$mount_point" 2>/dev/null || false; then
             log_info "Entry already exists: $nfs_path -> $mount_point"
         else
             log_info "Adding entry: $nfs_path -> $mount_point"
-            echo "$entry" | sudo tee -a "$FSTAB" > /dev/null
-            ((entries_added++))
-            log_success "Added NFS entry: $nfs_path -> $mount_point"
+            
+            # Use echo with sudo tee more safely - capture any errors
+            if echo "$entry" | sudo tee -a "$FSTAB" >/dev/null 2>&1; then
+                entries_added=$((entries_added + 1))
+                log_success "Added NFS entry: $nfs_path -> $mount_point"
+            else
+                log_error "Failed to add entry: $nfs_path -> $mount_point"
+                return 1
+            fi
         fi
     done
+    
+    log_info "Finished processing all entries"
     
     if [[ $entries_added -gt 0 ]]; then
         log_info "Reloading systemd daemon..."
@@ -261,14 +323,24 @@ show_status() {
 # Main function
 main() {
     if [[ ${#NFS_SERVER_DATASETS[@]} -eq 0 ]]; then
-        log_error "No datasets provided. Usage: $0 <host> <base_path> <dataset1> [dataset2 ...]"
+        log_error "No datasets provided."
+        log_error "Usage: $0 <host> <base_path> <dataset1[:mountpoint1]> [dataset2[:mountpoint2] ...]"
+        log_error ""
+        log_error "Examples:"
+        log_error "  $0 server.local /nfs/root data backup"
+        log_error "  $0 server.local /nfs/root data:dragonnet common:shared"
         exit 1
     fi
     
     log_info "Starting NFS systemd automount configuration..."
+    log_info "Server: $NFS_SERVER_HOST"
+    log_info "Base path: $NFS_SERVER_BASE"
+    log_info "Datasets: ${NFS_SERVER_DATASETS[*]}"
+    echo
     
     # Generate dynamic fstab entries and automount units
     generate_entries
+    echo
     
     # Pre-flight checks
     check_privileges
