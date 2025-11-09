@@ -50,15 +50,47 @@ stow-config/
 
 ## Commands
 
+### Basic Usage
+
 ```bash
 ./install.sh                    # Complete setup
 ./install.sh --host dragon      # Setup for specific host
 ./install.sh --packages-only    # Only install packages
 ./install.sh --dotfiles-only    # Only setup dotfiles
-./scripts/secrets.sh --help     # Secrets management
-./scripts/update.sh             # Update packages and configs
-./scripts/validate.sh           # Validate setup
+./scripts/utilities/secrets.sh --help     # Secrets management
+./scripts/install/update.sh             # Update packages and configs
+./scripts/install/validate.sh           # Validate setup
 ```
+
+### Feature Toggles
+
+Fine-grained control over what gets installed and configured:
+
+```bash
+# Component toggles
+./install.sh --no-packages      # Skip package installation
+./install.sh --no-dotfiles      # Skip dotfiles setup
+./install.sh --no-secrets       # Skip secrets management
+./install.sh --utilities        # Symlink selected utilities to ~/.local/bin
+./install.sh --no-utilities     # Skip utilities symlinking
+
+# Step toggles
+./install.sh --no-theme         # Skip Plymouth theme setup
+./install.sh --no-shell         # Skip shell configuration (zsh)
+./install.sh --no-post-setup    # Skip post-setup tasks
+./install.sh --no-system-config # Skip system-level configuration (PAM, services)
+
+# Application-specific toggles
+./install.sh --cursor           # Force Cursor installation (default: Hyprland hosts only)
+./install.sh --no-cursor        # Skip Cursor installation
+
+# Combined examples
+./install.sh --host dragon --cursor --no-theme --no-system-config
+./install.sh --packages-only --utilities --no-secrets
+./install.sh --dotfiles-only --no-shell --no-post-setup
+```
+
+**Note:** Cursor is installed by default on Hyprland-configured hosts. Use `--cursor` to force installation on non-Hyprland hosts, or `--no-cursor` to skip it entirely.
 
 ## Migration System
 

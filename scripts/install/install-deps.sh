@@ -19,6 +19,10 @@ source "${SCRIPT_DIR}/../lib/logging.sh"
 CONFIG_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 HOSTS_DIR="$CONFIG_DIR/hosts"
 
+# Feature toggles (defaults)
+FORCE_CURSOR_INSTALL=false
+SKIP_CURSOR_INSTALL=false
+
 # --- Header and Logging ---
 # Colors for output
 
@@ -477,9 +481,26 @@ install_for_arch() {
         
         install_paru "${hyprland_aur_elephant[@]}"
         install_rust_tools
-        install_cursor_app
     else
         log_info "Host '$host' is not configured for Hyprland, skipping Hyprland packages"
+    fi
+
+    # Cursor installation policy:
+    # - --no-cursor        => skip
+    # - --cursor           => force install
+    # - default (auto)     => install on Hyprland hosts only
+    local should_install_cursor="false"
+    if [[ "$SKIP_CURSOR_INSTALL" == "true" ]]; then
+        should_install_cursor="false"
+    elif [[ "$FORCE_CURSOR_INSTALL" == "true" ]]; then
+        should_install_cursor="true"
+    elif is_hyprland_host "$host"; then
+        should_install_cursor="true"
+    fi
+    if [[ "$should_install_cursor" == "true" ]]; then
+        install_cursor_app
+    else
+        log_info "Skipping Cursor installation"
     fi
 }
 
@@ -575,9 +596,17 @@ main() {
                     exit 1
                 fi
             ;;
+            --cursor)
+                FORCE_CURSOR_INSTALL=true
+                shift
+            ;;
+            --no-cursor)
+                SKIP_CURSOR_INSTALL=true
+                shift
+            ;;
             *)
                 log_error "Unknown argument: $1"
-                log_info "Usage: $0 --host <host>"
+                log_info "Usage: $0 [--host <host>] [--cursor|--no-cursor]"
                 exit 1
             ;;
         esac

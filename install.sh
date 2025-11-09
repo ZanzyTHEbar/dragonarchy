@@ -26,6 +26,12 @@ DOTFILES_ONLY=false
 SECRETS_ONLY=false
 SKIP_SECRETS=false
 NO_SYSTEM_CONFIG=false
+RUN_THEME=true
+RUN_SHELL_CONFIG=true
+RUN_POST_SETUP=true
+SETUP_UTILITIES=false
+# Pass-through flags for install-deps.sh (e.g., --cursor/--no-cursor)
+INSTALL_DEPS_FLAGS=()
 
 # Show usage information
 usage() {
@@ -44,6 +50,14 @@ OPTIONS:
     --no-packages           Skip package installation
     --no-dotfiles           Skip dotfiles setup
     --no-secrets            Skip secrets setup
+    --no-system-config      Skip system-level configuration (PAM, services, etc.)
+    --no-theme              Skip theme refresh (plymouth)
+    --no-shell              Skip shell configuration
+    --no-post-setup         Skip post-setup tasks
+    --utilities             Symlink selected utilities to ~/.local/bin
+    --no-utilities          Do not symlink utilities
+    --cursor                Force install Cursor editor (pass-through to deps installer)
+    --no-cursor             Skip installing Cursor editor (pass-through to deps installer)
 
 EXAMPLES:
     $0                      # Complete setup for current machine
@@ -100,6 +114,38 @@ parse_args() {
             --no-secrets)
                 SKIP_SECRETS=true
                 SETUP_SECRETS=false
+                shift
+            ;;
+            --no-system-config)
+                NO_SYSTEM_CONFIG=true
+                shift
+            ;;
+            --no-theme)
+                RUN_THEME=false
+                shift
+            ;;
+            --no-shell)
+                RUN_SHELL_CONFIG=false
+                shift
+            ;;
+            --no-post-setup)
+                RUN_POST_SETUP=false
+                shift
+            ;;
+            --utilities)
+                SETUP_UTILITIES=true
+                shift
+            ;;
+            --no-utilities)
+                SETUP_UTILITIES=false
+                shift
+            ;;
+            --cursor)
+                INSTALL_DEPS_FLAGS+=("--cursor")
+                shift
+            ;;
+            --no-cursor)
+                INSTALL_DEPS_FLAGS+=("--no-cursor")
                 shift
             ;;
             *)
@@ -165,7 +211,7 @@ install_packages() {
     
     log_step "Installing packages..."
     
-    local install_script="$SCRIPTS_DIR/install/install_deps.sh"
+    local install_script="$SCRIPTS_DIR/install/install-deps.sh"
     
     if [[ -f "$install_script" ]]; then
         # Ensure the script is executable
@@ -173,9 +219,9 @@ install_packages() {
         
         # Pass the host argument if it's set
         if [[ -n "$HOST" ]]; then
-            "$install_script" --host "$HOST"
+            "$install_script" "${INSTALL_DEPS_FLAGS[@]}" --host "$HOST"
         else
-            "$install_script"
+            "$install_script" "${INSTALL_DEPS_FLAGS[@]}"
         fi
     else
         log_error "Package installation script not found: $install_script"
@@ -183,6 +229,36 @@ install_packages() {
     fi
     
     log_success "Package installation completed"
+}
+
+# Optional Utilities setup (symlink selected utilities into ~/.local/bin)
+setup_utilities() {
+    if [[ "$SETUP_UTILITIES" != "true" ]]; then
+        return 0
+    fi
+    
+    log_step "Setting up utilities (symlinking into ~/.local/bin)..."
+    mkdir -p "$HOME/.local/bin"
+    
+    declare -A util_map=(
+        ["launch-clipse.sh"]="launch-clipse"
+        ["netbird-install.sh"]="netbird-install"
+        ["web-apps.sh"]="web-apps"
+        ["docker-dbs.sh"]="docker-dbs"
+        ["nfs.sh"]="nfs-utils"
+    )
+    
+    for src in "${!util_map[@]}"; do
+        if [[ -f "$SCRIPTS_DIR/utilities/$src" ]]; then
+            ln -sf "$SCRIPTS_DIR/utilities/$src" "$HOME/.local/bin/${util_map[$src]}"
+            chmod +x "$SCRIPTS_DIR/utilities/$src" || true
+            log_success "Symlinked ${util_map[$src]}"
+        else
+            log_warning "Utility not found: $SCRIPTS_DIR/utilities/$src"
+        fi
+    done
+    
+    log_success "Utilities setup completed"
 }
 
 # Setup dotfiles with stow
@@ -395,8 +471,6 @@ post_setup() {
         "$SCRIPTS_DIR/install/setup/post-install.sh"
     fi
     
-    #log_info "Setting default theme to tokyo-night..."
-    #dbus-run-session -- bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
     
     #bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
     bash "$SCRIPTS_DIR/install/setup/keyboard.sh"
@@ -477,15 +551,28 @@ main() {
     setup_dotfiles
     setup_host_config
     
-    log_info "Setting plymouth theme..."
-    bash "$SCRIPTS_DIR/theme-manager/refresh-plymouth" -y
+    if [[ "$RUN_THEME" == "true" ]]; then
+        log_info "Setting plymouth theme..."
+        bash "$SCRIPTS_DIR/theme-manager/refresh-plymouth" -y
+    else
+        log_info "Skipping theme refresh (--no-theme)"
+    fi
     
-    configure_shell
-    post_setup
+    if [[ "$RUN_SHELL_CONFIG" == "true" ]]; then
+        configure_shell
+    else
+        log_info "Skipping shell configuration (--no-shell)"
+    fi
+    
+    if [[ "$RUN_POST_SETUP" == "true" ]]; then
+        post_setup
+    else
+        log_info "Skipping post-setup tasks (--no-post-setup)"
+    fi
+    
+    setup_utilities
+    setup_secrets
     validate_installation
-    
-    # Lets make this secrets optional for now
-    #setup_secrets
     
     # System configuration (requires root)
     if [[ "$NO_SYSTEM_CONFIG" != "true" && "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
