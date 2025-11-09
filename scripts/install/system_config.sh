@@ -5,15 +5,15 @@
 
 set -euo pipefail
 
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../lib/logging.sh"
+
 # Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
 
 # Configuration
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export CONFIG_DIR
 CONFIG_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Options
@@ -24,23 +24,6 @@ SETUP_SERVICES=true
 FORCE=false
 
 # Logging functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Show usage information
 usage() {
     cat <<EOF
 Usage: $0 [OPTIONS]
@@ -396,7 +379,8 @@ setup_amd_nvidia_configuration() {
     if [[ -d "/boot/loader/entries" ]]; then
         log_info "Adding AMD CPU + NVIDIA GPU kernel parameters to systemd-boot..."
 
-        local boot_entry=$(find /boot/loader/entries -name "*.conf" | head -1)
+        local boot_entry
+        boot_entry=$(find /boot/loader/entries -name "*.conf" | head -1)
         if [[ -n "$boot_entry" ]]; then
             if ! grep -q "amd_pstate=active" "$boot_entry"; then
                 cp "$boot_entry" "${boot_entry}.backup.$(date +%Y%m%d_%H%M%S)"
@@ -412,10 +396,12 @@ setup_amd_nvidia_configuration() {
 
     # Load modules
     mkdir -p /etc/modules-load.d
-    echo "nvidia" >> /etc/modules-load.d/nvidia.conf
-    echo "nvidia_modeset" >> /etc/modules-load.d/nvidia.conf
-    echo "nvidia_uvm" >> /etc/modules-load.d/nvidia.conf
-    echo "nvidia_drm" >> /etc/modules-load.d/nvidia.conf
+    {
+        echo "nvidia"
+        echo "nvidia_modeset"
+        echo "nvidia_uvm"
+        echo "nvidia_drm"
+    } >> /etc/modules-load.d/nvidia.conf
 
     log_success "AMD CPU + NVIDIA GPU configuration applied"
 }
@@ -431,7 +417,8 @@ setup_intel_nvidia_configuration() {
     if [[ -d "/boot/loader/entries" ]]; then
         log_info "Adding Intel CPU + NVIDIA GPU kernel parameters to systemd-boot..."
 
-        local boot_entry=$(find /boot/loader/entries -name "*.conf" | head -1)
+        local boot_entry
+        boot_entry=$(find /boot/loader/entries -name "*.conf" | head -1)
         if [[ -n "$boot_entry" ]]; then
             if ! grep -q "intel_pstate=active" "$boot_entry"; then
                 cp "$boot_entry" "${boot_entry}.backup.$(date +%Y%m%d_%H%M%S)"
@@ -448,10 +435,12 @@ setup_intel_nvidia_configuration() {
     # Load modules
     mkdir -p /etc/modules-load.d
     echo "i915" >>/etc/modules-load.d/intel.conf
-    echo "nvidia" >>/etc/modules-load.d/nvidia.conf
-    echo "nvidia_modeset" >>/etc/modules-load.d/nvidia.conf
-    echo "nvidia_uvm" >>/etc/modules-load.d/nvidia.conf
-    echo "nvidia_drm" >>/etc/modules-load.d/nvidia.conf
+    {
+        echo "nvidia"
+        echo "nvidia_modeset"
+        echo "nvidia_uvm"
+        echo "nvidia_drm"
+    } >>/etc/modules-load.d/nvidia.conf
 
     log_success "Intel CPU + NVIDIA GPU configuration applied"
 }
@@ -468,7 +457,8 @@ setup_amd_configuration() {
         log_info "Adding AMD kernel parameters to systemd-boot..."
 
         # Find the current boot entry
-        local boot_entry=$(find /boot/loader/entries -name "*.conf" | head -1)
+        local boot_entry
+        boot_entry=$(find /boot/loader/entries -name "*.conf" | head -1)
         if [[ -n "$boot_entry" ]]; then
             # Check if AMD parameters are already present
             if ! grep -q "amd_pstate=active" "$boot_entry"; then
@@ -510,7 +500,8 @@ setup_intel_configuration() {
         log_info "Adding Intel kernel parameters to systemd-boot..."
 
         # Find the current boot entry
-        local boot_entry=$(find /boot/loader/entries -name "*.conf" | head -1)
+        local boot_entry
+        boot_entry=$(find /boot/loader/entries -name "*.conf" | head -1)
         if [[ -n "$boot_entry" ]]; then
             # Check if Intel parameters are already present
             if ! grep -q "intel_pstate=active" "$boot_entry"; then

@@ -60,6 +60,28 @@ stow-config/
 ./scripts/validate.sh         # Validate setup
 ```
 
+## Migration System
+
+This repository includes a migration system for managing one-time setup tasks and configuration updates. See [MIGRATION-SYSTEM.md](docs/MIGRATION-SYSTEM.md) for detailed documentation.
+
+```bash
+# Create a new migration
+./scripts/utilities/add-migration.sh
+
+# Migrations are stored in migrations/ directory
+# They run once per system and track configuration evolution
+```
+
+## Centralized Logging
+
+All scripts use a centralized logging library (`scripts/lib/logging.sh`) providing:
+- Consistent color-coded output across all scripts
+- Standard logging functions: `log_info`, `log_success`, `log_warning`, `log_error`, `log_step`
+- Debug mode support: `DEBUG=1 ./script.sh`
+- Single source of truth for all logging functionality
+
+See [scripts/lib/README.md](scripts/lib/README.md) for usage details.
+
 ## Networking with NetBird
 
 This setup includes NetBird for creating a secure peer-to-peer VPN. The `system_config.sh` script will automatically install and enable the NetBird service.
