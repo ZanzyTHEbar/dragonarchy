@@ -38,7 +38,7 @@ The AUR package provides all Bibata cursor variants:
 
 ### Automatic Installation
 
-The Bibata cursor theme is automatically installed on Hyprland hosts via `install_deps.sh`.
+The Bibata cursor theme is automatically installed on Hyprland hosts via `install-deps.sh`.
 
 ## How It Works
 

@@ -493,16 +493,16 @@ main() {
         log_info "Setting up system-level configuration..."
         if [[ $EUID -eq 0 ]]; then
             log_info "Running system configuration as root..."
-            "$SCRIPTS_DIR/install/system_config.sh" || log_warning "System configuration failed"
+            "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
         else
             log_info "System configuration requires root privileges. You will be prompted for your password..."
             if sudo -v 2>/dev/null; then
                 log_info "Running system configuration with sudo..."
-                sudo bash "$SCRIPTS_DIR/install/system_config.sh" || log_warning "System configuration failed"
+                sudo bash "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
             else
                 log_error "Failed to authenticate with sudo. System configuration will be skipped."
                 log_info "To install system configurations later, run:"
-                log_info "  sudo bash $SCRIPTS_DIR/install/system_config.sh"
+                log_info "  sudo bash $SCRIPTS_DIR/install/system-config.sh"
                 log_info ""
                 log_info "Or install PAM configuration separately:"
                 log_info "  sudo bash $SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"

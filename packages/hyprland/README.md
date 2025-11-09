@@ -20,7 +20,7 @@ This package contains Hyprland window manager configurations and system-level se
     - Other configuration modules...
 
 ### System Configurations
-- `hyprlock.pam` - PAM authentication configuration for hyprlock (installed by system_config.sh)
+- `hyprlock.pam` - PAM authentication configuration for hyprlock (installed by system-config.sh)
 
 ## Setup Process
 
@@ -37,7 +37,7 @@ System-level configurations (PAM) are installed via the system configuration scr
 
 ```bash
 # This runs automatically if you have sudo privileges
-sudo ./scripts/install/system_config.sh
+sudo ./scripts/install/system-config.sh
 ```
 
 ### 3. Manual Setup (if needed)

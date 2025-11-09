@@ -1,16 +1,15 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
 #
 # file-utils.zsh - Enhanced file utilities for ZSH
 #
 # This file contains a collection of functions for file operations and utilities.
 #
 
-set -e
-
-# Get script directory and source logging utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get dotfiles root and source logging utilities
+# ${0:A:h} resolves symlinks to get the real script location in dotfiles repo
+DOTFILES_ROOT="${0:A:h:h:h:h:h:h}"  # Go up 6 levels from packages/zsh/.config/zsh/functions/ to repo root
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
-source "${SCRIPT_DIR}/../../lib/logging.sh"
+source "${DOTFILES_ROOT}/scripts/lib/logging.sh"
 
 
 # Smart move that creates directories and moves files

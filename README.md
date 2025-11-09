@@ -84,7 +84,7 @@ See [scripts/lib/README.md](scripts/lib/README.md) for usage details.
 
 ## Networking with NetBird
 
-This setup includes NetBird for creating a secure peer-to-peer VPN. The `system_config.sh` script will automatically install and enable the NetBird service.
+This setup includes NetBird for creating a secure peer-to-peer VPN. The `system-config.sh` script will automatically install and enable the NetBird service.
 
 To connect to your network, you will need to run the `netbird` command and follow the instructions.
 
