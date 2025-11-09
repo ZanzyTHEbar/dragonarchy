@@ -34,12 +34,12 @@ sudo systemctl enable --now dynamic_led.service
 
 # Make liquidctl suspend hook executable
 log_step "Configuring suspend hooks..."
-sudo chmod +x /etc/systemd/system-sleep/liquidctl-suspend.sh
+sudo chmod +x /etc/systemd/system-sleep/liquidctl-suspend.sh || true
 
-# Apply power management configuration
+# Apply power management configuration (defer disruptive restarts)
 log_step "Applying power management configuration..."
-sudo systemctl restart systemd-logind.service
-log_success "Power management configured: suspend on idle (30min), power button = suspend"
+log_info "Power management configured: suspend on idle (30min), power button = suspend"
+log_warning "A reboot is recommended to fully apply power management changes"
 
 # Install liquidctl service
 log_step "Installing liquidctl AIO cooler service..."

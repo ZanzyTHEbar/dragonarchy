@@ -10,4 +10,4 @@ packages/ssh/.ssh/zac
 packages/ssh/.ssh/config
 packages/applications/.local/share/icons/hicolor
 packages/hyprland/.config/hypr/colors-theme.conf
-
+.cursor/

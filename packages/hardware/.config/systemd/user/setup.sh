@@ -66,51 +66,51 @@ parse_args() {
             -h|--help)
                 usage
                 exit 0
-                ;;
+            ;;
             -v|--verbose)
                 VERBOSE=true
                 shift
-                ;;
+            ;;
             --host)
                 HOST="$2"
                 shift 2
-                ;;
+            ;;
             --packages-only)
                 PACKAGES_ONLY=true
                 INSTALL_DOTFILES=false
                 SETUP_SECRETS=false
                 shift
-                ;;
+            ;;
             --dotfiles-only)
                 DOTFILES_ONLY=true
                 INSTALL_PACKAGES=false
                 SETUP_SECRETS=false
                 shift
-                ;;
+            ;;
             --secrets-only)
                 SECRETS_ONLY=true
                 INSTALL_PACKAGES=false
                 INSTALL_DOTFILES=false
                 shift
-                ;;
+            ;;
             --no-packages)
                 INSTALL_PACKAGES=false
                 shift
-                ;;
+            ;;
             --no-dotfiles)
                 INSTALL_DOTFILES=false
                 shift
-                ;;
+            ;;
             --no-secrets)
                 SKIP_SECRETS=true
                 SETUP_SECRETS=false
                 shift
-                ;;
+            ;;
             *)
                 log_error "Unknown option: $1"
                 usage
                 exit 1
-                ;;
+            ;;
         esac
     done
 }
@@ -169,7 +169,7 @@ install_packages() {
     
     log_step "Installing packages..."
     
-    local install_script="$SCRIPTS_DIR/install_deps.sh"
+    local install_script="$SCRIPTS_DIR/install-deps.sh"
     
     if [[ -f "$install_script" ]]; then
         # Ensure the script is executable
@@ -367,7 +367,7 @@ post_setup() {
     
     log_info "Running plymouth setup scripts..."
     bash "$SCRIPTS_DIR/install/setup/plymouth.sh"
-
+    
     log_success "Post-setup tasks completed"
 }
 
@@ -447,7 +447,7 @@ main() {
     log_info "🚀 Starting Dotfiles Management Setup"
     log_info "Configuration directory: $CONFIG_DIR"
     echo
-
+    
     # Detect host if not specified via arguments
     if [[ -z "$HOST" ]]; then
         HOST=$(detect_host)
@@ -474,7 +474,7 @@ main() {
             "$SCRIPTS_DIR/system-config.sh" || log_warning "System configuration failed"
         else
             log_info "System configuration requires root privileges"
-            log_info "Run: sudo $SCRIPTS_DIR/system_config.sh"
+            log_info "Run: sudo $SCRIPTS_DIR/system-config.sh"
         fi
         echo
     fi
