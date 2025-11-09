@@ -5,42 +5,15 @@
 
 set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../lib/logging.sh"
 
 # Counters
 CHECKS_PASSED=0
 CHECKS_FAILED=0
 CHECKS_WARNING=0
-
-# Logging functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[✓]${NC} $1"
-    ((CHECKS_PASSED++))
-}
-
-log_warning() {
-    echo -e "${YELLOW}[⚠]${NC} $1"
-    ((CHECKS_WARNING++))
-}
-
-log_error() {
-    echo -e "${RED}[✗]${NC} $1"
-    ((CHECKS_FAILED++))
-}
-
-# Check if command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
 
 # Check essential commands
 check_essential_commands() {
@@ -423,4 +396,4 @@ main() {
 # Run main function if script is executed directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
-fi 
+fi

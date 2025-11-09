@@ -3,14 +3,11 @@
 
 set -e
 
-# --- Header and Logging ---
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../../lib/logging.sh"
 
-log_info "Applying pacman tweaks..."
-
-# Add fun and color to the pacman installer
 if ! grep -q "ILoveCandy" /etc/pacman.conf; then
   log_info "Adding 'ILoveCandy' to pacman.conf..."
   sudo sed -i '/^#Color/a ILoveCandy' /etc/pacman.conf

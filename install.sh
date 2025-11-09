@@ -1,23 +1,19 @@
 #!/usr/bin/env bash
 
 # Main Setup Script for Traditional Dotfiles Management
-# Replaces the functionality of the Nix flake and justfile
 
 set -euo pipefail
 
-# Get script directory and source logging utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck disable=SC1091  # Runtime-resolved path to logging library
-source "${SCRIPT_DIR}/../../../../../scripts/lib/logging.sh"
-
-# Colors for output
-
 # Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source centralized logging utilities
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/scripts/lib/logging.sh"
 CONFIG_DIR="$SCRIPT_DIR"
 PACKAGES_DIR="$CONFIG_DIR/packages"
 SCRIPTS_DIR="$CONFIG_DIR/scripts"
 HOSTS_DIR="$CONFIG_DIR/hosts"
-SECRETS_DIR="$CONFIG_DIR/secrets"
 
 # Default options
 INSTALL_PACKAGES=true
@@ -30,10 +26,16 @@ DOTFILES_ONLY=false
 SECRETS_ONLY=false
 SKIP_SECRETS=false
 NO_SYSTEM_CONFIG=false
+RUN_THEME=true
+RUN_SHELL_CONFIG=true
+RUN_POST_SETUP=true
+SETUP_UTILITIES=false
+# Pass-through flags for install-deps.sh (e.g., --cursor/--no-cursor)
+INSTALL_DEPS_FLAGS=()
 
-# Logging functions
+# Show usage information
 usage() {
-    cat << EOF
+    cat <<EOF
 Usage: $0 [OPTIONS]
 
 Traditional Dotfiles Management Setup Script
@@ -41,13 +43,21 @@ Traditional Dotfiles Management Setup Script
 OPTIONS:
     -h, --help              Show this help message
     -v, --verbose           Enable verbose output
-    --host HOST             Setup for specific host (dragon, spacedragon, microdragon, goldendragon)
+    --host HOST             Setup for specific host (any hostname supported)
     --packages-only         Only install packages
     --dotfiles-only         Only setup dotfiles
     --secrets-only          Only setup secrets
     --no-packages           Skip package installation
     --no-dotfiles           Skip dotfiles setup
     --no-secrets            Skip secrets setup
+    --no-system-config      Skip system-level configuration (PAM, services, etc.)
+    --no-theme              Skip theme refresh (plymouth)
+    --no-shell              Skip shell configuration
+    --no-post-setup         Skip post-setup tasks
+    --utilities             Symlink selected utilities to ~/.local/bin
+    --no-utilities          Do not symlink utilities
+    --cursor                Force install Cursor editor (pass-through to deps installer)
+    --no-cursor             Skip installing Cursor editor (pass-through to deps installer)
 
 EXAMPLES:
     $0                      # Complete setup for current machine
@@ -63,11 +73,11 @@ EOF
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
-            -h|--help)
+            -h | --help)
                 usage
                 exit 0
             ;;
-            -v|--verbose)
+            -v | --verbose)
                 VERBOSE=true
                 shift
             ;;
@@ -104,6 +114,38 @@ parse_args() {
             --no-secrets)
                 SKIP_SECRETS=true
                 SETUP_SECRETS=false
+                shift
+            ;;
+            --no-system-config)
+                NO_SYSTEM_CONFIG=true
+                shift
+            ;;
+            --no-theme)
+                RUN_THEME=false
+                shift
+            ;;
+            --no-shell)
+                RUN_SHELL_CONFIG=false
+                shift
+            ;;
+            --no-post-setup)
+                RUN_POST_SETUP=false
+                shift
+            ;;
+            --utilities)
+                SETUP_UTILITIES=true
+                shift
+            ;;
+            --no-utilities)
+                SETUP_UTILITIES=false
+                shift
+            ;;
+            --cursor)
+                INSTALL_DEPS_FLAGS+=("--cursor")
+                shift
+            ;;
+            --no-cursor)
+                INSTALL_DEPS_FLAGS+=("--no-cursor")
                 shift
             ;;
             *)
@@ -169,7 +211,7 @@ install_packages() {
     
     log_step "Installing packages..."
     
-    local install_script="$SCRIPTS_DIR/install-deps.sh"
+    local install_script="$SCRIPTS_DIR/install/install-deps.sh"
     
     if [[ -f "$install_script" ]]; then
         # Ensure the script is executable
@@ -177,9 +219,9 @@ install_packages() {
         
         # Pass the host argument if it's set
         if [[ -n "$HOST" ]]; then
-            "$install_script" --host "$HOST"
+            "$install_script" "${INSTALL_DEPS_FLAGS[@]}" --host "$HOST"
         else
-            "$install_script"
+            "$install_script" "${INSTALL_DEPS_FLAGS[@]}"
         fi
     else
         log_error "Package installation script not found: $install_script"
@@ -187,6 +229,36 @@ install_packages() {
     fi
     
     log_success "Package installation completed"
+}
+
+# Optional Utilities setup (symlink selected utilities into ~/.local/bin)
+setup_utilities() {
+    if [[ "$SETUP_UTILITIES" != "true" ]]; then
+        return 0
+    fi
+    
+    log_step "Setting up utilities (symlinking into ~/.local/bin)..."
+    mkdir -p "$HOME/.local/bin"
+    
+    declare -A util_map=(
+        ["launch-clipse.sh"]="launch-clipse"
+        ["netbird-install.sh"]="netbird-install"
+        ["web-apps.sh"]="web-apps"
+        ["docker-dbs.sh"]="docker-dbs"
+        ["nfs.sh"]="nfs-utils"
+    )
+    
+    for src in "${!util_map[@]}"; do
+        if [[ -f "$SCRIPTS_DIR/utilities/$src" ]]; then
+            ln -sf "$SCRIPTS_DIR/utilities/$src" "$HOME/.local/bin/${util_map[$src]}"
+            chmod +x "$SCRIPTS_DIR/utilities/$src" || true
+            log_success "Symlinked ${util_map[$src]}"
+        else
+            log_warning "Utility not found: $SCRIPTS_DIR/utilities/$src"
+        fi
+    done
+    
+    log_success "Utilities setup completed"
 }
 
 # Setup dotfiles with stow
@@ -221,23 +293,52 @@ setup_dotfiles() {
         "xournalpp"
         "typora"
         "themes"
-        "theme-manager"
         "gpg"
         "applications"
         "icons-in-terminal"
         "tmux"
         "zed"
+        "dragon-cli"
+        "wlogout"
+        "gh-extensions"
+        "hardware"
     )
     
     # Install each package
     for package in "${packages[@]}"; do
         if [[ -d "$package" ]]; then
             log_info "Installing dotfiles package: $package"
-            if stow -t "$HOME" "$package"; then
-                log_success "Installed $package dotfiles"
+            
+            # Try stowing with restow (handles existing symlinks)
+            if stow --restow --no-folding -t "$HOME" "$package" 2>&1 | tee /tmp/stow_output.txt | grep -qi "conflict"; then
+                # Conflicts detected - show them and attempt cleanup
+                log_warning "$package has conflicts:"
+                grep -i "conflict\|would cause" /tmp/stow_output.txt | sed 's/^/  /'
+                log_info "Attempting to resolve..."
+                
+                # Unstow completely, then restow fresh
+                stow -D -t "$HOME" "$package" 2>/dev/null || true
+                sleep 0.5  # Brief delay to ensure filesystem catches up
+                
+                if stow --no-folding -t "$HOME" "$package" 2>/dev/null; then
+                    log_success "Installed $package dotfiles after cleanup"
+                else
+                    log_error "Failed to install $package - manual intervention needed"
+                    log_info "  Try: cd $PACKAGES_DIR && stow -D $package && stow $package"
+                fi
             else
-                log_warning "Failed to install $package dotfiles (might already exist)"
+                # No conflicts or successful restow
+                if [[ -s /tmp/stow_output.txt ]]; then
+                    # Had output but no conflicts
+                    log_success "Installed $package dotfiles"
+                else
+                    # Clean install
+                    log_success "Installed $package dotfiles"
+                fi
             fi
+            
+            # Cleanup temp file
+            rm -f /tmp/stow_output.txt
         else
             log_warning "Package directory $package not found, skipping"
         fi
@@ -252,17 +353,18 @@ setup_dotfiles() {
 # Stow system packages
 stow_system_packages() {
     log_step "Stowing system packages..."
-    if [[ -x "$SCRIPTS_DIR/stow-system.sh" ]]; then
+    local stow_script="$SCRIPTS_DIR/install/stow-system.sh"
+    if [[ -f "$stow_script" ]]; then
+        chmod +x "$stow_script"
         if [[ $EUID -eq 0 ]]; then
-            "$SCRIPTS_DIR/stow-system.sh"
+            "$stow_script"
         else
-            sudo "$SCRIPTS_DIR/stow-system.sh"
+            sudo "$stow_script"
         fi
     else
         log_warning "stow-system.sh not found, skipping system package stowing."
     fi
 }
-
 
 # Setup host-specific configuration
 setup_host_config() {
@@ -276,6 +378,9 @@ setup_host_config() {
     
     if [[ -d "$host_config_dir" ]]; then
         log_info "Loading host-specific configuration from $host_config_dir"
+        
+        # Stow host-specific system files first
+        stow_system_packages
         
         # Source host-specific setup script if it exists
         if [[ -f "$host_config_dir/setup.sh" ]]; then
@@ -309,8 +414,8 @@ setup_secrets() {
     
     log_step "Setting up secrets management..."
     
-    if [[ -x "$SCRIPTS_DIR/secrets.sh" ]]; then
-        "$SCRIPTS_DIR/secrets.sh" setup
+    if [[ -x "$SCRIPTS_DIR/utilities/secrets.sh" ]]; then
+        "$SCRIPTS_DIR/utilities/secrets.sh" setup
     else
         log_warning "Secrets management script not found, skipping"
     fi
@@ -356,6 +461,7 @@ post_setup() {
     # Reload shell configuration if possible
     if [[ -n "${ZSH_VERSION:-}" ]]; then
         log_info "Reloading zsh configuration..."
+        # shellcheck disable=SC1091
         source "$HOME/.zshrc" 2>/dev/null || true
     fi
     
@@ -365,8 +471,9 @@ post_setup() {
         "$SCRIPTS_DIR/install/setup/post-install.sh"
     fi
     
-    log_info "Running plymouth setup scripts..."
-    bash "$SCRIPTS_DIR/install/setup/plymouth.sh"
+    
+    #bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
+    bash "$SCRIPTS_DIR/install/setup/keyboard.sh"
     
     log_success "Post-setup tasks completed"
 }
@@ -375,43 +482,27 @@ post_setup() {
 validate_installation() {
     log_step "Validating installation..."
     
-    if [[ -x "$SCRIPTS_DIR/validate.sh" ]]; then
-        "$SCRIPTS_DIR/validate.sh"
-    else
-        log_info "Running basic validation..."
-        
-        # Check if key files exist
-        local key_files=(
-            "$HOME/.zshrc"
-            "$HOME/.gitconfig"
-            "$HOME/.config/kitty/kitty.conf"
-        )
-        
-        for file in "${key_files[@]}"; do
-            if [[ -f "$file" ]]; then
-                log_success "✓ $file exists"
-            else
-                log_warning "✗ $file missing"
-            fi
-        done
-        
-        # Check if key commands are available
-        local key_commands=(
-            "zsh"
-            "git"
-            "nvim"
-            "stow"
-            "jq"
-        )
-        
-        for cmd in "${key_commands[@]}"; do
-            if command -v "$cmd" >/dev/null 2>&1; then
-                log_success "✓ $cmd is available"
-            else
-                log_warning "✗ $cmd not found"
-            fi
-        done
-    fi
+    # Quick validation for host-specific setup
+    log_info "Running quick validation..."
+    
+    local essential_files=("$HOME/.zshrc")
+    local essential_commands=("zsh" "git" "stow")
+    
+    for file in "${essential_files[@]}"; do
+        if [[ -f "$file" || -L "$file" ]]; then
+            log_success "✓ $file exists"
+        else
+            log_warning "✗ $file missing"
+        fi
+    done
+    
+    for cmd in "${essential_commands[@]}"; do
+        if command -v "$cmd" >/dev/null 2>&1; then
+            log_success "✓ $cmd is available"
+        else
+            log_warning "✗ $cmd not found"
+        fi
+    done
     
     log_success "Validation completed"
 }
@@ -429,14 +520,14 @@ show_completion() {
     
     if [[ "$SETUP_SECRETS" == "true" ]]; then
         log_info "Secrets management:"
-        echo "  • Use './scripts/secrets.sh --help' for secrets management"
+        echo "  • Use './scripts/utilities/secrets.sh --help' for secrets management"
         echo "  • Configure age keys if not already done"
         echo
     fi
     
     log_info "For updates and maintenance:"
-    echo "  • Use './scripts/update.sh' to update packages and configs"
-    echo "  • Use './scripts/validate.sh' to check system health"
+    echo "  • Use './scripts/install/update.sh' to update packages and configs"
+    echo "  • Use './scripts/install/validate.sh' to check system health"
     echo "  • Use 'stow -D <package>' to remove specific dotfiles"
     echo
 }
@@ -458,25 +549,58 @@ main() {
     check_prerequisites
     install_packages
     setup_dotfiles
-    stow_system_packages
     setup_host_config
-    configure_shell
-    post_setup
-    validate_installation
     
-    # Lets make this secrets optional for now
-    #setup_secrets
+    if [[ "$RUN_THEME" == "true" ]]; then
+        log_info "Setting plymouth theme..."
+        bash "$SCRIPTS_DIR/theme-manager/refresh-plymouth" -y
+    else
+        log_info "Skipping theme refresh (--no-theme)"
+    fi
+    
+    if [[ "$RUN_SHELL_CONFIG" == "true" ]]; then
+        configure_shell
+    else
+        log_info "Skipping shell configuration (--no-shell)"
+    fi
+    
+    if [[ "$RUN_POST_SETUP" == "true" ]]; then
+        post_setup
+    else
+        log_info "Skipping post-setup tasks (--no-post-setup)"
+    fi
+    
+    setup_utilities
+    setup_secrets
+    validate_installation
     
     # System configuration (requires root)
     if [[ "$NO_SYSTEM_CONFIG" != "true" && "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
         log_info "Setting up system-level configuration..."
         if [[ $EUID -eq 0 ]]; then
-            "$SCRIPTS_DIR/system-config.sh" || log_warning "System configuration failed"
+            log_info "Running system configuration as root..."
+            "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
         else
-            log_info "System configuration requires root privileges"
-            log_info "Run: sudo $SCRIPTS_DIR/system-config.sh"
+            log_info "System configuration requires root privileges. You will be prompted for your password..."
+            if sudo -v 2>/dev/null; then
+                log_info "Running system configuration with sudo..."
+                sudo bash "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
+            else
+                log_error "Failed to authenticate with sudo. System configuration will be skipped."
+                log_info "To install system configurations later, run:"
+                log_info "  sudo bash $SCRIPTS_DIR/install/system-config.sh"
+                log_info ""
+                log_info "Or install PAM configuration separately:"
+                log_info "  sudo bash $SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"
+            fi
         fi
         echo
+    else
+        if [[ "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
+            log_warning "System configuration skipped due to --no-system-config flag"
+            log_info "To install PAM configuration for hyprlock manually, run:"
+            log_info "  sudo $SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"
+        fi
     fi
     
     show_completion
@@ -495,3 +619,4 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Run main function
     main "$@"
 fi
+

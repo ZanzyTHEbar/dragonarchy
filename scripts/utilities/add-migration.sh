@@ -11,6 +11,7 @@ mkdir -p "$MIGRATIONS_DIR"
 
 # Create a new migration file with a unix timestamp
 migration_file="$MIGRATIONS_DIR/$(date +%s).sh"
+migration_name=$(basename "$migration_file")
 
 # Add some boilerplate to the migration file
 cat <<EOL > "$migration_file"
@@ -18,7 +19,7 @@ cat <<EOL > "$migration_file"
 
 set -e
 
-echo "Running migration $(basename "$migration_file")"
+echo "Running migration $migration_name"
 
 # Your migration code here
 

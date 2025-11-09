@@ -3,29 +3,25 @@
 
 set -e
 
-# --- Header and Logging ---
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
-
-log_info "Setting default applications..."
-
-log_info "Updating application database..."
-
-
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIR="$HOME/.local/share/applications"
+
+# Source logging utilities
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../../lib/logging.sh"
 
 if [[ ! -d "$DIR" ]]; then
 
     log_info "$DIR directory does not exist"
     log_info "Creating $DIR"
-    mkdir -p $DIR
+    mkdir -p "$DIR"
 
 else
     log_info "$DIR exists, proceeding ..."
 fi
 
-sudo update-desktop-database $DIR
+sudo update-desktop-database "$DIR"
 
 log_info "Setting default image viewer to 'imv'..."
 xdg-mime default imv.desktop image/png

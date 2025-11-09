@@ -3,17 +3,16 @@
 
 set -e
 
-# --- Header and Logging ---
-BLUE='\033[0;34m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+LOG_LIB="${PROJECT_ROOT}/scripts/lib/logging.sh"
+BOOT_LIB="${PROJECT_ROOT}/scripts/lib/bootloader.sh"
+# shellcheck disable=SC1091
+source "$LOG_LIB"
+# shellcheck disable=SC1091
+source "$BOOT_LIB"
 
-# --- 1. Install Dependencies ---
-log_info "Installing Plymouth and UWSM..."
 if ! command -v paru &>/dev/null; then
     log_warning "paru not found. Please install it first."
     exit 1
@@ -43,94 +42,25 @@ fi
 # --- 3. Add Kernel Parameters ---
 log_info "Adding kernel parameters for bootloader..."
 
-# Function to add kernel parameters to a config file
-add_kernel_parameters() {
-    local config_file="$1"
-    local parameters="$2"
-    if ! grep -q "$parameters" "$config_file"; then
-        log_info "Adding '$parameters' to $(basename "$config_file")"
-        sudo sed -i "/^options/ s/$/ $parameters/" "$config_file"
-    else
-        log_info "'$parameters' already present in $(basename "$config_file")"
-    fi
-}
+BOOT_KERNEL_PARAMS="quiet splash"
+bootloader="$(detect_bootloader)"
+log_info "Detected bootloader: $bootloader"
+if [[ "$bootloader" == "unknown" ]]; then
+    log_warning "Unable to detect bootloader automatically; attempting best-effort update"
+fi
 
-# Unified Kernel Image (UKI) detection
-is_uki_boot() {
-    # If a .conf file in /boot/loader/entries/ points to a UKI in /boot/efi/EFI/Linux
-    if [ -d "/boot/loader/entries" ] && [ -d "/boot/efi/EFI/Linux" ]; then
-        for entry in /boot/loader/entries/*.conf; do
-            if [ -f "$entry" ] && grep -q "/boot/efi/EFI/Linux" "$entry"; then
-                return 0 # UKI boot detected
-            fi
-        done
-    fi
-    # If UKI is directly in /boot/efi
-    if [ -f "/boot/efi/EFI/Linux/linux.efi" ]; then
-        return 0
-    fi
-    return 1 # Not a UKI boot
-}
-
-if is_uki_boot; then
-    log_info "Detected a UKI setup with systemd-boot. Adding kernel parameters..."
-    # UKI with systemd-boot typically uses /etc/kernel/cmdline
-    if [ -f "/etc/kernel/cmdline" ]; then
-        add_kernel_parameters "/etc/kernel/cmdline" "splash quiet"
-        sudo mkinitcpio -P
-        log_info "Updated UKI kernel command line and regenerated initramfs."
-    elif [ -d "/etc/cmdline.d" ]; then
-        if ! grep -q "splash" /etc/cmdline.d/*.conf 2>/dev/null; then
-            echo "splash" | sudo tee -a /etc/cmdline.d/dragon.conf
-        fi
-        if ! grep -q "quiet" /etc/cmdline.d/*.conf 2>/dev/null; then
-            echo "quiet" | sudo tee -a /etc/cmdline.d/dragon.conf
-        fi
-        sudo mkinitcpio -P
-        log_info "Updated UKI kernel command line and regenerated initramfs."
-    else
-        log_warning "Could not determine how to set kernel parameters for this UKI setup."
-    fi
-elif [ -d "/boot/loader/entries" ]; then
-    log_info "Detected systemd-boot. Adding kernel parameters..."
-    for entry in /boot/loader/entries/*.conf; do
-        if [ -f "$entry" ] && [[ ! "$(basename "$entry")" == *"fallback"* ]]; then
-            add_kernel_parameters "$entry" "splash quiet"
-        fi
-    done
-elif [ -f "/boot/limine.conf" ] || [ -f "/boot/limine/limine.conf" ]; then
-    log_info "Detected Limine. Adding kernel parameters..."
-    
-    # Determine the correct path for limine.conf
-    limine_cfg_path=""
-    if [ -f "/boot/limine.conf" ]; then
-        limine_cfg_path="/boot/limine.conf"
-    else
-        limine_cfg_path="/boot/limine/limine.conf"
-    fi
-
-    if ! grep -q "quiet splash" "$limine_cfg_path"; then
-        sudo sed -i '/^CMDLINE/ s/"$/ quiet splash"/' "$limine_cfg_path"
-        log_info "Added 'quiet splash' to $limine_cfg_path"
-    else
-        log_info "'quiet splash' already present in $limine_cfg_path"
-    fi
-elif [ -f "/etc/default/grub" ]; then
-    log_info "Detected GRUB. Adding kernel parameters..."
-    if ! grep -q "GRUB_CMDLINE_LINUX_DEFAULT.*splash" /etc/default/grub; then
-        current_cmdline=$(grep "^GRUB_CMDLINE_LINUX_DEFAULT=" /etc/default/grub | cut -d'"' -f2)
-        new_cmdline="$current_cmdline"
-        if [[ ! "$current_cmdline" =~ splash ]]; then new_cmdline="$new_cmdline splash"; fi
-        if [[ ! "$current_cmdline" =~ quiet ]]; then new_cmdline="$new_cmdline quiet"; fi
-        new_cmdline=$(echo "$new_cmdline" | xargs)
-        sudo sed -i "s/^GRUB_CMDLINE_LINUX_DEFAULT=\".*\"/GRUB_CMDLINE_LINUX_DEFAULT=\"$new_cmdline\"/" /etc/default/grub
-        sudo grub-mkconfig -o /boot/grub/grub.cfg
-        log_info "Updated GRUB config and regenerated grub.cfg"
-    else
-        log_info "GRUB already configured with splash parameters."
-    fi
+if sudo env BOOT_LIB="$BOOT_LIB" LOG_LIB="$LOG_LIB" KERNEL_PARAMS="$BOOT_KERNEL_PARAMS" bash -c '
+    set -e
+    # shellcheck disable=SC1091
+    source "$LOG_LIB"
+    # shellcheck disable=SC1091
+    source "$BOOT_LIB"
+    boot_append_kernel_params "$KERNEL_PARAMS"
+    boot_rebuild_if_changed
+'; then
+    log_success "Kernel parameters ensured (quiet splash)"
 else
-    log_warning "No supported bootloader (systemd-boot, Limine, GRUB, UKI) detected. Please add 'splash quiet' to your kernel parameters manually."
+    log_warning "Failed to update bootloader automatically. Please add '$BOOT_KERNEL_PARAMS' manually."
 fi
 
 # --- 4. Set Default Plymouth Theme ---

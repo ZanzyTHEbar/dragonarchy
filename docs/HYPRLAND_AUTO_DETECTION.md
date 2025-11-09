@@ -2,11 +2,12 @@
 
 ## Overview
 
-The package installation system now **automatically detects** which hosts need Hyprland packages, eliminating the need to manually maintain a hardcoded list in `install_deps.sh`.
+The package installation system now **automatically detects** which hosts need Hyprland packages, eliminating the need to manually maintain a hardcoded list in `install-deps.sh`.
 
 ## Problem Solved
 
-**Before:** You had to remember to add new hostnames to the `hyprland_hosts` array in `install_deps.sh`:
+**Before:** You had to remember to add new hostnames to the `hyprland_hosts` array in `install-deps.sh`:
+
 ```bash
 local hyprland_hosts=("dragon" "spacedragon" "goldendragon")  # Easy to forget!
 ```
@@ -26,6 +27,7 @@ touch hosts/YOUR_HOST/.hyprland
 ```
 
 **Why this is best:**
+
 - ✅ Explicit and clear
 - ✅ Fast detection
 - ✅ Version controlled
@@ -34,6 +36,7 @@ touch hosts/YOUR_HOST/.hyprland
 ### 2. Auto-Detection from setup.sh
 
 If `setup.sh` mentions these keywords, Hyprland packages are auto-installed:
+
 - `hyprland`
 - `hyprlock`
 - `hypridle`
@@ -68,6 +71,7 @@ chmod +x hosts/$(hostname)/setup.sh
 ### For Existing Hosts
 
 All existing Hyprland hosts already have marker files:
+
 - ✅ `dragon/.hyprland`
 - ✅ `firedragon/.hyprland`
 - ✅ `goldendragon/.hyprland`
@@ -82,7 +86,8 @@ bash scripts/utilities/verify-hyprland-detection.sh
 ```
 
 **Output example:**
-```
+
+```bash
 HOST                 HYPRLAND        DETECTION METHOD                        
 ----                 --------        ----------------                        
 dragon               ✓ Yes           marker                                  
@@ -102,21 +107,25 @@ Summary:
 When auto-detected, these packages are installed:
 
 ### Desktop Environment (~70 packages)
+
 - Hyprland, waybar, hyprlock, hypridle
 - Swaync, swayosd, swaybg
 - File managers, utilities, theming
 
 ### Applications (~25 AUR packages)
+
 - Joplin, Kdenlive, LibreOffice
 - Spotify, Zoom, Typora
 - Calculators, clipboard managers
 
 ### Development Tools
+
 - **Rust toolchain:** rustup, stable toolchain
 - **Rust CLI tools:** lsd, bat, ripgrep, zoxide, eza, dua-cli, git-delta
 - **Cursor IDE**
 
 ### Launchers
+
 - Elephant launcher and plugins
 - Walker, Impala
 
@@ -176,21 +185,25 @@ chmod +x hosts/server/setup.sh
 ## Benefits
 
 ### ✅ Zero Maintenance
+
 - No hardcoded arrays to update
 - Add hosts by creating directories
 - Detection is automatic
 
 ### ✅ Self-Documenting
+
 - Marker files clearly indicate Hyprland support
 - Verification script shows what will be installed
 - Documentation explains the system
 
 ### ✅ Flexible
+
 - Multiple detection methods
 - Fallback to auto-detection if marker missing
 - Easy to override
 
 ### ✅ Safe
+
 - Explicit marker files prevent accidents
 - Verification before installation
 - Clear logging during detection
@@ -200,11 +213,13 @@ chmod +x hosts/server/setup.sh
 ### Host Not Detected as Hyprland
 
 **Check detection:**
+
 ```bash
 bash scripts/utilities/verify-hyprland-detection.sh
 ```
 
 **Fix:**
+
 ```bash
 # Add marker file
 touch hosts/YOUR_HOST/.hyprland
@@ -216,15 +231,17 @@ bash scripts/utilities/verify-hyprland-detection.sh
 ### Getting Hyprland Packages When You Don't Want Them
 
 **Remove marker file:**
+
 ```bash
 rm hosts/YOUR_HOST/.hyprland
 ```
 
-**Or remove Hyprland mentions from setup.sh**
+#### **Or remove Hyprland mentions from setup.sh**
 
 ### Detection Not Working
 
 **Debug:**
+
 ```bash
 # Check marker file
 ls -la hosts/YOUR_HOST/.hyprland
@@ -240,7 +257,7 @@ find hosts/YOUR_HOST/docs -name "*.md" -exec grep -i hyprland {} +
 
 ### Detection Function
 
-The `is_hyprland_host()` function in `install_deps.sh`:
+The `is_hyprland_host()` function in `install-deps.sh`:
 
 ```bash
 is_hyprland_host() {
@@ -286,7 +303,7 @@ if is_hyprland_host "$host"; then
 ## Migration Checklist
 
 - [x] Create `.hyprland` marker files for existing hosts
-- [x] Update `install_deps.sh` to use auto-detection
+- [x] Update `install-deps.sh` to use auto-detection
 - [x] Create verification script
 - [x] Document the system
 - [x] Test detection logic
@@ -295,11 +312,10 @@ if is_hyprland_host "$host"; then
 
 - [Host Configuration README](../hosts/README.md) - General host setup guide
 - [Verification Script](../scripts/utilities/verify-hyprland-detection.sh) - Test detection
-- [Installation Script](../scripts/install/install_deps.sh) - Main installer
+- [Installation Script](../scripts/install/install-deps.sh) - Main installer
 
 ## References
 
 - Inspired by the need for better ergonomics when adding new machines
 - Follows the principle: "Configuration should be declarative, not imperative"
 - Implements "Convention over Configuration" for common cases
-

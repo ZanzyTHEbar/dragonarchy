@@ -117,6 +117,10 @@ case "${action}" in
     file=$(pick_background_from_theme "$theme") || exit 0
     ln -nsf "$file" "$CURRENT_BG_LINK"
     echo "Background link set to $(basename "$file")"
+    # Restart swaybg to apply the new background
+    pkill -x swaybg || true
+    setsid uwsm app -- swaybg -i "$CURRENT_BG_LINK" -m fill >/dev/null 2>&1 &
+    echo "Background applied!"
     ;;
   "Add background to a theme")
     theme=$(pick_theme) || exit 0
@@ -124,6 +128,10 @@ case "${action}" in
     if gum confirm "Set as current background now?"; then
       ln -nsf "$file" "$CURRENT_BG_LINK"
       echo "Background link set to $(basename "$file")"
+      # Restart swaybg to apply the new background
+      pkill -x swaybg || true
+      setsid uwsm app -- swaybg -i "$CURRENT_BG_LINK" -m fill >/dev/null 2>&1 &
+      echo "Background applied!"
     else
       echo "Added $(basename "$file") to ${theme}"
     fi

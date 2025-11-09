@@ -1,27 +1,13 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" &>/dev/null && pwd)"
-
-# --- Header and Logging ---
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../../../lib/logging.sh"
 
 # Logging functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# --- Platform and Helper Functions ---
 detect_platform() {
     case "$(uname -s)" in
         Linux*)
@@ -30,10 +16,6 @@ detect_platform() {
             ;;
         *) echo "unknown" ;;
     esac
-}
-
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
 }
 
 install_paru() {
@@ -57,6 +39,36 @@ install_paru() {
     fi
 }
 
+# --- Symlink Creation ---
+create_user_symlinks() {
+    log_info "Creating symlinks to user icons directory..."
+    
+    local user_icons_dir="$HOME/.local/share/icons"
+    local system_icons_dir="/usr/share/icons"
+    
+    mkdir -p "$user_icons_dir"
+    
+    # Symlink all Bibata variants from system to user directory
+    for bibata_theme in "$system_icons_dir"/Bibata-*; do
+        if [[ -d "$bibata_theme" ]]; then
+            local theme_name=$(basename "$bibata_theme")
+            local target="$user_icons_dir/$theme_name"
+            
+            if [[ -L "$target" ]]; then
+                log_info "Symlink already exists: $theme_name"
+            elif [[ -d "$target" ]]; then
+                log_info "Directory exists (not a symlink): $theme_name - removing..."
+                rm -rf "$target"
+                ln -sf "$bibata_theme" "$target"
+                log_success "Replaced directory with symlink: $theme_name"
+            else
+                ln -sf "$bibata_theme" "$target"
+                log_success "Created symlink: $theme_name"
+            fi
+        fi
+    done
+}
+
 # --- Package Definitions ---
 cursor_packages_aur=("bibata-cursor-theme")
 
@@ -68,9 +80,7 @@ install_for_arch() {
 
 # --- Main Function ---
 main() {
-
-    # Install dependencies
-    log_info "Installing Bibata cursor theme dependencies..."
+    log_info "Installing Bibata cursor theme (all 12 variants)..."
     
     local platform
     platform=$(detect_platform)
@@ -80,13 +90,18 @@ main() {
         *) log_error "Unsupported platform for cursor installation: $platform" && exit 1 ;;
     esac
 
+    # Create symlinks so theme manager can access the themes
+    create_user_symlinks
 
-    # Set cursor theme
-    log_info "Setting Bibata as the default cursor theme..."
-    bash "$SCRIPT_DIR/set-cursor.sh"
-
-    log_info "Cursor dependencies installed successfully."
-    log_info "Bibata cursor theme setup complete."
+    log_success "Bibata cursor theme installation complete!"
+    log_info "Available variants:"
+    log_info "  • Bibata-Modern-Classic (default)"
+    log_info "  • Bibata-Modern-Ice (blue accent)"
+    log_info "  • Bibata-Modern-Amber (orange accent)"
+    log_info "  • Bibata-Original-Classic/Ice/Amber (sharper style)"
+    log_info "  • All variants available in Right-handed versions"
+    log_info ""
+    log_info "Use the cursor-menu to select your preferred variant."
 }
 
 main "$@"
