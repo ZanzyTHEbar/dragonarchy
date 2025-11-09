@@ -5,16 +5,12 @@
 
 set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
-
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source centralized logging utilities
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/scripts/lib/logging.sh"
 CONFIG_DIR="$SCRIPT_DIR"
 PACKAGES_DIR="$CONFIG_DIR/packages"
 SCRIPTS_DIR="$CONFIG_DIR/scripts"
@@ -32,27 +28,6 @@ DOTFILES_ONLY=false
 SECRETS_ONLY=false
 SKIP_SECRETS=false
 NO_SYSTEM_CONFIG=false
-
-# Logging functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-log_step() {
-    echo -e "${CYAN}[STEP]${NC} $1"
-}
 
 # Show usage information
 usage() {
@@ -259,20 +234,37 @@ setup_dotfiles() {
     for package in "${packages[@]}"; do
         if [[ -d "$package" ]]; then
             log_info "Installing dotfiles package: $package"
-            # Use --restow to handle re-runs and existing symlinks
-            # --no-folding prevents stow from folding entire directories
-            if stow --restow --no-folding -t "$HOME" "$package" 2>&1 | grep -v "BUG in find_stowed_path"; then
-                log_success "Installed $package dotfiles"
-            else
-                # On conflict, try to unstow first then restow
-                log_warning "$package has conflicts, attempting to resolve..."
+            
+            # Try stowing with restow (handles existing symlinks)
+            if stow --restow --no-folding -t "$HOME" "$package" 2>&1 | tee /tmp/stow_output.txt | grep -qi "conflict"; then
+                # Conflicts detected - show them and attempt cleanup
+                log_warning "$package has conflicts:"
+                grep -i "conflict\|would cause" /tmp/stow_output.txt | sed 's/^/  /'
+                log_info "Attempting to resolve..."
+                
+                # Unstow completely, then restow fresh
                 stow -D -t "$HOME" "$package" 2>/dev/null || true
-                if stow -t "$HOME" "$package"; then
+                sleep 0.5  # Brief delay to ensure filesystem catches up
+                
+                if stow --no-folding -t "$HOME" "$package" 2>/dev/null; then
                     log_success "Installed $package dotfiles after cleanup"
                 else
-                    log_warning "Failed to install $package dotfiles - manual intervention may be needed"
+                    log_error "Failed to install $package - manual intervention needed"
+                    log_info "  Try: cd $PACKAGES_DIR && stow -D $package && stow $package"
+                fi
+            else
+                # No conflicts or successful restow
+                if [[ -s /tmp/stow_output.txt ]]; then
+                    # Had output but no conflicts
+                    log_success "Installed $package dotfiles"
+                else
+                    # Clean install
+                    log_success "Installed $package dotfiles"
                 fi
             fi
+            
+            # Cleanup temp file
+            rm -f /tmp/stow_output.txt
         else
             log_warning "Package directory $package not found, skipping"
         fi
@@ -506,14 +498,14 @@ main() {
             log_info "System configuration requires root privileges. You will be prompted for your password..."
             if sudo -v 2>/dev/null; then
                 log_info "Running system configuration with sudo..."
-                sudo "$PWD/scripts/install/system_config.sh" || log_warning "System configuration failed"
+                sudo bash "$SCRIPTS_DIR/install/system_config.sh" || log_warning "System configuration failed"
             else
                 log_error "Failed to authenticate with sudo. System configuration will be skipped."
                 log_info "To install system configurations later, run:"
-                log_info "  sudo $PWD/$SCRIPTS_DIR/install/system_config.sh"
+                log_info "  sudo bash $SCRIPTS_DIR/install/system_config.sh"
                 log_info ""
                 log_info "Or install PAM configuration separately:"
-                log_info "  sudo $PWD/$SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"
+                log_info "  sudo bash $SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"
             fi
         fi
         echo

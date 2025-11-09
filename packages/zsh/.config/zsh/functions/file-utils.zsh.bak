@@ -1,16 +1,29 @@
-# Enhanced file utilities function for ZSH
+#!/usr/bin/env bash
+#
+# file-utils.zsh - Enhanced file utilities for ZSH
+#
+# This file contains a collection of functions for file operations and utilities.
+#
+
+set -e
+
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../../lib/logging.sh"
+
 
 # Smart move that creates directories and moves files
 smv() {
     if [[ $# -ne 2 ]]; then
-        echo "Usage: smv <source> <destination>"
+        log_error "Usage: smv <source> <destination>"
         return 1
     fi
     
     local dest_dir="$(dirname "$2")"
     
     if [[ ! -d "$dest_dir" ]]; then
-        echo "Creating directory: $dest_dir"
+        log_info "Creating directory: $dest_dir"
         mkdir -p "$dest_dir"
     fi
     
@@ -20,14 +33,14 @@ smv() {
 # Smart copy that creates directories and copies files  
 smartcp() {
     if [[ $# -ne 2 ]]; then
-        echo "Usage: scp <source> <destination>"
+        log_error "Usage: scp <source> <destination>"
         return 1
     fi
     
     local dest_dir="$(dirname "$2")"
     
     if [[ ! -d "$dest_dir" ]]; then
-        echo "Creating directory: $dest_dir"
+        log_info "Creating directory: $dest_dir"
         mkdir -p "$dest_dir"
     fi
     
@@ -37,20 +50,20 @@ smartcp() {
 # Find and replace in files
 findreplace() {
     if [[ $# -ne 2 ]]; then
-        echo "Usage: findreplace <search_pattern> <replace_pattern>"
+        log_error "Usage: findreplace <search_pattern> <replace_pattern>"
         echo "This will replace all occurrences in current directory recursively"
         return 1
     fi
     
-    echo "Replacing '$1' with '$2' in all files recursively..."
+    log_info "Replacing '$1' with '$2' in all files recursively..."
     find . -type f -not -path './.git/*' -exec sed -i "s/$1/$2/g" {} +
-    echo "Replacement complete."
+    log_success "Replacement complete."
 }
 
 # Create directory and cd into it
 mkcd() {
     if [[ $# -ne 1 ]]; then
-        echo "Usage: mkcd <directory_name>"
+        log_error "Usage: mkcd <directory_name>"
         return 1
     fi
     
@@ -60,12 +73,12 @@ mkcd() {
 # Extract archives based on extension
 extract() {
     if [[ $# -ne 1 ]]; then
-        echo "Usage: extract <archive_file>"
+        log_error "Usage: extract <archive_file>"
         return 1
     fi
     
     if [[ ! -f "$1" ]]; then
-        echo "Error: '$1' is not a valid file"
+        log_error "Error: '$1' is not a valid file"
         return 1
     fi
     
@@ -86,7 +99,7 @@ extract() {
         *.tar.Z)     tar xvZf "$1"    ;;
         *.lzma)      unlzma "$1"      ;;
         *.xz)        unxz "$1"        ;;
-        *)           echo "Error: '$1' cannot be extracted via extract()" ;;
+        *)           log_error "Error: '$1' cannot be extracted via extract()" ;;
     esac
 }
 
@@ -98,7 +111,7 @@ dirsize() {
 # Quick backup function
 backup() {
     if [[ $# -ne 1 ]]; then
-        echo "Usage: backup <file_or_directory>"
+        log_error "Usage: backup <file_or_directory>"
         return 1
     fi
     
@@ -106,13 +119,13 @@ backup() {
     local backup_name="${1}.backup_${timestamp}"
     
     cp -r "$1" "$backup_name"
-    echo "Backup created: $backup_name"
+    log_success "Backup created: $backup_name"
 }
 
 # Find large files
 findlarge() {
     local size=${1:-100M}
-    echo "Finding files larger than $size..."
+    log_info "Finding files larger than $size..."
     find . -type f -size +$size -exec ls -lh {} \; | awk '{ print $9 ": " $5 }'
 }
 
@@ -134,9 +147,9 @@ trash() {
             local timestamp=$(date +%Y%m%d_%H%M%S)
             local basename=$(basename "$item")
             mv "$item" "$trash_dir/${basename}_${timestamp}"
-            echo "Moved '$item' to trash"
+            log_success "Moved '$item' to trash"
         else
-            echo "Error: '$item' does not exist"
+            log_error "Error: '$item' does not exist"
         fi
     done
 }
@@ -146,33 +159,28 @@ untrash() {
     local trash_dir="$HOME/.local/share/Trash/files"
     
     if [[ ! -d "$trash_dir" ]]; then
-        echo "Trash directory does not exist"
+        log_error "Trash directory does not exist"
         return 1
     fi
     
-    echo "Files in trash:"
+    log_info "Files in trash:"
     ls -la "$trash_dir"
     
     if [[ $# -eq 1 ]]; then
         local file_to_restore="$1"
         if [[ -e "$trash_dir/$file_to_restore" ]]; then
             mv "$trash_dir/$file_to_restore" .
-            echo "Restored '$file_to_restore' from trash"
+            log_success "Restored '$file_to_restore' from trash"
         else
-            echo "Error: '$file_to_restore' not found in trash"
+            log_error "Error: '$file_to_restore' not found in trash"
         fi
     fi
-}
-
-# Check if command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
 }
 
 # Open file/directory with appropriate application
 open_with() {
     if [[ $# -eq 0 ]]; then
-        echo "Usage: open_with <file_or_directory> [application]"
+        log_error "Usage: open_with <file_or_directory> [application]"
         return 1
     fi
     
@@ -180,7 +188,7 @@ open_with() {
     local app="${2:-}"
     
     if [[ ! -e "$file" ]]; then
-        echo "Error: '$file' does not exist"
+        log_error "Error: '$file' does not exist"
         return 1
     fi
     
@@ -200,7 +208,7 @@ open_with() {
             fi
             ;;
         *)
-            echo "Unsupported platform"
+            log_error "Unsupported platform"
             return 1
             ;;
     esac
@@ -209,7 +217,7 @@ open_with() {
 # Quick file search
 qfind() {
     if [[ $# -eq 0 ]]; then
-        echo "Usage: qfind <pattern> [directory]"
+        log_error "Usage: qfind <pattern> [directory]"
         return 1
     fi
     
@@ -222,7 +230,7 @@ qfind() {
 # Quick directory search
 qdir() {
     if [[ $# -eq 0 ]]; then
-        echo "Usage: qdir <pattern> [directory]"
+        log_error "Usage: qdir <pattern> [directory]"
         return 1
     fi
     
