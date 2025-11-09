@@ -3,6 +3,15 @@
 # NFS Systemd Automount Configuration Script
 # Dynamically configures NFS mounts with systemd automount for specified host, base path, and datasets
 
+## Usage: ./nfs.sh <nfs_server_host> <nfs_server_base> <dataset1> [dataset2 ...]
+## Example: ./nfs.sh 192.168.1.100 /mnt/nfs datasets/dataset1 datasets/dataset2
+## This will configure NFS mounts for the datasets dataset1 and dataset2 on the server 192.168.1.100 at the base path /mnt/nfs
+## The datasets will be mounted to /mnt/datasets/dataset1 and /mnt/datasets/dataset2 respectively
+## The fstab entry will be added to /etc/fstab and the automount unit will be created and started
+## The mount points will be created if they do not exist
+## The fstab backup will be created before adding the entries
+## The automount units will be managed and started
+
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
 
 # Variables

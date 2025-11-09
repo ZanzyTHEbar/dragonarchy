@@ -277,19 +277,46 @@ VDPAU_DRIVER=radeonsi          # VDPAU driver
 
 ## Troubleshooting
 
-### ⚠️ System Freezes on Lid Close/Sleep/Lock
+### ⚠️ System Freezes on Suspend/Resume & TTY Issues
 
-**FIXED**: If you're experiencing system freezes when closing the laptop lid, going to sleep, or locking the screen, see:
+**UPDATE**: After testing, additional fixes are required:
 
-- **Quick Fix**: `QUICK_FIX.md` - One command to fix everything
-- **Full Details**: `docs/SUSPEND_RESUME_FIX.md` - Complete technical documentation
+- ✅ **Locking works** - hyprlock properly locks/unlocks
+- ❌ **Sleep/idle causes screen freeze** - Requires initramfs rebuild + proper service hooks
+- ❌ **TTY shows blinking cursor** - Requires framebuffer restoration service
 
-**TL;DR**: Run this to fix all suspend/resume/lock issues:
+**Complete Fix (Addresses ALL Issues)**:
 ```bash
-cd ~/dotfiles
-bash hosts/firedragon/install-suspend-fix.sh
-# Then reboot
+cd ~/dotfiles/hosts/firedragon
+
+# Step 1: Install systemd services and configure module params
+sudo ./fix-suspend-resume-complete.sh
+
+# Step 2: Update kernel cmdline (CRITICAL for unified kernel images!)
+sudo ./update-kernel-cmdline.sh
+
+# Step 3: Reboot
+reboot
 ```
+
+**This script will:**
+1. Configure AMD GPU kernel module parameters
+2. **Rebuild initramfs** (critical step - takes 1-2 minutes)
+3. Install systemd suspend/resume/TTY hooks
+4. Create verification script
+
+**After reboot, verify:**
+```bash
+~/dotfiles/hosts/firedragon/verify-suspend-fix.sh
+```
+
+**Full Documentation**: `docs/SUSPEND_RESUME_COMPLETE_FIX.md`
+
+**Root Causes Identified:**
+- Kernel module parameters not loaded (missing initramfs rebuild)
+- Systemd service dependencies incorrect (services never triggered)
+- TTY framebuffer corruption after suspend
+- DPMS restore timing issues
 
 ### Battery Not Detected
 
