@@ -7,10 +7,17 @@
 
 set -e
 
-# Get script directory and source logging utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck disable=SC1091  # Runtime-resolved path to logging library
-source "${SCRIPT_DIR}/../../scripts/lib/logging.sh"
+# Resolve paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+LOG_LIB="${PROJECT_ROOT}/scripts/lib/logging.sh"
+BOOT_LIB="${PROJECT_ROOT}/scripts/lib/bootloader.sh"
+
+# Source utilities
+# shellcheck disable=SC1091
+source "$LOG_LIB"
+# shellcheck disable=SC1091
+source "$BOOT_LIB"
 
 echo "Running setup for FireDragon laptop..."
 echo
@@ -534,93 +541,47 @@ EOF
     
     # ACPI fixes for Asus VivoBook
     log_info "Applying ACPI fixes for Asus VivoBook..."
-    
+
     # Kernel parameters for Asus ACPI fixes
     local asus_params="acpi_osi=! acpi_osi='Windows 2020' acpi_backlight=native"
-    
+
     # Check if parameters are already in the current kernel cmdline
     if grep -q "acpi_osi=!" /proc/cmdline; then
         log_success "ACPI parameters already applied in current boot"
         return 0
     fi
-    
-    # Ensure sudo access before checking bootloader files
-    log_info "Checking bootloader configuration (requires sudo)..."
+
+    local bootloader
+    bootloader="$(detect_bootloader)"
+    log_info "Detected bootloader: $bootloader"
+    if [[ "$bootloader" == "unknown" ]]; then
+        log_warning "Unable to detect bootloader automatically; attempting best-effort update"
+    fi
+
+    # Ensure sudo access before applying changes
+    log_info "Escalating privileges to update bootloader configuration..."
     if ! sudo -v 2>/dev/null; then
         log_warning "Cannot access bootloader files (sudo required)"
         log_info "Run manually after setup: bash ~/dotfiles/hosts/firedragon/fix-acpi-boot.sh"
         return 0
     fi
-    
-    # Detect bootloader and apply parameters
-    if sudo test -f "/boot/limine.conf"; then
-        log_info "Detected Limine bootloader at /boot/limine.conf"
-        if ! sudo grep -q "acpi_osi=!" /boot/limine.conf; then
-            log_info "Adding Asus ACPI parameters to Limine configuration..."
-            sudo cp /boot/limine.conf "/boot/limine.conf.backup.$(date +%Y%m%d_%H%M%S)"
-            sudo sed -i "/^CMDLINE/ s/\"$/ $asus_params\"/" /boot/limine.conf
-            log_success "Updated /boot/limine.conf with Asus ACPI fixes"
-        else
-            log_info "Asus ACPI parameters already present in Limine config"
-        fi
-    elif sudo test -f "/boot/limine/limine.conf"; then
-        log_info "Detected Limine bootloader at /boot/limine/limine.conf"
-        if ! sudo grep -q "acpi_osi=!" /boot/limine/limine.conf; then
-            log_info "Adding Asus ACPI parameters to Limine configuration..."
-            sudo cp /boot/limine/limine.conf "/boot/limine/limine.conf.backup.$(date +%Y%m%d_%H%M%S)"
-            sudo sed -i "/^CMDLINE/ s/\"$/ $asus_params\"/" /boot/limine/limine.conf
-            log_success "Updated /boot/limine/limine.conf with Asus ACPI fixes"
-        else
-            log_info "Asus ACPI parameters already present in Limine config"
-        fi
-    elif sudo test -d "/boot/loader/entries"; then
-        log_info "Detected systemd-boot"
-        local boot_entry
-        boot_entry=$(sudo find /boot/loader/entries -name "*.conf" | head -1)
-        if [ -n "$boot_entry" ]; then
-            if ! sudo grep -q "acpi_osi=!" "$boot_entry"; then
-                log_info "Adding Asus ACPI parameters to systemd-boot..."
-                sudo cp "$boot_entry" "${boot_entry}.backup.$(date +%Y%m%d_%H%M%S)"
-                sudo sed -i "/^options/ s/$/ $asus_params/" "$boot_entry"
-                log_success "Updated systemd-boot entry: $boot_entry"
-            else
-                log_info "Asus ACPI parameters already present in systemd-boot"
-            fi
-        fi
-    elif [ -f "/etc/default/grub" ]; then
-        log_info "Detected GRUB bootloader"
-        sudo mkdir -p /etc/default/grub.d
-        sudo tee /etc/default/grub.d/asus-vivobook.cfg > /dev/null << EOF
-# Asus VivoBook ACPI fixes
-# Add these to GRUB_CMDLINE_LINUX_DEFAULT
 
-# Fix ACPI errors and enable proper power management
-GRUB_CMDLINE_LINUX_DEFAULT_EXTRA="$asus_params"
-EOF
-        log_info "Created /etc/default/grub.d/asus-vivobook.cfg"
-        log_warning "Remember to run: sudo grub-mkconfig -o /boot/grub/grub.cfg"
+    if sudo env ASUS_PARAMS="$asus_params" LOG_LIB="$LOG_LIB" BOOT_LIB="$BOOT_LIB" bash -c '
+        set -e
+        # shellcheck disable=SC1091
+        source "$LOG_LIB"
+        # shellcheck disable=SC1091
+        source "$BOOT_LIB"
+        boot_append_kernel_params "$ASUS_PARAMS"
+        boot_rebuild_if_changed
+    '; then
+        log_success "ACPI kernel parameters ensured across bootloader configuration"
+        log_warning "Reboot recommended to apply ACPI changes"
     else
-        log_warning "Could not detect bootloader configuration"
-        log_info "Common bootloader locations:"
-        echo "  • Limine: /boot/limine.conf or /boot/limine/limine.conf"
-        echo "  • systemd-boot: /boot/loader/entries/*.conf"
-        echo "  • GRUB: /etc/default/grub"
-        echo ""
-        log_warning "Add these ACPI parameters manually to your bootloader:"
-        echo "  $asus_params"
-        echo ""
-        log_info "After adding, verify with: cat /proc/cmdline | grep acpi_osi"
-        
-        # Try to identify bootloader by checking running system
-        if command -v bootctl &>/dev/null && bootctl is-installed &>/dev/null 2>&1; then
-            log_info "Detected: systemd-boot is installed"
-            log_info "Edit your boot entry in /boot/loader/entries/"
-        elif command -v grub-mkconfig &>/dev/null; then
-            log_info "Detected: GRUB is installed"
-            log_info "Add parameters to /etc/default/grub then run: sudo grub-mkconfig -o /boot/grub/grub.cfg"
-        fi
+        log_warning "Failed to apply ACPI parameters automatically"
+        log_info "You can retry manually with: bash ~/dotfiles/hosts/firedragon/fix-acpi-boot.sh"
     fi
-    
+
     # Add keyboard backlight control via udev
     log_info "Setting up keyboard backlight controls..."
     sudo tee /etc/udev/rules.d/90-asus-kbd-backlight.rules > /dev/null << 'EOF'
