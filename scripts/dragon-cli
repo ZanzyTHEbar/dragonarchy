@@ -11,6 +11,40 @@ SCRIPT_DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
 
 PATH="$PATH:$SCRIPT_DIR/theme-manager"
 
+# Handle direct command arguments
+case "${1:-}" in
+  theme)
+    shift
+    theme_menu
+    exit 0
+    ;;
+  background)
+    shift
+    theme-bg-menu
+    exit 0
+    ;;
+  cursor|cursors)
+    shift
+    "$SCRIPT_DIR/theme-manager/cursors/cursor-menu"
+    exit 0
+    ;;
+  keybindings)
+    shift
+    keybindings-menu
+    exit 0
+    ;;
+  power)
+    shift
+    power-menu
+    exit 0
+    ;;
+  font|fonts)
+    shift
+    font-menu
+    exit 0
+    ;;
+esac
+
 main_menu() {
   local options=("Theme" "Cursors" "Utilities" "Update" "Setup" "Power Menu" "Keybindings" "Font Menu" "Exit")
   choice=$(printf "%s\n" "${options[@]}" | gum choose --header="") || exit 0

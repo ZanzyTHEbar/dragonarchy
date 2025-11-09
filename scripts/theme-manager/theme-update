@@ -2,5 +2,14 @@
 THEMES_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/themes"
 
 for dir in "$THEMES_DIR"/*/; do
-    [ -d "$dir" ] && [ ! -L "${dir%/}" ] && echo "Updating: $(basename "$dir")" && git -C "$dir" pull
+    # Skip if not a directory or is a symlink
+    [ -d "$dir" ] && [ ! -L "${dir%/}" ] || continue
+    
+    # Only update if it's a git repository
+    if [ -d "$dir/.git" ]; then
+        echo "Updating: $(basename "$dir")"
+        git -C "$dir" pull
+    else
+        echo "Skipping (not a git repo): $(basename "$dir")"
+    fi
 done

@@ -13,6 +13,9 @@ set -e
 
 # Get script directory and source logging utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+THEMES_DIR="$SCRIPT_DIR/../../theme-manager"
+
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../../lib/logging.sh"
 
@@ -51,11 +54,11 @@ configure_user_settings() {
     # - Setting up development environments
     # - Configuring IDE settings
     # - Installing language-specific tools (npm packages, pip packages, etc.)
-
-    log_info "Setting default theme to tokyo-night..."
-    dbus-run-session -- bash "$SCRIPT_DIR/theme-manager/theme-set" "tokyo-night"
     
-    log_info "No user settings to configure (placeholder)"
+    log_info "Setting default theme to tokyo-night (non-interactive mode)..."
+    bash "$THEMES_DIR/theme-set" --no-gui "tokyo-night"
+    
+    log_info "Theme symlinks configured. Background will be set on first login."
 }
 
 # Perform cleanup tasks
@@ -75,12 +78,14 @@ cleanup_tasks() {
 show_post_install_info() {
     log_step "Post-installation information"
     
-    # Display any important information, manual steps, or reminders
-    # Example:
-    # log_info "Remember to configure your SSH keys: ssh-keygen -t ed25519"
-    # log_info "To enable Bluetooth: sudo systemctl enable --now bluetooth"
-    
-    log_info "No additional instructions (placeholder)"
+    log_info "✓ Theme symlinks have been configured (tokyo-night)"
+    log_info "→ The theme background will be automatically set on first login"
+    log_info "→ To manually change themes, use: dragon-cli theme"
+    log_info "→ To manually set a background, use: dragon-cli background"
+    echo
+    log_info "If you encounter any issues with the theme not loading:"
+    log_info "  1. Log out and log back in"
+    log_info "  2. Or run: theme-set tokyo-night"
 }
 
 # =============================================================================
@@ -95,7 +100,7 @@ main() {
     # install_additional_tools
     configure_user_settings
     # cleanup_tasks
-    # show_post_install_info
+    show_post_install_info
     
     log_success "Post-installation tasks completed"
     echo
