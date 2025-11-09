@@ -15,15 +15,15 @@ git clone <repository> ~/dotfiles
 cd ~/dotfiles
 
 # Run setup for your machine
-./setup.sh
+./install.sh
 
 # Or specific host setup
-./setup.sh --host dragon
+./install.sh --host dragon
 ```
 
 ## Directory Structure
 
-```
+```bash
 stow-config/
 ├── packages/      # Stow packages (dotfiles)
 │   ├── zsh/           # Zsh configuration
@@ -35,13 +35,13 @@ stow-config/
 ├── scripts/          # Installation and setup scripts
 ├── hosts/            # Host-specific configurations
 ├── secrets/         # Encrypted secrets management
-└── setup.sh        # Main setup script
+└── install.sh        # Main setup script
 ```
 
 ## Features
 
 - ✅ **Declarative Configuration**: All dotfiles managed via Stow
-- ✅ **Multi-Platform**: Linux (CachyOS/Arch) and macOS support
+- ✅ **Multi-Platform**: Linux (CachyOS/Arch) and Debian support
 - ✅ **Host-Specific**: Different configs per machine
 - ✅ **Secrets Management**: Encrypted secrets with age/sops
 - ✅ **Package Management**: Platform-appropriate package installation
@@ -50,24 +50,79 @@ stow-config/
 
 ## Commands
 
+### Basic Usage
+
 ```bash
-./setup.sh                    # Complete setup
-./setup.sh --host dragon      # Setup for specific host
-./setup.sh --packages-only    # Only install packages
-./setup.sh --dotfiles-only    # Only setup dotfiles
-./scripts/secrets.sh --help   # Secrets management
-./scripts/update.sh           # Update packages and configs
-./scripts/validate.sh         # Validate setup
+./install.sh                    # Complete setup
+./install.sh --host dragon      # Setup for specific host
+./install.sh --packages-only    # Only install packages
+./install.sh --dotfiles-only    # Only setup dotfiles
+./scripts/utilities/secrets.sh --help     # Secrets management
+./scripts/install/update.sh             # Update packages and configs
+./scripts/install/validate.sh           # Validate setup
 ```
+
+### Feature Toggles
+
+Fine-grained control over what gets installed and configured:
+
+```bash
+# Component toggles
+./install.sh --no-packages      # Skip package installation
+./install.sh --no-dotfiles      # Skip dotfiles setup
+./install.sh --no-secrets       # Skip secrets management
+./install.sh --utilities        # Symlink selected utilities to ~/.local/bin
+./install.sh --no-utilities     # Skip utilities symlinking
+
+# Step toggles
+./install.sh --no-theme         # Skip Plymouth theme setup
+./install.sh --no-shell         # Skip shell configuration (zsh)
+./install.sh --no-post-setup    # Skip post-setup tasks
+./install.sh --no-system-config # Skip system-level configuration (PAM, services)
+
+# Application-specific toggles
+./install.sh --cursor           # Force Cursor installation (default: Hyprland hosts only)
+./install.sh --no-cursor        # Skip Cursor installation
+
+# Combined examples
+./install.sh --host dragon --cursor --no-theme --no-system-config
+./install.sh --packages-only --utilities --no-secrets
+./install.sh --dotfiles-only --no-shell --no-post-setup
+```
+
+**Note:** Cursor is installed by default on Hyprland-configured hosts. Use `--cursor` to force installation on non-Hyprland hosts, or `--no-cursor` to skip it entirely.
+
+## Migration System
+
+This repository includes a migration system for managing one-time setup tasks and configuration updates. See [MIGRATION-SYSTEM.md](docs/MIGRATION-SYSTEM.md) for detailed documentation.
+
+```bash
+# Create a new migration
+./scripts/utilities/add-migration.sh
+
+# Migrations are stored in migrations/ directory
+# They run once per system and track configuration evolution
+```
+
+## Centralized Logging
+
+All scripts use a centralized logging library (`scripts/lib/logging.sh`) providing:
+
+- Consistent color-coded output across all scripts
+- Standard logging functions: `log_info`, `log_success`, `log_warning`, `log_error`, `log_step`
+- Debug mode support: `DEBUG=1 ./script.sh`
+- Single source of truth for all logging functionality
+
+See [scripts/lib/README.md](scripts/lib/README.md) for usage details.
 
 ## Networking with NetBird
 
-This setup includes NetBird for creating a secure peer-to-peer VPN. The `system_config.sh` script will automatically install and enable the NetBird service.
+This setup includes NetBird for creating a secure peer-to-peer VPN. The `system-config.sh` script will automatically install and enable the NetBird service.
 
 To connect to your network, you will need to run the `netbird` command and follow the instructions.
 
 ## Supported Platforms
 
 - **Linux**: CachyOS, Arch Linux, other Arch-based distros
-- **macOS**: via Homebrew
+- **Debian**: via APT
 - **Other Linux**: Partial support via common package managers

@@ -96,3 +96,4 @@ fi
 # Touchpad gesture status (silent - gestures are auto-configured)
 # If you want to see gesture status on startup, uncomment:
 # [[ -o interactive ]] && echo "👆 Touchpad gestures enabled (3-finger swipe to switch workspaces)"
+

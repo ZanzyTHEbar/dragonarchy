@@ -1,9 +1,14 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 
 set -euo pipefail
 
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../../lib/logging.sh"
+
 if [[ -z "$1" ]]; then
-    echo "Usage: $0 <theme_name>"
+    log_error "Usage: $0 <theme_name>"
     exit 1
 fi
 
@@ -37,6 +42,6 @@ gsettings set org.gnome.desktop.interface cursor-theme "$THEME_NAME"
 # 3. Apply the cursor theme to the running Hyprland session
 hyprctl setcursor "$THEME_NAME" "$CURSOR_SIZE"
 
-echo "Cursor theme set to $THEME_NAME."
-echo "NOTE: For Flatpak applications, you may need to run the following command once:"
-echo "flatpak override --filesystem=~/.icons:ro --user"
+log_info "Cursor theme set to $THEME_NAME."
+log_info "NOTE: For Flatpak applications, you may need to run the following command once:"
+log_info "flatpak override --filesystem=~/.icons:ro --user"

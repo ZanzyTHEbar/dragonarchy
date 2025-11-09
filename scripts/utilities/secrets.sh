@@ -6,15 +6,14 @@
 
 set -euo pipefail
 
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../lib/logging.sh"
+
 # Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
 
 # Configuration
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="$(dirname "$SCRIPT_DIR")"
 SECRETS_DIR="$CONFIG_DIR/secrets"
 SOPS_CONFIG="$CONFIG_DIR/.sops.yaml"
@@ -27,29 +26,6 @@ VERBOSE=false
 FORCE=false
 
 # Logging functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-log_debug() {
-    if [[ "$VERBOSE" == "true" ]]; then
-        echo -e "${NC}[DEBUG]${NC} $1"
-    fi
-}
-
-# Show usage information
 usage() {
     cat << EOF
 Usage: $0 [COMMAND] [OPTIONS]
@@ -883,4 +859,4 @@ main() {
 # Run main function if script is executed directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
-fi 
+fi

@@ -9,19 +9,11 @@
 
 set -euo pipefail
 
-# --- Header and Logging ---
-BLUE='\033[0;34m'
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../lib/logging.sh"
 
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
-
-# --- Functions ---
 
 check_privileges() {
     if [[ $EUID -ne 0 ]]; then

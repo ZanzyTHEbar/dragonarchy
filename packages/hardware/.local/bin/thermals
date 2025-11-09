@@ -76,7 +76,7 @@ get_cpu_temp() {
       local t
       t=$(grep -oE '[0-9]+(\.[0-9]+)?' <<<"$line" | head -n1)
       if [[ -n "$t" ]]; then
-        printf '%.0f' "$t"
+        awk "BEGIN {printf \"%.0f\", $t}"
         return 0
       fi
     fi
@@ -106,7 +106,7 @@ get_gpu_temp() {
     lines=$(sensors 2>/dev/null | awk '/amdgpu/{f=1} f && NF==0{f=0} f{print}')
     t=$(grep -E '^\s*edge:' <<<"$lines" | head -n1 | grep -oE '[0-9]+(\.[0-9]+)?' | head -n1)
     if [[ -n "$t" ]]; then
-      printf '%.0f' "$t"
+      awk "BEGIN {printf \"%.0f\", $t}"
       return 0
     fi
   fi
