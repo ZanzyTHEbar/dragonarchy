@@ -42,8 +42,8 @@ Now, generate a unique `age` key pair for this new machine. The `secrets.sh` scr
 
 This command will:
 
-1.  Create a `keys.txt` file at `~/.config/sops/age/keys.txt` containing the new private key.
-2.  Print the corresponding **public key** to the terminal. It will look something like this:
+1. Create a `keys.txt` file at `~/.config/sops/age/keys.txt` containing the new private key.
+2. Print the corresponding **public key** to the terminal. It will look something like this:
     `age1...`
 
 **Copy this public key.** You will need it in the next step.
@@ -52,8 +52,8 @@ This command will:
 
 Now you need to authorize this new key by adding it to the central configuration. You can do this from any machine that already has access to the secrets and has the repository cloned.
 
-1.  Open the `.sops.yaml` file in the root of this repository.
-2.  Add the new public key you copied from the new host to the `keys` list. It's a good practice to use a YAML anchor and add a comment to identify which key belongs to which host.
+1. Open the `.sops.yaml` file in the root of this repository.
+2. Add the new public key you copied from the new host to the `keys` list. It's a good practice to use a YAML anchor and add a comment to identify which key belongs to which host.
 
 **Example `.sops.yaml`:**
 
@@ -99,13 +99,14 @@ git push
 
 Your new host is now authorized. Go back to the new host's terminal.
 
-1.  Pull the latest changes from the repository:
+1. Pull the latest changes from the repository:
 
     ```bash
     git pull
     ```
 
-2.  Run the main installation command:
+2. Run the main installation command:
+
     ```bash
     ./scripts/secrets.sh install
     ```

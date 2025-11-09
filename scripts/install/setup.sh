@@ -4,15 +4,12 @@
 # Don't use set -e here - we want to continue even if individual scripts fail
 # Individual scripts can still use set -e if they want strict error handling
 
-# --- Header and Logging ---
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
-log_warning() { echo -e "\n${YELLOW}[WARNING]${NC} $1"; }
-
 # --- Script Configuration ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source centralized logging utilities
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../lib/logging.sh"
 SETUP_SCRIPT_DIR="$SCRIPT_DIR/setup"
 
 # --- Script Execution ---

@@ -1,25 +1,22 @@
 #!/bin/bash
 #
 # Verify Hyprland Host Detection
-# 
+#
 # This script tests the automatic Hyprland host detection mechanism
 # and shows which hosts will receive Hyprland packages.
 
 set -euo pipefail
-
-# Colors
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
 
 # Determine script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 HOSTS_DIR="$DOTFILES_DIR/hosts"
 
-# Source the detection functions from install_deps.sh
+# Source logging utilities
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/../lib/logging.sh"
+
+# Source the detection functions from install-deps.sh
 # We'll reimplement them here to avoid sourcing the entire script
 is_hyprland_host() {
     local hostname="$1"
@@ -60,11 +57,11 @@ echo -e "${BLUE}╚════════════════════�
 echo
 
 if [[ ! -d "$HOSTS_DIR" ]]; then
-    echo -e "${RED}Error: Hosts directory not found: $HOSTS_DIR${NC}"
+    log_error "Hosts directory not found: $HOSTS_DIR"
     exit 1
 fi
 
-echo -e "${BLUE}Scanning hosts directory: ${NC}$HOSTS_DIR"
+log_info "Scanning hosts directory: $HOSTS_DIR"
 echo
 
 # Header
@@ -91,7 +88,7 @@ while IFS= read -r host_path; do
 done < <(find "$HOSTS_DIR" -maxdepth 1 -type d ! -path "$HOSTS_DIR" | sort)
 
 echo
-echo -e "${BLUE}Summary:${NC}"
+log_info "Summary:"
 echo "  Total hosts: $total_hosts"
 echo "  Hyprland hosts: $hyprland_count"
 echo "  Non-Hyprland hosts: $((total_hosts - hyprland_count))"
@@ -99,36 +96,36 @@ echo
 
 # Current host detection
 current_host=$(hostname | cut -d. -f1)
-echo -e "${BLUE}Current host:${NC} $current_host"
+log_info "Current host: $current_host"
 
 if [[ -d "$HOSTS_DIR/$current_host" ]]; then
     detection_method=$(is_hyprland_host "$current_host" 2>/dev/null) && detected=true || detected=false
     
     if [[ "$detected" == "true" ]]; then
-        echo -e "  Status: ${GREEN}Will receive Hyprland packages${NC}"
-        echo -e "  Detection method: $detection_method"
+        log_success "Will receive Hyprland packages"
+        echo "  Detection method: $detection_method"
     else
-        echo -e "  Status: ${YELLOW}Will NOT receive Hyprland packages${NC}"
+        log_warning "Will NOT receive Hyprland packages"
         echo
-        echo -e "${YELLOW}To enable Hyprland for this host:${NC}"
+        log_warning "To enable Hyprland for this host:"
         echo "  1. Create marker file: touch $HOSTS_DIR/$current_host/.hyprland"
         echo "  2. Re-run installation"
     fi
 else
-    echo -e "  Status: ${RED}No host configuration found${NC}"
+    log_error "No host configuration found"
     echo
-    echo -e "${YELLOW}To create configuration:${NC}"
+    log_warning "To create configuration:"
     echo "  mkdir -p $HOSTS_DIR/$current_host"
     echo "  touch $HOSTS_DIR/$current_host/.hyprland  # For Hyprland support"
     echo "  touch $HOSTS_DIR/$current_host/setup.sh"
 fi
 
 echo
-echo -e "${BLUE}Detection Methods:${NC}"
+log_info "Detection Methods:"
 echo "  marker     - Has .hyprland or HYPRLAND file (most explicit)"
 echo "  setup.sh   - setup.sh mentions hyprland/waybar/etc (auto-detected)"
 echo "  docs       - Documentation mentions Hyprland (auto-detected)"
 echo
-echo -e "${BLUE}For more information:${NC}"
+log_info "For more information:"
 echo "  cat $HOSTS_DIR/README.md"
 

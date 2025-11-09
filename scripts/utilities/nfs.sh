@@ -14,6 +14,11 @@
 
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
 
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../lib/logging.sh"
+
 # Variables
 readonly FSTAB="/etc/fstab"
 readonly MOUNT_POINT="/mnt"
@@ -28,19 +33,6 @@ declare -a AUTOMOUNT_UNITS=()
 readonly NFS_OPTIONS="nfs4 rw,async,rsize=65536,wsize=65536,proto=tcp,vers=4.1,noatime,actimeo=10,intr,cto,soft,timeo=60,retrans=3,x-systemd.automount,x-systemd.idle-timeout=60,_netdev 0 0"
 
 # Logging functions
-log_info() {
-    echo "[INFO] $*" >&2
-}
-
-log_error() {
-    echo "[ERROR] $*" >&2
-}
-
-log_success() {
-    echo "[SUCCESS] $*" >&2
-}
-
-# Function to check if running as root or with sudo
 check_privileges() {
     if [[ $EUID -eq 0 ]]; then
         log_error "This script should not be run as root. Use sudo when needed."

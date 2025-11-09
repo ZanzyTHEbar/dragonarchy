@@ -6,23 +6,16 @@
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../../scripts/lib/logging.sh"
 
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
-
-echo "Running setup for Dragon AMD workstation..."
-echo
+log_info "🐉 Running setup for Dragon workstation..."
 
 # Setup AMD GPU configuration for desktop
 setup_amd_gpu_desktop() {
-    log_info "Configuring AMD GPU for desktop workstation..."
+    log_step "Configuring AMD GPU for desktop workstation..."
     
     sudo mkdir -p /etc/modprobe.d
     sudo tee /etc/modprobe.d/amdgpu.conf > /dev/null << 'EOF'
@@ -50,7 +43,7 @@ EOF
 
 # Setup AMD GPU suspend/resume hooks
 setup_amd_suspend_resume() {
-    log_info "Setting up AMD GPU suspend/resume hooks..."
+    log_step "Setting up AMD GPU suspend/resume hooks..."
     
     sudo mkdir -p /etc/systemd/system
     
@@ -100,7 +93,7 @@ EOF
 
 # Rebuild initramfs to apply module changes
 rebuild_initramfs() {
-    log_info "Rebuilding initramfs to apply AMD GPU module changes..."
+    log_step "Rebuilding initramfs to apply AMD GPU module changes..."
     
     if sudo mkinitcpio -P; then
         log_success "Initramfs rebuilt successfully"
@@ -109,18 +102,19 @@ rebuild_initramfs() {
     fi
 }
 
+
 # Install NetBird
-log_info "Installing NetBird..."
+log_step "Installing NetBird..."
 bash "$HOME/dotfiles/scripts/utilities/netbird-install.sh"
 echo
 
 # Copy host-specific system configs
-log_info "Copying host-specific system configs..."
+log_step "Copying host-specific system configs..."
 sudo cp -rT "$HOME/dotfiles/hosts/dragon/etc/" /etc/
 echo
 
 # Apply DNS changes
-log_info "Restarting systemd-resolved to apply DNS changes..."
+log_step "Restarting systemd-resolved to apply DNS changes..."
 sudo systemctl restart systemd-resolved
 echo
 
@@ -137,23 +131,35 @@ rebuild_initramfs
 echo
 
 # Install and enable dynamic LED service
-log_info "Installing dynamic_led service..."
+log_step "Installing dynamic_led service..."
 sudo install -D -m 0755 "$HOME/dotfiles/hosts/dragon/dynamic_led.py" /usr/local/bin/dynamic_led.py
 sudo cp "$HOME/dotfiles/hosts/dragon/dynamic_led.service" /etc/systemd/system/dynamic_led.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now dynamic_led.service
 echo
 
-# Check if liquidctl service exists and install it
-if [ -f "$HOME/dotfiles/hosts/dragon/liquidctl-dragon.service" ]; then
-    log_info "Installing liquidctl AIO cooler service..."
-    sudo cp "$HOME/dotfiles/hosts/dragon/liquidctl-dragon.service" /etc/systemd/system/
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now liquidctl-dragon.service 2>/dev/null || log_warning "liquidctl service may need manual setup"
-    echo
-fi
+# Make liquidctl suspend hook executable
+log_step "Configuring suspend hooks..."
+sudo chmod +x /etc/systemd/system-sleep/liquidctl-suspend.sh || true
 
-log_success "🎉 Dragon setup complete!"
+# Apply power management configuration (defer disruptive restarts)
+log_step "Applying power management configuration..."
+log_info "Power management configured: suspend on idle (30min), power button = suspend"
+log_warning "A reboot is recommended to fully apply power management changes"
+
+# Install liquidctl service
+log_step "Installing liquidctl AIO cooler service..."
+sudo cp "$HOME/dotfiles/hosts/dragon/liquidctl-dragon.service" /etc/systemd/system/liquidctl-dragon.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now liquidctl-dragon.service
+log_success "liquidctl service installed and started"
+
+log_success "🐉 Dragon setup complete!"
+log_info "Power configuration:"
+log_info "  - Idle action: Suspend after 30 minutes"
+log_info "  - Power button: Suspend (long press: poweroff)"
+log_info "  - Sleep state: S3 (deep) with fallback to s2idle"
+log_info "  - liquidctl: Auto-reinitialize on resume"
 echo
 log_warning "⚠️  REBOOT REQUIRED for AMD GPU changes to take effect"
 echo
