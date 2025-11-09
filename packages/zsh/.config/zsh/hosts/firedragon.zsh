@@ -47,16 +47,6 @@ alias sysinfo='echo "Battery: $(cat /sys/class/power_supply/BAT0/capacity)% | Te
 alias laptop-mode='sudo tlp bat && echo "Switched to battery profile"'
 alias performance-mode='sudo tlp ac && echo "Switched to performance profile"'
 
-# Suspend/Resume troubleshooting aliases
-alias check-suspend='systemctl status amdgpu-suspend.service amdgpu-resume.service'
-alias suspend-logs='journalctl -b | grep -E "(suspend|resume|amdgpu|dpms|hypridle)" | tail -50'
-alias lid-status='cat /proc/acpi/button/lid/*/state'
-alias check-inhibitors='systemd-inhibit --list'
-alias dpms-status='hyprctl monitors | grep -E "(Monitor|dpmsStatus)"'
-alias dpms-on='hyprctl dispatch dpms on'
-alias dpms-off='hyprctl dispatch dpms off'
-alias check-logind='cat /etc/systemd/logind.conf.d/10-firedragon-lid.conf'
-
 # FireDragon-specific environment variables
 export LAPTOP_MODE=true
 export POWER_PROFILE="balanced"
@@ -83,17 +73,12 @@ if [[ -f /sys/class/power_supply/AC/online ]]; then
     else
         export POWER_PROFILE="ac"
     fi
-fi 
-
-# Display current power status on shell startup (only in interactive shells)
-if [[ -o interactive ]] && command -v tlp-stat >/dev/null 2>&1; then
-    # Suppress output to avoid slowing down shell initialization
-    # Uncomment the line below if you want to see power status on startup:
-    # echo "🔋 FireDragon Laptop - Power: $POWER_PROFILE mode"
-    :
 fi
 
-# Touchpad gesture status (silent - gestures are auto-configured)
-# If you want to see gesture status on startup, uncomment:
-# [[ -o interactive ]] && echo "👆 Touchpad gestures enabled (3-finger swipe to switch workspaces)"
+# Display current power status on shell startup
+if command -v tlp-stat >/dev/null 2>&1; then
+    #echo "🔋 FireDragon Laptop - Power: $POWER_PROFILE mode"
+fi
 
+# Touchpad gesture status
+#echo "👆 Touchpad gestures enabled (3-finger swipe to switch workspaces)"
