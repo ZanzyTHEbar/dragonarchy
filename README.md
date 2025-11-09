@@ -15,15 +15,15 @@ git clone <repository> ~/dotfiles
 cd ~/dotfiles
 
 # Run setup for your machine
-./setup.sh
+./install.sh
 
 # Or specific host setup
-./setup.sh --host dragon
+./install.sh --host dragon
 ```
 
 ## Directory Structure
 
-```
+```bash
 stow-config/
 ├── packages/      # Stow packages (dotfiles)
 │   ├── zsh/           # Zsh configuration
@@ -35,13 +35,13 @@ stow-config/
 ├── scripts/          # Installation and setup scripts
 ├── hosts/            # Host-specific configurations
 ├── secrets/         # Encrypted secrets management
-└── setup.sh        # Main setup script
+└── install.sh        # Main setup script
 ```
 
 ## Features
 
 - ✅ **Declarative Configuration**: All dotfiles managed via Stow
-- ✅ **Multi-Platform**: Linux (CachyOS/Arch) and macOS support
+- ✅ **Multi-Platform**: Linux (CachyOS/Arch) and Debian support
 - ✅ **Host-Specific**: Different configs per machine
 - ✅ **Secrets Management**: Encrypted secrets with age/sops
 - ✅ **Package Management**: Platform-appropriate package installation
@@ -51,13 +51,13 @@ stow-config/
 ## Commands
 
 ```bash
-./setup.sh                    # Complete setup
-./setup.sh --host dragon      # Setup for specific host
-./setup.sh --packages-only    # Only install packages
-./setup.sh --dotfiles-only    # Only setup dotfiles
-./scripts/secrets.sh --help   # Secrets management
-./scripts/update.sh           # Update packages and configs
-./scripts/validate.sh         # Validate setup
+./install.sh                    # Complete setup
+./install.sh --host dragon      # Setup for specific host
+./install.sh --packages-only    # Only install packages
+./install.sh --dotfiles-only    # Only setup dotfiles
+./scripts/secrets.sh --help     # Secrets management
+./scripts/update.sh             # Update packages and configs
+./scripts/validate.sh           # Validate setup
 ```
 
 ## Migration System
@@ -75,6 +75,7 @@ This repository includes a migration system for managing one-time setup tasks an
 ## Centralized Logging
 
 All scripts use a centralized logging library (`scripts/lib/logging.sh`) providing:
+
 - Consistent color-coded output across all scripts
 - Standard logging functions: `log_info`, `log_success`, `log_warning`, `log_error`, `log_step`
 - Debug mode support: `DEBUG=1 ./script.sh`
@@ -91,5 +92,5 @@ To connect to your network, you will need to run the `netbird` command and follo
 ## Supported Platforms
 
 - **Linux**: CachyOS, Arch Linux, other Arch-based distros
-- **macOS**: via Homebrew
+- **Debian**: via APT
 - **Other Linux**: Partial support via common package managers
