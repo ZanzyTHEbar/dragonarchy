@@ -15,7 +15,7 @@ source "${SCRIPT_DIR}/../lib/logging.sh"
 #       hosts/        <-- HOSTS_DIR
 #     scripts/
 #       install/
-#         install_deps.sh  <-- SCRIPT_DIR
+#         install-deps.sh  <-- SCRIPT_DIR
 CONFIG_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 HOSTS_DIR="$CONFIG_DIR/hosts"
 
@@ -26,12 +26,10 @@ HOSTS_DIR="$CONFIG_DIR/hosts"
 # Fonts
 arch_fonts=("ttf-jetbrains-mono" "noto-fonts-emoji" "ttf-font-awesome" "noto-fonts-extra" "ttf-liberation" ttf-liberation-mono-nerd)
 arch_aur_fonts=("ttf-cascadia-mono-nerd" "ttf-ia-writer")
-macos_cask_fonts=("font-jetbrains-mono-nerd" "font-symbols-only-nerd-font" "font-caskaydia-mono-nerd-font" "font-iosevka" "font-ia-writer-mono")
 debian_fonts=("fonts-jetbrains-mono" "fonts-noto-color-emoji" "fonts-font-awesome" "fonts-liberation2")
 
 # Core CLI
 core_cli_arch=("vim" "kitty" "neovim" "btop" "coreutils" "dua-cli" "duf" "entr" "fastfetch" "fd" "fzf" "gdu" "lsd" "ripgrep" "stow" "unzip" "wget" "jq" "just" "yq" "iperf3" "wakeonlan" "ffmpeg" "bat" "zoxide" "eza" "direnv" "git-delta" "lazygit" "htop" "tmux" "tree" "curl" "rsync" "age" "sops" "zsh" "zsh-autosuggestions" "zsh-syntax-highlighting" "zsh-theme-powerlevel10k" "gum")
-core_cli_macos=("vim" "neovim" "btop" "coreutils" "dua-cli" "duf" "entr" "fastfetch" "fd" "fzf" "lsd" "ripgrep" "stow" "wget" "jq" "just" "yq" "iperf3" "wakeonlan" "ffmpeg" "bat" "zoxide" "eza" "direnv" "git-delta" "lazygit" "htop" "tmux" "tree" "curl" "rsync" "age" "sops" "zsh" "zsh-autosuggestions" "zsh-syntax-highlighting" "powerlevel10k")
 core_cli_debian=("vim" "neovim" "btop" "coreutils" "fd-find" "fzf" "ripgrep" "stow" "unzip" "wget" "curl" "jq" "iperf3" "wakeonlan" "ffmpeg" "bat-cat" "zsh" "htop" "tmux" "tree" "rsync" "git" "zsh-autosuggestions" "zsh-syntax-highlighting" "kitty")
 
 # GUI
@@ -40,7 +38,6 @@ gui_cask=("kitty" "vivaldi" "visual-studio-code" "visual-studio-code-insiders" "
 
 # Development
 dev_arch=("git" "diff-so-fancy" "ansible" "github-cli" "terraform" "python-pipx")
-dev_macos=("git" "diff-so-fancy" "ansible" "gh" "terraform")
 dev_debian=("git" "diff-so-fancy" "ansible" "gh" "terraform" "pipx")
 pipx_packages=("poetry" "black" "flake8" "mypy")
 
@@ -53,12 +50,11 @@ hyprland_aur_elephant=("elephant-bin" "elephant-desktopapplications-bin" "elepha
 # Logging functions
 detect_platform() {
     case "$(uname -s)" in
-    Darwin*) echo "macos" ;;
-    Linux*)
-        [[ -f /etc/os-release ]] && source /etc/os-release
-        echo "${ID:-linux}"
+        Linux*)
+            [[ -f /etc/os-release ]] && source /etc/os-release
+            echo "${ID:-linux}"
         ;;
-    *) echo "unknown" ;;
+        *) echo "unknown" ;;
     esac
 }
 
@@ -73,7 +69,7 @@ get_available_hosts() {
 detect_host() {
     local hostname
     hostname=$(hostname | cut -d. -f1)
-
+    
     # Check if a host-specific configuration directory exists
     if [[ -d "$HOSTS_DIR/$hostname" ]]; then
         echo "$hostname"
@@ -227,12 +223,12 @@ get_latest_go_version() {
     log_info "Checking latest Go version from go.dev..." >&2
     local latest_version
     latest_version=$(curl -s https://go.dev/VERSION?m=text | head -n1)
-
+    
     if [[ -z "$latest_version" ]]; then
         log_error "Failed to fetch latest Go version" >&2
         return 1
     fi
-
+    
     # Remove 'go' prefix if present
     latest_version=${latest_version#go}
     echo "$latest_version"
@@ -256,7 +252,7 @@ version_less_than() {
 install_go_from_source() {
     local platform="$1"
     local latest_version
-
+    
     # Get latest Go version
     local version_output
     if ! version_output=$(get_latest_go_version 2>/dev/null) || [[ -z "$version_output" ]]; then
@@ -264,15 +260,15 @@ install_go_from_source() {
         return 1
     fi
     latest_version="$version_output"
-
+    
     log_info "Latest Go version available: $latest_version"
-
+    
     # Check if Go is already installed and compare versions
     if command_exists go; then
         local current_version
         current_version=$(go version | grep -oP 'go\d+\.\d+(?:\.\d+)?' | sed 's/go//')
         log_info "Found existing Go installation (version: $current_version)"
-
+        
         # Compare versions - only upgrade if current version is less than latest
         if version_less_than "$current_version" "$latest_version"; then
             log_info "Current version ($current_version) is older than latest ($latest_version). Upgrading..."
@@ -280,69 +276,63 @@ install_go_from_source() {
             log_info "Go is already at the latest version ($current_version). Skipping installation."
             return 0
         fi
-
+        
         # Remove existing installation
         if [[ -d "/usr/local/go" ]]; then
             log_info "Removing existing Go installation from /usr/local/go..."
             sudo rm -rf /usr/local/go
         fi
-
+        
         # Also remove package manager installed Go if it exists
         case "$platform" in
-        "arch" | "cachyos" | "manjaro")
-            if pacman -Qi go &>/dev/null; then
-                log_info "Removing Go from pacman..."
-                sudo pacman -Rns --noconfirm go
-            fi
+            "arch" | "cachyos" | "manjaro")
+                if pacman -Qi go &>/dev/null; then
+                    log_info "Removing Go from pacman..."
+                    sudo pacman -Rns --noconfirm go
+                fi
             ;;
-        "ubuntu" | "debian")
-            if dpkg -l | grep -q "^ii.*golang-go"; then
-                log_info "Removing golang-go from apt..."
-                sudo apt-get remove --purge -y golang-go
-            fi
-            ;;
-        "macos")
-            if brew list go &>/dev/null; then
-                log_info "Removing Go from brew..."
-                brew uninstall go
-            fi
+            "ubuntu" | "debian")
+                if dpkg -l | grep -q "^ii.*golang-go"; then
+                    log_info "Removing golang-go from apt..."
+                    sudo apt-get remove --purge -y golang-go
+                fi
             ;;
         esac
     fi
-
+    
     # Determine OS and architecture
     local os_type arch filename download_url
     case "$(uname -s)" in
-    Linux*) os_type="linux" ;;
-    Darwin*) os_type="darwin" ;;
-    *)
-        log_error "Unsupported OS: $(uname -s)"
-        return 1
+        Linux*) os_type="linux" ;;
+        Darwin*) os_type="darwin" ;;
+        *)
+            log_error "Unsupported OS: $(uname -s)"
+            return 1
         ;;
     esac
-
+    
     case "$(uname -m)" in
-    x86_64) arch="amd64" ;;
-    aarch64) arch="arm64" ;;
-    arm64) arch="arm64" ;;
-    *)
-        log_error "Unsupported architecture: $(uname -m)"
-        return 1
+        x86_64) arch="amd64" ;;
+        aarch64) arch="arm64" ;;
+        arm64) arch="arm64" ;;
+        *)
+            log_error "Unsupported architecture: $(uname -m)"
+            return 1
         ;;
     esac
-
+    
     filename="go${latest_version}.${os_type}-${arch}.tar.gz"
     download_url="https://go.dev/dl/${filename}"
-
+    
     log_info "Downloading Go $latest_version for ${os_type}-${arch}..."
-
+    
     # Try wget first, fallback to curl
     if command_exists wget; then
         if ! wget -q "$download_url" -O "/tmp/${filename}"; then
             log_error "Failed to download Go from $download_url using wget"
             return 1
         fi
-    elif command_exists curl; then
+        elif command_exists curl; then
         if ! curl -sL "$download_url" -o "/tmp/${filename}"; then
             log_error "Failed to download Go from $download_url using curl"
             return 1
@@ -351,17 +341,17 @@ install_go_from_source() {
         log_error "Neither wget nor curl is available for downloading"
         return 1
     fi
-
+    
     log_info "Extracting Go to /usr/local..."
     if ! sudo tar -C /usr/local -xzf "/tmp/${filename}"; then
         log_error "Failed to extract Go archive"
         rm -f "/tmp/${filename}"
         return 1
     fi
-
+    
     # Clean up
     rm -f "/tmp/${filename}"
-
+    
     # Verify installation
     if command_exists /usr/local/go/bin/go; then
         local installed_version
@@ -378,12 +368,19 @@ install_go_from_source() {
 # --- Application-Specific Installers ---
 install_cursor_app() {
     log_info "Installing Cursor..."
-    if command -v cursor >/dev/null 2>&1; then
+    command_exists cursor && {
         log_info "Cursor is already installed."
-    else
-        curl -fsSL https://raw.githubusercontent.com/watzon/cursor-linux-installer/main/install.sh | bash -s -- latest
-        log_success "Cursor installed successfully."
-    fi
+        return 0
+    }
+    
+    log_info "Installing Cursor..."
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    git clone https://github.com/ZanzyTHEBar/cursor-linux-installer.git "$tmp_dir"
+    (cd "$tmp_dir" && ./install.sh)
+    rm -rf "$tmp_dir"
+    log_success "Cursor installed successfully."
+    return 0
 }
 
 # --- Additional Tool Installation (for Debian/source) ---
@@ -391,13 +388,13 @@ install_additional_tools() {
     log_info "Installing additional tools from source or binary..."
     local install_dir="$HOME/.local/bin"
     mkdir -p "$install_dir"
-
+    
     # Go tools
     command_exists go && {
         log_info "Installing Go tools..."
         go install github.com/jesseduffield/lazygit@latest
     }
-
+    
     # Binaries
     command_exists age || {
         log_info "Installing age binary..."
@@ -422,7 +419,7 @@ install_rust_tools() {
         rustup toolchain install stable
         rustup default stable
     fi
-
+    
     command_exists cargo && {
         log_info "Installing Rust tools..."
         cargo install lsd bat ripgrep zoxide eza dua-cli git-delta
@@ -432,18 +429,18 @@ install_rust_tools() {
 # --- OS-Specific Installation Functions ---
 install_for_arch() {
     local host="$1"
-
+    
     log_info "Updating pacman repositories..." && sudo pacman -Sy
-
+    
     install_pacman "${core_cli_arch[@]}" "${dev_arch[@]}" "${arch_fonts[@]}"
     install_paru "${gui_aur[@]}" "${arch_aur_fonts[@]}"
-
+    
     # Install Go from source (latest version)
     if ! install_go_from_source "arch"; then
         log_error "Failed to install Go from source, skipping Go installation"
         return 1
     fi
-
+    
     # Automatically detect if this host needs Hyprland packages
     if is_hyprland_host "$host"; then
         log_info "Installing Hyprland specific packages for host: $host"
@@ -486,34 +483,22 @@ install_for_arch() {
     fi
 }
 
-install_for_macos() {
-    install_brew "${core_cli_macos[@]}" "${dev_macos[@]}"
-    brew tap homebrew/cask-fonts
-    install_brew_cask "${macos_cask_fonts[@]}" "${gui_cask[@]}"
-
-    # Install Go from source (latest version)
-    if ! install_go_from_source "macos"; then
-        log_error "Failed to install Go from source, skipping Go installation"
-        return 1
-    fi
-}
-
 install_for_debian() {
     install_apt "${core_cli_debian[@]}" "${dev_debian[@]}" "${debian_fonts[@]}"
-
+    
     # Install Go from source (latest version)
     if ! install_go_from_source "debian"; then
         log_error "Failed to install Go from source, skipping Go installation"
         return 1
     fi
-
+    
     install_additional_tools
 }
 
 # --- Post-Install Setup ---
 setup_development_environments() {
     log_info "Setting up development environments..."
-
+    
     # Node.js via fnm
     command_exists node || {
         log_info "Installing Node.js via fnm..."
@@ -523,7 +508,7 @@ setup_development_environments() {
         fnm install --lts
         fnm use lts-latest
     }
-
+    
     # Python tools via pipx
     if command_exists pipx; then
         log_info "Installing or upgrading Python tools via pipx..."
@@ -537,7 +522,7 @@ setup_development_environments() {
             fi
         done
     fi
-
+    
     # Ruby tools
     if command_exists gem; then
         log_info "Installing Ruby bundler..."
@@ -549,13 +534,13 @@ finalize_setup() {
     local platform
     platform=$(detect_platform)
     log_info "Finalizing setup..."
-
+    
     # Refresh font cache on Linux
-    if [[ "$platform" != "macos" ]] && command_exists fc-cache; then
+    if command_exists fc-cache; then
         log_info "Updating font cache..."
         fc-cache -fv
     fi
-
+    
     # Change default shell to zsh
     if [[ "$SHELL" != */zsh ]] && command_exists zsh; then
         log_info "Changing default shell to zsh..."
@@ -565,7 +550,7 @@ finalize_setup() {
             log_error "Failed to change default shell."
         fi
     fi
-
+    
     log_info "Running setup scripts..."
     bash "$SCRIPT_DIR/setup.sh"
 }
@@ -575,41 +560,40 @@ main() {
     local platform
     platform=$(detect_platform)
     local host=""
-
+    
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
-        --host)
-            if [[ $# -gt 1 && -n "${2:-}" && ! "${2:-}" =~ ^-- ]]; then
-                host="$2"
-                shift 2
-            else
-                log_error "Missing host argument for --host"
-                log_info "Available host configurations: $(get_available_hosts | tr '\n' ' ')"
+            --host)
+                if [[ $# -gt 1 && -n "${2:-}" && ! "${2:-}" =~ ^-- ]]; then
+                    host="$2"
+                    shift 2
+                else
+                    log_error "Missing host argument for --host"
+                    log_info "Available host configurations: $(get_available_hosts | tr '\n' ' ')"
+                    log_info "Usage: $0 --host <host>"
+                    exit 1
+                fi
+            ;;
+            *)
+                log_error "Unknown argument: $1"
                 log_info "Usage: $0 --host <host>"
                 exit 1
-            fi
-            ;;
-        *)
-            log_error "Unknown argument: $1"
-            log_info "Usage: $0 --host <host>"
-            exit 1
             ;;
         esac
     done
-
+    
     log_info "Starting package installation on $platform (Host: ${host:-generic})..."
-
+    
     case "$platform" in
-    "arch" | "cachyos" | "manjaro") install_for_arch "$host" ;;
-    "macos") install_for_macos ;;
-    "ubuntu" | "debian") install_for_debian ;;
-    *) log_error "Unsupported platform: $platform" && exit 1 ;;
+        "arch" | "cachyos" | "manjaro") install_for_arch "$host" ;;
+        "ubuntu" | "debian") install_for_debian ;;
+        *) log_error "Unsupported platform: $platform" && exit 1 ;;
     esac
-
+    
     setup_development_environments
     finalize_setup
-
+    
     log_success "Package and font installation completed!"
 }
 
