@@ -61,7 +61,7 @@ start_if_missing nm-applet "nm-applet --indicator"
 
 # WOB pipe + server
 if ! pgrep -x wob >/dev/null 2>&1; then
-  rm -f /tmp/${HYPRLAND_INSTANCE_SIGNATURE:-hypr}.wob || true
+  rm -f /tmp/"${HYPRLAND_INSTANCE_SIGNATURE:-hypr}".wob || true
   run_exec "bash -c 'mkfifo /tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob && tail -f /tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob | wob & disown'"
 fi
 

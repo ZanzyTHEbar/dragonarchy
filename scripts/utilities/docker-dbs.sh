@@ -3,12 +3,11 @@
 
 set -e
 
-# --- Header and Logging ---
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../lib/logging.sh"
 
-log_info "Select databases to launch as Docker containers."
 options=("MariaDB" "MySQL" "Redis" "PostgreSQL")
 choices=$(printf "%s\n" "${options[@]}" | gum choose --no-limit --header="Select databases (space to select, return to install, esc to cancel)")
 

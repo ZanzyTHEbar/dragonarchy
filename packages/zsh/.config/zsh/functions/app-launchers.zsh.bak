@@ -1,9 +1,21 @@
-# Application launcher functions
+#!/usr/bin/env bash
+#
+# app-launchers.zsh - Application launcher functions
+#
+# This file contains a collection of functions for launching applications.
+#
+
+set -e
+
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../../lib/logging.sh"
 
 # Run application in background and detach
 runfree() {
     if [[ $# -eq 0 ]]; then
-        echo "Usage: runfree <command> [args...]"
+        log_error "Usage: runfree <command> [args...]"
         return 1
     fi
 
@@ -27,7 +39,7 @@ fm() {
         elif command -v thunar >/dev/null 2>&1; then
             runfree thunar "$path"
         else
-            echo "No supported file manager found"
+            log_error "No supported file manager found"
             return 1
         fi
         ;;
@@ -50,7 +62,7 @@ term() {
         elif command -v konsole >/dev/null 2>&1; then
             runfree konsole
         else
-            echo "No supported terminal found"
+            log_error "No supported terminal found"
             return 1
         fi
         ;;
@@ -79,7 +91,7 @@ web() {
         elif command -v chromium >/dev/null 2>&1; then
             runfree chromium "$url"
         else
-            echo "No supported browser found"
+            log_error "No supported browser found"
             return 1
         fi
         ;;
@@ -99,7 +111,7 @@ edit() {
     elif command -v vim >/dev/null 2>&1; then
         vim "$file"
     else
-        echo "No supported editor found"
+        log_error "No supported editor found"
         return 1
     fi
 }
@@ -107,14 +119,14 @@ edit() {
 # Launch image viewer
 img() {
     if [[ $# -eq 0 ]]; then
-        echo "Usage: img <image_file>"
+        log_error "Usage: img <image_file>"
         return 1
     fi
 
     local image="$1"
 
     if [[ ! -f "$image" ]]; then
-        echo "Error: File '$image' not found"
+        log_error "Error: File '$image' not found"
         return 1
     fi
 
@@ -130,7 +142,7 @@ img() {
         elif command -v feh >/dev/null 2>&1; then
             runfree feh "$image"
         else
-            echo "No supported image viewer found"
+            log_error "No supported image viewer found"
             return 1
         fi
         ;;
@@ -140,14 +152,14 @@ img() {
 # Launch video player
 video() {
     if [[ $# -eq 0 ]]; then
-        echo "Usage: video <video_file>"
+        log_error "Usage: video <video_file>"
         return 1
     fi
 
     local video_file="$1"
 
     if [[ ! -f "$video_file" ]]; then
-        echo "Error: File '$video_file' not found"
+        log_error "Error: File '$video_file' not found"
         return 1
     fi
 
@@ -163,7 +175,7 @@ video() {
         elif command -v totem >/dev/null 2>&1; then
             runfree totem "$video_file"
         else
-            echo "No supported video player found"
+            log_error "No supported video player found"
             return 1
         fi
         ;;
@@ -173,14 +185,14 @@ video() {
 # Launch PDF viewer
 pdfviewer() {
     if [[ $# -eq 0 ]]; then
-        echo "Usage: pdf <pdf_file>"
+        log_error "Usage: pdf <pdf_file>"
         return 1
     fi
 
     local pdf_file="$1"
 
     if [[ ! -f "$pdf_file" ]]; then
-        echo "Error: File '$pdf_file' not found"
+        log_error "Error: File '$pdf_file' not found"
         return 1
     fi
 
@@ -196,7 +208,7 @@ pdfviewer() {
         elif command -v zathura >/dev/null 2>&1; then
             runfree zathura "$pdf_file"
         else
-            echo "No supported PDF viewer found"
+            log_error "No supported PDF viewer found"
             return 1
         fi
         ;;
@@ -217,7 +229,7 @@ calc() {
         elif command -v galculator >/dev/null 2>&1; then
             runfree galculator
         else
-            echo "No supported calculator found"
+            log_error "No supported calculator found"
             return 1
         fi
         ;;
@@ -231,20 +243,20 @@ screenshot() {
     case "$(uname)" in
     Darwin*)
         screencapture "$filename"
-        echo "Screenshot saved as $filename"
+        log_success "Screenshot saved as $filename"
         ;;
     Linux*)
         if command -v gnome-screenshot >/dev/null 2>&1; then
             gnome-screenshot -f "$filename"
-            echo "Screenshot saved as $filename"
+            log_success "Screenshot saved as $filename"
         elif command -v spectacle >/dev/null 2>&1; then
             spectacle -f -o "$filename"
-            echo "Screenshot saved as $filename"
+            log_success "Screenshot saved as $filename"
         elif command -v scrot >/dev/null 2>&1; then
             scrot "$filename"
-            echo "Screenshot saved as $filename"
+            log_success "Screenshot saved as $filename"
         else
-            echo "No supported screenshot tool found"
+            log_error "No supported screenshot tool found"
             return 1
         fi
         ;;
@@ -274,7 +286,7 @@ sysmon() {
 # Kill application by name
 killapp() {
     if [[ $# -eq 0 ]]; then
-        echo "Usage: killapp <application_name>"
+        log_error "Usage: killapp <application_name>"
         return 1
     fi
 
@@ -289,5 +301,5 @@ killapp() {
         ;;
     esac
 
-    echo "Killed processes matching '$app_name'"
+    log_success "Killed processes matching '$app_name'"
 }

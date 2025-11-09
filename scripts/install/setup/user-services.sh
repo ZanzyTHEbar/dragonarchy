@@ -3,16 +3,11 @@
 
 set -euo pipefail
 
-# --- Header and Logging ---
-BLUE='\033[0;34m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-log_info()  { echo -e "\n${BLUE}[INFO]${NC} $1"; }
-log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_ok()    { echo -e "${GREEN}[OK]${NC}  $1"; }
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../../lib/logging.sh"
 
-# --- Ensure config dirs ---
 mkdir -p "$HOME/.config/systemd/user"
 mkdir -p "$HOME/.config/walker/themes/current"
 
@@ -25,7 +20,7 @@ if [ -f "$HOME/.config/current/theme/walker.toml" ]; then
 else
   [ -f "$HOME/.config/walker/themes/default.toml" ] && ln -snf "$HOME/.config/walker/themes/default.toml" "$HOME/.config/walker/themes/current/layout.toml" || true
 fi
-log_ok "Walker theme linked to ~/.config/walker/themes/current/"
+log_success "Walker theme linked to ~/.config/walker/themes/current/"
 
 # --- Elephant user unit content ---
 ELEPHANT_UNIT_PATH="$HOME/.config/systemd/user/elephant.service"
@@ -49,7 +44,7 @@ RestartSec=1
 [Install]
 WantedBy=graphical-session.target
 EOF
-log_ok "Wrote $ELEPHANT_UNIT_PATH"
+log_success "Wrote $ELEPHANT_UNIT_PATH"
 
 # --- Elephant config: force correct runprefix for app launches ---
 ELEPHANT_CFG_DIR="$HOME/.config/elephant"
@@ -59,29 +54,29 @@ cat > "$ELEPHANT_CFG_DIR/elephant.toml" <<'EOF'
 # Force launcher prefix (overrides autodetect like systemd-run)
 runprefix = "uwsm app -- "
 EOF
-log_ok "Wrote $ELEPHANT_CFG_DIR/elephant.toml (runprefix)"
+log_success "Wrote $ELEPHANT_CFG_DIR/elephant.toml (runprefix)"
 
 # Provider-specific overrides (desktop entries and runner)
 cat > "$ELEPHANT_CFG_DIR/desktopapplications.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_ok "Wrote $ELEPHANT_CFG_DIR/desktopapplications.toml (runprefix)"
+log_success "Wrote $ELEPHANT_CFG_DIR/desktopapplications.toml (runprefix)"
 
 cat > "$ELEPHANT_CFG_DIR/runner.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_ok "Wrote $ELEPHANT_CFG_DIR/runner.toml (runprefix)"
+log_success "Wrote $ELEPHANT_CFG_DIR/runner.toml (runprefix)"
 
 # Duplicate provider configs under providers/ (some builds read from providers/*)
 cat > "$ELEPHANT_CFG_DIR/providers/desktopapplications.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_ok "Wrote $ELEPHANT_CFG_DIR/providers/desktopapplications.toml (runprefix)"
+log_success "Wrote $ELEPHANT_CFG_DIR/providers/desktopapplications.toml (runprefix)"
 
 cat > "$ELEPHANT_CFG_DIR/providers/runner.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_ok "Wrote $ELEPHANT_CFG_DIR/providers/runner.toml (runprefix)"
+log_success "Wrote $ELEPHANT_CFG_DIR/providers/runner.toml (runprefix)"
 
 # --- Reload and enable user service ---
 systemctl --user daemon-reload

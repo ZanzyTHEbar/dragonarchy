@@ -3,13 +3,12 @@
 
 set -e
 
-# --- Header and Logging ---
-# Colors for output
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-log_info() { echo -e "\n${BLUE}[INFO]${NC} $1"; }
+# Get script directory and source logging utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # Runtime-resolved path to logging library
+source "${SCRIPT_DIR}/../lib/logging.sh"
 
-# --- Migration Setup ---
+# Colors for output
 REPO_ROOT=$(git rev-parse --show-toplevel)
 MIGRATIONS_DIR="$REPO_ROOT/migrations"
 STATE_DIR="$HOME/.local/state/dotfiles/migrations"

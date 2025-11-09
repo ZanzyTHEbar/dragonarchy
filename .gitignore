@@ -9,4 +9,5 @@ packages/ssh/.ssh/spacedragon
 packages/ssh/.ssh/zac
 packages/ssh/.ssh/config
 packages/applications/.local/share/icons/hicolor
-colors-theme.conf/packages/cursors/bibata
+packages/hyprland/.config/hypr/colors-theme.conf
+
