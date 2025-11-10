@@ -51,7 +51,7 @@ pipx_packages=("poetry" "black" "flake8" "mypy")
 hyprland_arch_base=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "nemo-fileroller" "nemo-preview" "nemo-seahorse" "nemo-share" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "imagemagick" "imv" "inetutils" "iwd" "kvantum" "lazygit" "less" "libqalculate" "libsecret" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt6-svg" "qt6-declarative" "qt5-quickcontrols2" "qt5-graphicaleffects" "qt6-5compat" "qt6-wayland" "qt5-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "system-config-printer" "tree-sitter-cli" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
 # Core Hyprland packages that may conflict with -git versions
 hyprland_arch_core=("hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot")
-hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse")
+hyprland_aur=("gnome-calculator" "gnome-keyring" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse")
 # Elephant packages - base must be installed first to satisfy plugin dependencies
 hyprland_aur_elephant=("elephant-bin" "elephant-desktopapplications-bin" "elephant-files-bin" "elephant-runner-bin" "elephant-clipboard-bin" "elephant-providerlist-bin")
 
@@ -492,7 +492,6 @@ install_for_arch() {
             log_warning ""
             log_warning "Skipping packages that would pull in stable dependencies:"
             log_warning "  • xdg-desktop-portal-hyprland (depends on hyprland)"
-            log_warning "  • hyprland-qtutils (depends on hyprutils)"
             log_warning ""
             log_warning "If you want to switch to stable versions, run:"
             log_warning "  paru -Rns hyprland-git hypridle-git hyprlock-git hyprutils-git hyprlang-git hyprcursor-git"
@@ -546,27 +545,8 @@ install_for_arch() {
             log_success "Rust toolchain configured"
         fi
         
-        # Filter AUR packages if -git versions are installed
-        local filtered_hyprland_aur=("${hyprland_aur[@]}")
-        if [[ "$has_git_packages" == "true" ]]; then
-            local aur_skip_on_git=("hyprland-qtutils")
-            filtered_hyprland_aur=()
-            for pkg in "${hyprland_aur[@]}"; do
-                local should_skip=false
-                for skip_pkg in "${aur_skip_on_git[@]}"; do
-                    if [[ "$pkg" == "$skip_pkg" ]]; then
-                        log_info "Skipping AUR package $pkg (conflicts with -git packages)"
-                        should_skip=true
-                        break
-                    fi
-                done
-                if [[ "$should_skip" == "false" ]]; then
-                    filtered_hyprland_aur+=("$pkg")
-                fi
-            done
-        fi
-        
-        install_paru "${filtered_hyprland_aur[@]}"
+        # Install AUR packages (no filtering needed as hyprland-qtutils is archived)
+        install_paru "${hyprland_aur[@]}"
         
         # Install elephant packages separately - base first, then plugins
         log_info "Installing Elephant and plugins..."
