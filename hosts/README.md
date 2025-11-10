@@ -9,7 +9,7 @@ hosts/
 ├── dragon/          # Desktop workstation
 ├── firedragon/      # AMD laptop
 ├── goldendragon/    # Blinq mini pc
-├── spacedragon/     # Lenovo thinkpad x1 carbon
+├── spacedragon/     # Asus Zenbook G14
 └── microdragon/     # Raspberry pi
 ```
 

@@ -2,22 +2,7 @@
 
 ## Overview
 
-The dotfiles installation system now **automatically detects** which packages to install, eliminating the need to manually maintain a hardcoded list in `install.sh`.
-
-## Problem Solved
-
-**Before:** You had to remember to add new packages to the array in `install.sh`:
-
-```bash
-local packages=(
-    "zsh"
-    "git"
-    "kitty"
-    # ... 20+ more packages
-)  # Easy to forget when adding/removing packages!
-```
-
-**After:** The script automatically detects enabled packages using marker files.
+The dotfiles installation system _automatically detects_ which packages to install, eliminating the need to manually maintain a hardcoded list in `install.sh`.
 
 ## Detection Method
 
@@ -117,7 +102,7 @@ bash scripts/utilities/verify-package-detection.sh
 
 ```bash
 ╔══════════════════════════════════════════════════════════════╗
-║          Package Detection Verification                     ║
+║          Package Detection Verification                      ║
 ╚══════════════════════════════════════════════════════════════╝
 
 Scanning packages directory: /home/user/dotfiles/packages
@@ -145,17 +130,17 @@ Packages are installed using [GNU Stow](https://www.gnu.org/software/stow/), whi
 
 ### Example Package Structure
 
-```
+```bash
 packages/
   myapp/
-    .package                    # Marker file enables installation
+    .package          # Marker file enables installation
     .config/
       myapp/
-        config.yaml             # → ~/.config/myapp/config.yaml
+        config.yaml   # → ~/.config/myapp/config.yaml
     .local/
       share/
         myapp/
-          data.db               # → ~/.local/share/myapp/data.db
+          data.db     # → ~/.local/share/myapp/data.db
 ```
 
 After installation, files are symlinked:
@@ -374,7 +359,7 @@ done
 
 For stow to work correctly, your package structure must mirror the final location:
 
-```
+```bash
 packages/
   mypackage/
     .package              # Marker (not stowed)
@@ -460,23 +445,8 @@ git add packages/*/.package
 git commit -m "Enable package auto-detection for all packages"
 ```
 
-## Migration Checklist
-
-- [x] Create package auto-discovery function in `install.sh`
-- [x] Add `.package` marker files for all existing packages
-- [x] Create verification script
-- [x] Document the system
-- [x] Test detection logic
-
 ## See Also
 
 - [Hyprland Auto-Detection](./HYPRLAND_AUTO_DETECTION.md) - Similar pattern for host detection
 - [GNU Stow Manual](https://www.gnu.org/software/stow/manual/stow.html) - How stow works
 - [Verification Script](../scripts/utilities/verify-package-detection.sh) - Test package detection
-
-## References
-
-- Inspired by the Hyprland host detection system
-- Follows the principle: "Configuration should be declarative, not imperative"
-- Implements "Convention over Configuration" for package management
-- Uses marker files as explicit, version-controlled declarations of intent
