@@ -3,9 +3,9 @@
 # Get the directory of the script, resolving symlinks
 SOURCE=${BASH_SOURCE[0]}
 while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
-  DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
-  SOURCE=$(readlink "$SOURCE")
-  [[ $SOURCE != /* ]] && SOURCE=$DIR/$SOURCE # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+    DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+    SOURCE=$(readlink "$SOURCE")
+    [[ $SOURCE != /* ]] && SOURCE=$DIR/$SOURCE # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 done
 SCRIPT_DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
 
@@ -13,163 +13,272 @@ PATH="$PATH:$SCRIPT_DIR/theme-manager"
 
 # Handle direct command arguments
 case "${1:-}" in
-  theme)
-    shift
-    theme_menu
-    exit 0
+    theme)
+        shift
+        theme_menu
+        exit 0
     ;;
-  background)
-    shift
-    theme-bg-menu
-    exit 0
+    background)
+        shift
+        theme-bg-menu
+        exit 0
     ;;
-  cursor|cursors)
-    shift
-    "$SCRIPT_DIR/theme-manager/cursors/cursor-menu"
-    exit 0
+    cursor|cursors)
+        shift
+        "$SCRIPT_DIR/theme-manager/cursors/cursor-menu"
+        exit 0
     ;;
-  keybindings)
-    shift
-    keybindings-menu
-    exit 0
+    keybindings)
+        shift
+        keybindings-menu
+        exit 0
     ;;
-  power)
-    shift
-    power-menu
-    exit 0
+    power)
+        shift
+        power-menu
+        exit 0
     ;;
-  font|fonts)
-    shift
-    font-menu
-    exit 0
+    font|fonts)
+        shift
+        font-menu
+        exit 0
+    ;;
+    sddm)
+        shift
+        sddm_theme_menu
+        exit 0
     ;;
 esac
 
 main_menu() {
-  local options=("Theme" "Cursors" "Utilities" "Update" "Setup" "Power Menu" "Keybindings" "Font Menu" "Exit")
-  choice=$(printf "%s\n" "${options[@]}" | gum choose --header="") || exit 0
-  case "$choice" in
-  Theme) theme_menu ;;
-  Cursors)
-    "$SCRIPT_DIR/theme-manager/cursors/cursor-menu"
-    main_menu
-    ;;
-  Utilities) utilities_menu ;;
-  Update)
-    "$SCRIPT_DIR/install/update.sh"
-    ack_command
-    main_menu
-    ;;
-  Setup)
-    "$SCRIPT_DIR/../setup.sh"
-    ack_command
-    main_menu
-    ;;
-  "Power Menu")
-    power-menu
-    main_menu
-    ;;
-  "Keybindings")
-    keybindings-menu
-    main_menu
-    ;;
-  "Font Menu")
-    font-menu
-    main_menu
-    ;;
-  Exit) clear && exit 0 ;;
-  esac
+    local options=("Theme" "Cursors" "Utilities" "Update" "Setup" "Power Menu" "Keybindings" "Font Menu" "Exit")
+    choice=$(printf "%s\n" "${options[@]}" | gum choose --header="") || exit 0
+    case "$choice" in
+        Theme) theme_menu ;;
+        Cursors)
+            "$SCRIPT_DIR/theme-manager/cursors/cursor-menu"
+            main_menu
+        ;;
+        Utilities) utilities_menu ;;
+        Update)
+            "$SCRIPT_DIR/install/update.sh"
+            ack_command
+            main_menu
+        ;;
+        Setup)
+            "$SCRIPT_DIR/../setup.sh"
+            ack_command
+            main_menu
+        ;;
+        "Power Menu")
+            power-menu
+            main_menu
+        ;;
+        "Keybindings")
+            keybindings-menu
+            main_menu
+        ;;
+        "Font Menu")
+            font-menu
+            main_menu
+        ;;
+        Exit) clear && exit 0 ;;
+    esac
 }
 
 utilities_menu() {
-  local options=("NFS" "Web Apps" "Docker DBs" "Secrets" "Add Migration" "Netbird" "Back")
-  choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Utilities") || main_menu
-  case "$choice" in
-  NFS)
-    "$SCRIPT_DIR/utilities/nfs.sh"
-    ack_command
-    utilities_menu
-    ;;
-  "Web Apps")
-    "$SCRIPT_DIR/utilities/web-apps.sh"
-    ack_command
-    utilities_menu
-    ;;
-  "Docker DBs")
-    "$SCRIPT_DIR/utilities/docker-dbs.sh"
-    ack_command
-    utilities_menu
-    ;;
-  Secrets)
-    "$SCRIPT_DIR/utilities/secrets.sh"
-    ack_command
-    utilities_menu
-    ;;
-  "Add Migration")
-    "$SCRIPT_DIR/utilities/add-migration.sh"
-    ack_command
-    utilities_menu
-    ;;
-  Netbird)
-    "$SCRIPT_DIR/utilities/netbird-install.sh"
-    ack_command
-    utilities_menu
-    ;;
-  Back) main_menu ;;
-  esac
+    local options=("NFS" "Web Apps" "Docker DBs" "Secrets" "Add Migration" "Netbird" "Back")
+    choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Utilities") || main_menu
+    case "$choice" in
+        NFS)
+            "$SCRIPT_DIR/utilities/nfs.sh"
+            ack_command
+            utilities_menu
+        ;;
+        "Web Apps")
+            "$SCRIPT_DIR/utilities/web-apps.sh"
+            ack_command
+            utilities_menu
+        ;;
+        "Docker DBs")
+            "$SCRIPT_DIR/utilities/docker-dbs.sh"
+            ack_command
+            utilities_menu
+        ;;
+        Secrets)
+            "$SCRIPT_DIR/utilities/secrets.sh"
+            ack_command
+            utilities_menu
+        ;;
+        "Add Migration")
+            "$SCRIPT_DIR/utilities/add-migration.sh"
+            ack_command
+            utilities_menu
+        ;;
+        Netbird)
+            "$SCRIPT_DIR/utilities/netbird-install.sh"
+            ack_command
+            utilities_menu
+        ;;
+        Back) main_menu ;;
+    esac
 }
 
 theme_menu() {
-  local options=("Pick" "Install" "Update" "Remove" "Change Background" "Back")
-  choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Theme") || main_menu
-  case "$choice" in
-  Pick)
-  theme-menu
-    ack_command
-    main_menu
-    ;;
-  Install)
-  install_theme_prompt
-    ack_command
-    theme_menu
-    ;;
-  Update)
-  theme-update
-    ack_command
-    theme_menu
-    ;;
-  Remove)
-  remove_theme_prompt
-    ack_command
-    theme_menu
-    ;;
-  "Change Background")
-    theme-bg-menu
-    ack_command
-    theme_menu
-    ;;
-  Back) main_menu ;;
-  esac
+    local options=("Pick" "Install" "Update" "Remove" "Change Background" "SDDM Themes" "Back")
+    choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Theme") || main_menu
+    case "$choice" in
+        Pick)
+            theme-menu
+            ack_command
+            main_menu
+        ;;
+        Install)
+            install_theme_prompt
+            ack_command
+            theme_menu
+        ;;
+        Update)
+            theme-update
+            ack_command
+            theme_menu
+        ;;
+        Remove)
+            remove_theme_prompt
+            ack_command
+            theme_menu
+        ;;
+        "Change Background")
+            theme-bg-menu
+            ack_command
+            theme_menu
+        ;;
+        "SDDM Themes")
+            sddm_theme_menu
+        ;;
+        Back) main_menu ;;
+    esac
 }
 
 install_theme_prompt() {
-  local url
-  url=$(gum input --placeholder="Git repo URL for theme" --header="")
-  if [[ -n "$url" ]]; then
-    theme-install "$url"
-  fi
+    local url
+    url=$(gum input --placeholder="Git repo URL for theme" --header="")
+    if [[ -n "$url" ]]; then
+        theme-install "$url"
+    fi
 }
 
 remove_theme_prompt() {
-  local theme
-  theme=$(gum input --placeholder="Theme name" --header="")
-  if [[ -n "$theme" ]]; then
-    theme-remove "$theme"
-  fi
+    local theme
+    theme=$(gum input --placeholder="Theme name" --header="")
+    if [[ -n "$theme" ]]; then
+        theme-remove "$theme"
+    fi
 }
 
 ack_command() {
-  gum spin --spinner "globe" --title "Done!" -- sleep 1
+    gum spin --spinner "globe" --title "Done!" -- sleep 1
+}
+
+sddm_theme_menu() {
+    # Check if SDDM is installed
+    if ! command -v sddm >/dev/null 2>&1; then
+        gum style --foreground 3 --border normal --padding "0 1" --margin "1 0" \
+        "SDDM is not installed on this system." \
+        "Install SDDM to manage themes."
+        gum confirm "Return to menu?" && theme_menu || exit 0
+        return
+    fi
+    
+    local options=("List Themes" "Select Theme" "Refresh/Update Themes" "Verify Setup" "Back")
+    choice=$(printf "%s\n" "${options[@]}" | gum choose --header="SDDM Themes") || theme_menu
+    
+    case "$choice" in
+        "List Themes")
+            list_sddm_themes
+            sddm_theme_menu
+        ;;
+        "Select Theme")
+            if [[ -x "$SCRIPT_DIR/theme-manager/sddm-menu" ]]; then
+                "$SCRIPT_DIR/theme-manager/sddm-menu"
+                ack_command
+            else
+                gum style --foreground 1 "sddm-menu script not found"
+                sleep 2
+            fi
+            sddm_theme_menu
+        ;;
+        "Refresh/Update Themes")
+            if [[ -x "$SCRIPT_DIR/theme-manager/refresh-sddm" ]]; then
+                gum confirm "Refresh SDDM themes from dotfiles? (requires sudo)" && {
+                    "$SCRIPT_DIR/theme-manager/refresh-sddm"
+                    ack_command
+                }
+            else
+                gum style --foreground 1 "refresh-sddm script not found"
+                sleep 2
+            fi
+            sddm_theme_menu
+        ;;
+        "Verify Setup")
+            if [[ -x "$SCRIPT_DIR/utilities/verify-sddm-setup.sh" ]]; then
+                "$SCRIPT_DIR/utilities/verify-sddm-setup.sh"
+                echo ""
+                gum confirm "Return to menu?"
+            else
+                gum style --foreground 1 "verify-sddm-setup.sh script not found"
+                sleep 2
+            fi
+            sddm_theme_menu
+        ;;
+        Back) theme_menu ;;
+    esac
+}
+
+list_sddm_themes() {
+    local sys_themes_dir="/usr/share/sddm/themes"
+    local pkg_themes_dir="$SCRIPT_DIR/../packages/sddm/usr/share/sddm/themes"
+    local current_theme=""
+    
+    # Get current theme from config
+    if [[ -f /etc/sddm.conf.d/10-theme.conf ]]; then
+        current_theme=$(grep -E '^\s*Current\s*=' /etc/sddm.conf.d/10-theme.conf | sed -E 's/^\s*Current\s*=\s*//' | tr -d '[:space:]')
+    fi
+    
+    echo ""
+    gum style --bold --foreground 6 "SDDM Themes"
+    echo ""
+    
+    # Show available themes from dotfiles
+    if [[ -d "$pkg_themes_dir" ]]; then
+        gum style --foreground 2 --bold "Available in Dotfiles:"
+        while IFS= read -r theme; do
+            local theme_name=$(basename "$theme")
+            if [[ -d "$sys_themes_dir/$theme_name" ]]; then
+                if [[ "$theme_name" == "$current_theme" ]]; then
+                    echo "  ✓ $theme_name (active, installed)"
+                else
+                    echo "  ✓ $theme_name (installed)"
+                fi
+            else
+                echo "  ○ $theme_name (not installed)"
+            fi
+        done < <(find "$pkg_themes_dir" -mindepth 1 -maxdepth 1 -type d | sort)
+        echo ""
+    fi
+    
+    # Show currently active theme
+    if [[ -n "$current_theme" ]]; then
+        gum style --foreground 3 --bold "Current Active Theme:"
+        echo "  → $current_theme"
+    else
+        gum style --foreground 1 "No theme configured (using SDDM default)"
+    fi
+    
+    echo ""
+    gum style --foreground 8 "Tip: Use 'Select Theme' to change, 'Refresh/Update' to install from dotfiles"
+    echo ""
+    gum confirm "Return to menu?" || exit 0
 }
 
 main_menu
