@@ -1,37 +1,451 @@
 #!/bin/bash
-# A script to display Hyprland keybindings in an interactive menu.
+# Display Hyprland and Kitty keybindings in an interactive picker.
+# Pulls live data via hyprctl when available and prettifies key names.
 
-# --- Configuration ---
-HYPRLAND_CONFIG_DIR="$HOME/.config/hypr/config"
-# Add any other files that contain keybindings to this array
+set -euo pipefail
+
+HYPRLAND_CONFIG_DIR="${HYPRLAND_CONFIG_DIR:-$HOME/.config/hypr/config}"
 ADDITIONAL_BINDING_FILES=()
 
-# --- Main Logic ---
-# Combine the main config and any additional files into a single list
-ALL_BINDING_FILES=("$HYPRLAND_CONFIG_DIR"/*.conf "${ADDITIONAL_BINDING_FILES[@]}")
+KITTY_CONFIG_DIR="${KITTY_CONFIG_DIR:-$HOME/.config/kitty}"
+KITTY_FILES=(
+  "$KITTY_CONFIG_DIR/kitty.conf"
+  "$KITTY_CONFIG_DIR/mappings.conf"
+)
 
-# Process the configuration files to extract and format keybindings
-grep -h '^[[:space:]]*bind' "${ALL_BINDING_FILES[@]}" |
-  sed 's/#.*//' |
-  sed '/^[[:space:]]*$/d' |
-  sort -u |
+MENU_PLACEHOLDER="${MENU_PLACEHOLDER:-Search keybindings...}"
+
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+log_debug() {
+  if [[ "${DEBUG:-0}" == "1" ]]; then
+    echo "[DEBUG] $*" >&2
+  fi
+  return 0
+}
+
+declare -A KEYCODE_SYM_MAP=()
+KEYCODE_CACHE_READY=0
+
+build_keymap_cache() {
+  [[ $KEYCODE_CACHE_READY -eq 1 ]] && return 0
+  if ! command_exists xkbcli; then
+    log_debug "xkbcli unavailable; falling back to raw keycodes"
+    return 0
+  fi
+
+  local keymap
+  if ! keymap="$(xkbcli compile-keymap 2>/dev/null)"; then
+    log_debug "failed to compile keymap"
+    return 0
+  fi
+
+  while IFS=, read -r code sym; do
+    [[ -z "$code" || -z "$sym" ]] && continue
+    KEYCODE_SYM_MAP["$code"]="$sym"
+  done < <(
+    awk '
+      BEGIN { section = "" }
+      /xkb_keycodes/ { section = "codes"; next }
+      /xkb_symbols/  { section = "syms";  next }
+      section == "codes" {
+        if (match($0, /<([A-Za-z0-9_]+)>\s*=\s*([0-9]+)\s*;/, m)) {
+          code_by_name[m[1]] = m[2]
+        }
+      }
+      section == "syms" {
+        if (match($0, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) {
+          sym_by_name[m[1]] = m[2]
+        }
+      }
+      END {
+        for (name in code_by_name) {
+          c = code_by_name[name]
+          s = sym_by_name[name]
+          if (c != "" && s != "" && s != "NoSymbol") {
+            print c "," s
+          }
+        }
+      }
+    ' <<<"$keymap"
+  )
+
+  KEYCODE_CACHE_READY=1
+  log_debug "cached ${#KEYCODE_SYM_MAP[@]} keycode → symbol mappings"
+}
+
+parse_keycodes() {
+  local line code symbol
+  while IFS= read -r line; do
+    while [[ "$line" =~ code:([0-9]+) ]]; do
+      code="${BASH_REMATCH[1]}"
+      symbol="${KEYCODE_SYM_MAP[$code]:-}"
+      if [[ -n "$symbol" ]]; then
+        line="${line/code:${code}/$symbol}"
+      else
+        line="${line/code:${code}/KEYCODE ${code}}"
+        break
+      fi
+    done
+    while [[ "$line" =~ mouse:([0-9]+) ]]; do
+      code="${BASH_REMATCH[1]}"
+      case "$code" in
+        272) symbol="LEFT MOUSE BUTTON" ;;
+        273) symbol="RIGHT MOUSE BUTTON" ;;
+        274) symbol="MIDDLE MOUSE BUTTON" ;;
+        *)   symbol="mouse:${code}" ;;
+      esac
+      line="${line/mouse:${code}/$symbol}"
+    done
+    printf '%s\n' "$line"
+  done
+}
+
+dynamic_bindings() {
+  if ! command_exists hyprctl || ! command_exists jq; then
+    return 1
+  fi
+
+  local binds
+  if ! binds="$(hyprctl -j binds 2>/dev/null)"; then
+    log_debug "hyprctl -j binds failed"
+    return 1
+  fi
+
+  [[ -z "$binds" || "$binds" == "null" ]] && return 1
+
+  jq -r '
+    .[] |
+    {modmask: (.modmask // 0),
+     key: (.key // ""),
+     keycode: (.keycode // 0),
+     description: (.description // ""),
+     dispatcher: (.dispatcher // ""),
+     arg: (.arg // "")} |
+    "\(.modmask),\(.key)@\(.keycode),\(.description),\(.dispatcher),\(.arg)"
+  ' <<<"$binds" |
+    sed -r \
+      -e 's/@0\b//g' \
+      -e 's/,@/,code:/g'
+}
+
+config_bindings() {
+  local files=()
+  if [[ -d "$HYPRLAND_CONFIG_DIR" ]]; then
+    while IFS= read -r -d '' file; do
+      files+=("$file")
+    done < <(find "$HYPRLAND_CONFIG_DIR" -maxdepth 1 -type f -name '*.conf' -print0 2>/dev/null)
+  fi
+  if (( ${#ADDITIONAL_BINDING_FILES[@]} )); then
+    files+=("${ADDITIONAL_BINDING_FILES[@]}")
+  fi
+  (( ${#files[@]} == 0 )) && return 1
+
+  grep -h '^[[:space:]]*bind' "${files[@]}" 2>/dev/null |
+    sed -E -e 's/#.*//' \
+           -e '/^[[:space:]]*$/d' \
+           -e 's/^[[:space:]]*bind[^=]*=[[:space:]]*//' |
+    awk -F',' '
+      function trim(s) {
+        gsub(/^[ \t]+|[ \t]+$/, "", s)
+        return s
+      }
+      NF >= 2 {
+        mod = trim($1)
+        key = trim($2)
+        dispatcher = (NF >= 3 ? trim($3) : "")
+        arg = ""
+        if (NF > 3) {
+          for (i = 4; i <= NF; ++i) {
+            arg = arg $i (i < NF ? "," : "")
+          }
+          arg = trim(arg)
+        }
+        printf "%s,%s,,%s,%s\n", mod, key, dispatcher, arg
+      }
+    '
+}
+
+kitty_bindings() {
+  local files=()
+  for f in "${KITTY_FILES[@]}"; do
+    [[ -f "$f" ]] && files+=("$f")
+  done
+  (( ${#files[@]} == 0 )) && return 1
+
+  awk '
+    BEGIN {
+      FS="[[:space:]]+"
+      names["ctrl"]="Ctrl";     names["control"]="Ctrl";
+      names["alt"]="Alt";       names["option"]="Option";
+      names["shift"]="Shift";   names["super"]="Super";
+      names["cmd"]="Command";   names["command"]="Command";
+      names["comma"]="Comma";   names["period"]="Period";
+      names["minus"]="Minus";   names["plus"]="Plus";
+      names["enter"]="Enter";   names["return"]="Enter";
+      names["space"]="Space";   names["tab"]="Tab";
+      names["up"]="Up";         names["down"]="Down";
+      names["left"]="Left";     names["right"]="Right";
+      names["pageup"]="PageUp"; names["pagedown"]="PageDown";
+      names["home"]="Home";     names["end"]="End";
+      names["insert"]="Insert"; names["delete"]="Delete";
+      names["backspace"]="Backspace"; names["escape"]="Esc";
+      names["esc"]="Esc"; names["backslash"]="Backslash";
+      names["slash"]="Slash"; names["semicolon"]="Semicolon";
+      names["apostrophe"]="Apostrophe"; names["bracketleft"]="[";
+      names["bracketright"]="]"; names["grave"]="Grave";
+    }
+    function prettify(part,   lower) {
+      lower = tolower(part)
+      if (lower in names) {
+        return names[lower]
+      }
+      if (length(lower) == 1) {
+        return toupper(lower)
+      }
+      return toupper(substr(lower, 1, 1)) substr(lower, 2)
+    }
+    function normalize_combo(raw,   combo, parts, n, i, token, result) {
+      combo = raw
+      for (name in mods) {
+        gsub(name, mods[name], combo)
+      }
+      gsub(/[[:space:]]+/, "", combo)
+      n = split(combo, parts, /\+/)
+      result = ""
+      for (i = 1; i <= n; ++i) {
+        token = parts[i]
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", token)
+        if (token == "")
+          continue
+        if (result != "")
+          result = result " + "
+        result = result prettify(token)
+      }
+      return result
+    }
+    function join_mods(combo_fmt,   tokens, n, i, out, token) {
+      n = split(combo_fmt, tokens, /[[:space:]]+\+[[:space:]]+/)
+      out = ""
+      for (i = 1; i < n; ++i) {
+        token = toupper(tokens[i])
+        gsub(/[[:space:]]+/, "", token)
+        if (token == "")
+          continue
+        if (token == "CONTROL") token = "CTRL"
+        if (token == "COMMAND") token = "SUPER"
+        if (token == "OPTION")  token = "ALT"
+        if (out != "") out = out " "
+        out = out token
+      }
+      return out
+    }
+    function key_name(combo_fmt,   tokens, n, key) {
+      n = split(combo_fmt, tokens, /[[:space:]]+\+[[:space:]]+/)
+      key = tokens[n]
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+      return key
+    }
+    function normalize_action(line,   cleaned) {
+      cleaned = line
+      sub(/^[[:space:]]*map[[:space:]]+[^\s]+[[:space:]]+/, "", cleaned)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", cleaned)
+      return cleaned
+    }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*kitty_mod[[:space:]]+/ {
+      name = $1
+      value = $2
+      gsub(/[[:space:]]+/, "", value)
+      mods[name] = value
+      next
+    }
+    /^[[:space:]]*map[[:space:]]+/ {
+      combo = $2
+      action = normalize_action($0)
+      combo_fmt = normalize_combo(combo)
+      if (combo_fmt != "" && action != "") {
+        mods_out = join_mods(combo_fmt)
+        key_out = key_name(combo_fmt)
+        gsub(/,/, ";", action)
+        printf "%s,%s,[Kitty] %s,,\n", mods_out, key_out, action
+      }
+    }
+  ' "${files[@]}"
+}
+
+static_bindings() {
+  # Populate with any hand-written entries that are not detectable elsewhere.
+  return 0
+}
+
+parse_bindings() {
   awk -F, '
-  {
-      sub(/#.*/, "");
-      sub(/^[[:space:]]*bind[^=]*=(\+[[:space:]])?(exec, )?[[:space:]]*/, "", $1);
-      key_combo = $1 " + " $2;
-      gsub(/^[ \t]*\+?[ \t]*/, "", key_combo);
-      gsub(/[ \t]+$/, "", key_combo);
-      action = "";
-      for (i = 3; i <= NF; i++) {
-          action = action $i (i < NF ? "," : "");
+    function trim(s) {
+      gsub(/^[ \t]+|[ \t]+$/, "", s)
+      return s
+    }
+    function collapse_spaces(s) {
+      gsub(/[ \t]+/, " ", s)
+      return trim(s)
+    }
+    function modmask_to_text(mask, mods, i, names) {
+      if (mask == "") {
+        return ""
       }
-      sub(/,$/, "", action);
-      gsub(/(^|,)[[:space:]]*exec[[:space:]]*,?/, "", action);
-      gsub(/^[ \t]+|[ \t]+$/, "", action);
-      gsub(/[ \t]+/, " ", key_combo);
-      if (action != "") {
-          printf "%-35s → %s\n", key_combo, action;
+      if (mask ~ /[A-Za-z$]/) {
+        return collapse_spaces(mask)
       }
-  }' |
-  gum filter --placeholder="Search keybindings..."
+      mask += 0
+      split("SHIFT CAPS CTRL ALT MOD3 MOD4 SUPER MOD5", names, " ")
+      mods = ""
+      i = 1
+      while (mask > 0) {
+        if (mask % 2 == 1 && names[i] != "") {
+          mods = mods names[i] " "
+        }
+        mask = int(mask / 2)
+        ++i
+      }
+      gsub(/[ \t]+$/, "", mods)
+      return mods
+    }
+    {
+      raw_mod = trim($1)
+      key_field = trim($2)
+      desc = trim($3)
+      dispatcher = trim($4)
+      arg = ""
+      if (NF > 4) {
+        for (i = 5; i <= NF; ++i) {
+          arg = arg $i (i < NF ? "," : "")
+        }
+        arg = trim(arg)
+      }
+
+      action = desc
+      if (action == "") {
+        if (dispatcher == "exec") {
+          action = arg
+        } else if (dispatcher != "") {
+          action = dispatcher
+          if (arg != "") {
+            action = action " " arg
+          }
+        } else {
+          action = arg
+        }
+      }
+
+      gsub(/(^|,)[[:space:]]*exec[[:space:]]*,?/, "", action)
+      action = collapse_spaces(action)
+
+      mod_text = modmask_to_text(raw_mod)
+      gsub(/_/, " ", key_field)
+      key_combo = key_field
+      if (mod_text != "") {
+        key_combo = mod_text (key_field != "" ? " + " key_field : "")
+      }
+
+      key_combo = collapse_spaces(key_combo)
+      gsub(/\+\s*\+/, "+", key_combo)
+      gsub(/^[+[:space:]]+|[+[:space:]]+$/, "", key_combo)
+
+      if (key_combo != "" && action != "") {
+        printf "%-35s → %s\n", key_combo, action
+      }
+    }
+  '
+}
+
+prioritize_entries() {
+  awk '
+    function lower(s) { return tolower(s) }
+    {
+      line = $0
+      l = lower(line)
+      prio = 500
+      if (index(l, "terminal"))           prio = 0
+      else if (index(l, "browser"))       prio = 5
+      else if (index(l, "file manager"))  prio = 6
+      else if (index(l, "system menu") || index(l, "theme menu")) prio = 7
+      else if (index(l, "fullscreen"))    prio = 10
+      else if (index(l, "screenshot"))    prio = 12
+      else if (index(l, "screenrecord"))  prio = 13
+      else if (index(l, "workspace"))     prio = 20
+      else if (index(l, "swap window"))   prio = 21
+      else if (index(l, "move window"))   prio = 22
+      else if (index(l, "resize"))        prio = 23
+      else if (index(l, "clipboard") || index(l, "copy")) prio = 25
+      else if (index(l, "scratchpad"))    prio = 30
+      else if (index(l, "xf86"))          prio = 90
+      printf "%03d\t%s\n", prio, line
+    }
+  ' |
+  sort -k1,1n -k2,2 |
+  cut -f2-
+}
+
+run_menu() {
+  local data="$1"
+
+  if command_exists walker; then
+    local height menu_height
+    if command_exists hyprctl && command_exists jq; then
+      height=$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true) | .height' 2>/dev/null || true)
+      if [[ "$height" =~ ^[0-9]+$ ]]; then
+        menu_height=$(( height * 40 / 100 ))
+      fi
+    fi
+    menu_height=${menu_height:-600}
+    printf '%s\n' "$data" | walker --dmenu -p "Keybindings" --width 820 --height "$menu_height"
+    return $?
+  fi
+
+  if command_exists gum; then
+    if printf '%s\n' "$data" | gum filter --placeholder "$MENU_PLACEHOLDER"; then
+      return 0
+    fi
+    log_debug "gum failed; falling back to alternate picker"
+  fi
+
+  if command_exists fzf; then
+    if printf '%s\n' "$data" | fzf --prompt "Keybindings> " --layout=reverse; then
+      return 0
+    fi
+    log_debug "fzf failed; outputting plain text"
+  fi
+
+  printf '%s\n' "$data"
+  return 0
+}
+
+main() {
+  build_keymap_cache
+
+  local formatted
+  formatted=$(
+    {
+      dynamic_bindings || true
+      static_bindings || true
+      config_bindings || true
+      kitty_bindings || true
+    } |
+      sed '/^[[:space:]]*$/d' |
+      awk '!seen[$0]++' |
+      parse_keycodes |
+      parse_bindings |
+      prioritize_entries
+  )
+
+  if [[ -z "$formatted" ]]; then
+    echo "No keybindings found." >&2
+    exit 1
+  fi
+
+  run_menu "$formatted"
+}
+
+main "$@"
