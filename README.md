@@ -1,6 +1,6 @@
 # Traditional Dotfiles Management with GNU Stow
 
-This is a very opinionated Arch Linux configuration, using hyprland, that is built on-top of CachyOS and inspired from Omarchy.
+This is a very opinionated Arch Linux configuration, using hyprland, that is built on-top of CachyOS (ideally, though there are no hard dependencies, use what you want) and inspired from _Omarchy_.
 
 - **GNU Stow** for dotfiles/configuration management
 - **Zsh scripts** for automation and setup

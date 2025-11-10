@@ -1,120 +1,130 @@
 # Dotfiles Packages
 
-This directory contains modular configuration packages that are installed using [GNU Stow](https://www.gnu.org/software/stow/).
+This directory contains modular package configurations managed by GNU Stow.
 
-## Package Auto-Detection
+## Stow Configuration
 
-Packages are **automatically detected** using marker files. No need to edit `install.sh` when adding or removing packages!
+### `.stow-global-ignore`
 
-### Quick Start
+The `.stow-global-ignore` file at the root of this `packages/` directory applies to **all packages**. This prevents unwanted files from being symlinked to the home directory.
 
-**Enable a package:**
-```bash
-touch packages/PACKAGE_NAME/.package
-```
+**Ignored patterns:**
+- `.package` - Marker files used for package tracking
+- `README.md`, `README.txt`, `README` - Documentation files
+- `.git`, `.gitignore`, `.gitmodules` - Version control files
+- `.vscode`, `.idea` - Editor/IDE directories
+- Backup files (`*.bak`, `*.backup`, `*.swp`, `*.swo`, `*~`, etc.)
 
-**Disable a package:**
-```bash
-rm packages/PACKAGE_NAME/.package
-```
+### Usage
 
-**Verify which packages are enabled:**
-```bash
-bash scripts/utilities/verify-package-detection.sh
-```
-
-## Creating a New Package
+From the `packages/` directory, stow any package:
 
 ```bash
-# 1. Create package directory
-mkdir -p packages/myapp/.config/myapp
-
-# 2. Add your configuration
-echo "config content" > packages/myapp/.config/myapp/config.conf
-
-# 3. Enable the package
-touch packages/myapp/.package
-
-# 4. Install
-./install.sh --dotfiles-only
+cd ~/dotfiles/packages
+stow <package-name>
 ```
 
-The structure inside `packages/myapp/` should mirror your home directory:
-- `packages/myapp/.config/myapp/config.conf` → `~/.config/myapp/config.conf`
-- `packages/myapp/.local/bin/script` → `~/.local/bin/script`
+The `.stow-global-ignore` file is automatically applied to all stow operations.
 
-## Available Packages
+### Adding New Packages
 
-| Package | Description |
-|---------|-------------|
-| `alacritty` | Alacritty terminal emulator configuration |
-| `applications` | Desktop application entries |
-| `dragon-cli` | Dragon CLI tool configuration |
-| `fastfetch` | Fastfetch system information tool |
-| `fcitx5` | Fcitx5 input method framework |
-| `fonts` | Font configurations |
-| `gh-extensions` | GitHub CLI extensions |
-| `git` | Git configuration and aliases |
-| `gpg` | GPG configuration |
-| `gtk-3.0` | GTK 3 theming |
-| `gtk-4.0` | GTK 4 theming |
-| `hardware` | Hardware-specific configurations and scripts |
-| `hyprland` | Hyprland wayland compositor configuration |
-| `icons-in-terminal` | Terminal icon support |
-| `kitty` | Kitty terminal emulator configuration |
-| `lazygit` | Lazygit TUI configuration |
-| `nvim` | Neovim configuration |
-| `qt5ct` | Qt5 configuration tool settings |
-| `sddm` | SDDM display manager themes |
-| `ssh` | SSH configuration |
-| `themes` | System themes and styling |
-| `tmux` | Tmux terminal multiplexer configuration |
-| `typora` | Typora markdown editor themes |
-| `wlogout` | Wlogout logout menu configuration |
-| `xournalpp` | Xournal++ note-taking app settings |
-| `zed` | Zed editor configuration |
-| `zsh` | Zsh shell configuration and plugins |
+When creating a new package:
 
-## How It Works
+1. Create the package directory structure:
+   ```bash
+   mkdir -p packages/mypackage/.config/myapp
+   ```
 
-1. **Detection**: `install.sh` scans for `.package` marker files
-2. **Installation**: GNU Stow creates symlinks from packages to `$HOME`
-3. **Result**: Your configs stay in the git repo, symlinked to the right locations
+2. Add your configuration files in the appropriate paths
 
-### Example
+3. (Optional) Add a `.package` marker file:
+   ```bash
+   touch packages/mypackage/.package
+   ```
 
-```bash
-packages/git/.gitconfig  →  ~/.gitconfig
-packages/nvim/.config/nvim/  →  ~/.config/nvim/
+4. (Optional) Add a README:
+   ```bash
+   echo "# My Package" > packages/mypackage/README.md
+   ```
+
+5. Stow the package:
+   ```bash
+   cd packages
+   stow mypackage
+   ```
+
+The `.package` and `README.md` files will automatically be excluded from stowing.
+
+## Package List
+
+Each subdirectory represents a self-contained configuration package that can be independently stowed or unstowed.
+
+### Available Packages
+
+Run `ls -d */` in this directory to see all available packages.
+
+### Modifying Ignore Patterns
+
+To add or modify global ignore patterns, edit `.stow-global-ignore` in this directory. The file uses Perl regular expressions.
+
+**Examples:**
+```
+# Match exact filename
+\.package
+
+# Match files ending with pattern
+.*\.bak$
+
+# Match files starting with pattern
+^\.git
+
+# Match any README file
+^README.*
 ```
 
-## Documentation
+### Per-Package Ignore (Advanced)
 
-For comprehensive documentation on the package system, see:
-- [Package Auto-Detection Guide](../docs/PACKAGE_AUTO_DETECTION.md)
+While `.stow-global-ignore` applies globally, you can also create a `.stow-local-ignore` file inside any specific package for package-specific ignore patterns. This is rarely needed.
 
 ## Troubleshooting
 
-**Package not being installed?**
-```bash
-# Check if marker file exists
-ls -la packages/YOUR_PACKAGE/.package
+### Conflicts when stowing
 
-# If not, create it
-touch packages/YOUR_PACKAGE/.package
+If you get conflicts:
+
+1. Check if the file already exists: `ls -la ~/.config/conflicting-file`
+2. If it's a symlink from another package: `readlink -f ~/.config/conflicting-file`
+3. Backup and remove if needed, then re-stow
+
+### Verifying what stow will do
+
+Use the `-n` (dry-run) flag to simulate:
+
+```bash
+cd ~/dotfiles/packages
+stow -n -v <package-name>
 ```
 
-**Stow conflicts?**
-```bash
-# Check what's conflicting
-cd packages
-stow --simulate --restow YOUR_PACKAGE
+This shows what links would be created without actually creating them.
 
-# Remove conflicting files/dirs manually, then restow
+### Checking if a file is being ignored
+
+Run stow with verbose dry-run and grep for the filename:
+
+```bash
+cd ~/dotfiles/packages
+stow -n -v <package-name> 2>&1 | grep <filename>
 ```
 
-## See Also
+If the filename doesn't appear, it's being ignored.
 
-- [GNU Stow Documentation](https://www.gnu.org/software/stow/manual/stow.html)
-- [Hyprland Auto-Detection](../docs/HYPRLAND_AUTO_DETECTION.md) - Similar pattern
+## Related Scripts
 
+- `scripts/install/stow-system.sh` - System-level stow operations
+- `scripts/install/setup.sh` - Main setup script
+- `scripts/install/update.sh` - Update dotfiles
+
+## More Information
+
+- [GNU Stow Manual](https://www.gnu.org/software/stow/manual/)
+- [Main dotfiles README](../README.md)
