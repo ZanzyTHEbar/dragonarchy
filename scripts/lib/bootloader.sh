@@ -37,7 +37,7 @@ detect_bootloader() {
   fi
 
   # Limine
-  if [[ -f /boot/limine.cfg || -f /boot/limine/limine.cfg || -f /boot/limine/limine.conf ]]; then
+  if [[ -f /boot/limine.cfg || -f /boot/limine.conf || -f /boot/limine/limine.cfg || -f /boot/limine/limine.conf ]]; then
     echo limine; return
   fi
 
@@ -47,8 +47,10 @@ detect_bootloader() {
   fi
 
   # UKI-only fallback
-  if [[ $is_uefi -eq 1 ]] && ls /boot/efi/EFI/Linux/*.efi /efi/EFI/Linux/*.efi 2>/dev/null | grep -q .; then
-    echo uki; return
+  if [[ $is_uefi -eq 1 ]]; then
+    if compgen -G "/boot/efi/EFI/Linux/*.efi" >/dev/null 2>&1 || compgen -G "/efi/EFI/Linux/*.efi" >/dev/null 2>&1; then
+      echo uki; return
+    fi
   fi
 
   echo unknown
@@ -127,10 +129,10 @@ boot__append_systemd_boot() {
 }
 
 boot__limine_cfg_path() {
+  if [[ -f /boot/limine.conf ]]; then echo /boot/limine.conf; return; fi
+  if [[ -f /boot/limine.cfg ]]; then echo /boot/limine.cfg; return; fi
   if [[ -f /boot/limine/limine.cfg ]]; then echo /boot/limine/limine.cfg; return; fi
   if [[ -f /boot/limine/limine.conf ]]; then echo /boot/limine/limine.conf; return; fi
-  if [[ -f /boot/limine.cfg ]]; then echo /boot/limine.cfg; return; fi
-  if [[ -f /boot/limine.conf ]]; then echo /boot/limine.conf; return; fi
   return 1
 }
 
