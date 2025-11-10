@@ -277,7 +277,34 @@ VDPAU_DRIVER=radeonsi          # VDPAU driver
 
 ## Troubleshooting
 
-### ⚠️ System Freezes on Suspend/Resume & TTY Issues
+### ⚠️ Lid Close Causes System Freeze on Resume
+
+**SYMPTOMS**: Closing the laptop lid causes suspend, but opening it results in a frozen screen requiring hard reboot. However, manual suspend (`systemctl suspend`) and locking work fine.
+
+**ROOT CAUSE**: Missing `amdgpu-console-restore.service` that reinitializes the framebuffer after resume.
+
+**QUICK FIX** (automated):
+```bash
+cd ~/dotfiles/hosts/firedragon
+./fix-lid-close-freeze.sh
+# Then reboot when prompted
+```
+
+**After reboot, verify:**
+```bash
+~/dotfiles/hosts/firedragon/verify-suspend-fix.sh
+```
+
+**Then test lid close:**
+- Close laptop lid for 5+ seconds
+- Open lid
+- Screen should restore properly without freeze ✅
+
+**Full Documentation**: `docs/LID_CLOSE_FREEZE_FIX.md`
+
+---
+
+### ⚠️ General Suspend/Resume & TTY Issues
 
 **UPDATE**: After testing, additional fixes are required:
 
@@ -315,7 +342,7 @@ reboot
 **Root Causes Identified:**
 - Kernel module parameters not loaded (missing initramfs rebuild)
 - Systemd service dependencies incorrect (services never triggered)
-- TTY framebuffer corruption after suspend
+- TTY framebuffer corruption after suspend (fixed by console-restore service)
 - DPMS restore timing issues
 
 ### Battery Not Detected
