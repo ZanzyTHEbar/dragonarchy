@@ -1,17 +1,19 @@
 # Traditional Dotfiles Management with GNU Stow
 
-This is a very opinionated Arch Linux configuration, using hyprland, that is built on-top of CachyOS (ideally, though there are no hard dependencies, use what you want) and inspired from _Omarchy_.
+This is a very opinionated Linux configuration, using hyprland, that is built on-top of CachyOS (ideally, though there are no hard dependencies, use what you want) and inspired from _Omarchy_.
 
 - **GNU Stow** for dotfiles/configuration management
 - **Zsh scripts** for automation and setup
 - **age/sops** for secrets management
-- **Platform-specific package managers** for software installation
+- **Platform-specific package managers** for software installation (APT, AUR, etc.)
 
 ## Quick Start
 
+It is recommended to clone the repository into your home directory.
+
 ```bash
 # Clone and setup
-git clone <repository> ~/dotfiles
+git clone https://github.com/ZanzyTHEbar/dragonarchy ~/dotfiles
 cd ~/dotfiles
 
 # Run setup for your machine
@@ -21,21 +23,26 @@ cd ~/dotfiles
 ./install.sh --host dragon
 ```
 
+> [!IMPORTANT]
+> The current hosts are machines that I own, and are not representative of the general population.
+> Be sure to create a new host configuration for your machine, use one of mine as a reference.
+
 ## Directory Structure
 
 ```bash
-stow-config/
+dragonarchy/
 ├── packages/      # Stow packages (dotfiles)
-│   ├── zsh/           # Zsh configuration
-│   ├── git/             # Git configuration
-│   ├── kitty/          # Kitty terminal
-│   ├── nvim/         # Neovim configuration
-│   ├── ssh/           # SSH configuration
+│   ├── zsh/       # Zsh configuration
+│   ├── git/       # Git configuration
+│   ├── kitty/     # Kitty terminal
+│   ├── nvim/      # Neovim configuration
+│   ├── ssh/       # SSH configuration
 │   └── ...
-├── scripts/          # Installation and setup scripts
-├── hosts/            # Host-specific configurations
-├── secrets/         # Encrypted secrets management
-└── install.sh        # Main setup script
+├── scripts/       # Installation and setup scripts
+├── hosts/         # Host-specific configurations
+├── secrets/       # Encrypted secrets management
+├── install.sh     # Main setup script
+└── README.md      # This file
 ```
 
 ## Features
@@ -45,7 +52,7 @@ stow-config/
 - ✅ **Host-Specific**: Different configs per machine
 - ✅ **Secrets Management**: Encrypted secrets with age/sops
 - ✅ **Package Management**: Platform-appropriate package installation
-- ✅ **Networking**: NetBird integration for secure networking
+- ✅ **Networking**: Optional NetBird integration for secure networking
 - ✅ **Modular**: Enable/disable components as needed
 
 ## Commands
@@ -90,7 +97,8 @@ Fine-grained control over what gets installed and configured:
 ./install.sh --dotfiles-only --no-shell --no-post-setup
 ```
 
-**Note:** Cursor is installed by default on Hyprland-configured hosts. Use `--cursor` to force installation on non-Hyprland hosts, or `--no-cursor` to skip it entirely.
+> [!NOTE]
+> Cursor is installed by default on Hyprland-configured hosts. Use `--cursor` to force installation on non-Hyprland hosts, or `--no-cursor` to skip it entirely.
 
 ## Migration System
 
@@ -102,6 +110,23 @@ This repository includes a migration system for managing one-time setup tasks an
 
 # Migrations are stored in migrations/ directory
 # They run once per system and track configuration evolution
+
+# Or you can use the dragon-cli to manage your dotfiles:
+dragon-cli                       # Interactive main menu
+dragon-cli theme                 # Theme management menu
+dragon-cli cursors               # Cursor theme selector
+dragon-cli utilities             # Utilities menu
+dragon-cli utilities nfs         # Configure NFS mounts
+dragon-cli utilities web-apps    # Create web application launchers
+dragon-cli utilities docker-dbs  # Launch database containers
+dragon-cli utilities secrets     # Secrets management menu
+dragon-cli utilities add-migration  # Create new migration
+dragon-cli utilities netbird     # Install NetBird VPN
+dragon-cli update                # Update dotfiles
+dragon-cli setup                 # Run setup script
+dragon-cli power                 # Power menu
+dragon-cli keybindings           # View keybindings
+dragon-cli font                  # Font selector
 ```
 
 ## Centralized Logging
@@ -123,6 +148,10 @@ To connect to your network, you will need to run the `netbird` command and follo
 
 ## Supported Platforms
 
-- **Linux**: CachyOS, Arch Linux, other Arch-based distros
+- **Linux**: CachyOS, Arch Linux, Debian (Ubuntu, etc.), other Arch & Debian-based distros
 - **Debian**: via APT
-- **Other Linux**: Partial support via common package managers
+- **Other Linux**: Partial support via common package managers (AUR, etc.)
+
+## Docs
+
+See [docs/](docs/) for more documentation.
