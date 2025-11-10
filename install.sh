@@ -10,6 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source centralized logging utilities
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/scripts/lib/logging.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/scripts/lib/install-state.sh"
+
 CONFIG_DIR="$SCRIPT_DIR"
 PACKAGES_DIR="$CONFIG_DIR/packages"
 SCRIPTS_DIR="$CONFIG_DIR/scripts"
@@ -30,6 +33,7 @@ RUN_THEME=true
 RUN_SHELL_CONFIG=true
 RUN_POST_SETUP=true
 SETUP_UTILITIES=false
+RESET_STATE=false
 # Pass-through flags for install-deps.sh (e.g., --cursor/--no-cursor)
 INSTALL_DEPS_FLAGS=()
 
@@ -43,6 +47,7 @@ Traditional Dotfiles Management Setup Script
 OPTIONS:
     -h, --help              Show this help message
     -v, --verbose           Enable verbose output
+    --reset                 Clear installation state and force full re-run of all steps
     --host HOST             Setup for specific host (any hostname supported)
     --packages-only         Only install packages
     --dotfiles-only         Only setup dotfiles
@@ -65,6 +70,7 @@ EXAMPLES:
     $0 --packages-only      # Only install packages
     $0 --dotfiles-only      # Only setup dotfiles
     $0 --no-secrets         # Skip secrets setup
+    $0 --reset              # Clear state and force full re-run
 
 EOF
 }
@@ -79,6 +85,10 @@ parse_args() {
             ;;
             -v | --verbose)
                 VERBOSE=true
+                shift
+            ;;
+            --reset)
+                RESET_STATE=true
                 shift
             ;;
             --host)
@@ -383,7 +393,11 @@ setup_host_config() {
         # Source host-specific setup script if it exists
         if [[ -f "$host_config_dir/setup.sh" ]]; then
             log_info "Running host-specific setup script..."
-            bash "$host_config_dir/setup.sh"
+            if [[ "$RESET_STATE" == "true" ]]; then
+                bash "$host_config_dir/setup.sh" --reset
+            else
+                bash "$host_config_dir/setup.sh"
+            fi
         fi
         
         # Install host-specific dotfiles if they exist
@@ -535,6 +549,14 @@ main() {
     log_info "🚀 Starting Dotfiles Management Setup"
     log_info "Configuration directory: $CONFIG_DIR"
     echo
+    
+    # Handle --reset flag to clear installation state
+    if [[ "$RESET_STATE" == "true" ]]; then
+        log_warning "⚠️  Resetting installation state..."
+        reset_all_steps
+        log_success "Installation state cleared. All steps will run fresh."
+        echo
+    fi
     
     # Detect host if not specified via arguments
     if [[ -z "$HOST" ]]; then
