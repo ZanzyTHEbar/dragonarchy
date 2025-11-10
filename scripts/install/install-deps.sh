@@ -22,6 +22,7 @@ HOSTS_DIR="$CONFIG_DIR/hosts"
 # Feature toggles (defaults)
 FORCE_CURSOR_INSTALL=false
 SKIP_CURSOR_INSTALL=false
+KEEP_GIT_HYPRLAND=false
 
 # --- Header and Logging ---
 # Colors for output
@@ -475,67 +476,77 @@ install_for_arch() {
         log_info "Installing Hyprland specific packages for host: $host"
         add_chaotic_aur
         
-        # Check for -git conflicts first
-        local has_git_packages=false
+        # Check for -git packages and replace with stable versions
         if has_hyprland_git_packages; then
-            has_git_packages=true
-            log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            log_warning "Detected -git versions of Hyprland packages installed!"
-            log_warning "Skipping installation of stable Hyprland core packages to avoid conflicts."
-            log_warning ""
-            log_warning "Installed -git packages will be kept:"
-            for pkg in "hyprland-git" "hypridle-git" "hyprlock-git" "hyprutils-git" "hyprlang-git" "hyprcursor-git"; do
-                if is_package_installed "$pkg"; then
-                    log_warning "  ✓ $pkg"
+            if [[ "$KEEP_GIT_HYPRLAND" == "true" ]]; then
+                log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                log_warning "Detected -git versions of Hyprland packages!"
+                log_warning "Keeping -git versions as requested (--keep-git-hyprland flag)"
+                log_warning ""
+                log_warning "Installed -git packages:"
+                for pkg in "hyprland-git" "hypridle-git" "hyprlock-git" "hyprutils-git" "hyprlang-git" "hyprcursor-git"; do
+                    if is_package_installed "$pkg"; then
+                        log_warning "  ✓ $pkg"
+                    fi
+                done
+                log_warning ""
+                log_warning "Note: -git versions may be unstable. To switch to stable:"
+                log_warning "  Run install script without --keep-git-hyprland flag"
+                log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                # Skip stable package installation
+                return 0
+            else
+                log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                log_warning "Detected -git versions of Hyprland packages!"
+                log_warning "Replacing with stable versions for better compatibility..."
+                log_warning ""
+                
+                # List detected -git packages
+                local git_pkgs_found=()
+                for pkg in "hyprland-git" "hypridle-git" "hyprlock-git" "hyprutils-git" "hyprlang-git" "hyprcursor-git"; do
+                    if is_package_installed "$pkg"; then
+                        git_pkgs_found+=("$pkg")
+                        log_warning "  ✓ Found: $pkg"
+                    fi
+                done
+                
+                log_warning ""
+                log_info "Removing -git packages: ${git_pkgs_found[*]}"
+                
+                # Remove all -git packages at once to avoid dependency issues
+                if [[ ${#git_pkgs_found[@]} -gt 0 ]]; then
+                    sudo pacman -Rdd --noconfirm "${git_pkgs_found[@]}" 2>/dev/null || {
+                        log_error "Failed to remove -git packages, trying with paru..."
+                        paru -Rdd --noconfirm "${git_pkgs_found[@]}" 2>/dev/null || {
+                            log_error "Failed to remove -git packages. Manual intervention required."
+                            log_error "Run: sudo pacman -Rdd ${git_pkgs_found[*]}"
+                            exit 1
+                        }
+                    }
+                    log_success "Removed -git packages successfully"
                 fi
-            done
-            log_warning ""
-            log_warning "Skipping packages that would pull in stable dependencies:"
-            log_warning "  • xdg-desktop-portal-hyprland (depends on hyprland)"
-            log_warning ""
-            log_warning "If you want to switch to stable versions, run:"
-            log_warning "  paru -Rns hyprland-git hypridle-git hyprlock-git hyprutils-git hyprlang-git hyprcursor-git"
-            log_warning "  paru -S hyprland hypridle hyprlock xdg-desktop-portal-hyprland"
-            log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                
+                log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            fi
         fi
         
         # Filter packages based on conflicts
         local filtered_hyprland_base=()
-        local skip_on_git=("xdg-desktop-portal-hyprland")
-        
         for pkg in "${hyprland_arch_base[@]}"; do
-            # Skip power-profiles-daemon if TLP is installed
+            # Skip power-profiles-daemon if TLP is installed (they conflict)
             if [[ "$pkg" == "power-profiles-daemon" ]] && command -v tlp &>/dev/null; then
                 log_info "Skipping power-profiles-daemon (TLP is installed)"
                 continue
             fi
-            
-            # Skip packages that depend on stable Hyprland when -git is installed
-            if [[ "$has_git_packages" == "true" ]]; then
-                local should_skip=false
-                for skip_pkg in "${skip_on_git[@]}"; do
-                    if [[ "$pkg" == "$skip_pkg" ]]; then
-                        log_info "Skipping $pkg (conflicts with -git packages)"
-                        should_skip=true
-                        break
-                    fi
-                done
-                if [[ "$should_skip" == "true" ]]; then
-                    continue
-                fi
-            fi
-            
             filtered_hyprland_base+=("$pkg")
         done
         
-        # Install base Hyprland packages (after filtering)
+        # Install base Hyprland packages
         install_pacman "${filtered_hyprland_base[@]}"
         
-        # Install core packages only if no -git versions detected
-        if [[ "$has_git_packages" == "false" ]]; then
-            log_info "No -git Hyprland packages detected, installing stable core packages..."
-            install_pacman "${hyprland_arch_core[@]}"
-        fi
+        # Install core Hyprland packages (stable versions)
+        log_info "Installing stable Hyprland core packages..."
+        install_pacman "${hyprland_arch_core[@]}"
         
         # Configure rustup BEFORE building AUR packages (some require Rust)
         if command_exists rustup; then
@@ -682,9 +693,13 @@ main() {
                 SKIP_CURSOR_INSTALL=true
                 shift
             ;;
+            --keep-git-hyprland)
+                KEEP_GIT_HYPRLAND=true
+                shift
+            ;;
             *)
                 log_error "Unknown argument: $1"
-                log_info "Usage: $0 [--host <host>] [--cursor|--no-cursor]"
+                log_info "Usage: $0 [--host <host>] [--cursor|--no-cursor] [--keep-git-hyprland]"
                 exit 1
             ;;
         esac
