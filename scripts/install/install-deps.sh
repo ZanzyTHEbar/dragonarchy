@@ -46,7 +46,11 @@ dev_debian=("git" "diff-so-fancy" "ansible" "gh" "terraform" "pipx")
 pipx_packages=("poetry" "black" "flake8" "mypy")
 
 # Hyprland specific
-hyprland_arch=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "nemo-fileroller" "nemo-preview" "nemo-seahorse" "nemo-share" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot" "imagemagick" "imv" "inetutils" "iwd" "kvantum" "lazygit" "less" "libqalculate" "libsecret" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt6-svg" "qt6-declarative" "qt5-quickcontrols2" "qt5-graphicaleffects" "qt6-5compat" "qt6-wayland" "qt5-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "system-config-printer" "tree-sitter-cli" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
+# NOTE: Core Hyprland packages (hyprland, hypridle, hyprlock) are handled separately
+# to avoid conflicts with -git versions on CachyOS
+hyprland_arch_base=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "nemo-fileroller" "nemo-preview" "nemo-seahorse" "nemo-share" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "imagemagick" "imv" "inetutils" "iwd" "kvantum" "lazygit" "less" "libqalculate" "libsecret" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt6-svg" "qt6-declarative" "qt5-quickcontrols2" "qt5-graphicaleffects" "qt6-5compat" "qt6-wayland" "qt5-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "system-config-printer" "tree-sitter-cli" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
+# Core Hyprland packages that may conflict with -git versions
+hyprland_arch_core=("hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot")
 hyprland_aur=("gnome-calculator" "gnome-keyring" "hyprland-qtutils" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse")
 # Elephant packages - base must be installed first to satisfy plugin dependencies
 hyprland_aur_elephant=("elephant-bin" "elephant-desktopapplications-bin" "elephant-files-bin" "elephant-runner-bin" "elephant-clipboard-bin" "elephant-providerlist-bin")
@@ -121,6 +125,27 @@ is_hyprland_host() {
     
     # Not a Hyprland host
     return 1
+}
+
+# Detect if system has -git versions of Hyprland packages installed
+# Returns 0 if -git versions are found, 1 otherwise
+has_hyprland_git_packages() {
+    local git_packages=("hyprland-git" "hypridle-git" "hyprlock-git" "hyprutils-git" "hyprlang-git" "hyprcursor-git")
+    
+    for pkg in "${git_packages[@]}"; do
+        if pacman -Qi "$pkg" &>/dev/null; then
+            log_info "Detected -git package: $pkg"
+            return 0
+        fi
+    done
+    
+    return 1
+}
+
+# Check if specific package (stable or -git) is installed
+is_package_installed() {
+    local pkg="$1"
+    pacman -Qi "$pkg" &>/dev/null || paru -Qi "$pkg" &>/dev/null
 }
 
 # Get list of all Hyprland hosts by scanning host directories
@@ -449,16 +474,41 @@ install_for_arch() {
     if is_hyprland_host "$host"; then
         log_info "Installing Hyprland specific packages for host: $host"
         add_chaotic_aur
+        
         # Filter out power-profiles-daemon if TLP is installed (they conflict)
-        local filtered_hyprland_arch=()
-        for pkg in "${hyprland_arch[@]}"; do
+        local filtered_hyprland_base=()
+        for pkg in "${hyprland_arch_base[@]}"; do
             if [[ "$pkg" == "power-profiles-daemon" ]] && command -v tlp &>/dev/null; then
                 log_info "Skipping power-profiles-daemon (TLP is installed)"
                 continue
             fi
-            filtered_hyprland_arch+=("$pkg")
+            filtered_hyprland_base+=("$pkg")
         done
-        install_pacman "${filtered_hyprland_arch[@]}"
+        
+        # Install base Hyprland packages (non-conflicting)
+        install_pacman "${filtered_hyprland_base[@]}"
+        
+        # Handle core Hyprland packages - check for -git conflicts
+        if has_hyprland_git_packages; then
+            log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            log_warning "Detected -git versions of Hyprland packages installed!"
+            log_warning "Skipping installation of stable Hyprland core packages to avoid conflicts."
+            log_warning ""
+            log_warning "Installed -git packages will be kept:"
+            for pkg in "hyprland-git" "hypridle-git" "hyprlock-git" "hyprutils-git" "hyprlang-git" "hyprcursor-git"; do
+                if is_package_installed "$pkg"; then
+                    log_warning "  ✓ $pkg"
+                fi
+            done
+            log_warning ""
+            log_warning "If you want to switch to stable versions, run:"
+            log_warning "  paru -Rns hyprland-git hypridle-git hyprlock-git hyprutils-git hyprlang-git hyprcursor-git"
+            log_warning "  paru -S hyprland hypridle hyprlock"
+            log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        else
+            log_info "No -git Hyprland packages detected, installing stable core packages..."
+            install_pacman "${hyprland_arch_core[@]}"
+        fi
         
         # Configure rustup BEFORE building AUR packages (some require Rust)
         if command_exists rustup; then
