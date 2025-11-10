@@ -310,7 +310,8 @@ setup_dotfiles() {
             log_info "Installing dotfiles package: $package"
             
             # Try stowing with restow (handles existing symlinks)
-            if stow --restow --no-folding -t "$HOME" "$package" 2>&1 | tee /tmp/stow_output.txt | grep -qi "conflict"; then
+            # Note: Removed --no-folding to allow directory symlinks for deep structures
+            if stow --restow -t "$HOME" "$package" 2>&1 | tee /tmp/stow_output.txt | grep -qi "conflict"; then
                 # Conflicts detected - show them and attempt cleanup
                 log_warning "$package has conflicts:"
                 grep -i "conflict\|would cause" /tmp/stow_output.txt | sed 's/^/  /'
@@ -320,7 +321,7 @@ setup_dotfiles() {
                 stow -D -t "$HOME" "$package" 2>/dev/null || true
                 sleep 0.5  # Brief delay to ensure filesystem catches up
                 
-                if stow --no-folding -t "$HOME" "$package" 2>/dev/null; then
+                if stow -t "$HOME" "$package" 2>/dev/null; then
                     log_success "Installed $package dotfiles after cleanup"
                 else
                     log_error "Failed to install $package - manual intervention needed"
