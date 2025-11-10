@@ -1,0 +1,29 @@
+# Stow ignore patterns (Perl regex)
+# This file tells stow which files/directories to ignore when stowing packages
+
+# Ignore .package marker files
+\.package
+
+# Ignore README files in package roots
+^README\.md$
+^README\.txt$
+^README$
+
+# Ignore common VCS files
+^\.git$
+^\.gitignore$
+^\.gitmodules$
+
+# Ignore editor and IDE files
+^\.vscode$
+^\.idea$
+.*~$
+^\#.*\#$
+^\.#.*$
+
+# Ignore backup files
+.*\.bak$
+.*\.backup$
+.*\.swp$
+.*\.swo$
+
