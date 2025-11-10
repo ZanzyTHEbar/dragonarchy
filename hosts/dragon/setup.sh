@@ -13,6 +13,24 @@ source "${SCRIPT_DIR}/../../scripts/lib/logging.sh"
 
 log_info "🐉 Running setup for Dragon workstation..."
 
+# Install liquidctl for AIO cooler management
+log_step "Installing liquidctl..."
+if ! command -v liquidctl >/dev/null 2>&1; then
+    if command -v pacman >/dev/null 2>&1; then
+        sudo pacman -S --noconfirm --needed liquidctl
+        log_success "liquidctl installed via pacman"
+    elif command -v paru >/dev/null 2>&1; then
+        paru -S --noconfirm --needed liquidctl
+        log_success "liquidctl installed via paru"
+    else
+        log_error "Could not install liquidctl - no package manager found"
+        exit 1
+    fi
+else
+    log_info "liquidctl already installed"
+fi
+echo
+
 # Install NetBird
 log_step "Installing NetBird..."
 bash "$HOME/dotfiles/scripts/utilities/netbird-install.sh"
