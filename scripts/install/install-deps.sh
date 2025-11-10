@@ -475,21 +475,10 @@ install_for_arch() {
         log_info "Installing Hyprland specific packages for host: $host"
         add_chaotic_aur
         
-        # Filter out power-profiles-daemon if TLP is installed (they conflict)
-        local filtered_hyprland_base=()
-        for pkg in "${hyprland_arch_base[@]}"; do
-            if [[ "$pkg" == "power-profiles-daemon" ]] && command -v tlp &>/dev/null; then
-                log_info "Skipping power-profiles-daemon (TLP is installed)"
-                continue
-            fi
-            filtered_hyprland_base+=("$pkg")
-        done
-        
-        # Install base Hyprland packages (non-conflicting)
-        install_pacman "${filtered_hyprland_base[@]}"
-        
-        # Handle core Hyprland packages - check for -git conflicts
+        # Check for -git conflicts first
+        local has_git_packages=false
         if has_hyprland_git_packages; then
+            has_git_packages=true
             log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             log_warning "Detected -git versions of Hyprland packages installed!"
             log_warning "Skipping installation of stable Hyprland core packages to avoid conflicts."
@@ -501,11 +490,50 @@ install_for_arch() {
                 fi
             done
             log_warning ""
+            log_warning "Skipping packages that would pull in stable dependencies:"
+            log_warning "  • xdg-desktop-portal-hyprland (depends on hyprland)"
+            log_warning "  • hyprland-qtutils (depends on hyprutils)"
+            log_warning ""
             log_warning "If you want to switch to stable versions, run:"
             log_warning "  paru -Rns hyprland-git hypridle-git hyprlock-git hyprutils-git hyprlang-git hyprcursor-git"
-            log_warning "  paru -S hyprland hypridle hyprlock"
+            log_warning "  paru -S hyprland hypridle hyprlock xdg-desktop-portal-hyprland"
             log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        else
+        fi
+        
+        # Filter packages based on conflicts
+        local filtered_hyprland_base=()
+        local skip_on_git=("xdg-desktop-portal-hyprland")
+        
+        for pkg in "${hyprland_arch_base[@]}"; do
+            # Skip power-profiles-daemon if TLP is installed
+            if [[ "$pkg" == "power-profiles-daemon" ]] && command -v tlp &>/dev/null; then
+                log_info "Skipping power-profiles-daemon (TLP is installed)"
+                continue
+            fi
+            
+            # Skip packages that depend on stable Hyprland when -git is installed
+            if [[ "$has_git_packages" == "true" ]]; then
+                local should_skip=false
+                for skip_pkg in "${skip_on_git[@]}"; do
+                    if [[ "$pkg" == "$skip_pkg" ]]; then
+                        log_info "Skipping $pkg (conflicts with -git packages)"
+                        should_skip=true
+                        break
+                    fi
+                done
+                if [[ "$should_skip" == "true" ]]; then
+                    continue
+                fi
+            fi
+            
+            filtered_hyprland_base+=("$pkg")
+        done
+        
+        # Install base Hyprland packages (after filtering)
+        install_pacman "${filtered_hyprland_base[@]}"
+        
+        # Install core packages only if no -git versions detected
+        if [[ "$has_git_packages" == "false" ]]; then
             log_info "No -git Hyprland packages detected, installing stable core packages..."
             install_pacman "${hyprland_arch_core[@]}"
         fi
@@ -518,7 +546,27 @@ install_for_arch() {
             log_success "Rust toolchain configured"
         fi
         
-        install_paru "${hyprland_aur[@]}"
+        # Filter AUR packages if -git versions are installed
+        local filtered_hyprland_aur=("${hyprland_aur[@]}")
+        if [[ "$has_git_packages" == "true" ]]; then
+            local aur_skip_on_git=("hyprland-qtutils")
+            filtered_hyprland_aur=()
+            for pkg in "${hyprland_aur[@]}"; do
+                local should_skip=false
+                for skip_pkg in "${aur_skip_on_git[@]}"; do
+                    if [[ "$pkg" == "$skip_pkg" ]]; then
+                        log_info "Skipping AUR package $pkg (conflicts with -git packages)"
+                        should_skip=true
+                        break
+                    fi
+                done
+                if [[ "$should_skip" == "false" ]]; then
+                    filtered_hyprland_aur+=("$pkg")
+                fi
+            done
+        fi
+        
+        install_paru "${filtered_hyprland_aur[@]}"
         
         # Install elephant packages separately - base first, then plugins
         log_info "Installing Elephant and plugins..."
