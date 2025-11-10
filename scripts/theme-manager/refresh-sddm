@@ -2,12 +2,29 @@
 set -euo pipefail
 
 # Link packaged SDDM themes into /usr/share/sddm/themes via stow or rsync
+# Usage: refresh-sddm [-y]
+# -y: Skip confirmation (for automated scripts)
+
 PKG_DIR="$(cd "$(dirname "$0")/../../packages/sddm" && pwd)"
 DEST_DIR="/usr/share/sddm/themes"
+AUTO_YES=false
+
+# Parse arguments
+if [[ "${1:-}" == "-y" ]]; then
+    AUTO_YES=true
+fi
 
 if [[ $EUID -ne 0 ]]; then
     echo "This action requires sudo to copy themes into $DEST_DIR"
     exec sudo -p "[sudo] password for %u: " "$0" "$@"
+fi
+
+# Check if we need confirmation (only if not auto-yes and gum is available)
+if [[ "$AUTO_YES" == "false" ]] && command -v gum >/dev/null 2>&1; then
+    if ! gum confirm "Refresh SDDM themes? This will update themes in $DEST_DIR"; then
+        echo "Cancelled."
+        exit 0
+    fi
 fi
 
 mkdir -p "$DEST_DIR"
