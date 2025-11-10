@@ -278,31 +278,28 @@ setup_dotfiles() {
     # Change to packages directory
     cd "$PACKAGES_DIR"
     
-    # List of stow packages to install
-    local packages=(
-        "zsh"
-        "git"
-        "kitty"
-        "ssh"
-        "nvim"
-        "hyprland"
-        "lazygit"
-        "alacritty"
-        "fastfetch"
-        "fonts"
-        "xournalpp"
-        "typora"
-        "themes"
-        "gpg"
-        "applications"
-        "icons-in-terminal"
-        "tmux"
-        "zed"
-        "dragon-cli"
-        "wlogout"
-        "gh-extensions"
-        "hardware"
-    )
+    # Auto-discover packages with .package marker file
+    # This allows seamless addition/removal of packages without editing this script
+    local packages=()
+    while IFS= read -r -d '' package_file; do
+        local package_dir
+        local package_name
+        
+        package_dir=$(dirname "$package_file")
+        package_name=$(basename "$package_dir")
+        packages+=("$package_name")
+        
+    done < <(find "$PACKAGES_DIR" -maxdepth 2 -type f -name ".package" -printf "%p\0" 2>/dev/null | sort -z)
+    
+    # If no packages found with marker files, log warning
+    if [[ ${#packages[@]} -eq 0 ]]; then
+        log_warning "No packages found with .package marker files"
+        log_info "To enable a package, create a .package file in its directory:"
+        log_info "  touch packages/PACKAGE_NAME/.package"
+        return 0
+    fi
+    
+    log_info "Found ${#packages[@]} package(s) to install"
     
     # Install each package
     for package in "${packages[@]}"; do
@@ -554,6 +551,29 @@ main() {
     if [[ "$RUN_THEME" == "true" ]]; then
         log_info "Setting plymouth theme..."
         bash "$SCRIPTS_DIR/theme-manager/refresh-plymouth" -y
+        
+        # Setup SDDM themes if SDDM is installed
+        if command -v sddm >/dev/null 2>&1; then
+            log_info "Setting up SDDM themes..."
+            if [[ -x "$SCRIPTS_DIR/theme-manager/refresh-sddm" ]]; then
+                bash "$SCRIPTS_DIR/theme-manager/refresh-sddm" -y
+                
+                # Set a default theme if not already configured
+                if [[ -x "$SCRIPTS_DIR/theme-manager/sddm-set" ]]; then
+                    # Check if SDDM theme is already configured
+                    if [[ ! -f /etc/sddm.conf.d/10-theme.conf ]]; then
+                        log_info "Setting default SDDM theme to catppuccin-mocha-sky-sddm..."
+                        bash "$SCRIPTS_DIR/theme-manager/sddm-set" "catppuccin-mocha-sky-sddm"
+                    else
+                        log_info "SDDM theme already configured, skipping..."
+                    fi
+                fi
+            else
+                log_warning "refresh-sddm script not found, skipping SDDM theme setup"
+            fi
+        else
+            log_info "SDDM not installed, skipping SDDM theme setup"
+        fi
     else
         log_info "Skipping theme refresh (--no-theme)"
     fi

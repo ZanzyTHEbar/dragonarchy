@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../lib/logging.sh"
 
-SYSTEM_PACKAGES=("")
+SYSTEM_PACKAGES=("sddm")
 
 # --- Stow Logic ---
 log_info "Stowing system packages..."
