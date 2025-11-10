@@ -12,14 +12,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 LOG_LIB="${PROJECT_ROOT}/scripts/lib/logging.sh"
 BOOT_LIB="${PROJECT_ROOT}/scripts/lib/bootloader.sh"
+STATE_LIB="${PROJECT_ROOT}/scripts/lib/install-state.sh"
 
 # Source utilities
 # shellcheck disable=SC1091
 source "$LOG_LIB"
 # shellcheck disable=SC1091
 source "$BOOT_LIB"
+# shellcheck disable=SC1091
+source "$STATE_LIB"
 
-echo "Running setup for FireDragon laptop..."
+log_info "Running setup for FireDragon laptop..."
+
+# Handle --reset flag to force re-run all steps
+if [[ "${1:-}" == "--reset" ]]; then
+    reset_all_steps
+    log_info "Installation state reset. All steps will be re-run."
+    echo
+fi
 echo
 
 # Install laptop-specific packages
@@ -243,27 +253,65 @@ setup_networking() {
     
     # Enable NetworkManager
     if command_exists nmcli; then
-        sudo systemctl enable NetworkManager.service
-        log_success "NetworkManager enabled"
+        if ! systemctl is-enabled NetworkManager.service &>/dev/null; then
+            sudo systemctl enable NetworkManager.service
+            log_success "NetworkManager enabled"
+        else
+            log_info "NetworkManager already enabled"
+        fi
     fi
     
     # Enable Bluetooth
     if command_exists bluetoothctl; then
-        sudo systemctl enable bluetooth.service
-        log_success "Bluetooth enabled"
+        if ! systemctl is-enabled bluetooth.service &>/dev/null; then
+            sudo systemctl enable bluetooth.service
+            log_success "Bluetooth enabled"
+        else
+            log_info "Bluetooth already enabled"
+        fi
     fi
     
     # Install NetBird for secure networking
-    log_info "Installing NetBird VPN..."
-    bash "$HOME/dotfiles/scripts/utilities/netbird-install.sh"
+    if ! is_step_completed "firedragon-install-netbird"; then
+        log_info "Installing NetBird VPN..."
+        bash "$HOME/dotfiles/scripts/utilities/netbird-install.sh"
+        mark_step_completed "firedragon-install-netbird"
+    else
+        log_info "NetBird already installed"
+    fi
     
     # Copy host-specific system configs (DNS)
-    log_info "Copying host-specific system configs (DNS)..."
-    sudo cp -rT "$HOME/dotfiles/hosts/firedragon/etc/" /etc/
+    if ! is_step_completed "firedragon-copy-system-configs"; then
+        log_info "Copying host-specific system configs (DNS)..."
+        if copy_dir_if_changed "$HOME/dotfiles/hosts/firedragon/etc/" /etc/; then
+            log_success "System configs updated"
+            mark_step_completed "firedragon-copy-system-configs"
+            # Reset DNS restart step since configs changed
+            reset_step "firedragon-restart-resolved"
+        else
+            log_info "System configs unchanged"
+            mark_step_completed "firedragon-copy-system-configs"
+        fi
+    else
+        # Check if configs need updating even if step was completed
+        if copy_dir_if_changed "$HOME/dotfiles/hosts/firedragon/etc/" /etc/; then
+            log_info "System configs updated (configs changed)"
+            reset_step "firedragon-restart-resolved"
+        else
+            log_info "System configs already applied"
+        fi
+    fi
     
-    # Apply DNS changes
-    log_info "Restarting systemd-resolved to apply DNS changes..."
-    sudo systemctl restart systemd-resolved
+    # Apply DNS changes (only if configs changed or first time)
+    if ! is_step_completed "firedragon-restart-resolved"; then
+        log_info "Restarting systemd-resolved to apply DNS changes..."
+        if restart_if_running systemd-resolved; then
+            log_success "systemd-resolved restarted"
+        fi
+        mark_step_completed "firedragon-restart-resolved"
+    else
+        log_info "DNS configuration already applied"
+    fi
     
     log_success "Networking configured (NetBird VPN + Custom DNS)"
 }
@@ -770,33 +818,99 @@ main() {
     log_info "🚀 Setting up FireDragon AMD Laptop..."
     echo
     
-    setup_firedragon_packages
+    # Run each setup function with idempotency tracking
+    if ! is_step_completed "firedragon-packages"; then
+        setup_firedragon_packages && mark_step_completed "firedragon-packages"
+    else
+        log_info "✓ Packages already installed (skipped)"
+    fi
     echo
-    setup_amd_graphics
+    
+    if ! is_step_completed "firedragon-amd-graphics"; then
+        setup_amd_graphics && mark_step_completed "firedragon-amd-graphics"
+    else
+        log_info "✓ AMD graphics already configured (skipped)"
+    fi
     echo
-    setup_power_management
+    
+    if ! is_step_completed "firedragon-power-management"; then
+        setup_power_management && mark_step_completed "firedragon-power-management"
+    else
+        log_info "✓ Power management already configured (skipped)"
+    fi
     echo
-    setup_suspend_resume_fixes
+    
+    if ! is_step_completed "firedragon-suspend-resume"; then
+        setup_suspend_resume_fixes && mark_step_completed "firedragon-suspend-resume"
+    else
+        log_info "✓ Suspend/resume fixes already applied (skipped)"
+    fi
     echo
-    setup_networking
+    
+    setup_networking  # Has its own idempotency checks
     echo
-    setup_display_input
+    
+    if ! is_step_completed "firedragon-display-input"; then
+        setup_display_input && mark_step_completed "firedragon-display-input"
+    else
+        log_info "✓ Display/input already configured (skipped)"
+    fi
     echo
-    setup_battery_monitoring
+    
+    if ! is_step_completed "firedragon-battery-monitoring"; then
+        setup_battery_monitoring && mark_step_completed "firedragon-battery-monitoring"
+    else
+        log_info "✓ Battery monitoring already configured (skipped)"
+    fi
     echo
-    setup_laptop_optimizations
+    
+    if ! is_step_completed "firedragon-laptop-optimizations"; then
+        setup_laptop_optimizations && mark_step_completed "firedragon-laptop-optimizations"
+    else
+        log_info "✓ Laptop optimizations already applied (skipped)"
+    fi
     echo
-    setup_corectrl
+    
+    if ! is_step_completed "firedragon-corectrl"; then
+        setup_corectrl && mark_step_completed "firedragon-corectrl"
+    else
+        log_info "✓ CoreCtrl already configured (skipped)"
+    fi
     echo
-    setup_asus_vivobook
+    
+    if ! is_step_completed "firedragon-asus-vivobook"; then
+        setup_asus_vivobook && mark_step_completed "firedragon-asus-vivobook"
+    else
+        log_info "✓ Asus VivoBook settings already configured (skipped)"
+    fi
     echo
-    setup_mt7902_wifi
+    
+    if ! is_step_completed "firedragon-mt7902-wifi"; then
+        setup_mt7902_wifi && mark_step_completed "firedragon-mt7902-wifi"
+    else
+        log_info "✓ MT7902 WiFi check already done (skipped)"
+    fi
     echo
-    setup_gesture_plugins
+    
+    if ! is_step_completed "firedragon-gesture-plugins"; then
+        setup_gesture_plugins && mark_step_completed "firedragon-gesture-plugins"
+    else
+        log_info "✓ Gesture plugins already configured (skipped)"
+    fi
     echo
-    rebuild_initramfs
+    
+    if ! is_step_completed "firedragon-initramfs"; then
+        rebuild_initramfs && mark_step_completed "firedragon-initramfs"
+    else
+        log_info "✓ Initramfs already rebuilt (skipped)"
+    fi
     echo
-    setup_sddm_theme
+    
+    if ! is_step_completed "firedragon-sddm-theme"; then
+        setup_sddm_theme && mark_step_completed "firedragon-sddm-theme"
+    else
+        log_info "✓ SDDM theme already configured (skipped)"
+    fi
     
     echo
     log_success "🎉 FireDragon setup completed!"
