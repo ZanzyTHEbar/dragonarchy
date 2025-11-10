@@ -9,6 +9,7 @@ This directory contains modular package configurations managed by GNU Stow.
 The `.stow-global-ignore` file at the root of this `packages/` directory applies to **all packages**. This prevents unwanted files from being symlinked to the home directory.
 
 **Ignored patterns:**
+
 - `.package` - Marker files used for package tracking
 - `README.md`, `README.txt`, `README` - Documentation files
 - `.git`, `.gitignore`, `.gitmodules` - Version control files
@@ -31,6 +32,7 @@ The `.stow-global-ignore` file is automatically applied to all stow operations.
 When creating a new package:
 
 1. Create the package directory structure:
+
    ```bash
    mkdir -p packages/mypackage/.config/myapp
    ```
@@ -38,16 +40,19 @@ When creating a new package:
 2. Add your configuration files in the appropriate paths
 
 3. (Optional) Add a `.package` marker file:
+
    ```bash
    touch packages/mypackage/.package
    ```
 
 4. (Optional) Add a README:
+
    ```bash
    echo "# My Package" > packages/mypackage/README.md
    ```
 
 5. Stow the package:
+
    ```bash
    cd packages
    stow mypackage
@@ -68,7 +73,8 @@ Run `ls -d */` in this directory to see all available packages.
 To add or modify global ignore patterns, edit `.stow-global-ignore` in this directory. The file uses Perl regular expressions.
 
 **Examples:**
-```
+
+```bash
 # Match exact filename
 \.package
 

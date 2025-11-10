@@ -11,78 +11,144 @@ SCRIPT_DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
 
 PATH="$PATH:$SCRIPT_DIR/theme-manager"
 
-# Handle direct command arguments
-case "${1:-}" in
-    theme)
-        shift
-        theme_menu
-        exit 0
-    ;;
-    background)
-        shift
-        theme-bg-menu
-        exit 0
-    ;;
-    cursor|cursors)
-        shift
-        "$SCRIPT_DIR/theme-manager/cursors/cursor-menu"
-        exit 0
-    ;;
-    keybindings)
-        shift
-        keybindings-menu
-        exit 0
-    ;;
-    power)
-        shift
-        power-menu
-        exit 0
-    ;;
-    font|fonts)
-        shift
-        font-menu
-        exit 0
-    ;;
-    sddm)
-        shift
-        sddm_theme_menu
-        exit 0
-    ;;
-esac
+# Function definitions
+ack_command() {
+    gum spin --spinner "globe" --title "Done!" -- sleep 1
+}
 
-main_menu() {
-    local options=("Theme" "Cursors" "Utilities" "Update" "Setup" "Power Menu" "Keybindings" "Font Menu" "Exit")
-    choice=$(printf "%s\n" "${options[@]}" | gum choose --header="") || exit 0
+nfs_menu() {
+    gum style --foreground 6 --bold "NFS Configuration"
+    echo ""
+    gum style --foreground 8 "Configure NFS mounts with systemd automount"
+    echo ""
+    
+    local nfs_host
+    nfs_host=$(gum input --placeholder="NFS server host (e.g., 192.168.1.100 or dragonserver.local)" --header="")
+    [[ -z "$nfs_host" ]] && return
+    
+    local nfs_base
+    nfs_base=$(gum input --placeholder="NFS server base path (e.g., /mnt/nfs or mainpool/nfsroot)" --header="")
+    [[ -z "$nfs_base" ]] && return
+    
+    local datasets
+    datasets=$(gum input --placeholder="Dataset(s) separated by spaces (e.g., data common or data:dragonnet)" --header="")
+    [[ -z "$datasets" ]] && return
+    
+    echo ""
+    gum style --foreground 2 "Configuration:"
+    echo "  Host: $nfs_host"
+    echo "  Base: $nfs_base"
+    echo "  Datasets: $datasets"
+    echo ""
+    
+    if gum confirm "Proceed with NFS configuration? (requires sudo)"; then
+        # shellcheck disable=SC2086  # We want word splitting for datasets
+        "$SCRIPT_DIR/utilities/nfs.sh" "$nfs_host" "$nfs_base" $datasets
+        ack_command
+    fi
+}
+
+create_web_app() {
+    gum style --foreground 6 --bold "Create Web Application Launcher"
+    echo ""
+    
+    local app_name
+    app_name=$(gum input --placeholder="Application name (e.g., GitHub)" --header="")
+    [[ -z "$app_name" ]] && return
+    
+    local app_url
+    app_url=$(gum input --placeholder="Application URL (e.g., https://github.com)" --header="")
+    [[ -z "$app_url" ]] && return
+    
+    local icon_url
+    icon_url=$(gum input --placeholder="Icon URL (e.g., https://github.com/favicon.ico)" --header="")
+    [[ -z "$icon_url" ]] && return
+    
+    echo ""
+    gum style --foreground 2 "Web App Configuration:"
+    echo "  Name: $app_name"
+    echo "  URL: $app_url"
+    echo "  Icon: $icon_url"
+    echo ""
+    
+    if gum confirm "Create web app launcher?"; then
+        source "$SCRIPT_DIR/utilities/web-apps.sh"
+        web2app "$app_name" "$app_url" "$icon_url"
+    fi
+}
+
+web_apps_menu() {
+    local options=("Create Web App" "Back")
+    choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Web Apps") || return
+    
     case "$choice" in
-        Theme) theme_menu ;;
-        Cursors)
-            "$SCRIPT_DIR/theme-manager/cursors/cursor-menu"
-            main_menu
-        ;;
-        Utilities) utilities_menu ;;
-        Update)
-            "$SCRIPT_DIR/install/update.sh"
+        "Create Web App")
+            create_web_app
             ack_command
-            main_menu
         ;;
-        Setup)
-            "$SCRIPT_DIR/../setup.sh"
+        Back) return ;;
+    esac
+}
+
+secrets_menu() {
+    local options=(
+        "Setup - Initial secrets management setup"
+        "Create - Create encrypted secrets from input"
+        "Install - Install all secrets to machine"
+        "Install SSH Keys - Install SSH private keys"
+        "Install API Keys - Install API keys/env vars"
+        "Edit - Edit encrypted secrets file"
+        "Decrypt - View decrypted secrets"
+        "Verify - Verify secrets can be decrypted"
+        "Generate Key - Generate new age encryption key"
+        "Backup - Backup secrets and keys"
+        "Back"
+    )
+    
+    choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Secrets Management") || return
+    
+    case "$choice" in
+        "Setup"*) 
+            "$SCRIPT_DIR/utilities/secrets.sh" setup
             ack_command
-            main_menu
         ;;
-        "Power Menu")
-            power-menu
-            main_menu
+        "Create - Create"*)
+            "$SCRIPT_DIR/utilities/secrets.sh" create
+            ack_command
         ;;
-        "Keybindings")
-            keybindings-menu
-            main_menu
+        "Install - Install"*)
+            "$SCRIPT_DIR/utilities/secrets.sh" install
+            ack_command
         ;;
-        "Font Menu")
-            font-menu
-            main_menu
+        "Install SSH"*)
+            "$SCRIPT_DIR/utilities/secrets.sh" install-keys
+            ack_command
         ;;
-        Exit) clear && exit 0 ;;
+        "Install API"*)
+            "$SCRIPT_DIR/utilities/secrets.sh" install-api
+            ack_command
+        ;;
+        "Edit"*)
+            "$SCRIPT_DIR/utilities/secrets.sh" edit
+            ack_command
+        ;;
+        "Decrypt"*)
+            "$SCRIPT_DIR/utilities/secrets.sh" decrypt
+            ack_command
+        ;;
+        "Verify"*)
+            "$SCRIPT_DIR/utilities/secrets.sh" verify
+            ack_command
+        ;;
+        "Generate"*)
+            "$SCRIPT_DIR/utilities/secrets.sh" generate-key
+            ack_command
+        ;;
+        "Backup"*)
+            "$SCRIPT_DIR/utilities/secrets.sh" backup
+            ack_command
+        ;;
+        Back) return ;;
     esac
 }
 
@@ -91,13 +157,11 @@ utilities_menu() {
     choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Utilities") || main_menu
     case "$choice" in
         NFS)
-            "$SCRIPT_DIR/utilities/nfs.sh"
-            ack_command
+            nfs_menu
             utilities_menu
         ;;
         "Web Apps")
-            "$SCRIPT_DIR/utilities/web-apps.sh"
-            ack_command
+            web_apps_menu
             utilities_menu
         ;;
         "Docker DBs")
@@ -106,8 +170,7 @@ utilities_menu() {
             utilities_menu
         ;;
         Secrets)
-            "$SCRIPT_DIR/utilities/secrets.sh"
-            ack_command
+            secrets_menu
             utilities_menu
         ;;
         "Add Migration")
@@ -119,42 +182,6 @@ utilities_menu() {
             "$SCRIPT_DIR/utilities/netbird-install.sh"
             ack_command
             utilities_menu
-        ;;
-        Back) main_menu ;;
-    esac
-}
-
-theme_menu() {
-    local options=("Pick" "Install" "Update" "Remove" "Change Background" "SDDM Themes" "Back")
-    choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Theme") || main_menu
-    case "$choice" in
-        Pick)
-            theme-menu
-            ack_command
-            main_menu
-        ;;
-        Install)
-            install_theme_prompt
-            ack_command
-            theme_menu
-        ;;
-        Update)
-            theme-update
-            ack_command
-            theme_menu
-        ;;
-        Remove)
-            remove_theme_prompt
-            ack_command
-            theme_menu
-        ;;
-        "Change Background")
-            theme-bg-menu
-            ack_command
-            theme_menu
-        ;;
-        "SDDM Themes")
-            sddm_theme_menu
         ;;
         Back) main_menu ;;
     esac
@@ -176,8 +203,55 @@ remove_theme_prompt() {
     fi
 }
 
-ack_command() {
-    gum spin --spinner "globe" --title "Done!" -- sleep 1
+list_sddm_themes() {
+    local sys_themes_dir="/usr/share/sddm/themes"
+    local pkg_themes_dir="$SCRIPT_DIR/../packages/sddm/usr/share/sddm/themes"
+    local current_theme=""
+    
+    # Get current theme from config
+    if [[ -f /etc/sddm.conf.d/10-theme.conf ]]; then
+        current_theme=$(grep -E '^\s*Current\s*=' /etc/sddm.conf.d/10-theme.conf | sed -E 's/^\s*Current\s*=\s*//' | tr -d '[:space:]')
+    fi
+    
+    echo ""
+    gum style --bold --foreground 6 "SDDM Themes"
+    echo ""
+    
+    # Show available themes from dotfiles
+    if [[ -d "$pkg_themes_dir" ]]; then
+        gum style --foreground 2 --bold "Available in Dotfiles:"
+        while IFS= read -r theme; do
+            echo "Theme: $theme"
+            # Get the theme name from the directory path
+
+            local theme_name
+            theme_name=$(basename "$theme")
+            
+            if [[ -d "$sys_themes_dir/$theme_name" ]]; then
+                if [[ "$theme_name" == "$current_theme" ]]; then
+                    echo "  ✓ $theme_name (active, installed)"
+                else
+                    echo "  ✓ $theme_name (installed)"
+                fi
+            else
+                echo "  ○ $theme_name (not installed)"
+            fi
+        done < <(find "$pkg_themes_dir" -mindepth 1 -maxdepth 1 -type d | sort)
+        echo ""
+    fi
+    
+    # Show currently active theme
+    if [[ -n "$current_theme" ]]; then
+        gum style --foreground 3 --bold "Current Active Theme:"
+        echo "  → $current_theme"
+    else
+        gum style --foreground 1 "No theme configured (using SDDM default)"
+    fi
+    
+    echo ""
+    gum style --foreground 8 "Tip: Use 'Select Theme' to change, 'Refresh/Update' to install from dotfiles"
+    echo ""
+    gum confirm "Return to menu?" || exit 0
 }
 
 sddm_theme_menu() {
@@ -235,55 +309,154 @@ sddm_theme_menu() {
     esac
 }
 
-list_sddm_themes() {
-    local sys_themes_dir="/usr/share/sddm/themes"
-    local pkg_themes_dir="$SCRIPT_DIR/../packages/sddm/usr/share/sddm/themes"
-    local current_theme=""
-    
-    # Get current theme from config
-    if [[ -f /etc/sddm.conf.d/10-theme.conf ]]; then
-        current_theme=$(grep -E '^\s*Current\s*=' /etc/sddm.conf.d/10-theme.conf | sed -E 's/^\s*Current\s*=\s*//' | tr -d '[:space:]')
-    fi
-    
-    echo ""
-    gum style --bold --foreground 6 "SDDM Themes"
-    echo ""
-    
-    # Show available themes from dotfiles
-    if [[ -d "$pkg_themes_dir" ]]; then
-        gum style --foreground 2 --bold "Available in Dotfiles:"
-        while IFS= read -r theme; do
-            echo "Theme: $theme"
-            # Get the theme name from the directory path
-
-            local theme_name
-            theme_name=$(basename "$theme")
-            
-            if [[ -d "$sys_themes_dir/$theme_name" ]]; then
-                if [[ "$theme_name" == "$current_theme" ]]; then
-                    echo "  ✓ $theme_name (active, installed)"
-                else
-                    echo "  ✓ $theme_name (installed)"
-                fi
-            else
-                echo "  ○ $theme_name (not installed)"
-            fi
-        done < <(find "$pkg_themes_dir" -mindepth 1 -maxdepth 1 -type d | sort)
-        echo ""
-    fi
-    
-    # Show currently active theme
-    if [[ -n "$current_theme" ]]; then
-        gum style --foreground 3 --bold "Current Active Theme:"
-        echo "  → $current_theme"
-    else
-        gum style --foreground 1 "No theme configured (using SDDM default)"
-    fi
-    
-    echo ""
-    gum style --foreground 8 "Tip: Use 'Select Theme' to change, 'Refresh/Update' to install from dotfiles"
-    echo ""
-    gum confirm "Return to menu?" || exit 0
+theme_menu() {
+    local options=("Pick" "Install" "Update" "Remove" "Change Background" "SDDM Themes" "Back")
+    choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Theme") || main_menu
+    case "$choice" in
+        Pick)
+            theme-menu
+            ack_command
+            main_menu
+        ;;
+        Install)
+            install_theme_prompt
+            ack_command
+            theme_menu
+        ;;
+        Update)
+            theme-update
+            ack_command
+            theme_menu
+        ;;
+        Remove)
+            remove_theme_prompt
+            ack_command
+            theme_menu
+        ;;
+        "Change Background")
+            theme-bg-menu
+            ack_command
+            theme_menu
+        ;;
+        "SDDM Themes")
+            sddm_theme_menu
+        ;;
+        Back) main_menu ;;
+    esac
 }
+
+main_menu() {
+    local options=("Theme" "Cursors" "Utilities" "Update" "Setup" "Power Menu" "Keybindings" "Font Menu" "Exit")
+    choice=$(printf "%s\n" "${options[@]}" | gum choose --header="") || exit 0
+    case "$choice" in
+        Theme) theme_menu ;;
+        Cursors)
+            "$SCRIPT_DIR/theme-manager/cursors/cursor-menu"
+            main_menu
+        ;;
+        Utilities) utilities_menu ;;
+        Update)
+            "$SCRIPT_DIR/install/update.sh"
+            ack_command
+            main_menu
+        ;;
+        Setup)
+            "$SCRIPT_DIR/../setup.sh"
+            ack_command
+            main_menu
+        ;;
+        "Power Menu")
+            power-menu
+            main_menu
+        ;;
+        "Keybindings")
+            keybindings-menu
+            main_menu
+        ;;
+        "Font Menu")
+            font-menu
+            main_menu
+        ;;
+        Exit) clear && exit 0 ;;
+    esac
+}
+
+# Handle direct command arguments
+case "${1:-}" in
+    theme)
+        shift
+        theme_menu
+        exit 0
+    ;;
+    background)
+        shift
+        theme-bg-menu
+        exit 0
+    ;;
+    cursor|cursors)
+        shift
+        "$SCRIPT_DIR/theme-manager/cursors/cursor-menu"
+        exit 0
+    ;;
+    keybindings)
+        shift
+        keybindings-menu
+        exit 0
+    ;;
+    power)
+        shift
+        power-menu
+        exit 0
+    ;;
+    font|fonts)
+        shift
+        font-menu
+        exit 0
+    ;;
+    sddm)
+        shift
+        sddm_theme_menu
+        exit 0
+    ;;
+    utilities)
+        shift
+        case "${1:-}" in
+            nfs)
+                shift
+                nfs_menu
+                exit 0
+            ;;
+            web-apps)
+                shift
+                web_apps_menu
+                exit 0
+            ;;
+            docker-dbs)
+                shift
+                "$SCRIPT_DIR/utilities/docker-dbs.sh"
+                exit 0
+            ;;
+            secrets)
+                shift
+                secrets_menu
+                exit 0
+            ;;
+            add-migration)
+                shift
+                "$SCRIPT_DIR/utilities/add-migration.sh"
+                exit 0
+            ;;
+            netbird)
+                shift
+                "$SCRIPT_DIR/utilities/netbird-install.sh"
+                exit 0
+            ;;
+            *)
+                utilities_menu
+                exit 0
+            ;;
+        esac
+    ;;
+esac
 
 main_menu
