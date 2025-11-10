@@ -272,7 +272,7 @@ VDPAU_DRIVER=radeonsi          # VDPAU driver
 
 ### User Configuration
 
-- `~/.config/zsh/hosts/firedragon.zsh` - Shell aliases and environment
+- `~/.config/zsh/functions/firedragon.zsh` - Shell aliases and environment
 - `~/.local/bin/battery-status` - Battery status script
 
 ## Troubleshooting

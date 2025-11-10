@@ -113,7 +113,7 @@ sudo cp ~/dotfiles/hosts/firedragon/etc/systemd/resolved.conf.d/dns.conf /etc/sy
 sudo systemctl restart systemd-resolved
 
 # Source updated zsh config
-source ~/.config/zsh/hosts/firedragon.zsh
+source ~/.config/zsh/functions/firedragon.zsh
 
 # Or open new terminal
 ```
@@ -217,9 +217,9 @@ Internet
 ### FireDragon
 ```
 hosts/firedragon/
-├── setup.sh                                      ← Installs NetBird + DNS
-├── etc/systemd/resolved.conf.d/dns.conf          ← DNS config (updated)
-└── packages/zsh/.config/zsh/hosts/firedragon.zsh ← NetBird aliases (added)
+├── setup.sh                                        ← Installs NetBird + DNS
+├── etc/systemd/resolved.conf.d/dns.conf            ← DNS config (updated)
+└── .config/zsh/functions/firedragon.zsh            ← NetBird aliases (stowed)
 ```
 
 ### Dragon
