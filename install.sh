@@ -441,7 +441,6 @@ configure_shell() {
     fi
     
     # Create necessary directories
-    mkdir -p "$HOME/.config/zsh/hosts"
     mkdir -p "$HOME/.config/functions"
     mkdir -p "$HOME/.local/bin"
     
