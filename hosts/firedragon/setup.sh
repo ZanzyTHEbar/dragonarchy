@@ -531,11 +531,15 @@ EOF
     sudo cp -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system/amdgpu-resume.service" /etc/systemd/system/ 2>/dev/null || {
         log_warning "amdgpu-resume.service not found in dotfiles, skipping..."
     }
+    sudo cp -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system/amdgpu-console-restore.service" /etc/systemd/system/ 2>/dev/null || {
+        log_warning "amdgpu-console-restore.service not found in dotfiles, skipping..."
+    }
     
     # 3. Enable services
     sudo systemctl daemon-reload
     sudo systemctl enable amdgpu-suspend.service 2>/dev/null || true
     sudo systemctl enable amdgpu-resume.service 2>/dev/null || true
+    sudo systemctl enable amdgpu-console-restore.service 2>/dev/null || true
     
     # 4. DO NOT restart systemd-logind during active session!
     # It will kill the user's session and cause a black screen

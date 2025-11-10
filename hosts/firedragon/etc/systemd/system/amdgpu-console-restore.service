@@ -1,0 +1,18 @@
+[Unit]
+Description=AMD GPU Console/TTY Framebuffer Restore After Resume
+After=amdgpu-resume.service suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+User=root
+# Wait for GPU resume to complete
+ExecStart=/usr/bin/sleep 0.5
+# Force VT switch to reinitialize framebuffer (fixes TTY blank/corruption)
+ExecStart=/bin/sh -c 'chvt 1 && sleep 0.2 && chvt 7'
+# Log success
+ExecStart=/bin/sh -c 'echo "Console framebuffer restored at $(date)" > /tmp/amdgpu-console.log'
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
