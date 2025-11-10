@@ -1,6 +1,86 @@
-@define-color selected-text #88C0D0;
-@define-color text #D8DEE9;
-@define-color base #2E3440;
-@define-color border #D8DEE9;
-@define-color foreground #D8DEE9;
-@define-color background #2E3440;
+@define-color foreground #d8dee9;
+@define-color background #2e3440;
+@define-color accent #88c0d0;
+@define-color surface #474c57;
+@define-color panel #3c4956;
+@define-color border #60818f;
+@define-color muted #a4b9d1;
+@define-color selection #9cc8d6;
+@define-color shadow #20242d;
+
+#window {
+  color: @foreground;
+  background: transparent;
+}
+
+#box {
+  background: alpha(@panel, 0.95);
+  border-radius: 14px;
+  border: 1px solid alpha(@border, 0.85);
+  padding: 32px;
+  box-shadow: 0 24px 48px alpha(@shadow, 0.55);
+}
+
+#search {
+  background: alpha(@surface, 0.92);
+  color: @foreground;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  box-shadow: inset 0 0 0 1px alpha(@border, 0.25);
+}
+
+#prompt {
+  color: alpha(@muted, 0.75);
+  margin-right: 12px;
+}
+
+#clear {
+  color: alpha(@muted, 0.8);
+}
+
+#typeahead {
+  color: alpha(@muted, 0.85);
+}
+
+child {
+  padding: 10px 14px;
+  border-radius: 10px;
+  color: @foreground;
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+child:hover {
+  background: alpha(@selection, 0.22);
+}
+
+child:selected {
+  background: alpha(@selection, 0.35);
+  box-shadow: inset 0 0 0 1px alpha(@border, 0.45);
+  transform: translateX(4px);
+}
+
+#label {
+  font-weight: 600;
+}
+
+#sub {
+  color: alpha(@muted, 0.75);
+}
+
+#activationlabel {
+  color: alpha(@muted, 0.55);
+}
+
+.activation #text,
+.activation #icon,
+.activation #search {
+  opacity: 0.55;
+}
+
+.aiItem {
+  background: alpha(@surface, 0.88);
+  border-radius: 12px;
+  color: @foreground;
+  box-shadow: inset 0 0 0 1px alpha(@border, 0.12);
+}

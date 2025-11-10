@@ -1,12 +1,36 @@
-@define-color foreground #e6d9db;
-@define-color background #2c2525;
-@define-color accent #c0a080;
-@define-color surface #453f3f;
-@define-color panel #423733;
-@define-color border #7d6957;
-@define-color muted #b0a0a1;
-@define-color selection #caae97;
-@define-color shadow #1f1a1a;
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/theme-utils.sh
+source "$SCRIPT_DIR/lib/theme-utils.sh"
+
+for theme in "$THEMES_DIR"/*/; do
+  palette="$theme/hyprland-palette.conf"
+  [[ -f "$palette" ]] || continue
+
+  background="$(tm_palette_hex "$palette" background)" || continue
+  foreground="$(tm_palette_hex "$palette" foreground "$background")"
+  accent="$(tm_palette_hex "$palette" accent "$foreground")"
+  comment="$(tm_palette_hex "$palette" comment "$foreground")"
+
+  surface="$(tm_hex_blend "$background" "#ffffff" 12)"
+  panel="$(tm_hex_blend "$background" "$accent" 15)"
+  border="$(tm_hex_blend "$accent" "$background" 45)"
+  muted="$(tm_hex_blend "$foreground" "$comment" 60)"
+  selection="$(tm_hex_blend "$accent" "$foreground" 25)"
+  shadow="$(tm_hex_blend "$background" "#000000" 30)"
+
+  cat >"${theme%/}/walker.css" <<EOF
+@define-color foreground ${foreground};
+@define-color background ${background};
+@define-color accent ${accent};
+@define-color surface ${surface};
+@define-color panel ${panel};
+@define-color border ${border};
+@define-color muted ${muted};
+@define-color selection ${selection};
+@define-color shadow ${shadow};
 
 #window {
   color: @foreground;
@@ -84,3 +108,7 @@ child:selected {
   color: @foreground;
   box-shadow: inset 0 0 0 1px alpha(@border, 0.12);
 }
+EOF
+
+  echo "Wrote ${theme}walker.css"
+done
