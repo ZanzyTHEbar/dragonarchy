@@ -9,6 +9,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../../scripts/lib/logging.sh"
+source "${SCRIPT_DIR}/../../scripts/lib/install-state.sh"
+
+# Handle --reset flag to force re-run all steps
+if [[ "${1:-}" == "--reset" ]]; then
+    reset_all_steps
+    log_info "Installation state reset. All steps will be re-run."
+    echo
+fi
 
 # Setup Spacedragon-specific packages
 setup_spacedragon_packages() {
@@ -392,23 +400,67 @@ main() {
     log_info "🚀 Setting up Spacedragon-specific configuration..."
     echo
     
-    setup_spacedragon_packages
+    if ! is_step_completed "spacedragon-packages"; then
+        setup_spacedragon_packages && mark_step_completed "spacedragon-packages"
+    else
+        log_info "✓ Packages already installed (skipped)"
+    fi
     echo
-    setup_power_management
+    
+    if ! is_step_completed "spacedragon-power-management"; then
+        setup_power_management && mark_step_completed "spacedragon-power-management"
+    else
+        log_info "✓ Power management already configured (skipped)"
+    fi
     echo
-    setup_networking
+    
+    if ! is_step_completed "spacedragon-networking"; then
+        setup_networking && mark_step_completed "spacedragon-networking"
+    else
+        log_info "✓ Networking already configured (skipped)"
+    fi
     echo
-    setup_display_input
+    
+    if ! is_step_completed "spacedragon-display-input"; then
+        setup_display_input && mark_step_completed "spacedragon-display-input"
+    else
+        log_info "✓ Display/input already configured (skipped)"
+    fi
     echo
-    setup_portable_dev
+    
+    if ! is_step_completed "spacedragon-portable-dev"; then
+        setup_portable_dev && mark_step_completed "spacedragon-portable-dev"
+    else
+        log_info "✓ Portable development already configured (skipped)"
+    fi
     echo
-    setup_battery_monitoring
+    
+    if ! is_step_completed "spacedragon-battery-monitoring"; then
+        setup_battery_monitoring && mark_step_completed "spacedragon-battery-monitoring"
+    else
+        log_info "✓ Battery monitoring already configured (skipped)"
+    fi
     echo
-    setup_backup_sync
+    
+    if ! is_step_completed "spacedragon-backup-sync"; then
+        setup_backup_sync && mark_step_completed "spacedragon-backup-sync"
+    else
+        log_info "✓ Backup/sync already configured (skipped)"
+    fi
     echo
-    setup_laptop_optimizations
+    
+    if ! is_step_completed "spacedragon-laptop-optimizations"; then
+        setup_laptop_optimizations && mark_step_completed "spacedragon-laptop-optimizations"
+    else
+        log_info "✓ Laptop optimizations already applied (skipped)"
+    fi
     echo
-    create_host_config
+    
+    if ! is_step_completed "spacedragon-host-config"; then
+        create_host_config && mark_step_completed "spacedragon-host-config"
+    else
+        log_info "✓ Host configuration already created (skipped)"
+    fi
     
     echo
     log_success "🎉 Spacedragon setup completed!"

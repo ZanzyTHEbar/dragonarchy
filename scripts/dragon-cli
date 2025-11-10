@@ -253,7 +253,12 @@ list_sddm_themes() {
     if [[ -d "$pkg_themes_dir" ]]; then
         gum style --foreground 2 --bold "Available in Dotfiles:"
         while IFS= read -r theme; do
-            local theme_name=$(basename "$theme")
+            echo "Theme: $theme"
+            # Get the theme name from the directory path
+
+            local theme_name
+            theme_name=$(basename "$theme")
+            
             if [[ -d "$sys_themes_dir/$theme_name" ]]; then
                 if [[ "$theme_name" == "$current_theme" ]]; then
                     echo "  ✓ $theme_name (active, installed)"
