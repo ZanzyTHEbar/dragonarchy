@@ -69,7 +69,7 @@
     "tooltip-format": "Left: power menu | Middle: rerun autostart | Right: settings",
     "on-click": "$HOME/dotfiles/scripts/theme-manager/power-menu",
     "on-click-middle": "$HOME/dotfiles/scripts/theme-manager/restart-autostart",
-    "on-click-right": "bash -lc 'kitty --class=Dragon --title=Dragon $HOME/dotfiles/scripts/dragon-cli & sleep 0.15;'"
+    "on-click-right": "bash -lc 'kitty --class=Dragon --title=Dragon $HOME/dotfiles/scripts/dragon-cli & sleep 1;'"
   },
   "cpu": {
     "interval": 5,

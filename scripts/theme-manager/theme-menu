@@ -34,5 +34,10 @@ clean_selection=$(echo "$selection" | sed -E 's/^Current: //g')
 # Convert to lowercase and dash-separated: "Tokyo Night" -> "tokyo-night"
 selected_theme=$(echo "$clean_selection" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
 
+# Log selection for debugging
+{
+  printf '%s selection_raw=%q cleaned=%q slug=%q\n' "$(date --iso-8601=seconds)" "$selection" "$clean_selection" "$selected_theme"
+} >>/tmp/theme-menu.log 2>/dev/null || true
+
 # Apply the selected theme
 "$SCRIPT_DIR/theme-set" "$selected_theme"

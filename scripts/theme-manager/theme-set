@@ -24,6 +24,10 @@ if [[ -z "$THEME_NAME" ]]; then
   exit 1
 fi
 
+{
+  printf '%s START NO_GUI=%s THEME=%s\n' "$(date --iso-8601=seconds)" "$NO_GUI" "$THEME_NAME"
+} >>/tmp/theme-set.log 2>/dev/null || true
+
 # Get the script directory and resolve to absolute path
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 THEMES_DIR="$(cd "$SCRIPT_DIR/../../packages/themes/.config/themes" && pwd)"
@@ -40,6 +44,14 @@ fi
 # Update theme symlink with absolute path
 mkdir -p "$(dirname "$CURRENT_THEME_DIR")"
 ln -Tnsf "$THEME_PATH" "$CURRENT_THEME_DIR"
+
+{
+  printf '%s LINK CURRENT_THEME_DIR=%s TARGET=%s RESOLVED=%s\n' \
+    "$(date --iso-8601=seconds)" \
+    "$CURRENT_THEME_DIR" \
+    "$THEME_PATH" \
+    "$(readlink -f "$CURRENT_THEME_DIR" 2>/dev/null || echo unknown)"
+} >>/tmp/theme-set.log 2>/dev/null || true
 
 # "Compile" the dynamic theme colors into a static file for Hyprland to source
 [ -f "$THEME_PATH/hyprland-palette.conf" ] && cp "$THEME_PATH/hyprland-palette.conf" ~/.config/hypr/colors-theme.conf || true
@@ -112,8 +124,6 @@ if [[ "$NO_GUI" == "false" ]]; then
     setsid nemo &>/dev/null &
   fi
 
-  # Set new background
-  "$SCRIPT_DIR/theme-bg-next"
 fi
 
 
@@ -138,3 +148,31 @@ if [[ -n "$SDDM_THEMES_DIR" && -d "$SDDM_THEMES_DIR/$THEME_NAME" ]]; then
   echo "Found matching SDDM theme '$THEME_NAME'. Applying..."
   "$SCRIPT_DIR/sddm-set" "$THEME_NAME" || true
 fi
+
+# Always update background link; skip compositor reload when --no-gui is set
+THEME_BG_ARGS=()
+if [[ "$NO_GUI" == "true" ]]; then
+  THEME_BG_ARGS+=(--skip-apply)
+fi
+
+{
+  printf '%s CALL theme-bg-next args=%q\n' \
+    "$(date --iso-8601=seconds)" \
+    "${THEME_BG_ARGS[*]}"
+} >>/tmp/theme-set.log 2>/dev/null || true
+
+THEME_BG_OUTPUT=$("$SCRIPT_DIR/theme-bg-next" "${THEME_BG_ARGS[@]}" 2>&1)
+THEME_BG_STATUS=$?
+
+{
+  printf '%s CALL_DONE status=%s output=%s\n' \
+    "$(date --iso-8601=seconds)" \
+    "$THEME_BG_STATUS" \
+    "$(printf '%s' "$THEME_BG_OUTPUT" | tr '\n' ';')"
+} >>/tmp/theme-set.log 2>/dev/null || true
+{
+  printf '%s DONE THEME=%s BACKGROUND_LINK=%s\n' \
+    "$(date --iso-8601=seconds)" \
+    "$THEME_NAME" \
+    "$(readlink -f "${XDG_CONFIG_HOME:-$HOME/.config}/current/background" 2>/dev/null || echo none)"
+} >>/tmp/theme-set.log 2>/dev/null || true
