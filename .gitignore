@@ -15,3 +15,7 @@ packages/hyprland/.config/hypr/colors-theme.conf
 # fcitx5 runtime files
 packages/fcitx5/.config/fcitx5/conf/cached_layouts
 packages/fcitx5/.config/fcitx5/conf/notifications.conf
+
+# Cursor
+.cursorignore
+vendored/
