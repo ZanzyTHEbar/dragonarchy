@@ -16,6 +16,33 @@ ack_command() {
     gum spin --spinner "globe" --title "Done!" -- sleep 1
 }
 
+ensure_tty() {
+    if [[ ! -t 0 || ! -t 1 ]]; then
+        echo "dragon-cli interactive menus require a TTY. Run this command inside a terminal or use direct subcommands such as theme-set." >&2
+        return 1
+    fi
+    return 0
+}
+
+show_theme_summary() {
+    local theme_path background_path theme_name background_name
+    theme_path=$(readlink -f "${XDG_CONFIG_HOME:-$HOME/.config}/current/theme" 2>/dev/null || true)
+    background_path=$(readlink -f "${XDG_CONFIG_HOME:-$HOME/.config}/current/background" 2>/dev/null || true)
+    theme_name="${theme_path:+$(basename "$theme_path")}"
+    background_name="${background_path:+$(basename "$background_path")}"
+
+    theme_name="${theme_name:-unknown}"
+    background_name="${background_name:-unknown}"
+
+    if [[ -t 1 ]] && command -v gum >/dev/null 2>&1; then
+        gum style --foreground 6 --bold "Theme Applied"
+        gum style --foreground 2 "Theme: $theme_name"
+        gum style --foreground 4 "Background: $background_name"
+    else
+        printf 'Theme Applied -> theme: %s | background: %s\n' "$theme_name" "$background_name"
+    fi
+}
+
 nfs_menu() {
     gum style --foreground 6 --bold "NFS Configuration"
     echo ""
@@ -153,6 +180,7 @@ secrets_menu() {
 }
 
 utilities_menu() {
+    ensure_tty || return
     local options=("NFS" "Web Apps" "Docker DBs" "Secrets" "Add Migration" "Netbird" "Back")
     choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Utilities") || main_menu
     case "$choice" in
@@ -255,6 +283,7 @@ list_sddm_themes() {
 }
 
 sddm_theme_menu() {
+    ensure_tty || return
     # Check if SDDM is installed
     if ! command -v sddm >/dev/null 2>&1; then
         gum style --foreground 3 --border normal --padding "0 1" --margin "1 0" \
@@ -310,22 +339,28 @@ sddm_theme_menu() {
 }
 
 theme_menu() {
-    local options=("Pick" "Install" "Update" "Remove" "Change Background" "SDDM Themes" "Back")
+    ensure_tty || return
+    local options=("Pick" "Install" "Update" "Remove" "Change Background" "Next Background" "SDDM Themes" "Back")
     choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Theme") || main_menu
     case "$choice" in
         Pick)
-            theme-menu
-            ack_command
+            if "$SCRIPT_DIR/theme-manager/theme-menu"; then
+                ack_command
+                show_theme_summary
+            fi
             main_menu
         ;;
         Install)
             install_theme_prompt
             ack_command
+            show_theme_summary
             theme_menu
         ;;
         Update)
-            theme-update
-            ack_command
+            if theme-update; then
+                ack_command
+                show_theme_summary
+            fi
             theme_menu
         ;;
         Remove)
@@ -334,8 +369,19 @@ theme_menu() {
             theme_menu
         ;;
         "Change Background")
-            theme-bg-menu
-            ack_command
+            if theme-bg-menu; then
+                ack_command
+                show_theme_summary
+            fi
+            theme_menu
+        ;;
+        "Next Background")
+            if "$SCRIPT_DIR/theme-manager/theme-bg-next"; then
+                ack_command
+                show_theme_summary
+            else
+                sleep 1
+            fi
             theme_menu
         ;;
         "SDDM Themes")
@@ -346,6 +392,7 @@ theme_menu() {
 }
 
 main_menu() {
+    ensure_tty || exit 2
     local options=("Theme" "Cursors" "Utilities" "Update" "Setup" "Power Menu" "Keybindings" "Font Menu" "Exit")
     choice=$(printf "%s\n" "${options[@]}" | gum choose --header="") || exit 0
     case "$choice" in

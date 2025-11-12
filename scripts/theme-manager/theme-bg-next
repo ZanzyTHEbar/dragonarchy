@@ -1,28 +1,73 @@
 #!/bin/bash
 # Cycles through the background images available
 
+SKIP_APPLY=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-apply|--no-apply|--link-only)
+      SKIP_APPLY=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
 CURRENT_THEME_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
 CURRENT_BACKGROUND_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
+LOG_FILE="/tmp/theme-bg-next.log"
+
+apply_background() {
+  [[ "$SKIP_APPLY" == "true" ]] && return 0
+  local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}"
+  local wayland_display="${WAYLAND_DISPLAY:-}"
+  if [[ -z "$wayland_display" && -d "$runtime_dir" ]]; then
+    local candidate
+    for candidate in "$runtime_dir"/wayland-*; do
+      [[ -S "$candidate" ]] || continue
+      wayland_display=$(basename "$candidate")
+      break
+    done
+  fi
+  command pkill -x swaybg
+  if [[ -n "$wayland_display" ]]; then
+    setsid env XDG_RUNTIME_DIR="$runtime_dir" WAYLAND_DISPLAY="$wayland_display" uwsm app -- swaybg "$@" >/dev/null 2>&1 &
+  else
+    setsid uwsm app -- swaybg "$@" >/dev/null 2>&1 &
+  fi
+}
+
+log_event() {
+  local message=$1
+  {
+    printf '%s theme=%s skip=%s %s\n' "$(date --iso-8601=seconds)" "${THEME_REAL_PATH:-unknown}" "$SKIP_APPLY" "$message"
+  } >>"$LOG_FILE" 2>/dev/null || true
+}
 
 # Resolve the real path to the theme directory (follow all symlinks)
 if [ ! -L "$CURRENT_THEME_LINK" ] && [ ! -d "$CURRENT_THEME_LINK" ]; then
   echo "No current theme set" >&2
-  pkill -x swaybg
-  setsid uwsm app -- swaybg --color '#000000' >/dev/null 2>&1 &
+  log_event "no-theme"
+  apply_background --color '#000000'
   exit 1
 fi
 
 THEME_REAL_PATH=$(readlink -f "$CURRENT_THEME_LINK")
 BACKGROUNDS_DIR="${THEME_REAL_PATH}/backgrounds/"
+log_event "resolved backgrounds_dir=$BACKGROUNDS_DIR"
 
 # Find all background files, following symlinks
 mapfile -d '' -t BACKGROUNDS < <(find -L "$BACKGROUNDS_DIR" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.webp" \) -print0 2>/dev/null | sort -z)
 TOTAL=${#BACKGROUNDS[@]}
+log_event "found_backgrounds=$TOTAL current_link=$(readlink -f \"$CURRENT_BACKGROUND_LINK\" 2>/dev/null || echo none)"
 
 if [[ $TOTAL -eq 0 ]]; then
   echo "No background was found for theme"
-  command pkill -x swaybg
-  setsid uwsm app -- swaybg --color '#000000' >/dev/null 2>&1 &
+  log_event "no-backgrounds"
+  apply_background --color '#000000'
 else
   # Get current background from symlink
   if [[ -L "$CURRENT_BACKGROUND_LINK" ]]; then
@@ -53,7 +98,7 @@ else
   # Set new background symlink
   ln -nsf "$NEW_BACKGROUND" "$CURRENT_BACKGROUND_LINK"
 
-  # Relaunch swaybg
-  command pkill -x swaybg
-  setsid uwsm app -- swaybg -i "$CURRENT_BACKGROUND_LINK" -m fill >/dev/null 2>&1 &
+  # Relaunch swaybg unless suppressed
+  log_event "set_background=$NEW_BACKGROUND"
+  apply_background -i "$CURRENT_BACKGROUND_LINK" -m fill
 fi
