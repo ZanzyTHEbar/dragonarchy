@@ -82,6 +82,18 @@ log_success "Wrote $ELEPHANT_CFG_DIR/providers/runner.toml (runprefix)"
 systemctl --user daemon-reload
 systemctl --user enable --now elephant || log_warn "Failed to start elephant; ensure /usr/bin/elephant exists"
 
+# --- Thermal profile initialization service ---
+THERMAL_PROFILE_UNIT="thermal-profile-init.service"
+if systemctl --user list-unit-files --no-legend 2>/dev/null | grep -q "^${THERMAL_PROFILE_UNIT}"; then
+  if systemctl --user enable --now "${THERMAL_PROFILE_UNIT}" >/dev/null 2>&1; then
+    log_success "Thermal profile init service enabled"
+  else
+    log_warn "Failed to enable thermal-profile-init.service; ensure ~/.local/bin/thermal-profile-init exists"
+  fi
+else
+  log_info "thermal-profile-init.service not present; skipping enablement"
+fi
+
 # --- Quick hints ---
 log_info "Verify: systemctl --user status elephant"
 log_info "If socket busy, ExecStartPre cleans /tmp/elephant.sock"
