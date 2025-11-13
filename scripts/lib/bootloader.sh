@@ -143,6 +143,7 @@ boot__append_limine() {
   tmp="${cfg}.tmp"
   cp "$cfg" "${cfg}.backup.$(date +%Y%m%d_%H%M%S)"
   local changed=0
+  local touched=0
   while IFS= read -r line; do
     if [[ "$line" =~ ^CMDLINE ]]; then
       # Extract quoted content
@@ -155,13 +156,32 @@ boot__append_limine() {
         changed=1
         continue
       fi
+      touched=1
+    elif [[ "$line" =~ ^[[:space:]]*kernel_cmdline: ]]; then
+      local prefix value merged
+      prefix="$(printf '%s' "$line" | sed -E 's/^([[:space:]]*kernel_cmdline:[[:space:]]*).*/\1/')"
+      value="${line#"$prefix"}"
+      value="$(printf '%s' "$value" | xargs || true)"
+      merged="$(boot__merge_params "$value" "$params")"
+      if [[ "$merged" != "$value" ]]; then
+        printf '%s%s\n' "$prefix" "$merged" >> "$tmp"
+        changed=1
+        touched=1
+        continue
+      fi
+      touched=1
     fi
     printf '%s\n' "$line" >> "$tmp"
   done < "$cfg"
   if [[ $changed -eq 1 ]]; then
     mv "$tmp" "$cfg"; sync; log_success "Updated Limine config: $cfg"; BOOT_PARAMS_CHANGED=true
   else
-    rm -f "$tmp"; log_info "Limine CMDLINE already contains desired parameters"
+    rm -f "$tmp"
+    if [[ $touched -eq 0 ]]; then
+      log_warning "No kernel_cmdline entries found in Limine config; please add parameters manually if needed"
+    else
+      log_info "Limine kernel_cmdline already contains desired parameters"
+    fi
   fi
 }
 

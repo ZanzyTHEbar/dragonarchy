@@ -57,6 +57,9 @@ log_info "Step 1: Installing AMD GPU suspend/resume services..."
 DOTFILES_DIR="${HOME}/dotfiles"
 SERVICES_SRC="${DOTFILES_DIR}/hosts/firedragon/etc/systemd/system"
 SERVICES_DEST="/etc/systemd/system"
+LOG_LIB="${DOTFILES_DIR}/scripts/lib/logging.sh"
+BOOT_LIB="${DOTFILES_DIR}/scripts/lib/bootloader.sh"
+FORCE_INITRAMFS="${FORCE_INITRAMFS:-0}"
 
 if [[ ! -d "$SERVICES_SRC" ]]; then
     log_error "Services source directory not found: $SERVICES_SRC"
@@ -104,17 +107,78 @@ log_info "Step 3: Verifying AMD GPU kernel module configuration..."
 
 AMDGPU_CONF="${DOTFILES_DIR}/hosts/firedragon/etc/modprobe.d/amdgpu.conf"
 AMDGPU_DEST="/etc/modprobe.d/amdgpu.conf"
+NEED_INITRAMFS_REBUILD=0
 
 if [[ -f "$AMDGPU_CONF" ]]; then
     sudo mkdir -p /etc/modprobe.d
-    sudo cp -f "$AMDGPU_CONF" "$AMDGPU_DEST"
-    log_success "amdgpu.conf updated"
+    if sudo test -f "$AMDGPU_DEST"; then
+        if sudo cmp -s "$AMDGPU_CONF" "$AMDGPU_DEST"; then
+            log_info "amdgpu.conf already up to date"
+        else
+            log_info "Updating amdgpu.conf..."
+            sudo cp -f "$AMDGPU_CONF" "$AMDGPU_DEST"
+            NEED_INITRAMFS_REBUILD=1
+            log_success "amdgpu.conf installed"
+        fi
+    else
+        log_info "Installing amdgpu.conf..."
+        sudo cp -f "$AMDGPU_CONF" "$AMDGPU_DEST"
+        NEED_INITRAMFS_REBUILD=1
+        log_success "amdgpu.conf installed"
+    fi
+
+    if grep -qw "amdgpu.modeset=1" /proc/cmdline; then
+        log_success "Kernel parameter amdgpu.modeset=1 already active in current boot"
+    else
+        log_warning "Kernel parameter amdgpu.modeset=1 not active in current boot"
+        LIMINE_DEFAULT_CONF="/etc/default/limine"
+        if sudo test -f "$LIMINE_DEFAULT_CONF"; then
+            if sudo grep -q "amdgpu.modeset=1" "$LIMINE_DEFAULT_CONF" >/dev/null 2>&1; then
+                log_info "/etc/default/limine already includes amdgpu.modeset=1"
+            else
+                log_info "Adding amdgpu.modeset=1 to /etc/default/limine kernel defaults..."
+                if sudo perl -0pi -e 's/(KERNEL_CMDLINE\[default\]\+=\"[^\"]*)(\")/$1 amdgpu.modeset=1$2/' "$LIMINE_DEFAULT_CONF"; then
+                    log_success "Updated /etc/default/limine with amdgpu.modeset=1"
+                    NEED_INITRAMFS_REBUILD=1
+                else
+                    log_error "Failed to update /etc/default/limine"
+                fi
+            fi
+        else
+            log_warning "/etc/default/limine not found; skipping kernel default update"
+        fi
+        if [[ -f "$BOOT_LIB" ]]; then
+            log_info "Ensuring bootloader configuration includes amdgpu.modeset=1..."
+            if sudo env LOG_LIB="$LOG_LIB" BOOT_LIB="$BOOT_LIB" bash -c '
+                set -e
+                if [[ -f "$LOG_LIB" ]]; then
+                    # shellcheck disable=SC1091
+                    source "$LOG_LIB"
+                fi
+                # shellcheck disable=SC1091
+                source "$BOOT_LIB"
+                boot_append_kernel_params "amdgpu.modeset=1"
+                boot_rebuild_if_changed
+                BOOT_PARAMS_CHANGED=false
+                boot_append_kernel_params "amdgpu.modeset=1"
+            '; then
+                log_success "Bootloader configuration updated with amdgpu.modeset=1"
+                log_warning "Reboot required to load amdgpu.modeset=1 on the next boot"
+            else
+                log_error "Failed to update bootloader with amdgpu.modeset=1; please add manually"
+            fi
+        else
+            log_warning "Bootloader helper not found at $BOOT_LIB; skipping kernel parameter update"
+        fi
+    fi
     
-    # Check if initramfs needs rebuilding
-    if ! grep -q "amdgpu.modeset=1" /proc/cmdline 2>/dev/null; then
-        log_warning "Kernel module parameters not loaded yet"
-        log_info "Rebuilding initramfs..."
-        
+    if [[ $FORCE_INITRAMFS -eq 1 ]]; then
+        log_info "Force initramfs rebuild requested via FORCE_INITRAMFS=1"
+        NEED_INITRAMFS_REBUILD=1
+    fi
+    
+    if [[ $NEED_INITRAMFS_REBUILD -eq 1 ]]; then
+        log_info "Rebuilding initramfs to include updated amdgpu.conf..."
         if command -v mkinitcpio >/dev/null 2>&1; then
             sudo mkinitcpio -P
             log_success "Initramfs rebuilt"
@@ -126,7 +190,7 @@ if [[ -f "$AMDGPU_CONF" ]]; then
             exit 1
         fi
     else
-        log_success "Kernel module parameters already loaded"
+        log_info "Initramfs rebuild not required (amdgpu.conf unchanged)"
     fi
 else
     log_warning "amdgpu.conf not found in dotfiles"
@@ -138,20 +202,93 @@ log_info "Step 4: Checking hypridle configuration..."
 HYPRIDLE_CONF="${HOME}/.config/hypr/hypridle.conf"
 
 if [[ -f "$HYPRIDLE_CONF" ]]; then
-    if grep -q "after_sleep_cmd.*dpms on" "$HYPRIDLE_CONF"; then
+    if awk '
+        BEGIN { found = 0 }
+        /^[[:space:]]*#/ { next }
+        {
+            line = $0
+            sub(/#.*/, "", line)
+            gsub(/["'\''`]/, "", line)
+            gsub(/^[[:space:]]+/, "", line)
+            gsub(/[[:space:]]+$/, "", line)
+            n = split(line, tokens, /[[:space:]]+/)
+            if (n == 0) {
+                next
+            }
+            if (tokens[1] == "" && n > 1) {
+                # Shift tokens left to skip empty leading entry
+                for (i = 1; i < n; i++) {
+                    tokens[i] = tokens[i + 1]
+                }
+                n = n - 1
+            }
+            if (n > 0 && tokens[1] == "after_sleep_cmd") {
+                for (i = 2; i <= n; i++) {
+                    if (tokens[i] == "=") {
+                        continue
+                    }
+                    if (tokens[i] == "dpms" && i < n && tokens[i + 1] == "on") {
+                        found = 1
+                        break
+                    }
+                }
+            }
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$HYPRIDLE_CONF"; then
         log_success "hypridle has correct after_sleep_cmd"
     else
-        log_warning "hypridle missing 'after_sleep_cmd = hyprctl dispatch dpms on'"
-        log_info "You may need to add this to your hypridle.conf:"
+        log_warning "hypridle missing or misconfigured 'after_sleep_cmd' that restores DPMS"
+        log_info "Example hypridle listener:"
         echo "    listener {"
         echo "        on-resume = hyprctl dispatch dpms on"
         echo "    }"
     fi
-    
-    if grep -q "before_sleep_cmd.*loginctl lock-session" "$HYPRIDLE_CONF"; then
+
+    if awk '
+        BEGIN { found = 0 }
+        /^[[:space:]]*#/ { next }
+        {
+            line = $0
+            sub(/#.*/, "", line)
+            gsub(/["'\''`]/, "", line)
+            gsub(/^[[:space:]]+/, "", line)
+            gsub(/[[:space:]]+$/, "", line)
+            n = split(line, tokens, /[[:space:]]+/)
+            if (n == 0) {
+                next
+            }
+            if (tokens[1] == "" && n > 1) {
+                for (i = 1; i < n; i++) {
+                    tokens[i] = tokens[i + 1]
+                }
+                n = n - 1
+            }
+            if (n > 0 && tokens[1] == "before_sleep_cmd") {
+                have_loginctl = 0
+                have_lock = 0
+                for (i = 2; i <= n; i++) {
+                    if (tokens[i] == "=") {
+                        continue
+                    }
+                    if (tokens[i] == "loginctl") {
+                        have_loginctl = 1
+                    }
+                    if (tokens[i] ~ /^lock-session$/) {
+                        have_lock = 1
+                    }
+                    if (have_loginctl && have_lock) {
+                        found = 1
+                        break
+                    }
+                }
+            }
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$HYPRIDLE_CONF"; then
         log_success "hypridle has correct before_sleep_cmd"
     else
-        log_warning "hypridle missing 'before_sleep_cmd = loginctl lock-session'"
+        log_warning "hypridle missing or misconfigured 'before_sleep_cmd' to lock the session"
     fi
 else
     log_warning "hypridle.conf not found at ${HYPRIDLE_CONF}"

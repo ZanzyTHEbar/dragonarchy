@@ -409,14 +409,15 @@ EOF
     log_success "Battery monitoring configured"
 }
 
-    # Create Hyprland host-specific configuration for laptops
+# Create Hyprland host-specific configuration for laptops
+setup_hyprland_host_config() {
     log_info "Creating Hyprland laptop-specific configuration..."
     mkdir -p "$HOME/.config/hypr/config"
     
     # Only create if it doesn't exist or isn't a symlink (managed by stow)
     if [[ ! -e "$HOME/.config/hypr/config/host-config.conf" ]] || [[ ! -L "$HOME/.config/hypr/config/host-config.conf" ]]; then
         log_info "Creating host-config.conf for laptop..."
-    cat > "$HOME/.config/hypr/config/host-config.conf" << 'EOF'
+        cat > "$HOME/.config/hypr/config/host-config.conf" << 'EOF'
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃              FireDragon Laptop-Specific Configuration       ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -541,7 +542,47 @@ EOF
     sudo systemctl enable amdgpu-resume.service 2>/dev/null || true
     sudo systemctl enable amdgpu-console-restore.service 2>/dev/null || true
     
-    # 4. DO NOT restart systemd-logind during active session!
+    # 4. Ensure kernel command line includes required AMD parameters
+    if grep -qw "amdgpu.modeset=1" /proc/cmdline; then
+        log_success "Kernel parameter amdgpu.modeset=1 already active in current boot"
+    else
+        log_info "Ensuring bootloader configuration includes amdgpu.modeset=1..."
+        LIMINE_DEFAULT_CONF="/etc/default/limine"
+        if sudo test -f "$LIMINE_DEFAULT_CONF"; then
+            if sudo grep -q "amdgpu.modeset=1" "$LIMINE_DEFAULT_CONF" >/dev/null 2>&1; then
+                log_info "/etc/default/limine already includes amdgpu.modeset=1"
+            else
+                log_info "Adding amdgpu.modeset=1 to /etc/default/limine kernel defaults..."
+                if sudo perl -0pi -e 's/(KERNEL_CMDLINE\[default\]\+=\"[^\"]*)(\")/$1 amdgpu.modeset=1$2/' "$LIMINE_DEFAULT_CONF"; then
+                    log_success "Updated /etc/default/limine with amdgpu.modeset=1"
+                else
+                    log_warning "Failed to update /etc/default/limine automatically; please add amdgpu.modeset=1 manually"
+                fi
+            fi
+        else
+            log_warning "/etc/default/limine not found; skipping kernel default update"
+        fi
+        if sudo env LOG_LIB="$LOG_LIB" BOOT_LIB="$BOOT_LIB" bash -c '
+            set -e
+            if [[ -f "$LOG_LIB" ]]; then
+                # shellcheck disable=SC1091
+                source "$LOG_LIB"
+            fi
+            # shellcheck disable=SC1091
+            source "$BOOT_LIB"
+            boot_append_kernel_params "amdgpu.modeset=1"
+            boot_rebuild_if_changed
+            BOOT_PARAMS_CHANGED=false
+            boot_append_kernel_params "amdgpu.modeset=1"
+        '; then
+            log_success "Bootloader configuration updated with amdgpu.modeset=1"
+            log_warning "Reboot required for amdgpu.modeset=1 to take effect"
+        else
+            log_warning "Failed to update bootloader automatically; ensure amdgpu.modeset=1 is added manually"
+        fi
+    fi
+    
+    # 5. DO NOT restart systemd-logind during active session!
     # It will kill the user's session and cause a black screen
     log_warning "systemd-logind changes require REBOOT to take effect"
     log_warning "DO NOT restart systemd-logind manually - it will kill your session!"
@@ -858,6 +899,13 @@ main() {
         setup_display_input && mark_step_completed "firedragon-display-input"
     else
         log_info "✓ Display/input already configured (skipped)"
+    fi
+    echo
+    
+    if ! is_step_completed "firedragon-hyprland-host-config"; then
+        setup_hyprland_host_config && mark_step_completed "firedragon-hyprland-host-config"
+    else
+        log_info "✓ Hyprland host configuration already created (skipped)"
     fi
     echo
     

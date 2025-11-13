@@ -1,0 +1,13 @@
+[Unit]
+Description=Initialize quiet thermal profile on session start
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/thermal-profile-init
+RemainAfterExit=no
+
+[Install]
+WantedBy=graphical-session.target
+
