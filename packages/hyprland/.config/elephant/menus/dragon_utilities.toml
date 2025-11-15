@@ -1,0 +1,12 @@
+name = "dragon_utilities"
+name_pretty = "Utilities"
+icon = "utilities-terminal"
+parent = "dragon"
+description = "Additional Dragon utilities will appear here soon."
+history = false
+
+[[entries]]
+text = "Coming soon"
+subtext = "Utilities menu is under construction"
+icon = "dialog-information"
+actions = {}

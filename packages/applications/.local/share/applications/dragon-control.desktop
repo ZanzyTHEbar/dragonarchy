@@ -2,7 +2,7 @@
 Type=Application
 Name=Dragon Control
 Comment=Control dragon-cli utilities via Walker
-Exec=uwsm app -- bash -lc 'dragon-walker'
+Exec=uwsm app -- walker -m menus:dragon
 Icon=dragon
 Terminal=false
 Categories=Utility;
