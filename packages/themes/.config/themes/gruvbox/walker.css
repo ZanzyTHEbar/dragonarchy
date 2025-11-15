@@ -1,86 +1,188 @@
-@define-color foreground #d4be98;
-@define-color background #282828;
-@define-color accent #83a598;
-@define-color surface #424242;
-@define-color panel #363b39;
-@define-color border #5a6d66;
-@define-color muted #ac9b82;
-@define-color selection #97ab98;
-@define-color shadow #1c1c1c;
+/* Auto-generated Walker theme - color overrides only */
+@define-color window_bg_color #282828;
+@define-color accent_bg_color #83a598;
+@define-color theme_fg_color #d4be98;
+@define-color error_bg_color #ea6962;
+@define-color error_fg_color #d4be98;
 
-#window {
-  color: @foreground;
-  background: transparent;
+
+* {
+  all: unset;
 }
 
-#box {
-  background: alpha(@panel, 0.95);
-  border-radius: 14px;
-  border: 1px solid alpha(@border, 0.85);
-  padding: 32px;
-  box-shadow: 0 24px 48px alpha(@shadow, 0.55);
+.normal-icons {
+  -gtk-icon-size: 16px;
 }
 
-#search {
-  background: alpha(@surface, 0.92);
-  color: @foreground;
-  border-radius: 12px;
-  padding: 12px 16px;
-  margin-bottom: 16px;
-  box-shadow: inset 0 0 0 1px alpha(@border, 0.25);
+.large-icons {
+  -gtk-icon-size: 32px;
 }
 
-#prompt {
-  color: alpha(@muted, 0.75);
-  margin-right: 12px;
+scrollbar {
+  opacity: 0;
 }
 
-#clear {
-  color: alpha(@muted, 0.8);
+.box-wrapper {
+  box-shadow:
+    0 19px 38px rgba(0, 0, 0, 0.3),
+    0 15px 12px rgba(0, 0, 0, 0.22);
+  background: @window_bg_color;
+  padding: 20px;
+  border-radius: 20px;
+  border: 1px solid darker(@accent_bg_color);
 }
 
-#typeahead {
-  color: alpha(@muted, 0.85);
+.preview-box,
+.elephant-hint,
+.placeholder {
+  color: @theme_fg_color;
+}
+
+.box {
+}
+
+.search-container {
+  border-radius: 10px;
+}
+
+.input placeholder {
+  opacity: 0.5;
+}
+
+.input selection {
+  background: lighter(lighter(lighter(@window_bg_color)));
+}
+
+.input {
+  caret-color: @theme_fg_color;
+  background: lighter(@window_bg_color);
+  padding: 10px;
+  color: @theme_fg_color;
+}
+
+.input:focus,
+.input:active {
+}
+
+.content-container {
+}
+
+.placeholder {
+}
+
+.scroll {
+}
+
+.list {
+  color: @theme_fg_color;
 }
 
 child {
-  padding: 10px 14px;
+}
+
+.item-box {
   border-radius: 10px;
-  color: @foreground;
-  transition: background 120ms ease, transform 120ms ease;
+  padding: 10px;
 }
 
-child:hover {
-  background: alpha(@selection, 0.22);
+.item-quick-activation {
+  background: alpha(@accent_bg_color, 0.25);
+  border-radius: 5px;
+  padding: 10px;
 }
 
-child:selected {
-  background: alpha(@selection, 0.35);
-  box-shadow: inset 0 0 0 1px alpha(@border, 0.45);
-  transform: translateX(4px);
+child:hover .item-box,
+child:selected .item-box {
+  background: alpha(@accent_bg_color, 0.25);
 }
 
-#label {
-  font-weight: 600;
+.item-text-box {
 }
 
-#sub {
-  color: alpha(@muted, 0.75);
+.item-subtext {
+  font-size: 12px;
+  opacity: 0.5;
 }
 
-#activationlabel {
-  color: alpha(@muted, 0.55);
+.providerlist .item-subtext {
+  font-size: unset;
+  opacity: 0.75;
 }
 
-.activation #text,
-.activation #icon,
-.activation #search {
-  opacity: 0.55;
+.item-image-text {
+  font-size: 28px;
 }
 
-.aiItem {
-  background: alpha(@surface, 0.88);
-  border-radius: 12px;
-  color: @foreground;
-  box-shadow: inset 0 0 0 1px alpha(@border, 0.12);
+.preview {
+  border: 1px solid alpha(@accent_bg_color, 0.25);
+  /* padding: 10px; */
+  border-radius: 10px;
+  color: @theme_fg_color;
+}
+
+.calc .item-text {
+  font-size: 24px;
+}
+
+.calc .item-subtext {
+}
+
+.symbols .item-image {
+  font-size: 24px;
+}
+
+.todo.done .item-text-box {
+  opacity: 0.25;
+}
+
+.todo.urgent {
+  font-size: 24px;
+}
+
+.todo.active {
+  font-weight: bold;
+}
+
+.bluetooth.disconnected {
+  opacity: 0.5;
+}
+
+.preview .large-icons {
+  -gtk-icon-size: 64px;
+}
+
+.keybinds-wrapper {
+  border-top: 1px solid lighter(@window_bg_color);
+  font-size: 12px;
+  opacity: 0.5;
+  color: @theme_fg_color;
+}
+
+.keybinds {
+}
+
+.keybind {
+}
+
+.keybind-bind {
+  /* color: lighter(@window_bg_color); */
+  font-weight: bold;
+  text-transform: lowercase;
+}
+
+.keybind-label {
+}
+
+.error {
+  padding: 10px;
+  background: @error_bg_color;
+  color: @error_fg_color;
+}
+
+:not(.calc).current {
+  font-style: italic;
+}
+
+.preview-content.archlinuxpkgs {
+  font-family: monospace;
 }

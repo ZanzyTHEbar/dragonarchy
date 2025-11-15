@@ -1,0 +1,442 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+THEME_MANAGER_DIR="$DOTFILES_ROOT/scripts/theme-manager"
+UTILITIES_DIR="$DOTFILES_ROOT/scripts/utilities"
+SDDM_PKG_THEMES_DIR="$DOTFILES_ROOT/packages/sddm/usr/share/sddm/themes"
+SDDM_SYS_THEMES_DIR="/usr/share/sddm/themes"
+RESTART_WALKER_SCRIPT="$DOTFILES_ROOT/scripts/walker/restart-walker.sh"
+
+CURRENT_THEME_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
+CURRENT_BG_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
+THEMES_DIR="$(cd "$DOTFILES_ROOT/packages/themes/.config/themes" && pwd)"
+
+calc_menu_height() {
+  local default_height="${1:-700}"
+  local percentage="${2:-45}"
+  local height=""
+
+  if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    height="$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true) | .height' 2>/dev/null || echo "")"
+  fi
+
+  if [[ "$height" =~ ^[0-9]+$ ]]; then
+    height=$(( height * percentage / 100 ))
+    (( height < 400 )) && height=400
+    (( height > 900 )) && height=900
+    echo "$height"
+  else
+    echo "$default_height"
+  fi
+}
+
+walker_select() {
+  local prompt="$1"
+  shift
+  local height; height="$(calc_menu_height)"
+  local selection=""
+
+  if command -v walker >/dev/null 2>&1; then
+    selection="$(printf '%s\n' "$@" | walker --dmenu -p "$prompt" --width 900 --height "$height" 2>/dev/null || true)"
+  elif command -v gum >/dev/null 2>&1; then
+    selection="$(printf '%s\n' "$@" | gum choose --header="$prompt" || true)"
+  else
+    printf '%s\n' "$@" >&2
+    read -rp "$prompt> " selection || true
+  fi
+
+  printf '%s' "$selection"
+}
+
+walker_prompt_input() {
+  local prompt="$1"
+  local placeholder="${2:-}"
+  local height; height="$(calc_menu_height 200 25)"
+  local input=""
+
+  if command -v walker >/dev/null 2>&1; then
+    input="$(printf '\n' | walker --dmenu -p "$prompt" --width 900 --height "$height" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$input" && -n "$placeholder" ]]; then
+    input="$placeholder"
+  fi
+
+  if [[ -z "$input" ]]; then
+    if command -v gum >/dev/null 2>&1; then
+      input="$(gum input --header="$prompt" --placeholder="$placeholder" || true)"
+    else
+      read -rp "$prompt: " input || true
+    fi
+  fi
+
+  printf '%s' "$input"
+}
+
+walker_confirm() {
+  local prompt="$1"
+  local selection
+  selection="$(walker_select "$prompt" "Yes" "No")"
+  [[ "$selection" == "Yes" ]]
+}
+
+title_case() {
+  sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g'
+}
+
+slugify() {
+  tr '[:upper:]' '[:lower:]' | tr ' ' '-'
+}
+
+current_theme_slug() {
+  if [[ -L "$CURRENT_THEME_LINK" ]]; then
+    basename "$(readlink -f "$CURRENT_THEME_LINK")"
+  else
+    echo ""
+  fi
+}
+
+list_theme_paths() {
+  find "$THEMES_DIR" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) 2>/dev/null | sort
+}
+
+pick_theme() {
+  local current; current="$(current_theme_slug)"
+  local options=()
+  local map_entries=()
+
+  while IFS= read -r path; do
+    local slug display marker
+    slug="$(basename "$path")"
+    display="$(printf '%s\n' "$slug" | title_case)"
+    marker="  "
+    if [[ "$slug" == "$current" ]]; then
+      marker="* "
+    fi
+    options+=("$marker$display")
+    map_entries+=("$marker$display::$slug")
+  done < <(list_theme_paths)
+
+  if [[ ${#options[@]} -eq 0 ]]; then
+    echo ""
+    return
+  fi
+
+  local selection; selection="$(walker_select "Select Theme" "${options[@]}")"
+  [[ -z "$selection" ]] && return
+
+  local slug=""
+  for entry in "${map_entries[@]}"; do
+    if [[ "${entry%%::*}" == "$selection" ]]; then
+      slug="${entry##*::}"
+      break
+    fi
+  done
+
+  printf '%s' "$slug"
+}
+
+show_theme_summary() {
+  local theme_path background_path theme_name background_name
+  theme_path=$(readlink -f "${CURRENT_THEME_LINK}" 2>/dev/null || true)
+  background_path=$(readlink -f "${CURRENT_BG_LINK}" 2>/dev/null || true)
+  theme_name="${theme_path:+$(basename "$theme_path")}"
+  background_name="${background_path:+$(basename "$background_path")}"
+  theme_name="${theme_name:-unknown}"
+  background_name="${background_name:-unknown}"
+
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send "Theme Applied" "Theme: ${theme_name}\nBackground: ${background_name}"
+  else
+    printf 'Theme Applied -> theme: %s | background: %s\n' "$theme_name" "$background_name"
+  fi
+}
+
+apply_theme() {
+  local slug="$1"
+  [[ -z "$slug" ]] && return
+  if "$THEME_MANAGER_DIR/theme-set" "$slug"; then
+    show_theme_summary
+  fi
+}
+
+install_theme() {
+  local url; url="$(walker_prompt_input "Git repo URL for theme" "")"
+  [[ -z "$url" ]] && return
+  if "$THEME_MANAGER_DIR/theme-install" "$url"; then
+    show_theme_summary
+  fi
+}
+
+remove_theme() {
+  local slug; slug="$(pick_theme)"
+  [[ -z "$slug" ]] && return
+  if walker_confirm "Remove theme $(printf '%s' "$slug" | title_case)?"; then
+    "$THEME_MANAGER_DIR/theme-remove" "$slug"
+  fi
+}
+
+update_themes() {
+  if "$THEME_MANAGER_DIR/theme-update"; then
+    show_theme_summary
+  fi
+}
+
+next_background() {
+  "$THEME_MANAGER_DIR/theme-bg-next" && show_theme_summary
+}
+
+list_backgrounds_for_theme() {
+  local slug="$1"
+  local tdir="$THEMES_DIR/$slug"
+  local bdir="$tdir/backgrounds"
+  [[ -d "$bdir" ]] || return
+  find "$bdir" -maxdepth 1 -type f 2>/dev/null | sort
+}
+
+pick_background_file() {
+  local slug="$1"
+  local current_target=""
+  [[ -L "$CURRENT_BG_LINK" ]] && current_target="$(readlink -f "$CURRENT_BG_LINK")"
+
+  local options=()
+  local map_entries=()
+  while IFS= read -r file; do
+    local base marker
+    base="$(basename "$file")"
+    marker="  "
+    if [[ -n "$current_target" && "$file" == "$current_target" ]]; then
+      marker="* "
+    fi
+    options+=("$marker$base")
+    map_entries+=("$marker$base::$file")
+  done < <(list_backgrounds_for_theme "$slug")
+
+  [[ ${#options[@]} -eq 0 ]] && return
+
+  local selection; selection="$(walker_select "Choose Background (${slug})" "${options[@]}")"
+  [[ -z "$selection" ]] && return
+
+  local chosen=""
+  for entry in "${map_entries[@]}"; do
+    if [[ "${entry%%::*}" == "$selection" ]]; then
+      chosen="${entry##*::}"
+      break
+    fi
+  done
+
+  printf '%s' "$chosen"
+}
+
+set_background() {
+  local file="$1"
+  [[ -z "$file" ]] && return
+  ln -nsf "$file" "$CURRENT_BG_LINK"
+  pkill -x swaybg >/dev/null 2>&1 || true
+  setsid uwsm app -- swaybg -i "$CURRENT_BG_LINK" -m fill >/dev/null 2>&1 &
+  show_theme_summary
+}
+
+background_manager() {
+  while true; do
+    local choice; choice="$(walker_select "Background Manager" \
+      "Pick background from installed themes" \
+      "Add background to a theme" \
+      "Back")"
+
+    case "$choice" in
+      "Pick background from installed themes")
+        local theme slug file
+        slug="$(pick_theme)"
+        [[ -z "$slug" ]] && continue
+        file="$(pick_background_file "$slug")"
+        [[ -z "$file" ]] && continue
+        set_background "$file"
+        ;;
+      "Add background to a theme")
+        local slug src dest target
+        slug="$(pick_theme)"
+        [[ -z "$slug" ]] && continue
+        src="$(walker_prompt_input "Path to image to add to ${slug}" "")"
+        [[ -z "$src" || ! -f "$src" ]] && continue
+        dest="$THEMES_DIR/$slug/backgrounds"
+        mkdir -p "$dest"
+        target="$dest/$(basename "$src")"
+        if [[ -e "$target" ]]; then
+          local ts; ts="$(date +%Y%m%d_%H%M%S)"
+          target="$dest/${ts}_$(basename "$src")"
+        fi
+        cp -f "$src" "$target"
+        if walker_confirm "Set as current background now?"; then
+          set_background "$target"
+        fi
+        ;;
+      "Back" | "")
+        return
+        ;;
+    esac
+  done
+}
+
+sddm_current_theme() {
+  local conf="/etc/sddm.conf.d/10-theme.conf"
+  if [[ -f "$conf" ]]; then
+    grep -E '^\s*Current\s*=' "$conf" | sed -E 's/^\s*Current\s*=\s*//' | tr -d '[:space:]'
+  fi
+}
+
+sddm_collect_themes() {
+  declare -A seen=()
+  local theme
+
+  if [[ -d "$SDDM_PKG_THEMES_DIR" ]]; then
+    while IFS= read -r theme; do
+      seen["$theme"]=1
+    done < <(find "$SDDM_PKG_THEMES_DIR" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" 2>/dev/null)
+  fi
+
+  if [[ -d "$SDDM_SYS_THEMES_DIR" ]]; then
+    while IFS= read -r theme; do
+      seen["$theme"]=1
+    done < <(find "$SDDM_SYS_THEMES_DIR" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" 2>/dev/null)
+  fi
+
+  for theme in "${!seen[@]}"; do
+    printf '%s\n' "$theme"
+  done | sort
+}
+
+sddm_list_themes() {
+  "$THEME_MANAGER_DIR/refresh-sddm" >/dev/null 2>&1 || true
+
+  local current; current="$(sddm_current_theme)"
+  local options=()
+
+  while IFS= read -r theme; do
+    local status="not installed"
+    [[ -d "$SDDM_PKG_THEMES_DIR/$theme" ]] && status="dotfiles"
+    [[ -d "$SDDM_SYS_THEMES_DIR/$theme" ]] && status="installed"
+    if [[ -d "$SDDM_PKG_THEMES_DIR/$theme" && -d "$SDDM_SYS_THEMES_DIR/$theme" ]]; then
+      status="installed"
+    fi
+    if [[ "$theme" == "$current" ]]; then
+      status="active"
+    fi
+    options+=("$(printf '%s [%s]' "$(printf '%s' "$theme" | title_case)" "$status")")
+  done < <(sddm_collect_themes)
+
+  [[ ${#options[@]} -eq 0 ]] && options=("No SDDM themes found")
+
+  walker_select "SDDM Themes (list only)" "${options[@]}" >/dev/null
+}
+
+sddm_menu() {
+  while true; do
+    local choice; choice="$(walker_select "SDDM Themes" \
+      "List Themes" \
+      "Select Theme" \
+      "Refresh/Update Themes" \
+      "Verify Setup" \
+      "Back")"
+
+    case "$choice" in
+      "List Themes")
+        sddm_list_themes
+        ;;
+      "Select Theme")
+        "$THEME_MANAGER_DIR/sddm-menu" || true
+        ;;
+      "Refresh/Update Themes")
+        if walker_confirm "Refresh SDDM themes from dotfiles?"; then
+          "$THEME_MANAGER_DIR/refresh-sddm"
+        fi
+        ;;
+      "Verify Setup")
+        "$UTILITIES_DIR/verify-sddm-setup.sh" || true
+        ;;
+      "Back" | "")
+        return
+        ;;
+    esac
+  done
+}
+
+theme_menu() {
+  while true; do
+    local selection; selection="$(walker_select "Theme" \
+      "Pick Theme" \
+      "Install Theme" \
+      "Update Themes" \
+      "Remove Theme" \
+      "Change Background" \
+      "Next Background" \
+      "SDDM Themes" \
+      "Back")"
+
+    case "$selection" in
+      "Pick Theme")
+        local slug; slug="$(pick_theme)"
+        [[ -z "$slug" ]] && continue
+        apply_theme "$slug"
+        ;;
+      "Install Theme")
+        install_theme
+        ;;
+      "Update Themes")
+        update_themes
+        ;;
+      "Remove Theme")
+        remove_theme
+        ;;
+      "Change Background")
+        background_manager
+        ;;
+      "Next Background")
+        next_background
+        ;;
+      "SDDM Themes")
+        sddm_menu
+        ;;
+      "Back" | "")
+        return
+        ;;
+    esac
+  done
+}
+
+main_menu() {
+  while true; do
+    local selection; selection="$(walker_select "Dragon Control" \
+      "Theme" \
+      "Restart Walker Service" \
+      "Utilities (coming soon)" \
+      "Secrets (coming soon)" \
+      "Exit")"
+
+    case "$selection" in
+      "Theme")
+        theme_menu
+        ;;
+      "Restart Walker Service")
+        "$RESTART_WALKER_SCRIPT" || true
+        ;;
+      "Utilities (coming soon)")
+        printf 'Utilities menu is not yet implemented. Use dragon-cli utilities for now.\n' >&2
+        sleep 1
+        ;;
+      "Secrets (coming soon)")
+        printf 'Secrets menu is not yet implemented. Use dragon-cli secrets for now.\n' >&2
+        sleep 1
+        ;;
+      "Exit" | "")
+        return
+        ;;
+    esac
+  done
+}
+
+main_menu
+
+

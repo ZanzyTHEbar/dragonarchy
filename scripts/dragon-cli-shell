@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Wrapper to launch dragon-cli and drop into an interactive login shell afterwards.
+
+set -euo pipefail
+
+CLI_SCRIPT="${HOME}/dotfiles/scripts/dragon-cli"
+
+if [[ ! -x "$CLI_SCRIPT" ]]; then
+  echo "dragon-cli not found at $CLI_SCRIPT" >&2
+  exit 1
+fi
+
+"$CLI_SCRIPT" "$@"
+
+exec "${SHELL:-/bin/bash}" -l
+

@@ -7,25 +7,44 @@ NO_GUI=false
 THEME_NAME=""
 
 while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --no-gui)
-      NO_GUI=true
-      shift
-      ;;
-    *)
-      THEME_NAME="$1"
-      shift
-      ;;
-  esac
+    case "$1" in
+        --no-gui)
+            NO_GUI=true
+            shift
+        ;;
+        *)
+            THEME_NAME="$1"
+            shift
+        ;;
+    esac
 done
 
 if [[ -z "$THEME_NAME" ]]; then
-  echo "Usage: theme-set [--no-gui] <theme-name>" >&2
-  exit 1
+    echo "Usage: theme-set [--no-gui] <theme-name>" >&2
+    exit 1
 fi
 
+schedule_ui_refresh() {
+    setsid bash -c '
+        sleep 0.15
+        command pkill -USR1 -x kitty >/dev/null 2>&1 || true
+        command pkill -SIGUSR2 btop >/dev/null 2>&1 || true
+        command pkill -SIGUSR2 waybar >/dev/null 2>&1 || true
+        if command -v hyprctl >/dev/null 2>&1; then
+            hyprctl reload >/dev/null 2>&1 || true
+        fi
+        if command -v swaync-client >/dev/null 2>&1 && command pgrep -x swaync >/dev/null 2>&1; then
+            swaync-client -R >/dev/null 2>&1 || true
+        fi
+        if command pgrep -x nemo >/dev/null 2>&1; then
+            nemo -q
+            setsid nemo >/dev/null 2>&1 &
+        fi
+    ' >/dev/null 2>&1 </dev/null &
+}
+
 {
-  printf '%s START NO_GUI=%s THEME=%s\n' "$(date --iso-8601=seconds)" "$NO_GUI" "$THEME_NAME"
+    printf '%s START NO_GUI=%s THEME=%s\n' "$(date --iso-8601=seconds)" "$NO_GUI" "$THEME_NAME"
 } >>/tmp/theme-set.log 2>/dev/null || true
 
 # Get the script directory and resolve to absolute path
@@ -37,8 +56,8 @@ THEME_PATH="$THEMES_DIR/$THEME_NAME"
 
 # Check if the theme entered exists
 if [[ ! -d "$THEME_PATH" ]]; then
-  echo "Theme '$THEME_NAME' does not exist in $THEMES_DIR" >&2
-  exit 2
+    echo "Theme '$THEME_NAME' does not exist in $THEMES_DIR" >&2
+    exit 2
 fi
 
 # Update theme symlink with absolute path
@@ -46,7 +65,7 @@ mkdir -p "$(dirname "$CURRENT_THEME_DIR")"
 ln -Tnsf "$THEME_PATH" "$CURRENT_THEME_DIR"
 
 {
-  printf '%s LINK CURRENT_THEME_DIR=%s TARGET=%s RESOLVED=%s\n' \
+    printf '%s LINK CURRENT_THEME_DIR=%s TARGET=%s RESOLVED=%s\n' \
     "$(date --iso-8601=seconds)" \
     "$CURRENT_THEME_DIR" \
     "$THEME_PATH" \
@@ -58,26 +77,57 @@ ln -Tnsf "$THEME_PATH" "$CURRENT_THEME_DIR"
 
 # Change GNOME modes (best-effort; skip if gsettings or DBus not available)
 if command -v gsettings >/dev/null 2>&1; then
-  if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/current/theme/light.mode" ]]; then
-    timeout 2s gsettings set org.gnome.desktop.interface color-scheme "prefer-light" >/dev/null 2>&1 || true
-    timeout 2s gsettings set org.gnome.desktop.interface gtk-theme "Adwaita" >/dev/null 2>&1 || true
-  else
-    timeout 2s gsettings set org.gnome.desktop.interface color-scheme "prefer-dark" >/dev/null 2>&1 || true
-    timeout 2s gsettings set org.gnome.desktop.interface gtk-theme "Adwaita-dark" >/dev/null 2>&1 || true
-  fi
+    if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/current/theme/light.mode" ]]; then
+        timeout 2s gsettings set org.gnome.desktop.interface color-scheme "prefer-light" >/dev/null 2>&1 || true
+        timeout 2s gsettings set org.gnome.desktop.interface gtk-theme "Adwaita" >/dev/null 2>&1 || true
+    else
+        timeout 2s gsettings set org.gnome.desktop.interface color-scheme "prefer-dark" >/dev/null 2>&1 || true
+        timeout 2s gsettings set org.gnome.desktop.interface gtk-theme "Adwaita-dark" >/dev/null 2>&1 || true
+    fi
 fi
 
 # Set btop theme
 mkdir -p ~/.config/btop/themes
 ln -snf ~/.config/current/theme/btop.theme ~/.config/btop/themes/current.theme
 
-# Set walker theme (Walker expects themes/current/style.css and optional layout.toml)
-mkdir -p ~/.config/walker/themes/current
-ln -snf ~/.config/current/theme/walker.css ~/.config/walker/themes/current/style.css
-if [ -f ~/.config/current/theme/walker.toml ]; then
-  ln -snf ~/.config/current/theme/walker.toml ~/.config/walker/themes/current/layout.toml
+# Set walker theme (Walker expects themes/<name>/style.css)
+WALKER_THEMES_ROOT="${XDG_CONFIG_HOME:-$HOME/.config}/walker/themes"
+mkdir -p "$WALKER_THEMES_ROOT/$THEME_NAME"
+if [[ -f "$CURRENT_THEME_DIR/walker.css" ]]; then
+    cp "$CURRENT_THEME_DIR/walker.css" "$WALKER_THEMES_ROOT/$THEME_NAME/style.css"
+fi
+
+# Maintain a convenience symlink for scripts that still reference themes/current
+mkdir -p "$WALKER_THEMES_ROOT/current"
+if [[ -f "$WALKER_THEMES_ROOT/$THEME_NAME/style.css" ]]; then
+    ln -snf "$WALKER_THEMES_ROOT/$THEME_NAME/style.css" "$WALKER_THEMES_ROOT/current/style.css"
+fi
+
+if [[ -f "$CURRENT_THEME_DIR/walker.toml" ]]; then
+    cp "$CURRENT_THEME_DIR/walker.toml" "$WALKER_THEMES_ROOT/$THEME_NAME/layout.toml"
+    ln -snf "$WALKER_THEMES_ROOT/$THEME_NAME/layout.toml" "$WALKER_THEMES_ROOT/current/layout.toml"
 else
-  [ -f ~/.config/walker/themes/default.toml ] && ln -snf ~/.config/walker/themes/default.toml ~/.config/walker/themes/current/layout.toml || true
+    rm -f "$WALKER_THEMES_ROOT/current/layout.toml"
+fi
+
+# Ensure Walker loads the selected theme
+WALKER_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/walker/config.toml"
+if [[ -f "$WALKER_CONFIG" ]]; then
+    tmp_config=$(mktemp)
+    awk -v theme="$THEME_NAME" '
+    BEGIN { updated = 0 }
+    /^[[:space:]]*theme[[:space:]]*=/ && !updated {
+      printf("theme = \"%s\"\n", theme);
+      updated = 1;
+      next;
+    }
+    { print }
+    END {
+      if (!updated) {
+        printf("\ntheme = \"%s\"\n", theme);
+      }
+    }
+    ' "$WALKER_CONFIG" >"$tmp_config" && mv "$tmp_config" "$WALKER_CONFIG"
 fi
 
 # Set GTK theme for Nemo
@@ -87,6 +137,15 @@ ln -snf ~/.config/current/theme/gtk.css ~/.config/gtk-3.0/gtk.css
 # Generate kitty theme from palettes and link current
 "$SCRIPT_DIR/generate-kitty-themes" >/dev/null 2>&1 || true
 "$SCRIPT_DIR/generate-walker-themes" >/dev/null 2>&1 || true
+"$SCRIPT_DIR/generate-clipse-themes" >/dev/null 2>&1 || true
+
+# Update walker default.css with the current theme (walker defaults to "default")
+if [[ -f "$CURRENT_THEME_DIR/walker.css" ]]; then
+    WALKER_THEMES_DIR="$HOME/.config/walker/themes"
+    mkdir -p "$WALKER_THEMES_DIR"
+    cp "$CURRENT_THEME_DIR/walker.css" "$WALKER_THEMES_DIR/default.css"
+fi
+
 mkdir -p "$HOME/.config/kitty"
 ln -snf "$CURRENT_THEME_DIR/kitty.conf" "$HOME/.config/kitty/colors.conf"
 
@@ -94,69 +153,56 @@ ln -snf "$CURRENT_THEME_DIR/kitty.conf" "$HOME/.config/kitty/colors.conf"
 mkdir -p "$HOME/.config/kitty"
 touch "$HOME/.config/kitty/kitty.conf"
 if grep -Eq '^[[:space:]]*include[[:space:]]+colors\.conf([[:space:]]|$)' "$HOME/.config/kitty/kitty.conf"; then
-  # De-duplicate existing include lines (keep the first one)
-  tmpkitty=$(mktemp)
-  awk 'BEGIN{found=0} { if ($0 ~ /^[ \t]*include[ \t]+colors\.conf([ \t]|$)/) { if (!found) { print; found=1 } } else { print } }' "$HOME/.config/kitty/kitty.conf" >"$tmpkitty" && mv "$tmpkitty" "$HOME/.config/kitty/kitty.conf"
+    # De-duplicate existing include lines (keep the first one)
+    tmpkitty=$(mktemp)
+    awk 'BEGIN{found=0} { if ($0 ~ /^[ \t]*include[ \t]+colors\.conf([ \t]|$)/) { if (!found) { print; found=1 } } else { print } }' "$HOME/.config/kitty/kitty.conf" >"$tmpkitty" && mv "$tmpkitty" "$HOME/.config/kitty/kitty.conf"
 else
-  # Prepend include at the top
-  tmpkitty=$(mktemp)
-  {
-    echo "include colors.conf"
-    cat "$HOME/.config/kitty/kitty.conf"
-  } >"$tmpkitty" && mv "$tmpkitty" "$HOME/.config/kitty/kitty.conf"
+    # Prepend include at the top
+    tmpkitty=$(mktemp)
+    {
+        echo "include colors.conf"
+        cat "$HOME/.config/kitty/kitty.conf"
+    } >"$tmpkitty" && mv "$tmpkitty" "$HOME/.config/kitty/kitty.conf"
 fi
 
-# Skip GUI-dependent operations if --no-gui flag is set
-if [[ "$NO_GUI" == "false" ]]; then
-  # Trigger kitty reload (send SIGUSR1 to all kitty instances)
-  command pkill -USR1 -x kitty || true
-
-  # Restart components to apply new theme (best-effort)
-  command pkill -SIGUSR2 btop 2>/dev/null || true
-  command pkill -SIGUSR2 waybar 2>/dev/null || true
-  # pkill swayosd-server
-  # setsid uwsm app -- swayosd-server &>/dev/null &
-  # makoctl reload
-  command -v hyprctl >/dev/null 2>&1 && hyprctl reload >/dev/null 2>&1 || true
-  command -v swaync-client >/dev/null 2>&1 && command pgrep -x swaync >/dev/null 2>&1 && swaync-client -R >/dev/null 2>&1 || true
-  if command pgrep -x "nemo" >/dev/null 2>&1; then
-    nemo -q
-    setsid nemo &>/dev/null &
-  fi
-
+# Restart walker to pick up theme changes
+if command -v walker-restart >/dev/null 2>&1; then
+    walker-restart >/dev/null 2>&1 || true
+else
+    command pkill -x walker >/dev/null 2>&1 || true
+    setsid uwsm app -- walker --gapplication-service >/dev/null 2>&1 &
 fi
-
 
 # Link wlogout CSS for this theme if provided
 if [[ -f "$CURRENT_THEME_DIR/wlogout.css" ]]; then
-  mkdir -p "$HOME/.config/wlogout"
-  ln -snf "$CURRENT_THEME_DIR/wlogout.css" "$HOME/.config/wlogout/wlogout.css"
+    mkdir -p "$HOME/.config/wlogout"
+    ln -snf "$CURRENT_THEME_DIR/wlogout.css" "$HOME/.config/wlogout/wlogout.css"
 fi
 
 # Configure zsh autosuggestions to use theme accent
 if [[ -f "$CURRENT_THEME_DIR/hyprland-palette.conf" ]]; then
-  ACCENT_HEX=$(awk '$1=="$accent"{print $3}' "$CURRENT_THEME_DIR/hyprland-palette.conf" | sed -E 's/rgba\(([^)]*)\)/#\1/' | cut -c1-7)
-  if [[ -n "$ACCENT_HEX" ]]; then
-    mkdir -p "$HOME/.config/zsh"
-    echo "export ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE=fg=$ACCENT_HEX" >"$HOME/.config/zsh/autosuggest-theme.zsh"
-  fi
+    ACCENT_HEX=$(awk '$1=="$accent"{print $3}' "$CURRENT_THEME_DIR/hyprland-palette.conf" | sed -E 's/rgba\(([^)]*)\)/#\1/' | cut -c1-7)
+    if [[ -n "$ACCENT_HEX" ]]; then
+        mkdir -p "$HOME/.config/zsh"
+        echo "export ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE=fg=$ACCENT_HEX" >"$HOME/.config/zsh/autosuggest-theme.zsh"
+    fi
 fi
 
 # Best-effort: align SDDM theme family with current theme name if matching exists
 SDDM_THEMES_DIR="$(cd "$SCRIPT_DIR/../../packages/sddm/usr/share/sddm/themes" 2>/dev/null && pwd || echo '')"
 if [[ -n "$SDDM_THEMES_DIR" && -d "$SDDM_THEMES_DIR/$THEME_NAME" ]]; then
-  echo "Found matching SDDM theme '$THEME_NAME'. Applying..."
-  "$SCRIPT_DIR/sddm-set" "$THEME_NAME" || true
+    echo "Found matching SDDM theme '$THEME_NAME'. Applying..."
+    "$SCRIPT_DIR/sddm-set" "$THEME_NAME" || true
 fi
 
 # Always update background link; skip compositor reload when --no-gui is set
 THEME_BG_ARGS=()
 if [[ "$NO_GUI" == "true" ]]; then
-  THEME_BG_ARGS+=(--skip-apply)
+    THEME_BG_ARGS+=(--skip-apply)
 fi
 
 {
-  printf '%s CALL theme-bg-next args=%q\n' \
+    printf '%s CALL theme-bg-next args=%q\n' \
     "$(date --iso-8601=seconds)" \
     "${THEME_BG_ARGS[*]}"
 } >>/tmp/theme-set.log 2>/dev/null || true
@@ -165,14 +211,18 @@ THEME_BG_OUTPUT=$("$SCRIPT_DIR/theme-bg-next" "${THEME_BG_ARGS[@]}" 2>&1)
 THEME_BG_STATUS=$?
 
 {
-  printf '%s CALL_DONE status=%s output=%s\n' \
+    printf '%s CALL_DONE status=%s output=%s\n' \
     "$(date --iso-8601=seconds)" \
     "$THEME_BG_STATUS" \
     "$(printf '%s' "$THEME_BG_OUTPUT" | tr '\n' ';')"
 } >>/tmp/theme-set.log 2>/dev/null || true
 {
-  printf '%s DONE THEME=%s BACKGROUND_LINK=%s\n' \
+    printf '%s DONE THEME=%s BACKGROUND_LINK=%s\n' \
     "$(date --iso-8601=seconds)" \
     "$THEME_NAME" \
     "$(readlink -f "${XDG_CONFIG_HOME:-$HOME/.config}/current/background" 2>/dev/null || echo none)"
 } >>/tmp/theme-set.log 2>/dev/null || true
+
+if [[ "$NO_GUI" == "false" ]]; then
+    schedule_ui_refresh
+fi
