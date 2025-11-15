@@ -9,6 +9,6 @@ else
   DOTFILES_ROOT="${SCRIPT_DIR%/packages/hyprland/.local/bin}"
 fi
 
-exec "$DOTFILES_ROOT/scripts/walker/dragon/walker-dragon" "$@"
+exec "$DOTFILES_ROOT/scripts/theme-manager/theme-bg-next" "$@"
 
 

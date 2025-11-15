@@ -1,0 +1,32 @@
+name = "dragon"
+name_pretty = "Dragon Control"
+icon = "dragon"
+history = false
+search_name = true
+
+[[entries]]
+text = "Themes"
+submenu = "dragon_theme"
+icon = "preferences-desktop-theme"
+
+[[entries]]
+text = "Backgrounds"
+submenu = "dragon_backgrounds"
+icon = "preferences-desktop-wallpaper"
+
+[[entries]]
+text = "Next Background"
+icon = "media-skip-forward"
+[entries.actions]
+"menus:default" = "theme-bg-next"
+
+[[entries]]
+text = "Restart Walker Service"
+icon = "view-refresh"
+[entries.actions]
+"menus:default" = "walker-restart"
+
+[[entries]]
+text = "Utilities (coming soon)"
+submenu = "dragon_utilities"
+icon = "utilities-terminal"

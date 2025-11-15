@@ -1,0 +1,2 @@
+# Force launcher prefix (overrides autodetect like systemd-run)
+runprefix = "uwsm app -- "
