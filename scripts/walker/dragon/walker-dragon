@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 THEME_MANAGER_DIR="$DOTFILES_ROOT/scripts/theme-manager"
 UTILITIES_DIR="$DOTFILES_ROOT/scripts/utilities"
@@ -35,14 +36,21 @@ calc_menu_height() {
 walker_select() {
   local prompt="$1"
   shift
-  local height; height="$(calc_menu_height)"
-  local selection=""
+  local height selection
+  height="$(calc_menu_height)"
+  selection=""
 
-  if command -v walker >/dev/null 2>&1; then
-    selection="$(printf '%s\n' "$@" | walker --dmenu -p "$prompt" --width 900 --height "$height" 2>/dev/null || true)"
-  elif command -v gum >/dev/null 2>&1; then
-    selection="$(printf '%s\n' "$@" | gum choose --header="$prompt" || true)"
-  else
+  if command -v gum >/dev/null 2>&1; then
+    selection="$(printf '%s\n' "$@" | gum choose --header="$prompt" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$selection" ]]; then
+    if command -v walker >/dev/null 2>&1; then
+      selection="$(printf '%s\n' "$@" | walker --dmenu -p "$prompt" --width 900 --height "$height" 2>/dev/null || true)"
+    fi
+  fi
+
+  if [[ -z "$selection" ]]; then
     printf '%s\n' "$@" >&2
     read -rp "$prompt> " selection || true
   fi
@@ -407,6 +415,8 @@ theme_menu() {
 }
 
 main_menu() {
+  # Give Walker service a moment to settle when launched from an existing Walker session
+  sleep "${WALKER_DRAGON_LAUNCH_DELAY:-0.35}"
   while true; do
     local selection; selection="$(walker_select "Dragon Control" \
       "Theme" \

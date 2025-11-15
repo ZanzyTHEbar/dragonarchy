@@ -88,6 +88,7 @@ PartOf=graphical-session.target
 Type=simple
 Environment=XDG_RUNTIME_DIR=%t
 Environment="ELEPHANT_RUNPREFIX=uwsm app -- "
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/bin
 ExecStartPre=/usr/bin/systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DESKTOP_SESSION
 ExecStartPre=/usr/bin/rm -f /tmp/elephant.sock
 ExecStartPre=/usr/bin/bash -lc 'for i in {1..50}; do [ -n "${WAYLAND_DISPLAY}" ] && [ -S "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" ] && exit 0; sleep 0.2; done; echo "WAYLAND socket not ready"; exit 1'
@@ -102,35 +103,43 @@ log_success "Wrote $ELEPHANT_UNIT_PATH"
 
 # --- Elephant config: force correct runprefix for app launches ---
 ELEPHANT_CFG_DIR="$HOME/.config/elephant"
-mkdir -p "$ELEPHANT_CFG_DIR"
-mkdir -p "$ELEPHANT_CFG_DIR/providers"
-cat > "$ELEPHANT_CFG_DIR/elephant.toml" <<'EOF'
+ELEPHANT_CFG_REAL="$ELEPHANT_CFG_DIR"
+
+if [[ -L "$ELEPHANT_CFG_DIR" ]]; then
+    ELEPHANT_CFG_REAL="$(readlink -f "$ELEPHANT_CFG_DIR")"
+    log_info "Elephant config symlink detected → $ELEPHANT_CFG_REAL"
+fi
+
+mkdir -p "$ELEPHANT_CFG_REAL"
+mkdir -p "$ELEPHANT_CFG_REAL/providers"
+
+cat > "$ELEPHANT_CFG_REAL/elephant.toml" <<'EOF'
 # Force launcher prefix (overrides autodetect like systemd-run)
 runprefix = "uwsm app -- "
 EOF
-log_success "Wrote $ELEPHANT_CFG_DIR/elephant.toml (runprefix)"
+log_success "Wrote $ELEPHANT_CFG_REAL/elephant.toml (runprefix)"
 
 # Provider-specific overrides (desktop entries and runner)
-cat > "$ELEPHANT_CFG_DIR/desktopapplications.toml" <<'EOF'
+cat > "$ELEPHANT_CFG_REAL/desktopapplications.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_success "Wrote $ELEPHANT_CFG_DIR/desktopapplications.toml (runprefix)"
+log_success "Wrote $ELEPHANT_CFG_REAL/desktopapplications.toml (runprefix)"
 
-cat > "$ELEPHANT_CFG_DIR/runner.toml" <<'EOF'
+cat > "$ELEPHANT_CFG_REAL/runner.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_success "Wrote $ELEPHANT_CFG_DIR/runner.toml (runprefix)"
+log_success "Wrote $ELEPHANT_CFG_REAL/runner.toml (runprefix)"
 
 # Duplicate provider configs under providers/ (some builds read from providers/*)
-cat > "$ELEPHANT_CFG_DIR/providers/desktopapplications.toml" <<'EOF'
+cat > "$ELEPHANT_CFG_REAL/providers/desktopapplications.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_success "Wrote $ELEPHANT_CFG_DIR/providers/desktopapplications.toml (runprefix)"
+log_success "Wrote $ELEPHANT_CFG_REAL/providers/desktopapplications.toml (runprefix)"
 
-cat > "$ELEPHANT_CFG_DIR/providers/runner.toml" <<'EOF'
+cat > "$ELEPHANT_CFG_REAL/providers/runner.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_success "Wrote $ELEPHANT_CFG_DIR/providers/runner.toml (runprefix)"
+log_success "Wrote $ELEPHANT_CFG_REAL/providers/runner.toml (runprefix)"
 
 # --- Reload and enable user service ---
 systemctl --user daemon-reload

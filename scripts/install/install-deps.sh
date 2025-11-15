@@ -53,7 +53,7 @@ hyprland_arch_base=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightn
 hyprland_arch_core=("hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot")
 hyprland_aur=("openbsd-netcat" "gnome-calculator" "gnome-keyring" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse")
 # Elephant packages - base must be installed first to satisfy plugin dependencies
-hyprland_aur_elephant=("elephant-bin" "elephant-desktopapplications-bin" "elephant-files-bin" "elephant-runner-bin" "elephant-clipboard-bin" "elephant-providerlist-bin")
+hyprland_aur_elephant=("elephant-bin" "elephant-desktopapplications-bin" "elephant-files-bin" "elephant-runner-bin" "elephant-clipboard-bin" "elephant-providerlist-bin" "elephant-menus-bin")
 
 # Logging functions
 detect_platform() {
