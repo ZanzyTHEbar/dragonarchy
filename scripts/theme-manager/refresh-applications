@@ -1,14 +1,36 @@
 #!/bin/bash
 # Refreshes application icons and desktop files.
 
-# Copy and sync icon files
-mkdir -p ~/.local/share/icons/hicolor/48x48/apps/
-cp -f "$(dirname "$0")/../../packages/applications/.local/share/icons/hicolor/48x48/apps/"*.png ~/.local/share/icons/hicolor/48x48/apps/
-gtk-update-icon-cache ~/.local/share/icons/hicolor &>/dev/null
+# Copy and sync icon files (if packaged)
+ICON_SRC="$(dirname "$0")/../../packages/applications/.local/share/icons/hicolor/48x48/apps"
+ICON_DEST="$HOME/.local/share/icons/hicolor/48x48/apps"
+if [[ -d "$ICON_SRC" ]]; then
+  mkdir -p "$ICON_DEST"
+  cp -f "$ICON_SRC"/*.png "$ICON_DEST" 2>/dev/null || true
+  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+fi
 
-# Copy .desktop declarations
-mkdir -p ~/.local/share/applications
-cp -f "$(dirname "$0")/../../packages/applications/.local/share/applications/"*.desktop ~/.local/share/applications/
-cp -f "$(dirname "$0")/../../packages/applications/.local/share/applications/hidden/"*.desktop ~/.local/share/applications/
+# Copy .desktop declarations (skip if already the same file)
+APP_SRC="$(dirname "$0")/../../packages/applications/.local/share/applications"
+APP_DEST="$HOME/.local/share/applications"
+mkdir -p "$APP_DEST"
 
-sudo update-desktop-database ~/.local/share/applications
+copy_desktop_files() {
+  local src_dir="$1"
+  [[ -d "$src_dir" ]] || return 0
+  for src in "$src_dir"/*.desktop; do
+    [[ -e "$src" ]] || continue
+    local dest="$APP_DEST/$(basename "$src")"
+    if [[ -e "$dest" ]]; then
+      if [[ "$(realpath "$src")" == "$(realpath "$dest" 2>/dev/null)" ]]; then
+        continue
+      fi
+    fi
+    cp -f "$src" "$dest"
+  done
+}
+
+copy_desktop_files "$APP_SRC"
+copy_desktop_files "$APP_SRC/hidden"
+
+sudo update-desktop-database "$APP_DEST"

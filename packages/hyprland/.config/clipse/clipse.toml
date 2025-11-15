@@ -1,0 +1,61 @@
+# Clipse Enhanced Configuration
+# Theme-aware clipboard manager with advanced features
+
+# History Settings
+historyFile = "clipboard_history.json"
+maxHistory = 100
+maxImageHeight = 500
+enablePersistence = true
+allowDuplicates = false
+
+# Image Support
+imageDisplayer = "kitty" # Using kitty's icat for theme-aware display
+previewImages = true
+
+# Search Settings
+fuzzySearch = true
+caseSensitive = false
+
+# Display Settings
+lineWrap = true
+lineNumbers = true
+highlightSelected = true
+
+# Theme Integration (will be updated by theme-manager)
+# These colors are populated from hyprland-palette.conf
+themeFile = "~/.config/clipse/theme.toml"
+
+# Keybindings
+[keybindings]
+quit = "q"
+copy = "Enter"
+delete = "d"
+clear_all = "D"
+edit = "e"
+pin = "p"
+search = "/"
+next_page = "n"
+prev_page = "N"
+toggle_preview = "Tab"
+yank = "y"
+paste = "p"
+filter_images = "i"
+filter_text = "t"
+filter_all = "a"
+
+# Advanced Features
+[features]
+# Enable multi-line preview
+preview = true
+# Show file type icons (requires nerdfont)
+icons = true
+# Syntax highlighting for code
+syntaxHighlight = true
+# Image previews in terminal
+imagePreview = true
+# Edit clipboard content before pasting
+editBeforePaste = true
+# Pin frequently used items
+pinning = true
+# Smart deduplication
+smartDedup = true

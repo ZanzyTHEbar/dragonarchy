@@ -291,15 +291,24 @@ parse_bindings() {
       gsub(/[ \t]+/, " ", s)
       return trim(s)
     }
+    function normalize_modifiers(text) {
+      # Standardize all modifier variations to consistent format
+      gsub(/\$mainMod/, "SUPER", text)
+      gsub(/\$MAINMOD/, "SUPER", text)
+      gsub(/SUPERMOD/, "SUPER", text)
+      gsub(/MOD4/, "SUPER", text)
+      gsub(/CONTROL/, "CTRL", text)
+      return text
+    }
     function modmask_to_text(mask, mods, i, names) {
       if (mask == "") {
         return ""
       }
       if (mask ~ /[A-Za-z$]/) {
-        return collapse_spaces(mask)
+        return normalize_modifiers(collapse_spaces(mask))
       }
       mask += 0
-      split("SHIFT CAPS CTRL ALT MOD3 MOD4 SUPER MOD5", names, " ")
+      split("SHIFT CAPS CTRL ALT MOD3 SUPER SUPER MOD5", names, " ")
       mods = ""
       i = 1
       while (mask > 0) {
@@ -310,7 +319,23 @@ parse_bindings() {
         ++i
       }
       gsub(/[ \t]+$/, "", mods)
-      return mods
+      return normalize_modifiers(mods)
+    }
+    function get_icon(action_lower) {
+      if (index(action_lower, "terminal")) return "  "
+      if (index(action_lower, "browser")) return "  "
+      if (index(action_lower, "file")) return "  "
+      if (index(action_lower, "theme")) return "  "
+      if (index(action_lower, "screenshot")) return "  "
+      if (index(action_lower, "record")) return "  "
+      if (index(action_lower, "workspace")) return "  "
+      if (index(action_lower, "window")) return "  "
+      if (index(action_lower, "fullscreen")) return "  "
+      if (index(action_lower, "clipboard") || index(action_lower, "copy")) return "  "
+      if (index(action_lower, "volume") || index(action_lower, "audio")) return "  "
+      if (index(action_lower, "brightness")) return "  "
+      if (index(action_lower, "power") || index(action_lower, "logout")) return "  "
+      return "  "
     }
     {
       raw_mod = trim($1)
@@ -341,9 +366,11 @@ parse_bindings() {
 
       gsub(/(^|,)[[:space:]]*exec[[:space:]]*,?/, "", action)
       action = collapse_spaces(action)
+      action = normalize_modifiers(action)
 
       mod_text = modmask_to_text(raw_mod)
       gsub(/_/, " ", key_field)
+      key_field = normalize_modifiers(key_field)
       key_combo = key_field
       if (mod_text != "") {
         key_combo = mod_text (key_field != "" ? " + " key_field : "")
@@ -352,9 +379,11 @@ parse_bindings() {
       key_combo = collapse_spaces(key_combo)
       gsub(/\+\s*\+/, "+", key_combo)
       gsub(/^[+[:space:]]+|[+[:space:]]+$/, "", key_combo)
+      key_combo = normalize_modifiers(key_combo)
 
       if (key_combo != "" && action != "") {
-        printf "%-35s → %s\n", key_combo, action
+        icon = get_icon(tolower(action))
+        printf "%s %-32s  │  %s\n", icon, key_combo, action
       }
     }
   '
@@ -396,11 +425,16 @@ run_menu() {
     if command_exists hyprctl && command_exists jq; then
       height=$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true) | .height' 2>/dev/null || true)
       if [[ "$height" =~ ^[0-9]+$ ]]; then
-        menu_height=$(( height * 40 / 100 ))
+        menu_height=$(( height * 45 / 100 ))
       fi
     fi
-    menu_height=${menu_height:-600}
-    printf '%s\n' "$data" | walker --dmenu -p "Keybindings" --width 820 --height "$menu_height"
+    menu_height=${menu_height:-700}
+    
+    printf '%s\n' "$data" | walker \
+      --dmenu \
+      -p " Keybindings" \
+      --width 900 \
+      --height "$menu_height"
     return $?
   fi
 
@@ -412,7 +446,7 @@ run_menu() {
   fi
 
   if command_exists fzf; then
-    if printf '%s\n' "$data" | fzf --prompt "Keybindings> " --layout=reverse; then
+    if printf '%s\n' "$data" | fzf --prompt "⌨️  Keybindings> " --layout=reverse --border --margin=1 --padding=1; then
       return 0
     fi
     log_debug "fzf failed; outputting plain text"
@@ -420,6 +454,25 @@ run_menu() {
 
   printf '%s\n' "$data"
   return 0
+}
+
+deduplicate_smart() {
+  awk '
+    function normalize_for_dedup(line) {
+      # Extract just the key combo and action, ignore formatting
+      gsub(/^[[:space:]]*[^ ]+[[:space:]]+/, "", line)  # Remove icon
+      gsub(/[[:space:]]*│.*$/, "", line)  # Remove separator and everything after temporarily
+      gsub(/[[:space:]]+/, " ", line)  # Normalize spaces
+      return tolower(line)
+    }
+    {
+      # Create a normalized key for duplicate detection
+      norm = normalize_for_dedup($0)
+      if (!seen[norm]++) {
+        print $0
+      }
+    }
+  '
 }
 
 main() {
@@ -434,9 +487,9 @@ main() {
       kitty_bindings || true
     } |
       sed '/^[[:space:]]*$/d' |
-      awk '!seen[$0]++' |
       parse_keycodes |
       parse_bindings |
+      deduplicate_smart |
       prioritize_entries
   )
 

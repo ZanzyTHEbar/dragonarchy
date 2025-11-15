@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Dragon Control
+Comment=Control dragon-cli utilities via Walker
+Exec=uwsm app -- bash -lc 'dragon-walker'
+Icon=dragon
+Terminal=false
+Categories=Utility;
+
+

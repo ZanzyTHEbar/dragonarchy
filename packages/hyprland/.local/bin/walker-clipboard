@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Walker clipboard wrapper with explicit dimensions
+# Follows the same pattern as keybindings-menu
+
+set -euo pipefail
+
+# Get screen height if available for responsive sizing
+HEIGHT=600
+if command -v hyprctl &>/dev/null && command -v jq &>/dev/null; then
+    SCREEN_HEIGHT=$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true) | .height' 2>/dev/null || echo "")
+    if [[ "$SCREEN_HEIGHT" =~ ^[0-9]+$ ]]; then
+        # Use 50% of screen height
+        HEIGHT=$(( SCREEN_HEIGHT * 50 / 100 ))
+        # Cap at reasonable limits
+        [[ $HEIGHT -lt 400 ]] && HEIGHT=400
+        [[ $HEIGHT -gt 800 ]] && HEIGHT=800
+    fi
+fi
+
+# Launch Walker clipboard with explicit dimensions
+exec walker -m clipboard --width 900 --height "$HEIGHT"
+

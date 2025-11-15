@@ -2,7 +2,7 @@ app_launch_prefix = "uwsm app -- "
 terminal_title_flag = ""
 locale = ""
 close_when_open = true                        # Toggle on reopen
-theme = "tokyo-night"
+theme = "current"
 theme_base = ["default"]
 theme_location = ["~/.config/walker/themes/"]
 monitor = ""
@@ -173,16 +173,9 @@ hidden = true
 [builtins.custom_commands]
 weight = 5
 icon = "utilities-terminal"
-name = "Dragon Control"
-placeholder = "Dragon Utilities"
-hidden = false
-switcher_only = false
-
-[[builtins.custom_commands.commands]]
-name = "Open Dragon Control"
-description = "Launch Walker-native menus backed by dragon-walker"
-cmd = "dragon-walker"
-terminal = false
+name = "custom_commands"
+placeholder = "Custom Commands"
+hidden = true
 
 [builtins.emojis]
 exec = "wl-copy"
