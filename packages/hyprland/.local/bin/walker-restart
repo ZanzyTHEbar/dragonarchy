@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Resolve the real path of this script (follows symlinks)
+REAL_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$REAL_SCRIPT")"
+
+# Try to detect repo root via git
+if DOTFILES_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+    :
+else
+    # Fallback: strip known package path suffix to get repo root
+    # Script is at: dotfiles/packages/hyprland/.local/bin/walker-restart
+    DOTFILES_ROOT="${SCRIPT_DIR%/packages/hyprland/.local/bin}"
+fi
+
+exec "$DOTFILES_ROOT/scripts/walker/restart-walker.sh" "$@"
+
+

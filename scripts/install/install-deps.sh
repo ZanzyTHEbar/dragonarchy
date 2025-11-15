@@ -39,7 +39,6 @@ core_cli_debian=("vim" "neovim" "btop" "coreutils" "fd-find" "fzf" "ripgrep" "st
 
 # GUI
 gui_aur=("joplin-desktop" "vivaldi" "difftastic" "visual-studio-code-bin" "visual-studio-code-insiders-bin")
-gui_cask=("kitty" "vivaldi" "visual-studio-code" "visual-studio-code-insiders" "joplin" "aerospace")
 
 # Development
 dev_arch=("git" "diff-so-fancy" "ansible" "github-cli" "terraform" "python-pipx")
@@ -52,7 +51,7 @@ pipx_packages=("poetry" "black" "flake8" "mypy")
 hyprland_arch_base=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "nemo-fileroller" "nemo-preview" "nemo-seahorse" "nemo-share" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "imagemagick" "imv" "inetutils" "iwd" "kvantum" "lazygit" "less" "libqalculate" "libsecret" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt6-svg" "qt6-declarative" "qt5-quickcontrols2" "qt5-graphicaleffects" "qt6-5compat" "qt6-wayland" "qt5-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "swappy" "system-config-printer" "tree-sitter-cli" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
 # Core Hyprland packages that may conflict with -git versions
 hyprland_arch_core=("hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot")
-hyprland_aur=("gnome-calculator" "gnome-keyring" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse")
+hyprland_aur=("openbsd-netcat" "gnome-calculator" "gnome-keyring" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse")
 # Elephant packages - base must be installed first to satisfy plugin dependencies
 hyprland_aur_elephant=("elephant-bin" "elephant-desktopapplications-bin" "elephant-files-bin" "elephant-runner-bin" "elephant-clipboard-bin" "elephant-providerlist-bin")
 
@@ -573,7 +572,7 @@ install_for_arch() {
     else
         log_info "Host '$host' is not configured for Hyprland, skipping Hyprland packages"
     fi
-
+    
     # Cursor installation policy:
     # - --no-cursor        => skip
     # - --cursor           => force install
@@ -581,9 +580,9 @@ install_for_arch() {
     local should_install_cursor="false"
     if [[ "$SKIP_CURSOR_INSTALL" == "true" ]]; then
         should_install_cursor="false"
-    elif [[ "$FORCE_CURSOR_INSTALL" == "true" ]]; then
+        elif [[ "$FORCE_CURSOR_INSTALL" == "true" ]]; then
         should_install_cursor="true"
-    elif is_hyprland_host "$host"; then
+        elif is_hyprland_host "$host"; then
         should_install_cursor="true"
     fi
     if [[ "$should_install_cursor" == "true" ]]; then

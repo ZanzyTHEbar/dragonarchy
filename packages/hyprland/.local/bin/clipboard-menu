@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Intelligent Clipboard Manager Menu
+# Choose between clipse (TUI) and Walker (advanced features)
+
+set -euo pipefail
+
+# Define options with nerd font icons
+OPTIONS="󰅍 Clipse (Quick TUI)
+󰸉 Walker (Images & Multi-line)
+ Edit Clipboard Item
+󰃨 Clear All History
+󰩺 Settings"
+
+# Show menu with walker
+CHOICE=$(echo "$OPTIONS" | walker -m dmenu -p "Clipboard Manager")
+
+case "$CHOICE" in
+  *"Clipse"*)
+    kitty --class clipse-enhanced -e clipse
+    ;;
+  *"Walker"*)
+    walker -m clipboard
+    ;;
+  *"Edit"*)
+    # Use Walker's clipboard with edit functionality
+    walker -m clipboard
+    ;;
+  *"Clear"*)
+    # Clear clipse history
+    rm -f ~/.local/share/clipse/clipboard_history.json
+    # Restart elephant to clear its memory
+    systemctl --user restart elephant 2>/dev/null || true
+    notify-send "Clipboard" "History cleared"
+    ;;
+  *"Settings"*)
+    # Open relevant configs
+    ${EDITOR:-nano} ~/.config/clipse/config.json &
+    ${EDITOR:-nano} ~/.config/walker/config.toml &
+    ;;
+esac
+
