@@ -146,6 +146,39 @@ log_success "Wrote $ELEPHANT_CFG_REAL/providers/runner.toml (runprefix)"
 systemctl --user daemon-reload
 systemctl --user enable --now elephant || log_warn "Failed to start elephant; ensure /usr/bin/elephant exists"
 
+# Verify required Elephant providers are available
+if command -v elephant >/dev/null 2>&1; then
+  required_providers=(
+    "calc"
+    "todo"
+    "websearch"
+    "bluetooth"
+    "archlinuxpkgs"
+    "bookmarks"
+    "symbols"
+    "unicode"
+  )
+  provider_output="$(elephant listproviders 2>/dev/null || true)"
+  declare -A provider_map=()
+  while IFS=';' read -r _identifier provider_name; do
+    [[ -z "$provider_name" ]] && continue
+    provider_map["$provider_name"]=1
+  done <<<"$provider_output"
+
+  missing_providers=()
+  for provider in "${required_providers[@]}"; do
+    if [[ -z "${provider_map[$provider]:-}" ]]; then
+      missing_providers+=("$provider")
+    fi
+  done
+
+  if [[ ${#missing_providers[@]} -gt 0 ]]; then
+    log_warn "Elephant providers missing: ${missing_providers[*]}. Install matching elephant-* packages."
+  else
+    log_success "Elephant core providers detected: ${required_providers[*]}"
+  fi
+fi
+
 # --- Thermal profile initialization service ---
 THERMAL_PROFILE_UNIT="thermal-profile-init.service"
 if systemctl --user list-unit-files --no-legend 2>/dev/null | grep -q "^${THERMAL_PROFILE_UNIT}"; then

@@ -3,6 +3,25 @@ terminal_title_flag = ""
 locale = ""
 close_when_open = true                                # Toggle on reopen
 theme = "tokyo-night"
+installed_providers = [
+  "desktopapplications",
+  "calc",
+  "runner",
+  "websearch",
+  "providerlist",
+  "files",
+  "clipboard",
+  "todo",
+  "bookmarks",
+  "archlinuxpkgs",
+  "symbols",
+  "unicode",
+  "bluetooth",
+  "menus:dragon",
+  "menus:dragon_theme",
+  "menus:dragon_backgrounds",
+  "menus:dragon_utilities"
+]
 additional_theme_location = "~/.config/walker/themes"
 monitor = ""
 hotreload_theme = true
@@ -274,12 +293,12 @@ keywords = ["walker", "github"]
 
 [[builtins.bookmarks.entries]]
 label = "Dragon - Github"
-url = "https://github.com/basecamp/dragon"
+url = "https://github.com/ZanzyTHEbar/dragonarchy"
 keywords = ["dragon", "github"]
 
 [[builtins.bookmarks.entries]]
 label = "Dragon Manual"
-url = "https://manuals.omamix.org/2/the-dragon-manual"
+url = "https://github.com/ZanzyTHEbar/dragonarchy/wiki"
 keywords = ["dragon"]
 
 [builtins.xdph_picker]

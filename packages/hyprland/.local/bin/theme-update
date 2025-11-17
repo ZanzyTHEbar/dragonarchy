@@ -1,14 +1,1 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-if DOTFILES_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
-  :
-else
-  DOTFILES_ROOT="${SCRIPT_DIR%/packages/hyprland/.local/bin}"
-fi
-
-exec "$DOTFILES_ROOT/scripts/theme-manager/theme-update" "$@"
-
-
+../../../../scripts/theme-manager/theme-update

@@ -45,6 +45,28 @@ dragonarchy/
 └── README.md      # This file
 ```
 
+## Script Entry Points
+
+Executable logic lives under `scripts/` (e.g., `scripts/theme-manager`, `scripts/hardware`, `scripts/utilities`).  
+Packages expose those commands via relative symlinks tracked in `scripts/tools/bin-links.manifest`.  
+
+```bash
+# Inspect the manifest
+cat scripts/tools/bin-links.manifest
+
+# Create or verify links (per package or entire repo)
+scripts/tools/sync-bin-links --package hyprland
+scripts/tools/sync-bin-links --check
+```
+
+When adding a new command:
+
+1. Place the executable in the appropriate `scripts/<area>/` directory and make it executable.
+2. Append an entry to `scripts/tools/bin-links.manifest` with `package=`, `target=` (canonical script), and `link=` (package `.local/bin` path).
+3. Run `scripts/tools/sync-bin-links --package <name>` to generate the symlink, then restow the package.
+
+This keeps every PATH-visible command sourced from a single canonical script while preserving per-package bin directories for GNU Stow.
+
 ## Features
 
 - ✅ **Declarative Configuration**: All dotfiles managed via Stow
