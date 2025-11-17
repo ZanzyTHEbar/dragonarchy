@@ -27,7 +27,7 @@ if [[ -n "$ACTIVE_THEME_PATH" && -d "$ACTIVE_THEME_PATH" ]]; then
         cp "$ACTIVE_THEME_PATH/walker.css" "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/style.css"
         log_success "Copied Walker CSS for theme '$ACTIVE_THEME_NAME'"
     else
-        log_warn "Walker CSS not found in $ACTIVE_THEME_PATH; using default theme assets"
+        log_warning "Walker CSS not found in $ACTIVE_THEME_PATH; using default theme assets"
         ACTIVE_THEME_NAME="default"
     fi
 fi
@@ -74,7 +74,7 @@ if [[ -f "$WALKER_CONFIG" ]]; then
     ' "$WALKER_CONFIG" >"$tmp_cfg" && mv "$tmp_cfg" "$WALKER_CONFIG"
     log_success "Walker theme configured to '$ACTIVE_THEME_NAME'"
 else
-    log_warn "Walker config.toml not found; skipped theme assignment"
+    log_warning "Walker config.toml not found; skipped theme assignment"
 fi
 
 # --- Elephant user unit content ---
@@ -144,7 +144,7 @@ log_success "Wrote $ELEPHANT_CFG_REAL/providers/runner.toml (runprefix)"
 
 # --- Reload and enable user service ---
 systemctl --user daemon-reload
-systemctl --user enable --now elephant || log_warn "Failed to start elephant; ensure /usr/bin/elephant exists"
+systemctl --user enable --now elephant || log_warning "Failed to start elephant; ensure /usr/bin/elephant exists"
 
 # Verify required Elephant providers are available
 if command -v elephant >/dev/null 2>&1; then
@@ -173,7 +173,7 @@ if command -v elephant >/dev/null 2>&1; then
   done
 
   if [[ ${#missing_providers[@]} -gt 0 ]]; then
-    log_warn "Elephant providers missing: ${missing_providers[*]}. Install matching elephant-* packages."
+    log_warning "Elephant providers missing: ${missing_providers[*]}. Install matching elephant-* packages."
   else
     log_success "Elephant core providers detected: ${required_providers[*]}"
   fi
@@ -185,7 +185,7 @@ if systemctl --user list-unit-files --no-legend 2>/dev/null | grep -q "^${THERMA
     if systemctl --user enable --now "${THERMAL_PROFILE_UNIT}" >/dev/null 2>&1; then
         log_success "Thermal profile init service enabled"
     else
-        log_warn "Failed to enable thermal-profile-init.service; ensure ~/.local/bin/thermal-profile-init exists"
+        log_warning "Failed to enable thermal-profile-init.service; ensure ~/.local/bin/thermal-profile-init exists"
     fi
 else
     log_info "thermal-profile-init.service not present; skipping enablement"
