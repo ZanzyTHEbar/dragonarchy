@@ -26,6 +26,7 @@ The fix addresses **all three layers** of the problem:
 - `gpu_reset=0` - Prevents GPU reset hangs on suspend
 - `runpm=1` - Enables runtime power management
 - `modeset=1` - Enables early kernel mode setting for TTY
+- `/etc/limine-entry-tool.d/10-amdgpu.conf` ensures `amdgpu.modeset=1` is re-applied whenever `limine-update` regenerates `limine.conf`
 
 ### **Layer 2: Systemd Suspend/Resume Hooks**
 ```bash

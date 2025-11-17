@@ -157,6 +157,7 @@ if command -v elephant >/dev/null 2>&1; then
     "bookmarks"
     "symbols"
     "unicode"
+    "menus:keybindings"
   )
   provider_output="$(elephant listproviders 2>/dev/null || true)"
   declare -A provider_map=()
