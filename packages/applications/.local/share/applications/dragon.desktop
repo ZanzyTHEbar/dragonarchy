@@ -4,7 +4,7 @@ Type=Application
 Name=Dragon
 Comment=Dragon TUI
 Exec=kitty --class=Dragon --title=Dragon bash -c '$HOME/.local/share/dragon/dragon-cli'
-Icon=Arch
-Terminal=false
+Icon=dragon-control
+Terminal=true
 Categories=System;Utility;
 StartupNotify=false 
