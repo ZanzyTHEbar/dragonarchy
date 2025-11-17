@@ -1,6 +1,6 @@
 # Traditional Dotfiles Management with GNU Stow
 
-This is a very opinionated Linux configuration, using hyprland, that is built on-top of CachyOS (ideally, though there are no hard dependencies, use what you want) and inspired from _Omarchy_.
+This is a very opinionated Linux configuration, using hyprland, that is built on-top of CachyOS (ideally, there are no hard dependencies, use what you want) and inspired by _Omarchy_.
 
 - **GNU Stow** for dotfiles/configuration management
 - **Zsh scripts** for automation and setup
@@ -69,13 +69,13 @@ This keeps every PATH-visible command sourced from a single canonical script whi
 
 ## Features
 
-- ✅ **Declarative Configuration**: All dotfiles managed via Stow
-- ✅ **Multi-Platform**: Linux (CachyOS/Arch) and Debian support
-- ✅ **Host-Specific**: Different configs per machine
-- ✅ **Secrets Management**: Encrypted secrets with age/sops
-- ✅ **Package Management**: Platform-appropriate package installation
-- ✅ **Networking**: Optional NetBird integration for secure networking
-- ✅ **Modular**: Enable/disable components as needed
+- **Declarative Configuration**: All dotfiles managed via Stow
+- **Multi-Platform**: Linux (CachyOS/Arch) and Debian support
+- **Host-Specific**: Different configs per machine
+- **Secrets Management**: Encrypted secrets with age/sops
+- **Package Management**: Platform-appropriate package installation
+- **Networking**: Optional NetBird integration for secure networking
+- **Modular**: Enable/disable components as needed
 
 ## Commands
 
