@@ -93,6 +93,7 @@ ln -snf ~/.config/current/theme/btop.theme ~/.config/btop/themes/current.theme
 # Set walker theme (Walker expects themes/<name>/style.css)
 WALKER_THEMES_ROOT="${XDG_CONFIG_HOME:-$HOME/.config}/walker/themes"
 mkdir -p "$WALKER_THEMES_ROOT/$THEME_NAME"
+rm -f "$WALKER_THEMES_ROOT/default.css"
 if [[ -f "$CURRENT_THEME_DIR/walker.css" ]]; then
     cp "$CURRENT_THEME_DIR/walker.css" "$WALKER_THEMES_ROOT/$THEME_NAME/style.css"
 fi
@@ -138,13 +139,6 @@ ln -snf ~/.config/current/theme/gtk.css ~/.config/gtk-3.0/gtk.css
 "$SCRIPT_DIR/generate-kitty-themes" >/dev/null 2>&1 || true
 "$SCRIPT_DIR/generate-walker-themes" >/dev/null 2>&1 || true
 "$SCRIPT_DIR/generate-clipse-themes" >/dev/null 2>&1 || true
-
-# Update walker default.css with the current theme (walker defaults to "default")
-if [[ -f "$CURRENT_THEME_DIR/walker.css" ]]; then
-    WALKER_THEMES_DIR="$HOME/.config/walker/themes"
-    mkdir -p "$WALKER_THEMES_DIR"
-    cp "$CURRENT_THEME_DIR/walker.css" "$WALKER_THEMES_DIR/default.css"
-fi
 
 mkdir -p "$HOME/.config/kitty"
 ln -snf "$CURRENT_THEME_DIR/kitty.conf" "$HOME/.config/kitty/colors.conf"

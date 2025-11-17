@@ -18,6 +18,7 @@ ACTIVE_THEME_PATH="$(readlink -f "$CURRENT_THEME_LINK" 2>/dev/null || true)"
 ACTIVE_THEME_NAME="default"
 
 mkdir -p "$WALKER_THEMES_ROOT"
+rm -f "$WALKER_THEMES_ROOT/default.css"
 
 if [[ -n "$ACTIVE_THEME_PATH" && -d "$ACTIVE_THEME_PATH" ]]; then
     ACTIVE_THEME_NAME="$(basename "$ACTIVE_THEME_PATH")"
