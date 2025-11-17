@@ -1,0 +1,12 @@
+name = "keybindings"
+name_pretty = "Keybindings"
+icon = "input-keyboard"
+history = false
+search_name = true
+
+[[entries]]
+text = "Browse Keybindings"
+icon = "input-keyboard"
+[entries.actions]
+"menus:default" = "keybindings-menu"
+

@@ -20,7 +20,8 @@ installed_providers = [
   "menus:dragon",
   "menus:dragon_theme",
   "menus:dragon_backgrounds",
-  "menus:dragon_utilities"
+  "menus:dragon_utilities",
+  "menus:keybindings"
 ]
 additional_theme_location = "~/.config/walker/themes"
 monitor = ""
@@ -139,6 +140,10 @@ provider = "windows"
 [[providers.prefixes]]
 prefix = "^"
 provider = "menus:dragon"
+
+[[providers.prefixes]]
+prefix = "k"
+provider = "menus:keybindings"
 
 [providers.actions] # This will be MERGED/OVEWRITTEN with what the user specifies
 fallback = [

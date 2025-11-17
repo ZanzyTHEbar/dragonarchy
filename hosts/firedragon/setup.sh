@@ -546,40 +546,34 @@ EOF
     if grep -qw "amdgpu.modeset=1" /proc/cmdline; then
         log_success "Kernel parameter amdgpu.modeset=1 already active in current boot"
     else
-        log_info "Ensuring bootloader configuration includes amdgpu.modeset=1..."
-        LIMINE_DEFAULT_CONF="/etc/default/limine"
-        if sudo test -f "$LIMINE_DEFAULT_CONF"; then
-            if sudo grep -q "amdgpu.modeset=1" "$LIMINE_DEFAULT_CONF" >/dev/null 2>&1; then
-                log_info "/etc/default/limine already includes amdgpu.modeset=1"
+        log_info "Installing Limine kernel parameter drop-in for amdgpu.modeset=1..."
+        local limine_dropin_src="$HOME/dotfiles/hosts/firedragon/etc/limine-entry-tool.d/10-amdgpu.conf"
+        local limine_dropin_dest="/etc/limine-entry-tool.d/10-amdgpu.conf"
+        if [[ -f "$limine_dropin_src" ]]; then
+            sudo mkdir -p /etc/limine-entry-tool.d
+            sudo cp -f "$limine_dropin_src" "$limine_dropin_dest"
+            log_success "Copied Limine drop-in"
+        else
+            log_warning "Limine drop-in not found at $limine_dropin_src"
+        fi
+
+        if command -v limine-update >/dev/null 2>&1; then
+            if sudo limine-update; then
+                log_success "Regenerated Limine configuration via limine-update"
             else
-                log_info "Adding amdgpu.modeset=1 to /etc/default/limine kernel defaults..."
-                if sudo perl -0pi -e 's/(KERNEL_CMDLINE\[default\]\+=\"[^\"]*)(\")/$1 amdgpu.modeset=1$2/' "$LIMINE_DEFAULT_CONF"; then
-                    log_success "Updated /etc/default/limine with amdgpu.modeset=1"
-                else
-                    log_warning "Failed to update /etc/default/limine automatically; please add amdgpu.modeset=1 manually"
-                fi
+                log_warning "limine-update failed; run it again manually to apply amdgpu.modeset=1"
+            fi
+        elif command -v limine-mkinitcpio >/dev/null 2>&1; then
+            if sudo limine-mkinitcpio; then
+                log_success "Executed limine-mkinitcpio to refresh boot entries"
+            else
+                log_warning "limine-mkinitcpio failed; regenerate Limine entries manually"
             fi
         else
-            log_warning "/etc/default/limine not found; skipping kernel default update"
+            log_warning "Limine regeneration tool not found; run limine-update or limine-mkinitcpio manually"
         fi
-        if sudo env LOG_LIB="$LOG_LIB" BOOT_LIB="$BOOT_LIB" bash -c '
-            set -e
-            if [[ -f "$LOG_LIB" ]]; then
-                # shellcheck disable=SC1091
-                source "$LOG_LIB"
-            fi
-            # shellcheck disable=SC1091
-            source "$BOOT_LIB"
-            boot_append_kernel_params "amdgpu.modeset=1"
-            boot_rebuild_if_changed
-            BOOT_PARAMS_CHANGED=false
-            boot_append_kernel_params "amdgpu.modeset=1"
-        '; then
-            log_success "Bootloader configuration updated with amdgpu.modeset=1"
-            log_warning "Reboot required for amdgpu.modeset=1 to take effect"
-        else
-            log_warning "Failed to update bootloader automatically; ensure amdgpu.modeset=1 is added manually"
-        fi
+
+        log_warning "Reboot required for amdgpu.modeset=1 to take effect"
     fi
     
     # 5. DO NOT restart systemd-logind during active session!

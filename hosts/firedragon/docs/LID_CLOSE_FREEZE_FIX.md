@@ -70,6 +70,17 @@ sudo cp -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system/amdgpu-console-re
 sudo systemctl enable amdgpu-console-restore.service
 ```
 
+### 2b. **Limine Drop-in for Persistent Kernel Parameters** (NEW)
+
+To prevent `limine-update` from wiping custom parameters, a drop-in is now installed automatically:
+
+```bash
+/etc/limine-entry-tool.d/10-amdgpu.conf
+KERNEL_CMDLINE[default]+=" amdgpu.modeset=1"
+```
+
+The fix scripts call `limine-update` or `limine-mkinitcpio` so the regenerated `limine.conf` picks up the drop-in without manual edits.
+
 ### 3. **Automated Fix Script** (NEW)
 
 Created `fix-lid-close-freeze.sh` to:
