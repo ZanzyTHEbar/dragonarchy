@@ -1,10 +1,9 @@
 app_launch_prefix = "uwsm app -- "
 terminal_title_flag = ""
 locale = ""
-close_when_open = true                        # Toggle on reopen
+close_when_open = true                                # Toggle on reopen
 theme = "tokyo-night"
-theme_base = ["default"]
-theme_location = ["~/.config/walker/themes/"]
+additional_theme_location = "~/.config/walker/themes"
 monitor = ""
 hotreload_theme = true
 as_window = false
@@ -132,15 +131,13 @@ fallback = [
 
 dmenu = [{ action = "select", default = true, bind = "Return" }]
 
-[providers.actions."menus:dragon"]
-fallback = [
+"menus:dragon" = [
   { action = "menus:open", label = "open submenu", after = "Nothing" },
   { action = "menus:default", label = "run", after = "Nothing" },
   { action = "menus:parent", label = "back", bind = "Escape", after = "Nothing" },
 ]
 
-[providers.actions."menus:dragon_theme"]
-fallback = [
+"menus:dragon_theme" = [
   { action = "menus:default", label = "apply", after = "Nothing" },
   { action = "remove", label = "remove", bind = "ctrl d", after = "Nothing" },
   { action = "menus:parent", label = "back", bind = "Escape", after = "Nothing" },
