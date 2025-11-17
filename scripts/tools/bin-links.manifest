@@ -1,0 +1,20 @@
+# link manifest: package-scoped symlinks pointing to canonical scripts
+# format: package=<name> target=<relative path from repo root> link=<relative path>
+package=hyprland target=scripts/theme-manager/theme-bg-next link=packages/hyprland/.local/bin/theme-bg-next
+package=hyprland target=scripts/theme-manager/theme-install link=packages/hyprland/.local/bin/theme-install
+package=hyprland target=scripts/theme-manager/theme-remove link=packages/hyprland/.local/bin/theme-remove
+package=hyprland target=scripts/theme-manager/theme-set link=packages/hyprland/.local/bin/theme-set
+package=hyprland target=scripts/theme-manager/theme-set-background link=packages/hyprland/.local/bin/theme-set-background
+package=hyprland target=scripts/theme-manager/theme-update link=packages/hyprland/.local/bin/theme-update
+package=hyprland target=scripts/walker/dragon/walker-dragon link=packages/hyprland/.local/bin/dragon-walker
+package=hyprland target=scripts/walker/restart-walker.sh link=packages/hyprland/.local/bin/walker-restart
+package=hyprland target=scripts/walker/walker-clipboard link=packages/hyprland/.local/bin/walker-clipboard
+package=hyprland target=scripts/utilities/clipboard-menu link=packages/hyprland/.local/bin/clipboard-menu
+package=hyprland target=scripts/utilities/clipse-wrapper link=packages/hyprland/.local/bin/clipse-wrapper
+package=hardware target=scripts/hardware/battery-monitor link=packages/hardware/.local/bin/battery-monitor
+package=hardware target=scripts/hardware/fido2 link=packages/hardware/.local/bin/fido2
+package=hardware target=scripts/hardware/fingerprint link=packages/hardware/.local/bin/fingerprint
+package=hardware target=scripts/hardware/setup-apple-display-brightness link=packages/hardware/.local/bin/setup-apple-display-brightness
+package=hardware target=scripts/hardware/thermal-profile-cycle link=packages/hardware/.local/bin/thermal-profile-cycle
+package=hardware target=scripts/hardware/thermal-profile-init link=packages/hardware/.local/bin/thermal-profile-init
+package=hardware target=scripts/hardware/thermals link=packages/hardware/.local/bin/thermals

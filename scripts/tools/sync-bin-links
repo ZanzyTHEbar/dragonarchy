@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/tools/sync-bin-links [options]
+
+Options:
+  --package <name>   Limit updates to a single package scope
+  --check            Verify links without modifying the filesystem
+  --force            Overwrite non-symlink files at link destinations
+  --manifest <path>  Use a custom manifest (default: scripts/tools/bin-links.manifest)
+  -h, --help         Show this help
+EOF
+}
+
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+MANIFEST="$DOTFILES_ROOT/scripts/tools/bin-links.manifest"
+PACKAGE_FILTER=""
+CHECK_ONLY=0
+FORCE=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --package)
+      PACKAGE_FILTER="$2"
+      shift 2
+      ;;
+    --check)
+      CHECK_ONLY=1
+      shift
+      ;;
+    --force)
+      FORCE=1
+      shift
+      ;;
+    --manifest)
+      MANIFEST="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "sync-bin-links: unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ ! -f "$MANIFEST" ]]; then
+  echo "sync-bin-links: manifest not found: $MANIFEST" >&2
+  exit 1
+fi
+
+relpath() {
+  local target="$1"
+  local base="$2"
+  if command -v realpath >/dev/null 2>&1; then
+    realpath --relative-to="$base" "$target"
+    return
+  fi
+  if command -v perl >/dev/null 2>&1; then
+    perl -MFile::Spec -e 'print File::Spec->abs2rel(@ARGV)' "$target" "$base"
+    return
+  fi
+  echo "sync-bin-links: need realpath or perl for relative path resolution" >&2
+  exit 1
+}
+
+ensure_parent() {
+  local path="$1"
+  local dir
+  dir="$(dirname "$path")"
+  mkdir -p "$dir"
+}
+
+verify_link() {
+  local link="$1"
+  local expected="$2"
+  if [[ ! -L "$link" ]]; then
+    return 1
+  fi
+  local current
+  current="$(readlink "$link")"
+  [[ "$current" == "$expected" ]]
+}
+
+update_link() {
+  local target_rel="$1"
+  local link="$2"
+  if [[ -e "$link" && ! -L "$link" ]]; then
+    if [[ $FORCE -eq 0 ]]; then
+      echo "sync-bin-links: refusing to overwrite non-symlink $link (use --force)" >&2
+      return 2
+    fi
+    rm -f "$link"
+  fi
+  ln -sfn "$target_rel" "$link"
+  return 0
+}
+
+STATUS_UPDATED=0
+STATUS_OK=0
+STATUS_FAILED=0
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+  line="${line%%#*}"
+  line="$(echo "$line" | xargs)"
+  [[ -z "$line" ]] && continue
+
+  package=""
+  target=""
+  link=""
+  for token in $line; do
+    case "$token" in
+      package=*)
+        package="${token#package=}"
+        ;;
+      target=*)
+        target="${token#target=}"
+        ;;
+      link=*)
+        link="${token#link=}"
+        ;;
+    esac
+  done
+
+  if [[ -z "$package" || -z "$target" || -z "$link" ]]; then
+    echo "sync-bin-links: invalid manifest line: $line" >&2
+    STATUS_FAILED=$((STATUS_FAILED + 1))
+    continue
+  fi
+
+  if [[ -n "$PACKAGE_FILTER" && "$package" != "$PACKAGE_FILTER" ]]; then
+    continue
+  fi
+
+  target_abs="$DOTFILES_ROOT/$target"
+  link_abs="$DOTFILES_ROOT/$link"
+
+  if [[ ! -f "$target_abs" && ! -x "$target_abs" ]]; then
+    echo "sync-bin-links: target missing: $target" >&2
+    STATUS_FAILED=$((STATUS_FAILED + 1))
+    continue
+  fi
+
+  ensure_parent "$link_abs"
+  link_dir="$(dirname "$link_abs")"
+  target_rel="$(relpath "$target_abs" "$link_dir")"
+
+  if [[ $CHECK_ONLY -eq 1 ]]; then
+    if verify_link "$link_abs" "$target_rel"; then
+      STATUS_OK=$((STATUS_OK + 1))
+    else
+      echo "sync-bin-links: mismatch -> $link (expected -> $target_rel)" >&2
+      STATUS_FAILED=$((STATUS_FAILED + 1))
+    fi
+    continue
+  fi
+
+  if verify_link "$link_abs" "$target_rel"; then
+    STATUS_OK=$((STATUS_OK + 1))
+    continue
+  fi
+
+  if update_link "$target_rel" "$link_abs"; then
+    STATUS_UPDATED=$((STATUS_UPDATED + 1))
+  else
+    STATUS_FAILED=$((STATUS_FAILED + 1))
+  fi
+done < "$MANIFEST"
+
+echo "sync-bin-links: ok=$STATUS_OK updated=$STATUS_UPDATED failed=$STATUS_FAILED"
+
+if [[ $STATUS_FAILED -ne 0 ]]; then
+  exit 1
+fi
+

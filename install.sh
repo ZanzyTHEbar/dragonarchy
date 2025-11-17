@@ -418,6 +418,78 @@ setup_host_config() {
     fi
 }
 
+refresh_icon_cache() {
+    local cache_root="/usr/share/icons/hicolor"
+
+    if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+        log_info "Refreshing GTK icon cache..."
+        local cmd=(gtk-update-icon-cache -f "$cache_root")
+        if [[ $EUID -eq 0 ]]; then
+            "${cmd[@]}"
+        else
+            sudo "${cmd[@]}"
+        fi
+        return 0
+    fi
+
+    if command -v xdg-icon-resource >/dev/null 2>&1; then
+        log_info "Refreshing icon resources via xdg-icon-resource..."
+        local cmd=(xdg-icon-resource forceupdate --theme hicolor)
+        if [[ $EUID -eq 0 ]]; then
+            "${cmd[@]}"
+        else
+            sudo "${cmd[@]}"
+        fi
+        return 0
+    fi
+
+    log_warning "No icon cache refresh command available (gtk-update-icon-cache or xdg-icon-resource)"
+    return 0
+}
+
+deploy_dragon_icons() {
+    log_step "Deploying Dragon Control icons..."
+
+    local generator="$SCRIPTS_DIR/theme-manager/dragon-icons.sh"
+    if [[ ! -x "$generator" ]]; then
+        log_error "Dragon icon generator not found at $generator"
+        return 1
+    fi
+
+    "$generator"
+
+    local src_root="$CONFIG_DIR/assets/dragon/icons/hicolor"
+    local dst_root="/usr/share/icons/hicolor"
+
+    if [[ ! -d "$src_root" ]]; then
+        log_error "Icon assets directory missing at $src_root"
+        return 1
+    fi
+
+    local copied=false
+    while IFS= read -r -d '' src; do
+        local rel="${src#$src_root/}"
+        if [[ -z "$rel" || "$rel" == "$src" ]]; then
+            continue
+        fi
+        local dst="$dst_root/$rel"
+        if [[ $EUID -eq 0 ]]; then
+            install -Dm644 "$src" "$dst"
+        else
+            sudo install -Dm644 "$src" "$dst"
+        fi
+        copied=true
+    done < <(find "$src_root" -type f -name "dragon-control.png" -print0)
+
+    if [[ "$copied" != "true" ]]; then
+        log_error "No Dragon icon variants were staged for installation"
+        return 1
+    fi
+
+    refresh_icon_cache
+    log_success "Dragon Control icons deployed"
+}
+
 # Setup secrets management
 setup_secrets() {
     if [[ "$SETUP_SECRETS" != "true" || "$SKIP_SECRETS" == "true" ]]; then
@@ -599,6 +671,8 @@ main() {
     else
         log_info "Skipping theme refresh (--no-theme)"
     fi
+
+    deploy_dragon_icons
     
     if [[ "$RUN_SHELL_CONFIG" == "true" ]]; then
         configure_shell

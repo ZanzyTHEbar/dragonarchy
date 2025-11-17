@@ -51,9 +51,9 @@ pipx_packages=("poetry" "black" "flake8" "mypy")
 hyprland_arch_base=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "nemo-fileroller" "nemo-preview" "nemo-seahorse" "nemo-share" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "imagemagick" "imv" "inetutils" "iwd" "kvantum" "lazygit" "less" "libqalculate" "libsecret" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt6-svg" "qt6-declarative" "qt5-quickcontrols2" "qt5-graphicaleffects" "qt6-5compat" "qt6-wayland" "qt5-wayland" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "swappy" "system-config-printer" "tree-sitter-cli" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
 # Core Hyprland packages that may conflict with -git versions
 hyprland_arch_core=("hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot")
-hyprland_aur=("openbsd-netcat" "gnome-calculator" "gnome-keyring" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker-bin" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse")
-# Elephant packages - base must be installed first to satisfy plugin dependencies
-hyprland_aur_elephant=("elephant-bin" "elephant-desktopapplications-bin" "elephant-files-bin" "elephant-runner-bin" "elephant-clipboard-bin" "elephant-providerlist-bin" "elephant-menus-bin")
+hyprland_aur=("openbsd-netcat" "gnome-calculator" "gnome-keyring" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "walker" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse")
+# Elephant meta-package (ships core + providers)
+hyprland_aur_elephant=("elephant-all")
 
 # Logging functions
 detect_platform() {
@@ -556,17 +556,42 @@ install_for_arch() {
         fi
         
         # Install AUR packages (no filtering needed as hyprland-qtutils is archived)
+        if paru -Qi walker-bin &>/dev/null; then
+            log_info "Removing legacy walker-bin package in favour of walker"
+            paru -Rns --noconfirm walker-bin || true
+        fi
         install_paru "${hyprland_aur[@]}"
         
-        # Install elephant packages separately - base first, then plugins
-        log_info "Installing Elephant and plugins..."
-        
-        # Handle elephant-bin conflict with elephant (non-bin version)
-        if paru -Qi elephant &>/dev/null && ! paru -Qi elephant-bin &>/dev/null; then
-            log_warning "Removing conflicting 'elephant' package to install 'elephant-bin'"
-            paru -Rdd --noconfirm elephant 2>/dev/null || true
+        # Install Elephant (meta package bundles providers) and Walker
+        log_info "Installing Elephant stack..."
+        legacy_elephant_bin_pkgs=(
+            "elephant-bin"
+            "elephant-desktopapplications-bin"
+            "elephant-files-bin"
+            "elephant-runner-bin"
+            "elephant-clipboard-bin"
+            "elephant-providerlist-bin"
+            "elephant-menus-bin"
+            "elephant-calc-bin"
+            "elephant-todo-bin"
+            "elephant-bluetooth-bin"
+            "elephant-websearch-bin"
+            "elephant-archlinuxpkgs-bin"
+            "elephant-bookmarks-bin"
+            "elephant-symbols-bin"
+            "elephant-unicode-bin"
+        )
+        local to_remove=()
+        for legacy_pkg in "${legacy_elephant_bin_pkgs[@]}"; do
+            if paru -Qi "$legacy_pkg" &>/dev/null; then
+                to_remove+=("$legacy_pkg")
+            fi
+        done
+        if [[ ${#to_remove[@]} -gt 0 ]]; then
+            log_info "Removing legacy Elephant bin packages: ${to_remove[*]}"
+            paru -Rns --noconfirm "${to_remove[@]}" || true
         fi
-        
+
         install_paru "${hyprland_aur_elephant[@]}"
         install_rust_tools
     else
