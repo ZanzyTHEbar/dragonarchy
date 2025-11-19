@@ -6,3 +6,4 @@ DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../../../../" && pwd)"
 
 exec "$DOTFILES_ROOT/scripts/theme-manager/keybindings-menu" "$@"
 
+

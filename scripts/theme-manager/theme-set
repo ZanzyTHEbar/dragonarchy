@@ -47,8 +47,9 @@ schedule_ui_refresh() {
     printf '%s START NO_GUI=%s THEME=%s\n' "$(date --iso-8601=seconds)" "$NO_GUI" "$THEME_NAME"
 } >>/tmp/theme-set.log 2>/dev/null || true
 
-# Get the script directory and resolve to absolute path
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the script directory (resolve symlinks) and resolve to absolute path
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 THEMES_DIR="$(cd "$SCRIPT_DIR/../../packages/themes/.config/themes" && pwd)"
 CURRENT_THEME_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
 

@@ -2,3 +2,5 @@
     path = ~/.config/git/config
 [include]
     path = ~/.gitconfig.local
+[safe]
+	directory = /mnt/common/projects/ui/zenwriter
