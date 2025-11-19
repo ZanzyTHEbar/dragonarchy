@@ -10,3 +10,4 @@ icon = "input-keyboard"
 [entries.actions]
 "menus:default" = "keybindings-menu"
 
+
