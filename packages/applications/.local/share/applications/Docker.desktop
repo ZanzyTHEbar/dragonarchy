@@ -5,7 +5,6 @@ Comment=Manage Docker containers with LazyDocker
 Exec=kitty --class=Docker --title=Docker lazydocker
 Terminal=false
 Type=Application
-Icon=Docker
+Icon=applications-utilities
 Categories=GTK;
 StartupNotify=false
-

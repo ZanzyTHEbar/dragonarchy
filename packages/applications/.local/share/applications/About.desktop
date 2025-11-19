@@ -2,10 +2,10 @@
 Version=1.0
 Name=About
 Comment=System information from Fastfetch
-Exec=kitty --class=About --title=About bash -c 'fastfetch; read -n 1 -s'
+Exec=kitty --class=About --title=About -o remember_window_size=no -o initial_window_width=150c -o initial_window_height=50c bash -c 'fastfetch; read -n 1 -s'
 Terminal=false
 Type=Application
-Icon=Arch
+Icon=dragon-control
 Categories=GTK;
 StartupNotify=false
-
+MimeType=text/english;text/plain;text/x-makefile;text/x-c++hdr;text/x-c++src;text/x-chdr;text/x-csrc;text/x-java;text/x-moc;text/x-pascal;text/x-tcl;text/x-tex;application/x-shellscript;text/x-c;text/x-c++;
