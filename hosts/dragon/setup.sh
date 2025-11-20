@@ -147,11 +147,26 @@ else
     fi
 fi
 
+# Setup audio configuration (Audient iD22)
+if ! is_step_completed "dragon-setup-audio"; then
+    log_step "Setting up audio configuration (Audient iD22)..."
+    if bash "$HOME/dotfiles/scripts/utilities/audio-setup.sh"; then
+        mark_step_completed "dragon-setup-audio"
+    fi
+else
+    log_info "✓ Audio configuration already applied (skipped)"
+fi
+echo
+
 log_success "🐉 Dragon setup complete!"
 log_info "Power configuration:"
 log_info "  - Idle action: Suspend after 30 minutes"
 log_info "  - Power button: Suspend (long press: poweroff)"
 log_info "  - Sleep state: S3 (deep) with fallback to s2idle"
+log_info "Audio configuration:"
+log_info "  - Audient iD22 stereo proxy configured"
+log_info "  - Default sink: audient-stereo-proxy"
+log_info "  - Default source: Audient iD22 input"
 log_info "  - liquidctl: Auto-reinitialize on resume"
 echo
 log_warning "⚠️  REBOOT REQUIRED for AMD GPU changes to take effect"

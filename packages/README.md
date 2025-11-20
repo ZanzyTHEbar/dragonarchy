@@ -124,13 +124,49 @@ stow -n -v <package-name> 2>&1 | grep <filename>
 
 If the filename doesn't appear, it's being ignored.
 
+## Host-Specific Configurations
+
+### Professional Audio Interfaces
+
+Audio configurations are **host-specific** and stored in `hosts/<hostname>/pipewire/`:
+
+- **dragon host**: Audient iD22 stereo proxy configuration
+- **Other hosts**: Use system default audio (no custom config needed)
+
+**Setup Script**: `./scripts/utilities/audio-setup.sh` (auto-detects host and hardware)
+
+**Documentation**: See [`../docs/AUDIO_CONFIGURATION.md`](../docs/AUDIO_CONFIGURATION.md)
+
+The dragon configuration creates a virtual stereo sink that routes audio to the Audient iD22's front-left/right channels, perfect for gaming and desktop use while preserving full multi-channel capability for pro audio work.
+
+## Application-Specific Fixes
+
+Some applications require special configuration to work properly on Hyprland/Wayland:
+
+### Zoom
+
+Zoom experiences rendering issues (transparent/blurred windows) on Hyprland due to XWayland compatibility problems. A comprehensive fix is available:
+
+- **Documentation**: [`../docs/ZOOM_HYPRLAND_FIX.md`](../docs/ZOOM_HYPRLAND_FIX.md)
+- **Manual Fix**: Run `./scripts/utilities/zoom-fix.sh`
+- **Automatic**: Included in setup orchestration via `scripts/install/setup/applications.sh`
+
+The fix forces Zoom to run in X11 mode and applies compositor workarounds.
+
+### Future Fixes
+
+Additional application-specific fixes will be documented here as needed.
+
 ## Related Scripts
 
 - `scripts/install/stow-system.sh` - System-level stow operations
 - `scripts/install/setup.sh` - Main setup script
+- `scripts/install/setup/applications.sh` - Application-specific fixes
 - `scripts/install/update.sh` - Update dotfiles
+- `scripts/utilities/zoom-fix.sh` - Zoom rendering fix for Hyprland
 
 ## More Information
 
 - [GNU Stow Manual](https://www.gnu.org/software/stow/manual/)
 - [Main dotfiles README](../README.md)
+- [Zoom Fix Documentation](../docs/ZOOM_HYPRLAND_FIX.md)

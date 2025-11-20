@@ -1,12 +1,14 @@
 [Desktop Entry]
 Version=1.0
-Name=Zoom (Wayland)
-Comment=Zoom client (try Wayland runtime)
-Exec=env QT_QPA_PLATFORM=wayland /opt/zoom/zoom %U
+Name=Zoom
+Comment=Zoom video conferencing (X11 mode for Hyprland compatibility)
+Exec=env QT_QPA_PLATFORM=xcb QT_AUTO_SCREEN_SCALE_FACTOR=1 /opt/zoom/zoom %U
 Terminal=false
 Type=Application
 Icon=/usr/share/pixmaps/Zoom.png
-Categories=Network;Video;
+Categories=Network;Video;AudioVideo;
 StartupNotify=false
+MimeType=x-scheme-handler/zoommtg;x-scheme-handler/zoomphonecall;x-scheme-handler/zoomus;
+StartupWMClass=zoom
 
 
