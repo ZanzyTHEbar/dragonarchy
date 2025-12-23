@@ -182,6 +182,27 @@ After running setup, complete these steps:
    ```
 
 6. **Verify Hardware Acceleration**:
+7. **Update Firmware & ASUS EC Tools**:
+
+   - Check for BIOS/EC updates on the ASUS support site and flash the latest release before relying on suspend.
+   - Install the control utilities (the setup script does this automatically):
+
+     ```bash
+     sudo pacman -S --needed asusctl asus-nb-ctrl
+     sudo systemctl enable --now asusd.service
+     asusctl profile -n Balanced
+     ```
+
+8. **Confirm Sleep State**:
+
+   ```bash
+   cat /sys/power/mem_sleep
+   ```
+
+   - If `deep` is available (e.g. `s2idle [deep]`), add `mem_sleep_default=deep` via `~/dotfiles/hosts/firedragon/fix-acpi-boot.sh` and reboot.
+   - If only `s2idle` is exposed (current default), keep it and rely on the runtime-PM override script (`/etc/systemd/system-sleep/99-runtime-pm.sh`) that forces NVMe/Wi-Fi/USB controllers to `power/control=on` before the system enters Modern Standby.
+
+9. **Verify Hardware Acceleration**:
 
    ```bash
    vainfo  # Check VA-API
@@ -200,6 +221,8 @@ tlpstat            # Detailed TLP status
 laptop-mode        # Alias for powersave
 performance-mode   # Alias for powerperf
 ```
+
+> 💡 **Battery behavior**: FireDragon runs in a balanced mode while unplugged (CPU max ≈ 80%, Wi-Fi left in auto). When the battery falls below 30%, the `battery-monitor` helper automatically switches `asusctl` to the Quiet profile for extra runtime; it jumps back to Balanced once the charge recovers above ~35% or you plug in.
 
 ### AMD GPU Monitoring
 
@@ -305,6 +328,8 @@ cd ~/dotfiles/hosts/firedragon
 ---
 
 ### ⚠️ General Suspend/Resume & TTY Issues
+- Double-check firmware/EC versions and re-run `asusctl profile -n Balanced` after every BIOS update.
+- If the display still fails to return from s2idle, test with the latest LTS kernel and inspect `/etc/systemd/system-sleep/99-runtime-pm.sh` to ensure the NVMe/Wi-Fi paths match `lspci -nn`.
 
 **UPDATE**: After testing, additional fixes are required:
 

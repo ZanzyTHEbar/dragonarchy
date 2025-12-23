@@ -141,6 +141,17 @@ if [[ -f "$AMDGPU_CONF" ]]; then
             log_warning "Limine drop-in source not found at $LIMINE_DROPIN_SRC"
         fi
 
+        if [[ -f "$BOOT_LIB" ]]; then
+            sudo env LOG_LIB="$LOG_LIB" BOOT_LIB="$BOOT_LIB" bash -c '
+                set -e
+                # shellcheck disable=SC1091
+                source "$LOG_LIB"
+                # shellcheck disable=SC1091
+                source "$BOOT_LIB"
+                boot_dedupe_kernel_params
+            '
+        fi
+
         if command -v limine-update >/dev/null 2>&1; then
             if sudo limine-update; then
                 log_success "Regenerated Limine configuration via limine-update"
