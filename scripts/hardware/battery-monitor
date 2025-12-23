@@ -1,9 +1,12 @@
 #!/bin/bash
 # Checks battery status and sends a notification if the level is low.
 
-BATTERY_THRESHOLD=10
-# Use a unique notification flag to prevent spamming
+NOTIFY_THRESHOLD=10
+POWER_SAVER_THRESHOLD=30
+POWER_RESUME_THRESHOLD=35
+
 NOTIFICATION_FLAG="/run/user/$UID/battery_low_notified"
+LOW_POWER_FLAG="/run/user/$UID/battery_low_profile"
 
 get_battery_percentage() {
   upower -i "$(upower -e | grep 'BAT')" | grep -E "percentage" | grep -o '[0-9]\+%' | sed 's/%//'
@@ -26,12 +29,27 @@ fi
 BATTERY_LEVEL=$(get_battery_percentage)
 BATTERY_STATE=$(get_battery_state)
 
-if [[ "$BATTERY_STATE" == "discharging" && "$BATTERY_LEVEL" -le "$BATTERY_THRESHOLD" ]]; then
+if [[ "$BATTERY_STATE" == "discharging" && "$BATTERY_LEVEL" -le "$NOTIFY_THRESHOLD" ]]; then
   if [[ ! -f "$NOTIFICATION_FLAG" ]]; then
     send_notification "$BATTERY_LEVEL"
     touch "$NOTIFICATION_FLAG"
   fi
 else
+if [[ "$BATTERY_STATE" == "discharging" && "$BATTERY_LEVEL" -le "$POWER_SAVER_THRESHOLD" ]]; then
+  if [[ ! -f "$LOW_POWER_FLAG" ]]; then
+    if command -v asusctl >/dev/null 2>&1; then
+      asusctl profile -n Quiet >/dev/null 2>&1 || true
+    fi
+    touch "$LOW_POWER_FLAG"
+  fi
+elif [[ "$BATTERY_LEVEL" -ge "$POWER_RESUME_THRESHOLD" || "$BATTERY_STATE" == "charging" ]]; then
+  if [[ -f "$LOW_POWER_FLAG" ]]; then
+    if command -v asusctl >/dev/null 2>&1; then
+      asusctl profile -n Balanced >/dev/null 2>&1 || true
+    fi
+    rm -f "$LOW_POWER_FLAG"
+  fi
+fi
   # Reset the flag once the battery is charging again or above the threshold
   rm -f "$NOTIFICATION_FLAG"
 fi

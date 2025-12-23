@@ -74,6 +74,21 @@ boot__merge_params() {
   printf "%s" "${out[*]}"
 }
 
+boot__dedupe_params_string() {
+  # Remove duplicate tokens from a cmdline-like string while preserving order.
+  # shellcheck disable=SC2206
+  local tokens=($1)
+  local out=()
+  local -A seen=()
+  for t in "${tokens[@]}"; do
+    if [[ -n "$t" && -z "${seen[$t]:-}" ]]; then
+      out+=("$t")
+      seen["$t"]=1
+    fi
+  done
+  printf "%s" "${out[*]}"
+}
+
 boot__append_cmdline() {
   local params="$1"; local target="/etc/kernel/cmdline"
   if [[ ! -f "$target" ]]; then
@@ -185,6 +200,51 @@ boot__append_limine() {
   fi
 }
 
+boot__dedupe_limine() {
+  local cfg
+  cfg="$(boot__limine_cfg_path || true)" || { log_warning "Limine config not found"; return 0; }
+  local tmp changed=0 touched=0
+  tmp="${cfg}.tmp"
+  cp "$cfg" "${cfg}.backup.$(date +%Y%m%d_%H%M%S)"
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^CMDLINE ]]; then
+      local val dedup
+      val="$(printf '%s' "$line" | sed -n 's/^CMDLINE[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p')"
+      dedup="$(boot__dedupe_params_string "$val")"
+      if [[ "$dedup" != "$val" ]]; then
+        printf 'CMDLINE="%s"\n' "$dedup" >> "$tmp"
+        changed=1
+        continue
+      fi
+      touched=1
+    elif [[ "$line" =~ ^[[:space:]]*kernel_cmdline: ]]; then
+      local prefix value dedup
+      prefix="$(printf '%s' "$line" | sed -E 's/^([[:space:]]*kernel_cmdline:[[:space:]]*).*/\1/')"
+      value="${line#"$prefix"}"
+      value="$(printf '%s' "$value" | xargs || true)"
+      dedup="$(boot__dedupe_params_string "$value")"
+      if [[ "$dedup" != "$value" ]]; then
+        printf '%s%s\n' "$prefix" "$dedup" >> "$tmp"
+        changed=1
+        touched=1
+        continue
+      fi
+      touched=1
+    fi
+    printf '%s\n' "$line" >> "$tmp"
+  done < "$cfg"
+  if [[ $changed -eq 1 ]]; then
+    mv "$tmp" "$cfg"; sync; log_success "Deduplicated Limine config: $cfg"; BOOT_PARAMS_CHANGED=true
+  else
+    rm -f "$tmp"
+    if [[ $touched -eq 0 ]]; then
+      log_warning "No kernel_cmdline entries found in Limine config while deduplicating"
+    else
+      log_info "Limine kernel_cmdline already deduplicated"
+    fi
+  fi
+}
+
 boot__append_grub() {
   local params="$1"; local cfg="/etc/default/grub"
   if [[ ! -f "$cfg" ]]; then
@@ -221,6 +281,20 @@ boot_append_kernel_params() {
     grub)         boot__append_grub "$params" ;;
     uki)          boot__append_cmdline "$params" ;;
     *)            log_warning "Unknown bootloader; skipping kernel param changes" ;;
+  esac
+}
+
+boot_dedupe_kernel_params() {
+  local bl
+  bl="$(detect_bootloader)"
+  case "$bl" in
+    limine) boot__dedupe_limine ;;
+    systemd-boot|uki|grub)
+      log_info "Kernel parameter dedupe not required for $bl (already handled during merge)"
+      ;;
+    *)
+      log_warning "Unknown bootloader; skipping kernel parameter dedupe"
+      ;;
   esac
 }
 

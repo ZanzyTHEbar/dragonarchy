@@ -58,6 +58,8 @@ setup_firedragon_packages() {
         "laptop-detect"          # Laptop detection utility
         "libinput"               # Input device management
         "libinput-gestures"      # Gesture recognition library (optional)
+        "asusctl"                # ASUS EC/keyboard controls
+        "asus-nb-ctrl"           # Additional ASUS laptop integration
     )
     
     local amd_packages=(
@@ -89,6 +91,24 @@ setup_firedragon_packages() {
     done
     
     log_success "Laptop-specific packages installed"
+}
+
+setup_asus_ec_tools() {
+    log_info "Configuring ASUS EC integration..."
+
+    if systemctl list-unit-files | grep -q '^asusd\.service'; then
+        sudo systemctl enable --now asusd.service 2>/dev/null || true
+    fi
+
+    if command_exists asusctl; then
+        if asusctl profile -n Balanced >/dev/null 2>&1; then
+            log_success "Set ASUS performance profile to Balanced"
+        else
+            log_warning "Failed to set ASUS profile via asusctl"
+        fi
+    else
+        log_warning "asusctl not found; skipping profile configuration"
+    fi
 }
 
 # Setup AMD-specific configurations
@@ -153,10 +173,6 @@ setup_power_management() {
 # FireDragon TLP Configuration - AMD Laptop Optimized
 # Updated to fix suspend/resume issues
 
-# CPU Scaling Governor
-CPU_SCALING_GOVERNOR_ON_AC=schedutil
-CPU_SCALING_GOVERNOR_ON_BAT=schedutil
-
 # CPU Energy Performance Policies
 CPU_ENERGY_PERF_POLICY_ON_AC=balance_performance
 CPU_ENERGY_PERF_POLICY_ON_BAT=power
@@ -196,7 +212,7 @@ PCIE_ASPM_ON_BAT=powersupersave
 # USB Auto-suspend
 USB_AUTOSUSPEND=1
 USB_EXCLUDE_AUDIO=1
-USB_EXCLUDE_BTUSB=0
+USB_EXCLUDE_BTUSB=1
 USB_EXCLUDE_PHONE=0
 USB_EXCLUDE_PRINTER=1
 USB_EXCLUDE_WWAN=0
@@ -557,6 +573,17 @@ EOF
             log_warning "Limine drop-in not found at $limine_dropin_src"
         fi
 
+        if [[ -f "$BOOT_LIB" ]]; then
+            sudo env LOG_LIB="$LOG_LIB" BOOT_LIB="$BOOT_LIB" bash -c '
+                set -e
+                # shellcheck disable=SC1091
+                source "$LOG_LIB"
+                # shellcheck disable=SC1091
+                source "$BOOT_LIB"
+                boot_dedupe_kernel_params
+            '
+        fi
+
         if command -v limine-update >/dev/null 2>&1; then
             if sudo limine-update; then
                 log_success "Regenerated Limine configuration via limine-update"
@@ -580,6 +607,16 @@ EOF
     # It will kill the user's session and cause a black screen
     log_warning "systemd-logind changes require REBOOT to take effect"
     log_warning "DO NOT restart systemd-logind manually - it will kill your session!"
+
+    if [[ -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" ]]; then
+        sudo install -m 755 "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" /etc/systemd/system-sleep/99-runtime-pm.sh
+        log_info "Installed runtime PM override script"
+    fi
+
+    if [[ -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" ]]; then
+        sudo install -m 755 "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" /etc/systemd/system-sleep/98-ax210-bt-recover.sh
+        log_info "Installed Intel AX210 Bluetooth recover script"
+    fi
     
     log_success "Suspend/resume fixes installed"
     log_warning "⚠️  REBOOT REQUIRED - Changes will not work until reboot!"
@@ -862,6 +899,13 @@ main() {
         setup_firedragon_packages && mark_step_completed "firedragon-packages"
     else
         log_info "✓ Packages already installed (skipped)"
+    fi
+    echo
+
+    if ! is_step_completed "firedragon-asus-ec-tools"; then
+        setup_asus_ec_tools && mark_step_completed "firedragon-asus-ec-tools"
+    else
+        log_info "✓ ASUS EC tools already configured (skipped)"
     fi
     echo
     
