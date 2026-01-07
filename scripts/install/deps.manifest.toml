@@ -1,0 +1,260 @@
+# Dependency manifest for scripts/install/install-deps.sh
+#
+# This file is the source of truth for package groups.
+# Editing package lists here avoids touching installer scripts.
+#
+# Schema notes:
+# - Groups live under: platforms.<platform>.<manager>.<group>
+# - Each group supports:
+#     packages          = ["..."]
+#     requires_features = ["hyprland", ...]   (optional)
+#     requires_hosts    = ["dragon", ...]     (optional)
+#     exclude_hosts     = ["firedragon", ...] (optional)
+# - Tools live under: tools.<tooling>.*
+#
+# Canonical platforms used by the installer:
+#   arch   (covers: arch, cachyos, manjaro)
+#   debian (covers: debian, ubuntu)
+
+[platforms.arch.pacman.core_cli]
+packages = [
+    "vim",
+    "kitty",
+    "neovim",
+    "btop",
+    "coreutils",
+    "dua-cli",
+    "duf",
+    "entr",
+    "fastfetch",
+    "fd",
+    "fzf",
+    "gdu",
+    "lsd",
+    "ripgrep",
+    "stow",
+    "unzip",
+    "wget",
+    "jq",
+    "just",
+    "yq",
+    "iperf3",
+    "wakeonlan",
+    "ffmpeg",
+    "bat",
+    "zoxide",
+    "eza",
+    "direnv",
+    "git-delta",
+    "lazygit",
+    "htop",
+    "tmux",
+    "tree",
+    "curl",
+    "rsync",
+    "age",
+    "sops",
+    "zsh",
+    "zsh-autosuggestions",
+    "zsh-syntax-highlighting",
+    "zsh-theme-powerlevel10k",
+    "gum",
+]
+
+[platforms.arch.pacman.dev]
+packages = [
+    "git",
+    "diff-so-fancy",
+    "ansible",
+    "github-cli",
+    "terraform",
+    "python-pipx",
+]
+
+[platforms.arch.pacman.fonts]
+packages = [
+    "ttf-jetbrains-mono",
+    "noto-fonts-emoji",
+    "ttf-font-awesome",
+    "noto-fonts-extra",
+    "ttf-liberation",
+    "ttf-liberation-mono-nerd",
+]
+
+[platforms.arch.paru.gui]
+packages = [
+    "joplin-desktop",
+    "vivaldi",
+    "difftastic",
+    "visual-studio-code-bin",
+    "visual-studio-code-insiders-bin",
+]
+
+[platforms.arch.paru.fonts]
+packages = ["ttf-cascadia-mono-nerd", "ttf-ia-writer"]
+
+# Hyprland groups (Arch-family only)
+[platforms.arch.pacman.hyprland_base]
+requires_features = ["hyprland"]
+packages = [
+    "bash-completion",
+    "blueberry",
+    "bluez",
+    "bluez-utils",
+    "brightnessctl",
+    "rustup",
+    "clang",
+    "cups",
+    "cups-filters",
+    "cups-pdf",
+    "docker",
+    "docker-buildx",
+    "docker-compose",
+    "nemo",
+    "nemo-emblems",
+    "nemo-fileroller",
+    "nemo-preview",
+    "nemo-seahorse",
+    "nemo-share",
+    "egl-wayland",
+    "evince",
+    "fcitx5",
+    "fcitx5-configtool",
+    "fcitx5-gtk",
+    "fcitx5-qt",
+    "ffmpegthumbnailer",
+    "flatpak",
+    "gcc",
+    "gnome-themes-extra",
+    "gst-plugin-pipewire",
+    "imagemagick",
+    "imv",
+    "inetutils",
+    "iwd",
+    "kvantum",
+    "lazygit",
+    "less",
+    "libqalculate",
+    "libsecret",
+    "llvm",
+    "luarocks",
+    "man-db",
+    "mise",
+    "mpv",
+    "pamixer",
+    "pipewire",
+    "pipewire-alsa",
+    "pipewire-pulse",
+    "plocate",
+    "playerctl",
+    "polkit-gnome",
+    "power-profiles-daemon",
+    "qt6-svg",
+    "qt6-declarative",
+    "qt5-quickcontrols2",
+    "qt5-graphicaleffects",
+    "qt6-5compat",
+    "qt6-wayland",
+    "qt5-wayland",
+    "rtkit",
+    "satty",
+    "slurp",
+    "sushi",
+    "swaybg",
+    "swaync",
+    "swayosd",
+    "swappy",
+    "system-config-printer",
+    "tree-sitter-cli",
+    "ufw",
+    "uwsm",
+    "waybar",
+    "wf-recorder",
+    "whois",
+    "wireplumber",
+    "wl-clip-persist",
+    "xdg-desktop-portal-gtk",
+    "xdg-desktop-portal-hyprland",
+]
+
+[platforms.arch.pacman.hyprland_core]
+requires_features = ["hyprland"]
+packages = ["hypridle", "hyprland", "hyprlock", "hyprpicker", "hyprshot"]
+
+[platforms.arch.paru.hyprland_aur]
+requires_features = ["hyprland"]
+packages = [
+    "openbsd-netcat",
+    "gnome-calculator",
+    "gnome-keyring",
+    "impala",
+    "joplin-desktop",
+    "kdenlive",
+    "lazydocker-bin",
+    "libreoffice-fresh",
+    "localsend-bin",
+    "pinta",
+    "spotify",
+    "swaync-widgets-git",
+    "tealdeer",
+    "typora",
+    "ufw-docker-git",
+    "v4l2loopback-dkms",
+    "walker",
+    "wiremix",
+    "wl-clipboard",
+    "wl-screenrec-git",
+    "xournalpp",
+    "zoom",
+    "bibata-cursor-theme",
+    "tzupdate",
+    "clipse",
+]
+
+[platforms.arch.paru.hyprland_aur_elephant]
+requires_features = ["hyprland"]
+packages = ["elephant-all"]
+
+[platforms.debian.apt.core_cli]
+packages = [
+    "vim",
+    "neovim",
+    "btop",
+    "coreutils",
+    "fd-find",
+    "fzf",
+    "ripgrep",
+    "stow",
+    "unzip",
+    "wget",
+    "curl",
+    "jq",
+    "yq",
+    "iperf3",
+    "wakeonlan",
+    "ffmpeg",
+    "bat-cat",
+    "zsh",
+    "htop",
+    "tmux",
+    "tree",
+    "rsync",
+    "git",
+    "zsh-autosuggestions",
+    "zsh-syntax-highlighting",
+    "kitty",
+]
+
+[platforms.debian.apt.dev]
+packages = ["git", "diff-so-fancy", "ansible", "gh", "terraform", "pipx"]
+
+[platforms.debian.apt.fonts]
+packages = [
+    "fonts-jetbrains-mono",
+    "fonts-noto-color-emoji",
+    "fonts-font-awesome",
+    "fonts-liberation2",
+]
+
+[tools.pipx]
+packages = ["poetry", "black", "flake8", "mypy"]

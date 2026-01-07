@@ -140,6 +140,24 @@ fi
 
 ## Running Migrations
 
+### Recommended: Run via Helper Script
+
+Use the migration runner, which applies install-state step IDs like `update:migration:<filename>` and also imports any legacy markers automatically:
+
+```bash
+./scripts/install/run-migrations.sh
+./scripts/install/run-migrations.sh --list
+./scripts/install/run-migrations.sh --reset
+```
+
+### Also Supported: Run via System Update
+
+The updater also runs pending migrations:
+
+```bash
+./scripts/install/update.sh
+```
+
 ### Manual Execution
 
 Migrations are standalone scripts and can be run individually:
@@ -187,34 +205,44 @@ run_migrations() {
 
 ### Tracking Applied Migrations
 
-For more sophisticated tracking, maintain a state file:
+For consistent tracking across the repo, prefer using the shared install-state library. This is what the updater uses.
+
+Applied migrations are recorded under:
+- `~/.local/state/dotfiles/install/`
+
+With step IDs like:
+- `update:migration:<filename>`
+
+Example helper:
 
 ```bash
-MIGRATION_STATE="$HOME/.config/dotfiles/migrations.state"
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../scripts/lib/logging.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../scripts/lib/install-state.sh"
 
 run_migration_if_needed() {
     local migration="$1"
-    local migration_id=$(basename "$migration")
-    
-    # Check if already applied
-    if [[ -f "$MIGRATION_STATE" ]] && grep -q "^$migration_id$" "$MIGRATION_STATE"; then
-        log_info "Skipping (already applied): $migration_id"
+    local filename
+    filename=$(basename "$migration")
+    local step_id="update:migration:${filename}"
+
+    if is_step_completed "$step_id"; then
+        log_info "Skipping (already applied): $filename"
         return 0
     fi
-    
-    # Run migration
-    log_info "Running: $migration_id"
-    if bash "$migration"; then
-        # Mark as applied
-        mkdir -p "$(dirname "$MIGRATION_STATE")"
-        echo "$migration_id" >> "$MIGRATION_STATE"
-        log_success "Completed: $migration_id"
-    else
-        log_error "Failed: $migration_id"
-        return 1
-    fi
+
+    log_info "Running: $filename"
+    bash "$migration"
+    mark_step_completed "$step_id"
 }
 ```
+
+Note: older versions used legacy markers under `~/.local/state/dotfiles/migrations/`. The current updater imports those markers to avoid re-running already-applied migrations.
 
 ## Best Practices
 

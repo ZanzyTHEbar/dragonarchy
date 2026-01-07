@@ -6,6 +6,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../lib/logging.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/install-state.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/platform.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/hosts.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/manifest-toml.sh"
 
 # Script directory for consistent script referencing
 # CONFIG_DIR is two levels above SCRIPT_DIR.
@@ -19,112 +27,63 @@ source "${SCRIPT_DIR}/../lib/logging.sh"
 CONFIG_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 HOSTS_DIR="$CONFIG_DIR/hosts"
 
+MANIFEST_FILE="${SCRIPT_DIR}/deps.manifest.toml"
+
 # Feature toggles (defaults)
 FORCE_CURSOR_INSTALL=false
 SKIP_CURSOR_INSTALL=false
 KEEP_GIT_HYPRLAND=false
 
-# --- Header and Logging ---
-# Colors for output
+# Internal state
+APT_UPDATED=false
 
-# --- Package Definitions ---
-# Fonts
-arch_fonts=("ttf-jetbrains-mono" "noto-fonts-emoji" "ttf-font-awesome" "noto-fonts-extra" "ttf-liberation" ttf-liberation-mono-nerd)
-arch_aur_fonts=("ttf-cascadia-mono-nerd" "ttf-ia-writer")
-debian_fonts=("fonts-jetbrains-mono" "fonts-noto-color-emoji" "fonts-font-awesome" "fonts-liberation2")
-
-# Core CLI
-core_cli_arch=("vim" "kitty" "neovim" "btop" "coreutils" "dua-cli" "duf" "entr" "fastfetch" "fd" "fzf" "gdu" "lsd" "ripgrep" "stow" "unzip" "wget" "jq" "just" "yq" "iperf3" "wakeonlan" "ffmpeg" "bat" "zoxide" "eza" "direnv" "git-delta" "lazygit" "htop" "tmux" "tree" "curl" "rsync" "age" "sops" "zsh" "zsh-autosuggestions" "zsh-syntax-highlighting" "zsh-theme-powerlevel10k" "gum")
-core_cli_debian=("vim" "neovim" "btop" "coreutils" "fd-find" "fzf" "ripgrep" "stow" "unzip" "wget" "curl" "jq" "iperf3" "wakeonlan" "ffmpeg" "bat-cat" "zsh" "htop" "tmux" "tree" "rsync" "git" "zsh-autosuggestions" "zsh-syntax-highlighting" "kitty")
-
-# GUI
-gui_aur=("joplin-desktop" "vivaldi" "difftastic" "visual-studio-code-bin" "visual-studio-code-insiders-bin")
-
-# Development
-dev_arch=("git" "diff-so-fancy" "ansible" "github-cli" "terraform" "python-pipx")
-dev_debian=("git" "diff-so-fancy" "ansible" "gh" "terraform" "pipx")
-pipx_packages=("poetry" "black" "flake8" "mypy")
-
-# Hyprland specific
-# NOTE: Core Hyprland packages (hyprland, hypridle, hyprlock) are handled separately
-# to avoid conflicts with -git versions on CachyOS
-hyprland_arch_base=("bash-completion" "blueberry" "bluez" "bluez-utils" "brightnessctl" "rustup" "clang" "cups" "cups-filters" "cups-pdf" "docker" "docker-buildx" "docker-compose" "nemo" "nemo-emblems" "nemo-fileroller" "nemo-preview" "nemo-seahorse" "nemo-share" "egl-wayland" "evince" "fcitx5" "fcitx5-configtool" "fcitx5-gtk" "fcitx5-qt" "ffmpegthumbnailer" "flatpak" "gcc" "gnome-themes-extra" "gst-plugin-pipewire" "imagemagick" "imv" "inetutils" "iwd" "kvantum" "lazygit" "less" "libqalculate" "libsecret" "llvm" "luarocks" "man-db" "mise" "mpv" "pamixer" "pipewire" "pipewire-alsa" "pipewire-pulse" "plocate" "playerctl" "polkit-gnome" "power-profiles-daemon" "qt6-svg" "qt6-declarative" "qt5-quickcontrols2" "qt5-graphicaleffects" "qt6-5compat" "qt6-wayland" "qt5-wayland" "rtkit" "satty" "slurp" "sushi" "swaybg" "swaync" "swayosd" "swappy" "system-config-printer" "tree-sitter-cli" "ufw" "uwsm" "waybar" "wf-recorder" "whois" "wireplumber" "wl-clip-persist" "xdg-desktop-portal-gtk" "xdg-desktop-portal-hyprland")
-# Core Hyprland packages that may conflict with -git versions
-hyprland_arch_core=("hypridle" "hyprland" "hyprlock" "hyprpicker" "hyprshot")
-hyprland_aur=("openbsd-netcat" "gnome-calculator" "gnome-keyring" "impala" "joplin-desktop" "kdenlive" "lazydocker-bin" "libreoffice-fresh" "localsend-bin" "pinta" "spotify" "swaync-widgets-git" "tealdeer" "typora" "ufw-docker-git" "v4l2loopback-dkms" "walker" "wiremix" "wl-clipboard" "wl-screenrec-git" "xournalpp" "zoom" "bibata-cursor-theme" "tzupdate" "clipse")
-# Elephant meta-package (ships core + providers)
-hyprland_aur_elephant=("elephant-all")
-
-# Logging functions
-detect_platform() {
-    case "$(uname -s)" in
-        Linux*)
-            [[ -f /etc/os-release ]] && source /etc/os-release
-            echo "${ID:-linux}"
-        ;;
-        *) echo "unknown" ;;
-    esac
-}
-
-# Get list of available hosts from hosts directory
-get_available_hosts() {
-    if [[ -d "$HOSTS_DIR" ]]; then
-        find "$HOSTS_DIR" -maxdepth 1 -type d ! -path "$HOSTS_DIR" -exec basename {} \; | sort
+manifest_validate() {
+    if [[ ! -f "$MANIFEST_FILE" ]]; then
+        log_error "Deps manifest not found: $MANIFEST_FILE"
+        return 1
     fi
+    return 0
 }
 
-# Detect current host
-detect_host() {
-    local hostname
-    hostname=$(hostname | cut -d. -f1)
-    
-    # Check if a host-specific configuration directory exists
-    if [[ -d "$HOSTS_DIR/$hostname" ]]; then
-        echo "$hostname"
-    else
-        # Return the actual hostname even if no specific config exists
-        # This allows for dynamic hostname support
-        echo "$hostname"
+feature_csv_for_host() {
+    local host="$1"
+    local features=()
+
+    if [[ -n "$host" ]] && is_hyprland_host "$HOSTS_DIR" "$host"; then
+        features+=("hyprland")
     fi
+
+    local joined=""
+    local f
+    for f in "${features[@]}"; do
+        if [[ -z "$joined" ]]; then
+            joined="$f"
+        else
+            joined+=",$f"
+        fi
+    done
+
+    echo "$joined"
 }
 
-# Detect if a host needs Hyprland packages
-# Checks for multiple indicators in the host directory:
-# 1. Presence of .hyprland marker file
-# 2. Presence of HYPRLAND marker file
-# 3. Hyprland mentioned in setup.sh
-# 4. Hyprland config directories
-is_hyprland_host() {
-    local hostname="$1"
-    local host_dir="$HOSTS_DIR/$hostname"
-    
-    # Host directory must exist
-    [[ ! -d "$host_dir" ]] && return 1
-    
-    # Method 1: Check for explicit marker files
-    if [[ -f "$host_dir/.hyprland" ]] || [[ -f "$host_dir/HYPRLAND" ]]; then
-        log_info "Host '$hostname' detected as Hyprland (marker file found)"
+install_manifest_group() {
+    local platform="$1"
+    local manager="$2"
+    local group="$3"
+    local installer_fn="$4"
+    local host="${5:-}"
+    local feature_csv="${6:-}"
+
+    local pkgs=()
+    mapfile -t pkgs < <(manifest_group_packages "$MANIFEST_FILE" "$platform" "$manager" "$group" "$host" "$feature_csv")
+
+    if [[ ${#pkgs[@]} -eq 0 ]]; then
+        log_info "No packages for ${platform}/${manager}/${group} (skipping)"
         return 0
     fi
-    
-    # Method 2: Check if setup.sh mentions Hyprland
-    if [[ -f "$host_dir/setup.sh" ]]; then
-        if grep -qi "hyprland\|hyprlock\|hypridle\|waybar" "$host_dir/setup.sh"; then
-            log_info "Host '$hostname' detected as Hyprland (setup.sh mentions Hyprland)"
-            return 0
-        fi
-    fi
-    
-    # Method 3: Check for Hyprland config directories in docs
-    if [[ -d "$host_dir/docs" ]]; then
-        if find "$host_dir/docs" -type f -name "*.md" -exec grep -qi "hyprland" {} \; 2>/dev/null; then
-            log_info "Host '$hostname' detected as Hyprland (documentation mentions Hyprland)"
-            return 0
-        fi
-    fi
-    
-    # Not a Hyprland host
-    return 1
+
+    "$installer_fn" "${pkgs[@]}"
+    return 0
 }
 
 # Detect if system has -git versions of Hyprland packages installed
@@ -142,12 +101,6 @@ has_hyprland_git_packages() {
     return 1
 }
 
-# Check if specific package (stable or -git) is installed
-is_package_installed() {
-    local pkg="$1"
-    pacman -Qi "$pkg" &>/dev/null || paru -Qi "$pkg" &>/dev/null
-}
-
 # Get list of all Hyprland hosts by scanning host directories
 get_hyprland_hosts() {
     local hyprland_hosts=()
@@ -159,10 +112,10 @@ get_hyprland_hosts() {
     
     # Scan all host directories
     while IFS= read -r host; do
-        if is_hyprland_host "$host"; then
+        if is_hyprland_host "$HOSTS_DIR" "$host"; then
             hyprland_hosts+=("$host")
         fi
-    done < <(get_available_hosts)
+    done < <(get_available_hosts "$HOSTS_DIR")
     
     echo "${hyprland_hosts[@]}"
 }
@@ -234,7 +187,10 @@ install_brew_cask() {
 }
 
 install_apt() {
-    log_info "Updating apt repositories..." && sudo apt-get update
+    if [[ "$APT_UPDATED" != "true" ]]; then
+        log_info "Updating apt repositories..." && sudo apt-get update
+        APT_UPDATED=true
+    fi
     log_info "Installing with apt: $*"
     local pkgs_to_install=()
     for pkg in "$@"; do
@@ -458,22 +414,35 @@ install_rust_tools() {
 # --- OS-Specific Installation Functions ---
 install_for_arch() {
     local host="$1"
+    local platform_key="arch"
+
+    manifest_validate
+    manifest_ensure_yq "$platform_key"
+
+    local feature_csv
+    feature_csv=$(feature_csv_for_host "$host")
     
     log_info "Updating pacman repositories..." && sudo pacman -Sy
+
+    install_manifest_group "$platform_key" "pacman" "core_cli" install_pacman "$host" "$feature_csv"
+    install_manifest_group "$platform_key" "pacman" "dev" install_pacman "$host" "$feature_csv"
+    install_manifest_group "$platform_key" "pacman" "fonts" install_pacman "$host" "$feature_csv"
+
+    install_manifest_group "$platform_key" "paru" "gui" install_paru "$host" "$feature_csv"
+    install_manifest_group "$platform_key" "paru" "fonts" install_paru "$host" "$feature_csv"
     
-    install_pacman "${core_cli_arch[@]}" "${dev_arch[@]}" "${arch_fonts[@]}"
-    install_paru "${gui_aur[@]}" "${arch_aur_fonts[@]}"
-    
-    # Install Go from source (latest version)
+    # Install Go from source (latest version; function is idempotent)
     if ! install_go_from_source "arch"; then
         log_error "Failed to install Go from source, skipping Go installation"
         return 1
     fi
     
     # Automatically detect if this host needs Hyprland packages
-    if is_hyprland_host "$host"; then
+    if is_hyprland_host "$HOSTS_DIR" "$host"; then
         log_info "Installing Hyprland specific packages for host: $host"
         add_chaotic_aur
+
+        local skip_hyprland_installs="false"
         
         # Check for -git packages and replace with stable versions
         if has_hyprland_git_packages; then
@@ -492,8 +461,8 @@ install_for_arch() {
                 log_warning "Note: -git versions may be unstable. To switch to stable:"
                 log_warning "  Run install script without --keep-git-hyprland flag"
                 log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                # Skip stable package installation
-                return 0
+                # Skip stable package installation, but continue with the rest of this script
+                skip_hyprland_installs="true"
             else
                 log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                 log_warning "Detected -git versions of Hyprland packages!"
@@ -528,72 +497,80 @@ install_for_arch() {
                 log_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             fi
         fi
-        
-        # Filter packages based on conflicts
-        local filtered_hyprland_base=()
-        for pkg in "${hyprland_arch_base[@]}"; do
-            # Skip power-profiles-daemon if TLP is installed (they conflict)
-            if [[ "$pkg" == "power-profiles-daemon" ]] && command -v tlp &>/dev/null; then
-                log_info "Skipping power-profiles-daemon (TLP is installed)"
-                continue
-            fi
-            filtered_hyprland_base+=("$pkg")
-        done
-        
-        # Install base Hyprland packages
-        install_pacman "${filtered_hyprland_base[@]}"
-        
-        # Install core Hyprland packages (stable versions)
-        log_info "Installing stable Hyprland core packages..."
-        install_pacman "${hyprland_arch_core[@]}"
-        
-        # Configure rustup BEFORE building AUR packages (some require Rust)
-        if command_exists rustup; then
-            log_info "Configuring Rust toolchain..."
-            rustup toolchain install stable --profile minimal --no-self-update 2>/dev/null || true
-            rustup default stable 2>/dev/null || true
-            log_success "Rust toolchain configured"
-        fi
-        
-        # Install AUR packages (no filtering needed as hyprland-qtutils is archived)
-        if paru -Qi walker-bin &>/dev/null; then
-            log_info "Removing legacy walker-bin package in favour of walker"
-            paru -Rns --noconfirm walker-bin || true
-        fi
-        install_paru "${hyprland_aur[@]}"
-        
-        # Install Elephant (meta package bundles providers) and Walker
-        log_info "Installing Elephant stack..."
-        legacy_elephant_bin_pkgs=(
-            "elephant-bin"
-            "elephant-desktopapplications-bin"
-            "elephant-files-bin"
-            "elephant-runner-bin"
-            "elephant-clipboard-bin"
-            "elephant-providerlist-bin"
-            "elephant-menus-bin"
-            "elephant-calc-bin"
-            "elephant-todo-bin"
-            "elephant-bluetooth-bin"
-            "elephant-websearch-bin"
-            "elephant-archlinuxpkgs-bin"
-            "elephant-bookmarks-bin"
-            "elephant-symbols-bin"
-            "elephant-unicode-bin"
-        )
-        local to_remove=()
-        for legacy_pkg in "${legacy_elephant_bin_pkgs[@]}"; do
-            if paru -Qi "$legacy_pkg" &>/dev/null; then
-                to_remove+=("$legacy_pkg")
-            fi
-        done
-        if [[ ${#to_remove[@]} -gt 0 ]]; then
-            log_info "Removing legacy Elephant bin packages: ${to_remove[*]}"
-            paru -Rns --noconfirm "${to_remove[@]}" || true
-        fi
 
-        install_paru "${hyprland_aur_elephant[@]}"
-        install_rust_tools
+        if [[ "$skip_hyprland_installs" != "true" ]]; then
+            # Filter packages based on conflicts
+            local hyprland_base=()
+            mapfile -t hyprland_base < <(manifest_group_packages "$MANIFEST_FILE" "$platform_key" "pacman" "hyprland_base" "$host" "$feature_csv")
+
+            local filtered_hyprland_base=()
+            local pkg
+            for pkg in "${hyprland_base[@]}"; do
+                if [[ "$pkg" == "power-profiles-daemon" ]] && command -v tlp &>/dev/null; then
+                    log_info "Skipping power-profiles-daemon (TLP is installed)"
+                    continue
+                fi
+                filtered_hyprland_base+=("$pkg")
+            done
+
+            if [[ ${#filtered_hyprland_base[@]} -gt 0 ]]; then
+                install_pacman "${filtered_hyprland_base[@]}"
+            fi
+
+            install_manifest_group "$platform_key" "pacman" "hyprland_core" install_pacman "$host" "$feature_csv"
+
+            # Configure rustup BEFORE building AUR packages (some require Rust)
+            if command_exists rustup; then
+                log_info "Configuring Rust toolchain..."
+                rustup toolchain install stable --profile minimal --no-self-update 2>/dev/null || true
+                rustup default stable 2>/dev/null || true
+                log_success "Rust toolchain configured"
+            fi
+
+            if command_exists paru && paru -Qi walker-bin &>/dev/null; then
+                log_info "Removing legacy walker-bin package in favour of walker"
+                paru -Rns --noconfirm walker-bin || true
+            fi
+
+            install_manifest_group "$platform_key" "paru" "hyprland_aur" install_paru "$host" "$feature_csv"
+
+            # Install Elephant (meta package bundles providers)
+            log_info "Installing Elephant stack..."
+            legacy_elephant_bin_pkgs=(
+                "elephant-bin"
+                "elephant-desktopapplications-bin"
+                "elephant-files-bin"
+                "elephant-runner-bin"
+                "elephant-clipboard-bin"
+                "elephant-providerlist-bin"
+                "elephant-menus-bin"
+                "elephant-calc-bin"
+                "elephant-todo-bin"
+                "elephant-bluetooth-bin"
+                "elephant-websearch-bin"
+                "elephant-archlinuxpkgs-bin"
+                "elephant-bookmarks-bin"
+                "elephant-symbols-bin"
+                "elephant-unicode-bin"
+            )
+            local to_remove=()
+            local legacy_pkg
+            for legacy_pkg in "${legacy_elephant_bin_pkgs[@]}"; do
+                if command_exists paru && paru -Qi "$legacy_pkg" &>/dev/null; then
+                    to_remove+=("$legacy_pkg")
+                fi
+            done
+            if [[ ${#to_remove[@]} -gt 0 ]]; then
+                log_info "Removing legacy Elephant bin packages: ${to_remove[*]}"
+                paru -Rns --noconfirm "${to_remove[@]}" || true
+            fi
+
+            install_manifest_group "$platform_key" "paru" "hyprland_aur_elephant" install_paru "$host" "$feature_csv"
+
+            install_rust_tools
+        else
+            log_warning "Skipping Hyprland stable installs due to --keep-git-hyprland"
+        fi
     else
         log_info "Host '$host' is not configured for Hyprland, skipping Hyprland packages"
     fi
@@ -607,7 +584,7 @@ install_for_arch() {
         should_install_cursor="false"
         elif [[ "$FORCE_CURSOR_INSTALL" == "true" ]]; then
         should_install_cursor="true"
-        elif is_hyprland_host "$host"; then
+        elif is_hyprland_host "$HOSTS_DIR" "$host"; then
         should_install_cursor="true"
     fi
     if [[ "$should_install_cursor" == "true" ]]; then
@@ -618,20 +595,36 @@ install_for_arch() {
 }
 
 install_for_debian() {
-    install_apt "${core_cli_debian[@]}" "${dev_debian[@]}" "${debian_fonts[@]}"
+    local host="${1:-}"
+    local platform_key="debian"
+
+    manifest_validate
+    manifest_ensure_yq "$platform_key"
+
+    local feature_csv
+    feature_csv=$(feature_csv_for_host "$host")
+
+    install_manifest_group "$platform_key" "apt" "core_cli" install_apt "$host" "$feature_csv"
+    install_manifest_group "$platform_key" "apt" "dev" install_apt "$host" "$feature_csv"
+    install_manifest_group "$platform_key" "apt" "fonts" install_apt "$host" "$feature_csv"
     
-    # Install Go from source (latest version)
+    # Install Go from source (latest version; function is idempotent)
     if ! install_go_from_source "debian"; then
         log_error "Failed to install Go from source, skipping Go installation"
         return 1
     fi
-    
+
     install_additional_tools
 }
 
 # --- Post-Install Setup ---
 setup_development_environments() {
     log_info "Setting up development environments..."
+
+    local platform
+    platform=$(detect_platform)
+    local platform_key
+    platform_key=$(canonical_platform_key "$platform")
     
     # Node.js via fnm
     command_exists node || {
@@ -646,7 +639,11 @@ setup_development_environments() {
     # Python tools via pipx
     if command_exists pipx; then
         log_info "Installing or upgrading Python tools via pipx..."
-        for pkg in "${pipx_packages[@]}"; do
+        local pipx_pkgs=()
+        mapfile -t pipx_pkgs < <(manifest_tool_list "$MANIFEST_FILE" "tools.pipx.packages")
+
+        local pkg
+        for pkg in "${pipx_pkgs[@]}"; do
             if pipx list --json | jq -e ".venvs.\"$pkg\"" >/dev/null; then
                 log_info "Upgrading $pkg..."
                 pipx upgrade "$pkg"
@@ -704,7 +701,7 @@ main() {
                     shift 2
                 else
                     log_error "Missing host argument for --host"
-                    log_info "Available host configurations: $(get_available_hosts | tr '\n' ' ')"
+                    log_info "Available host configurations: $(get_available_hosts "$HOSTS_DIR" | tr '\n' ' ')"
                     log_info "Usage: $0 --host <host>"
                     exit 1
                 fi
@@ -728,12 +725,32 @@ main() {
             ;;
         esac
     done
+
+    # Default to detected hostname if not specified
+    if [[ -z "$host" ]]; then
+        host=$(detect_host "$HOSTS_DIR")
+    fi
+
+    local platform_key
+    platform_key=$(canonical_platform_key "$platform")
+
+    manifest_validate
+    manifest_ensure_yq "$platform_key"
+
+    local yq_bin yq_version
+    if ! yq_bin=$(manifest_yq_resolve_bin 2>/dev/null); then
+        log_error "Manifest parser yq v4 not available after bootstrap"
+        log_error "Expected: $HOME/.local/bin/yq (mikefarah/yq v4)"
+        exit 1
+    fi
+    yq_version=$($yq_bin --version 2>/dev/null || true)
+    log_info "Manifest parser: ${yq_bin} (${yq_version})"
     
     log_info "Starting package installation on $platform (Host: ${host:-generic})..."
     
     case "$platform" in
         "arch" | "cachyos" | "manjaro") install_for_arch "$host" ;;
-        "ubuntu" | "debian") install_for_debian ;;
+        "ubuntu" | "debian") install_for_debian "$host" ;;
         *) log_error "Unsupported platform: $platform" && exit 1 ;;
     esac
     

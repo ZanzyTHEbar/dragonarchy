@@ -28,6 +28,11 @@ EOL
 chmod +x "$migration_file"
 
 echo "Created new migration: $migration_file"
+echo
+echo "Run migrations with:"
+echo "  ./scripts/install/run-migrations.sh"
+echo "Or as part of a full update:"
+echo "  ./scripts/install/update.sh"
 
 # Open the new migration file in the user's editor
 if [ -n "$EDITOR" ]; then

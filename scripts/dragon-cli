@@ -181,7 +181,7 @@ secrets_menu() {
 
 utilities_menu() {
     ensure_tty || return
-    local options=("NFS" "Web Apps" "Docker DBs" "Secrets" "Add Migration" "Netbird" "Back")
+    local options=("NFS" "Web Apps" "Docker DBs" "Secrets" "Add Migration" "Deps Manifest" "Netbird" "Back")
     choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Utilities") || main_menu
     case "$choice" in
         NFS)
@@ -203,6 +203,11 @@ utilities_menu() {
         ;;
         "Add Migration")
             "$SCRIPT_DIR/utilities/add-migration.sh"
+            ack_command
+            utilities_menu
+        ;;
+        "Deps Manifest")
+            "$SCRIPT_DIR/utilities/deps-manifest.sh"
             ack_command
             utilities_menu
         ;;
@@ -491,6 +496,11 @@ case "${1:-}" in
             add-migration)
                 shift
                 "$SCRIPT_DIR/utilities/add-migration.sh"
+                exit 0
+            ;;
+            deps-manifest|deps)
+                shift
+                "$SCRIPT_DIR/utilities/deps-manifest.sh" "$@"
                 exit 0
             ;;
             netbird)
