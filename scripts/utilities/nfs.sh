@@ -86,7 +86,12 @@ declare -a FSTAB_ENTRIES=()
 declare -a AUTOMOUNT_UNITS=()
 
 # NFS mount options optimized for performance and reliability
-readonly NFS_OPTIONS="nfs4 rw,async,rsize=65536,wsize=65536,proto=tcp,vers=4.1,noatime,actimeo=10,intr,cto,soft,timeo=60,retrans=3,acregmin=0,acregmax=0,acdirmin=0,acdirmax=0,lookuppneg=no,x-systemd.automount,x-systemd.idle-timeout=60,_netdev 0 0"
+#
+# Notes:
+# - `x-systemd.automount` ensures mounts happen on-demand.
+# - `nofail` prevents boot from being held hostage by unreachable servers.
+# - `x-systemd.mount-timeout` / `x-systemd.device-timeout` reduce worst-case hangs.
+readonly NFS_OPTIONS="nfs4 rw,async,rsize=65536,wsize=65536,proto=tcp,vers=4.1,noatime,actimeo=10,intr,cto,soft,timeo=60,retrans=3,acregmin=0,acregmax=0,acdirmin=0,acdirmax=0,lookuppneg=no,nofail,x-systemd.automount,x-systemd.idle-timeout=60,x-systemd.mount-timeout=5s,x-systemd.device-timeout=5s,_netdev 0 0"
 
 # Logging functions
 check_privileges() {

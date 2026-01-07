@@ -141,15 +141,6 @@ if [[ -n "$GOPATH" ]]; then
 fi
 
 pathappend "$HOME/.cargo/bin"
-pathappend "/mnt/common/bin"
-pathappend "/mnt/common/bin/flutter/bin"
-pathappend "/mnt/common/bin/cmdline-tools/bin"
-
-
-export ANDROID_SDK_ROOT=/mnt/common/bin
-export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
-export PATH=$PATH:$ANDROID_SDK_ROOT/platform-tools
-export ANDROID_HOME=$ANDROID_SDK_ROOT
 
 # PNPM setup
 export PNPM_HOME="$HOME/.local/share/pnpm"

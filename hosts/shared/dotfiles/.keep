@@ -1,0 +1,3 @@
+This directory is intentionally empty.
+
+Shared host dotfiles can live under hosts/shared/dotfiles and be stowed explicitly by hosts that want them.
