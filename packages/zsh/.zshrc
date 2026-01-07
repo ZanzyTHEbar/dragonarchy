@@ -7,8 +7,8 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
 fi
 
 # Load core configuration modules FIRST (order matters)
-source ~/.config/zsh/profile.zsh         # Platform detection, environment variables, path functions
-source ~/.config/zsh/init.zsh           # Shell options, keybindings, completion, FZF
+[[ -r ~/.config/zsh/profile.zsh ]] && source ~/.config/zsh/profile.zsh         # Platform detection, environment variables, path functions
+[[ -r ~/.config/zsh/init.zsh ]] && source ~/.config/zsh/init.zsh               # Shell options, keybindings, completion, FZF
 
 # Zinit plugin manager setup
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
@@ -16,34 +16,39 @@ ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 # Download Zinit, if it's not there yet
 if [ ! -d "$ZINIT_HOME" ]; then
     mkdir -p "$(dirname $ZINIT_HOME)"
-    git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+    if command -v git >/dev/null 2>&1; then
+        git clone --depth=1 https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME" >/dev/null 2>&1 || true
+    fi
 fi
 
 # Source/Load zinit
-source "${ZINIT_HOME}/zinit.zsh"
+if [[ -r "${ZINIT_HOME}/zinit.zsh" ]]; then
+    source "${ZINIT_HOME}/zinit.zsh"
+fi
 
 # Add in Powerlevel10k
-zinit ice depth=1; zinit light romkatv/powerlevel10k
+if command -v zinit >/dev/null 2>&1; then
+    zinit ice depth=1; zinit light romkatv/powerlevel10k
 
 # Add in zsh plugins
-zinit light zsh-users/zsh-syntax-highlighting
-zinit light zsh-users/zsh-completions
-zinit light zsh-users/zsh-autosuggestions
-zinit light Aloxaf/fzf-tab
-zinit light jeffreytse/zsh-vi-mode
-zinit light zdharma-continuum/fast-syntax-highlighting
-zinit light zdharma-continuum/history-search-multi-word
+    zinit light zsh-users/zsh-syntax-highlighting
+    zinit light zsh-users/zsh-completions
+    zinit light zsh-users/zsh-autosuggestions
+    zinit light Aloxaf/fzf-tab
+    zinit light jeffreytse/zsh-vi-mode
+    zinit light zdharma-continuum/fast-syntax-highlighting
+    zinit light zdharma-continuum/history-search-multi-word
 
 # Add in snippets
-zinit snippet OMZP::git
-zinit snippet OMZP::sudo
-zinit snippet OMZP::zoxide
-zinit snippet OMZP::direnv
-zinit snippet OMZP::nvm
-zinit snippet OMZP::npm
-zinit snippet OMZP::docker-compose
-zinit snippet OMZP::docker
-zinit snippet OMZP::command-not-found
+    zinit snippet OMZP::git
+    zinit snippet OMZP::sudo
+    zinit snippet OMZP::zoxide
+    zinit snippet OMZP::direnv
+    zinit snippet OMZP::nvm
+    zinit snippet OMZP::npm
+    zinit snippet OMZP::docker-compose
+    zinit snippet OMZP::docker
+    zinit snippet OMZP::command-not-found
 
 # Vi-mode cursor configuration (after zsh-vi-mode loads)
 ZVM_INSERT_MODE_CURSOR=$ZVM_CURSOR_BLINKING_BEAM
@@ -51,15 +56,16 @@ ZVM_NORMAL_MODE_CURSOR=$ZVM_CURSOR_BLINKING_BLOCK
 ZVM_OPPEND_MODE_CURSOR=$ZVM_CURSOR_BLINKING_UNDERLINE
 
 # Replay zinit completions
-zinit cdreplay -q
+    zinit cdreplay -q
+fi
 
 # Load function files
-for func_file in ~/.config/zsh/functions/*.zsh; do
+for func_file in ~/.config/zsh/functions/*.zsh(N); do
     [[ -r "$func_file" ]] && source "$func_file"
 done
 
 # Load aliases and remaining configuration
-for conf_file in ~/.config/zsh/*.zsh; do
+for conf_file in ~/.config/zsh/*.zsh(N); do
     [[ -r "$conf_file" ]] && source "$conf_file"
 done
 
@@ -93,7 +99,7 @@ esac
 
 # fnm
 FNM_PATH="$HOME/.local/share/fnm"
-if [ -d "$FNM_PATH" ]; then
+if [ -d "$FNM_PATH" ] && command -v fnm >/dev/null 2>&1; then
     export PATH="$FNM_PATH:$PATH"
     eval "`fnm env`"
 fi
