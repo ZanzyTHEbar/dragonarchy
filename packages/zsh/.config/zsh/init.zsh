@@ -59,7 +59,7 @@ fpath=(~/.local/share/gh/extensions/gh-branch $fpath)
 
 autoload -Uz compinit bashcompinit
 bashcompinit
-compinit
+compinit -i
 
 # Completion configuration
 zstyle ':completion:*' menu select
