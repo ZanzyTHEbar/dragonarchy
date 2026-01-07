@@ -7,7 +7,10 @@
 #   safe fallback for other NFS mounts.
 
 _nfs_tooling_is_mount_active() {
-    local mount_point="$1"
+    emulate -L zsh
+    setopt no_unset 2>/dev/null || true
+
+    local mount_point="${1-}"
     local mountinfo_path="${NFS_TOOLING_MOUNTINFO:-/proc/self/mountinfo}"
 
     [[ -r "$mountinfo_path" ]] || return 1
@@ -36,6 +39,9 @@ _nfs_tooling_is_mount_active() {
 }
 
 _nfs_tooling_pathappend_literal() {
+    emulate -L zsh
+    setopt no_unset 2>/dev/null || true
+
     local arg
     for arg in "$@"; do
         [[ ":$PATH:" == *":$arg:"* ]] && continue
@@ -44,6 +50,9 @@ _nfs_tooling_pathappend_literal() {
 }
 
 _nfs_tooling_get_managed_mount_points() {
+    emulate -L zsh
+    setopt no_unset 2>/dev/null || true
+
     local fstab="${NFS_TOOLING_FSTAB:-/etc/fstab}"
     local begin='# BEGIN NFS-AUTOMOUNT MANAGED SECTION - DO NOT EDIT'
     local end='# END NFS-AUTOMOUNT MANAGED SECTION'
@@ -60,6 +69,9 @@ _nfs_tooling_get_managed_mount_points() {
 }
 
 _nfs_tooling_get_mounted_nfs_under_mnt() {
+    emulate -L zsh
+    setopt no_unset 2>/dev/null || true
+
     local mountinfo_path="${NFS_TOOLING_MOUNTINFO:-/proc/self/mountinfo}"
     local mount_prefix="${NFS_TOOLING_MOUNT_PREFIX:-/mnt/}"
 
@@ -83,7 +95,10 @@ _nfs_tooling_get_mounted_nfs_under_mnt() {
 typeset -gA _nfs_tooling_enabled_for
 
 _nfs_tooling_enable_for_mount() {
-    local mount_point="$1"
+    emulate -L zsh
+    setopt no_unset 2>/dev/null || true
+
+    local mount_point="${1-}"
     local base_bin="$mount_point/bin"
 
     [[ -n "$mount_point" ]] || return 0
@@ -111,6 +126,9 @@ _nfs_tooling_enable_for_mount() {
 }
 
 nfs_maybe_enable_tooling() {
+    emulate -L zsh
+    setopt no_unset 2>/dev/null || true
+
     local -a mount_points
 
     # Prefer the mount points created via nfs.sh (even if currently unmounted).
