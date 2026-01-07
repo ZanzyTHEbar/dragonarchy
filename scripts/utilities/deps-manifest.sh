@@ -8,11 +8,10 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)
 if [[ -z "$REPO_ROOT" ]]; then
     REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 fi
+MANIFEST_FILE="${MANIFEST_FILE:-$REPO_ROOT/scripts/install/deps.manifest.toml}"
 
 # shellcheck disable=SC1091
 source "$REPO_ROOT/scripts/lib/logging.sh"
-
-MANIFEST_FILE="$REPO_ROOT/scripts/install/deps.manifest.toml"
 
 usage() {
     cat <<EOF
@@ -36,6 +35,8 @@ Options:
 Notes:
 - Uses python3 + tomlkit for TOML edits (yq v4 TOML encoder is limited for arrays/objects).
 - De-dupes by checking existing array membership before appending.
+Env:
+- MANIFEST_FILE: override path to deps.manifest.toml
 EOF
 }
 
