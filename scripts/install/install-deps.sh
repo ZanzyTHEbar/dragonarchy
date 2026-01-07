@@ -16,16 +16,17 @@ source "${SCRIPT_DIR}/../lib/hosts.sh"
 source "${SCRIPT_DIR}/../lib/manifest-toml.sh"
 
 # Script directory for consistent script referencing
-# CONFIG_DIR is two levels above SCRIPT_DIR.
+# Repo root discovery (used for locating hosts/)
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$REPO_ROOT" ]]; then
+    REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+
 # Expected structure:
 #   repo_root/
-#     config/         <-- CONFIG_DIR
-#       hosts/        <-- HOSTS_DIR
-#     scripts/
-#       install/
-#         install-deps.sh  <-- SCRIPT_DIR
-CONFIG_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
-HOSTS_DIR="$CONFIG_DIR/hosts"
+#     hosts/
+#     scripts/install/install-deps.sh
+HOSTS_DIR="$REPO_ROOT/hosts"
 
 MANIFEST_FILE="${SCRIPT_DIR}/deps.manifest.toml"
 
