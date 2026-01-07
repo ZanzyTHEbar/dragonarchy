@@ -1,49 +1,40 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Updates the entire system: dotfiles, packages, and themes.
 
-set -e
+set -euo pipefail
 
 # Get script directory and source logging utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../lib/logging.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/install-state.sh"
 
-# Colors for output
 REPO_ROOT=$(git rev-parse --show-toplevel)
-MIGRATIONS_DIR="$REPO_ROOT/migrations"
-STATE_DIR="$HOME/.local/state/dotfiles/migrations"
 
 # 1. Update Dotfiles
 log_info "Updating dotfiles repository..."
-cd "$(dirname "$0")/.." # Move to the root of the dotfiles repo
+cd "$REPO_ROOT" # Move to the root of the dotfiles repo
 git pull --autostash
 git diff --check || git reset --merge
 cd - >/dev/null
 
 # 2. Run Pending Migrations
 log_info "Running pending migrations..."
-mkdir -p "$STATE_DIR"
 
-if [ -d "$MIGRATIONS_DIR" ]; then
-    for file in "$MIGRATIONS_DIR"/*.sh; do
-        if [ -f "$file" ]; then
-            filename=$(basename "$file")
-            
-            # If migration has not been run, run it and record the state
-            if [ ! -f "${STATE_DIR}/$filename" ]; then
-                log_info "Running migration: $filename"
-                # Ensure the migration script is executable before running
-                chmod +x "$file"
-                source "$file"
-                touch "${STATE_DIR}/$filename"
-            fi
-        fi
-    done
-fi
+"$REPO_ROOT/scripts/install/run-migrations.sh"
 
 # 3. Update System Packages
-log_info "Updating system packages with paru..."
-paru -Syu --noconfirm
+if command -v paru >/dev/null 2>&1; then
+    log_info "Updating system packages with paru..."
+    paru -Syu --noconfirm
+elif command -v apt-get >/dev/null 2>&1; then
+    log_info "Updating system packages with apt-get..."
+    sudo apt-get update
+    sudo apt-get upgrade -y
+else
+    log_warning "No supported package manager found (paru/apt-get); skipping package update"
+fi
 
 # 4. Update Themes
 log_info "Updating all installed themes..."

@@ -12,6 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/scripts/lib/logging.sh"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/scripts/lib/install-state.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/scripts/lib/hosts.sh"
 
 CONFIG_DIR="$SCRIPT_DIR"
 PACKAGES_DIR="$CONFIG_DIR/packages"
@@ -167,28 +169,6 @@ parse_args() {
     done
 }
 
-# Get list of available hosts from hosts directory
-get_available_hosts() {
-    if [[ -d "$HOSTS_DIR" ]]; then
-        find "$HOSTS_DIR" -maxdepth 1 -type d ! -path "$HOSTS_DIR" -exec basename {} \; | sort
-    fi
-}
-
-# Detect current host
-detect_host() {
-    local hostname
-    hostname=$(hostname | cut -d. -f1)
-    
-    # Check if a host-specific configuration directory exists
-    if [[ -d "$HOSTS_DIR/$hostname" ]]; then
-        echo "$hostname"
-    else
-        # Return the actual hostname even if no specific config exists
-        # This allows for dynamic hostname support
-        echo "$hostname"
-    fi
-}
-
 # Check prerequisites
 check_prerequisites() {
     log_step "Checking prerequisites..."
@@ -220,6 +200,29 @@ install_packages() {
     fi
     
     log_step "Installing packages..."
+
+    local deps_manifest="$SCRIPT_DIR/scripts/install/deps.manifest.toml"
+    local manifest_fingerprint="no-manifest"
+    if [[ -f "$deps_manifest" ]]; then
+        if command -v sha256sum >/dev/null 2>&1; then
+            manifest_fingerprint=$(sha256sum "$deps_manifest" | awk '{print substr($1,1,12)}')
+        elif command -v shasum >/dev/null 2>&1; then
+            manifest_fingerprint=$(shasum -a 256 "$deps_manifest" | awk '{print substr($1,1,12)}')
+        fi
+    fi
+
+    local feature_fingerprint=""
+    if [[ -n "${HOST:-}" ]] && is_hyprland_host "$HOSTS_DIR" "$HOST"; then
+        feature_fingerprint="hyprland"
+    else
+        feature_fingerprint="nohypr"
+    fi
+
+    local step_id="install:${HOST:-generic}:packages:${feature_fingerprint}:${manifest_fingerprint}"
+    if is_step_completed "$step_id"; then
+        log_info "Skipping $step_id (already completed)"
+        return 0
+    fi
     
     local install_script="$SCRIPTS_DIR/install/install-deps.sh"
     
@@ -238,6 +241,7 @@ install_packages() {
         exit 1
     fi
     
+    mark_step_completed "$step_id"
     log_success "Package installation completed"
 }
 
@@ -374,10 +378,74 @@ stow_system_packages() {
     fi
 }
 
+stow_host_dotfiles() {
+    local dotfiles_dir="$1"
+    local host="$2"
+
+    if ! command -v stow >/dev/null 2>&1; then
+        log_warning "Stow not available for host-specific dotfiles"
+        return 0
+    fi
+
+    if [[ ! -d "$dotfiles_dir" ]]; then
+        return 0
+    fi
+
+    local ts
+    ts=$(date +%Y%m%d-%H%M%S)
+    local backup_root="$HOME/.local/state/dotfiles/backups/${ts}/host-dotfiles/${host}"
+    local had_backups="false"
+
+    # Pre-flight: back up and remove any existing targets that would block stow.
+    # We only touch non-directories (files/symlinks). If a directory/file type mismatch exists,
+    # we fail fast so the user can resolve it intentionally.
+    local src rel dst
+    while IFS= read -r -d '' src; do
+        rel="${src#${dotfiles_dir}/}"
+        [[ -z "$rel" || "$rel" == "$src" ]] && continue
+
+        dst="$HOME/$rel"
+
+        # If the source is a file/symlink but destination is a directory, that's a structural conflict.
+        if [[ -d "$dst" && ! -L "$dst" ]]; then
+            log_error "Host dotfiles stow conflict: destination is a directory but source is a file: $dst"
+            log_error "Resolve manually (move/remove the directory), then re-run."
+            return 1
+        fi
+
+        # If destination doesn't exist (including broken symlink), nothing to do.
+        if [[ ! -e "$dst" && ! -L "$dst" ]]; then
+            continue
+        fi
+
+        # If destination already points to this exact source, keep it.
+        if [[ -L "$dst" ]]; then
+            local dst_resolved src_resolved
+            dst_resolved=$(readlink -f "$dst" 2>/dev/null || true)
+            src_resolved=$(readlink -f "$src" 2>/dev/null || true)
+            if [[ -n "$dst_resolved" && -n "$src_resolved" && "$dst_resolved" == "$src_resolved" ]]; then
+                continue
+            fi
+        fi
+
+        had_backups="true"
+        mkdir -p "$backup_root/$(dirname "$rel")"
+        cp -a "$dst" "$backup_root/$rel" 2>/dev/null || cp -aL "$dst" "$backup_root/$rel" 2>/dev/null || true
+        rm -f "$dst"
+    done < <(find "$dotfiles_dir" -mindepth 1 \( -type f -o -type l \) -print0 2>/dev/null)
+
+    if [[ "$had_backups" == "true" ]]; then
+        log_warning "Backed up conflicting host-dotfile targets to: $backup_root"
+    fi
+
+    log_info "Installing host-specific dotfiles (stow) from: $dotfiles_dir"
+    (cd "$dotfiles_dir" && stow -t "$HOME" -R .)
+}
+
 # Setup host-specific configuration
 setup_host_config() {
     if [[ -z "$HOST" ]]; then
-        HOST=$(detect_host)
+        HOST=$(detect_host "$HOSTS_DIR")
     fi
     
     log_step "Setting up host-specific configuration for: $HOST"
@@ -402,14 +470,7 @@ setup_host_config() {
         
         # Install host-specific dotfiles if they exist
         if [[ -d "$host_config_dir/dotfiles" ]]; then
-            log_info "Installing host-specific dotfiles..."
-            cd "$host_config_dir/dotfiles"
-            if command -v stow >/dev/null 2>&1; then
-                stow -t "$HOME" .
-            else
-                log_warning "Stow not available for host-specific dotfiles"
-            fi
-            cd "$CONFIG_DIR"
+            stow_host_dotfiles "$host_config_dir/dotfiles" "$HOST"
         fi
         
         log_success "Host-specific configuration completed"
@@ -632,7 +693,7 @@ main() {
     
     # Detect host if not specified via arguments
     if [[ -z "$HOST" ]]; then
-        HOST=$(detect_host)
+        HOST=$(detect_host "$HOSTS_DIR")
         log_info "No host specified, detected host: $HOST"
     fi
     
