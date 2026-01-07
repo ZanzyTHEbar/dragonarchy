@@ -16,40 +16,9 @@ HOSTS_DIR="$DOTFILES_DIR/hosts"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/../lib/logging.sh"
 
-# Source the detection functions from install-deps.sh
-# We'll reimplement them here to avoid sourcing the entire script
-is_hyprland_host() {
-    local hostname="$1"
-    local host_dir="$HOSTS_DIR/$hostname"
-    
-    # Host directory must exist
-    [[ ! -d "$host_dir" ]] && return 1
-    
-    # Method 1: Check for explicit marker files
-    if [[ -f "$host_dir/.hyprland" ]] || [[ -f "$host_dir/HYPRLAND" ]]; then
-        echo "marker"
-        return 0
-    fi
-    
-    # Method 2: Check if setup.sh mentions Hyprland
-    if [[ -f "$host_dir/setup.sh" ]]; then
-        if grep -qi "hyprland\|hyprlock\|hypridle\|waybar" "$host_dir/setup.sh"; then
-            echo "setup.sh"
-            return 0
-        fi
-    fi
-    
-    # Method 3: Check for Hyprland config directories in docs
-    if [[ -d "$host_dir/docs" ]]; then
-        if find "$host_dir/docs" -type f -name "*.md" -exec grep -qi "hyprland" {} \; 2>/dev/null; then
-            echo "docs"
-            return 0
-        fi
-    fi
-    
-    # Not a Hyprland host
-    return 1
-}
+# Source shared host detection helpers
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/../lib/hosts.sh"
 
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║         Hyprland Host Detection Verification                ║${NC}"
@@ -77,7 +46,7 @@ while IFS= read -r host_path; do
     host=$(basename "$host_path")
     total_hosts=$((total_hosts + 1))
     
-    detection_method=$(is_hyprland_host "$host" 2>/dev/null) && detected=true || detected=false
+    detection_method=$(hyprland_detection_method "$HOSTS_DIR" "$host" 2>/dev/null) && detected=true || detected=false
     
     if [[ "$detected" == "true" ]]; then
         hyprland_count=$((hyprland_count + 1))
@@ -99,7 +68,7 @@ current_host=$(hostname | cut -d. -f1)
 log_info "Current host: $current_host"
 
 if [[ -d "$HOSTS_DIR/$current_host" ]]; then
-    detection_method=$(is_hyprland_host "$current_host" 2>/dev/null) && detected=true || detected=false
+    detection_method=$(hyprland_detection_method "$HOSTS_DIR" "$current_host" 2>/dev/null) && detected=true || detected=false
     
     if [[ "$detected" == "true" ]]; then
         log_success "Will receive Hyprland packages"

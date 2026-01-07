@@ -130,8 +130,12 @@ This repository includes a migration system for managing one-time setup tasks an
 # Create a new migration
 ./scripts/utilities/add-migration.sh
 
-# Migrations are stored in migrations/ directory
-# They run once per system and track configuration evolution
+# Migrations are stored in migrations/ (created on demand)
+# Run them (tracked via install-state):
+./scripts/install/run-migrations.sh
+
+# Or run a full update (also runs migrations):
+./scripts/install/update.sh
 
 # Or you can use the dragon-cli to manage your dotfiles:
 dragon-cli                       # Interactive main menu
