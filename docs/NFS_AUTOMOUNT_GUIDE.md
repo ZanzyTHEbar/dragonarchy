@@ -631,7 +631,7 @@ The script uses optimized NFS mount options:
 ```
 nfs4 rw,async,rsize=65536,wsize=65536,proto=tcp,vers=4.1,noatime,
 actimeo=10,intr,cto,soft,timeo=60,retrans=3,acregmin=0,acregmax=0,
-acdirmin=0,acdirmax=0,lookuppneg=no,x-systemd.automount,
+acdirmin=0,acdirmax=0,lookupcache=positive,x-systemd.automount,
 x-systemd.idle-timeout=60,_netdev
 ```
 
