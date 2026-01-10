@@ -29,6 +29,17 @@ if [[ -f "$BOOT_LIB" ]]; then
   source "$BOOT_LIB"
 fi
 
+usage() {
+  cat <<'EOF'
+Usage: setup.sh [options]
+
+Options:
+  --reset         Clear dotfiles install state and re-run all steps
+  --secure-boot   Run Limine + sbctl Secure Boot setup (DANGEROUS; requires firmware Setup Mode)
+  -h, --help      Show help
+EOF
+}
+
 is_arch_based() {
   command -v pacman >/dev/null 2>&1
 }
@@ -252,8 +263,18 @@ main() {
   log_info "🚀 Setting up GoldenDragon (ThinkPad P16s Gen 4 Intel)..."
   echo
 
-  # Handle --reset flag to force re-run all steps
-  if [[ "${1:-}" == "--reset" ]]; then
+  local do_reset="false"
+  local run_secure_boot="false"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --reset) do_reset="true"; shift ;;
+      --secure-boot) run_secure_boot="true"; shift ;;
+      -h|--help) usage; return 0 ;;
+      *) log_warning "Ignoring unknown option: $1"; shift ;;
+    esac
+  done
+
+  if [[ "$do_reset" == "true" ]]; then
     reset_all_steps
     log_warning "Installation state reset. All steps will be re-run."
     echo
@@ -296,6 +317,18 @@ main() {
     setup_battery_tooling && mark_step_completed "goldendragon-battery"
   else
     log_info "✓ Battery tooling already configured (skipped)"
+  fi
+  echo
+
+  if [[ "$run_secure_boot" == "true" ]]; then
+    log_warning "Secure Boot setup requested (--secure-boot)."
+    if [[ -f "${SCRIPT_DIR}/setup-secure-boot.sh" ]]; then
+      bash "${SCRIPT_DIR}/setup-secure-boot.sh" --yes
+    else
+      log_error "Secure Boot helper not found: ${SCRIPT_DIR}/setup-secure-boot.sh"
+      log_info "Run manually from: ${SCRIPT_DIR}"
+    fi
+    echo
   fi
 
   post_setup_instructions
