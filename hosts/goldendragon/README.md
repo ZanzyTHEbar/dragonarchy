@@ -42,6 +42,20 @@ cd ~/dotfiles/hosts/goldendragon
 bash setup.sh
 ```
 
+## Secure Boot (Limine + sbctl)
+
+Goldendragon uses **Limine**. Secure Boot is managed with **sbctl**.
+
+- **Helper script**: `hosts/goldendragon/setup-secure-boot.sh`
+- **Docs**: `hosts/goldendragon/docs/SECURE_BOOT.md`
+
+Quick start (after putting firmware into Secure Boot “Setup Mode”):
+
+```bash
+cd ~/dotfiles/hosts/goldendragon
+sudo bash ./setup-secure-boot.sh --yes
+```
+
 ## Post-Setup Checklist
 
 1. **Reboot** (required for kernel/module + logind policy changes).

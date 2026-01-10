@@ -36,6 +36,8 @@ RUN_SHELL_CONFIG=true
 RUN_POST_SETUP=true
 SETUP_UTILITIES=false
 RESET_STATE=false
+# Fresh-machine mode: purge conflicting dotfile targets before stowing
+FRESH_MODE=false
 # Pass-through flags for install-deps.sh (e.g., --cursor/--no-cursor)
 INSTALL_DEPS_FLAGS=()
 
@@ -50,6 +52,7 @@ OPTIONS:
     -h, --help              Show this help message
     -v, --verbose           Enable verbose output
     --reset                 Clear installation state and force full re-run of all steps
+    --fresh, -f             Fresh machine mode: backup+remove existing dotfile targets that would block stow
     --host HOST             Setup for specific host (any hostname supported)
     --packages-only         Only install packages
     --dotfiles-only         Only setup dotfiles
@@ -68,6 +71,7 @@ OPTIONS:
 
 EXAMPLES:
     $0                      # Complete setup for current machine
+    $0 --fresh              # Fresh machine setup (purge conflicting dotfiles before stow)
     $0 --host dragon        # Setup for specific host
     $0 --packages-only      # Only install packages
     $0 --dotfiles-only      # Only setup dotfiles
@@ -91,6 +95,10 @@ parse_args() {
             ;;
             --reset)
                 RESET_STATE=true
+                shift
+            ;;
+            -f | --fresh)
+                FRESH_MODE=true
                 shift
             ;;
             --host)
@@ -193,6 +201,255 @@ check_prerequisites() {
     log_success "Prerequisites check completed"
 }
 
+# Detect whether this appears to be a "fresh machine" for dotfiles:
+# i.e. we don't see any existing stow-managed symlinks pointing into our `packages/`.
+is_fresh_machine() {
+    local packages_real
+    packages_real=$(readlink -f "$PACKAGES_DIR" 2>/dev/null || true)
+    [[ -z "$packages_real" ]] && packages_real="$PACKAGES_DIR"
+
+    # If we can find ANY symlink in common dotfile locations that resolves into our packages dir,
+    # we consider this machine already managed (not fresh).
+    local search_roots=(
+        "$HOME"
+        "$HOME/.config"
+        "$HOME/.local"
+        "$HOME/.ssh"
+        "$HOME/.gnupg"
+    )
+
+    local root maxdepth
+    for root in "${search_roots[@]}"; do
+        if [[ ! -e "$root" ]]; then
+            continue
+        fi
+
+        maxdepth=1
+        if [[ "$root" == "$HOME/.config" || "$root" == "$HOME/.local" || "$root" == "$HOME/.ssh" || "$root" == "$HOME/.gnupg" ]]; then
+            maxdepth=5
+        fi
+
+        local link
+        while IFS= read -r -d '' link; do
+            local resolved=""
+            resolved=$(readlink -f "$link" 2>/dev/null || true)
+            if [[ -n "$resolved" && "$resolved" == "$packages_real/"* ]]; then
+                return 1  # Not fresh
+            fi
+        done < <(find "$root" -maxdepth "$maxdepth" -type l -print0 2>/dev/null)
+    done
+
+    return 0  # Fresh
+}
+
+maybe_enable_fresh_mode() {
+    # Explicit --fresh/-f always wins
+    if [[ "$FRESH_MODE" == "true" ]]; then
+        return 0
+    fi
+
+    # Only relevant when we're going to stow dotfiles
+    if [[ "$INSTALL_DOTFILES" != "true" ]]; then
+        return 0
+    fi
+
+    if is_fresh_machine; then
+        FRESH_MODE=true
+        log_warning "Fresh machine detected (no existing stow-managed dotfile symlinks found). Enabling fresh mode automatically."
+    fi
+}
+
+# Fresh-machine helper: backup and remove a path under $HOME (files, symlinks, or directories)
+fresh_backup_and_remove() {
+    local abs_path="$1"
+    local backup_root="$2"
+    local package="$3"
+
+    if [[ -z "${abs_path:-}" || -z "${backup_root:-}" || -z "${package:-}" ]]; then
+        log_error "fresh_backup_and_remove: missing args"
+        return 1
+    fi
+
+    # Safety checks (never operate outside of $HOME)
+    if [[ "$abs_path" == "$HOME" || "$abs_path" == "/" || "$abs_path" != "$HOME/"* ]]; then
+        log_error "Fresh mode refusing to remove unsafe path: $abs_path"
+        return 1
+    fi
+
+    # Determine backup destination path relative to $HOME
+    local rel_from_home="${abs_path#${HOME}/}"
+    if [[ -z "$rel_from_home" || "$rel_from_home" == "$abs_path" ]]; then
+        log_error "Fresh mode refusing to remove (could not derive rel path): $abs_path"
+        return 1
+    fi
+
+    local backup_path="${backup_root}/${package}/${rel_from_home}"
+    mkdir -p "$(dirname "$backup_path")"
+
+    # Backup first, then remove
+    cp -a "$abs_path" "$backup_path" 2>/dev/null || cp -aL "$abs_path" "$backup_path" 2>/dev/null || true
+    rm -rf "$abs_path"
+}
+
+# Fresh-machine purge: remove conflicting targets that would block stow for a given package.
+# Uses `stow -n -v` to discover intended links (respects stow ignore rules).
+fresh_purge_stow_conflicts_for_package() {
+    local package="$1"
+    local backup_root="$2"
+
+    if [[ -z "${package:-}" || -z "${backup_root:-}" ]]; then
+        log_error "fresh_purge_stow_conflicts_for_package: missing args"
+        return 1
+    fi
+
+    if ! command -v stow >/dev/null 2>&1; then
+        log_error "Fresh mode requires GNU Stow to be installed"
+        return 1
+    fi
+
+    local dry_run
+    dry_run=$(stow -n -v -t "$HOME" "$package" 2>&1 || true)
+
+    # Track removed paths to avoid double-work (esp. parent dirs)
+    declare -A removed_paths=()
+    local removed_count=0
+
+    # Prefer parsing LINK lines: `LINK: <target> => <source>`
+    local link_re='^[[:space:]]*LINK:[[:space:]]+([^[:space:]]+)[[:space:]]+=>[[:space:]]+(.+)$'
+    local had_link_lines=false
+    local line
+    while IFS= read -r line; do
+        if [[ "$line" =~ $link_re ]]; then
+            had_link_lines=true
+
+            local target_rel="${BASH_REMATCH[1]}"
+            local source_rel="${BASH_REMATCH[2]}"
+
+            # Guard against weird targets
+            if [[ "$target_rel" == /* || "$target_rel" == *".."* ]]; then
+                log_warning "Fresh mode skipping unexpected stow target: $target_rel"
+                continue
+            fi
+
+            local dst="$HOME/$target_rel"
+            local src_abs=""
+            src_abs=$(readlink -f "$source_rel" 2>/dev/null || true)
+
+            # Ensure directory prefixes exist as directories (remove any file/symlink that blocks mkdir)
+            local target_dir
+            target_dir=$(dirname "$target_rel")
+            if [[ "$target_dir" != "." && -n "$target_dir" ]]; then
+                local cur="$HOME"
+                local IFS='/'
+                read -ra parts <<< "$target_dir"
+                unset IFS
+                local part
+                for part in "${parts[@]}"; do
+                    [[ -z "$part" ]] && continue
+                    cur="$cur/$part"
+                    if [[ -n "${removed_paths[$cur]:-}" ]]; then
+                        continue
+                    fi
+                    if [[ ( -e "$cur" || -L "$cur" ) && ! -d "$cur" ]]; then
+                        fresh_backup_and_remove "$cur" "$backup_root" "$package"
+                        removed_paths["$cur"]=1
+                        removed_count=$((removed_count + 1))
+                    fi
+                done
+            fi
+
+            # If destination exists but isn't already the exact intended link, back it up and remove it
+            if [[ -n "${removed_paths[$dst]:-}" ]]; then
+                continue
+            fi
+
+            if [[ -L "$dst" ]]; then
+                local dst_abs=""
+                dst_abs=$(readlink -f "$dst" 2>/dev/null || true)
+                if [[ -n "$src_abs" && -n "$dst_abs" && "$src_abs" == "$dst_abs" ]]; then
+                    continue
+                fi
+            fi
+
+            if [[ -e "$dst" || -L "$dst" ]]; then
+                fresh_backup_and_remove "$dst" "$backup_root" "$package"
+                removed_paths["$dst"]=1
+                removed_count=$((removed_count + 1))
+            fi
+        fi
+    done < <(printf '%s\n' "$dry_run")
+
+    # Fallback: if no LINK lines were found (older stow / different output), purge based on package tree
+    if [[ "$had_link_lines" != "true" ]]; then
+        while IFS= read -r -d '' src; do
+            local rel="${src#${package}/}"
+            [[ -z "$rel" || "$rel" == "$src" ]] && continue
+
+            # Mirror stow global ignores for marker/docs files
+            case "$(basename "$rel")" in
+                .package|README|README.md|README.txt)
+                    continue
+                ;;
+            esac
+
+            # Guard against weird rel paths
+            if [[ "$rel" == /* || "$rel" == *".."* ]]; then
+                log_warning "Fresh mode skipping unexpected package entry: $rel"
+                continue
+            fi
+
+            local dst="$HOME/$rel"
+
+            # Ensure parent directories are directories
+            local rel_dir
+            rel_dir=$(dirname "$rel")
+            if [[ "$rel_dir" != "." && -n "$rel_dir" ]]; then
+                local cur="$HOME"
+                local IFS='/'
+                read -ra parts <<< "$rel_dir"
+                unset IFS
+                local part
+                for part in "${parts[@]}"; do
+                    [[ -z "$part" ]] && continue
+                    cur="$cur/$part"
+                    if [[ -n "${removed_paths[$cur]:-}" ]]; then
+                        continue
+                    fi
+                    if [[ ( -e "$cur" || -L "$cur" ) && ! -d "$cur" ]]; then
+                        fresh_backup_and_remove "$cur" "$backup_root" "$package"
+                        removed_paths["$cur"]=1
+                        removed_count=$((removed_count + 1))
+                    fi
+                done
+            fi
+
+            if [[ -n "${removed_paths[$dst]:-}" ]]; then
+                continue
+            fi
+
+            # If destination exists but isn't already linked to this exact source, purge it
+            if [[ -L "$dst" ]]; then
+                local dst_abs src_abs
+                dst_abs=$(readlink -f "$dst" 2>/dev/null || true)
+                src_abs=$(readlink -f "$src" 2>/dev/null || true)
+                if [[ -n "$dst_abs" && -n "$src_abs" && "$dst_abs" == "$src_abs" ]]; then
+                    continue
+                fi
+            fi
+
+            if [[ -e "$dst" || -L "$dst" ]]; then
+                fresh_backup_and_remove "$dst" "$backup_root" "$package"
+                removed_paths["$dst"]=1
+                removed_count=$((removed_count + 1))
+            fi
+        done < <(find "$package" -mindepth 1 \( -type f -o -type l \) -print0 2>/dev/null)
+    fi
+
+    if [[ $removed_count -gt 0 ]]; then
+        log_warning "Fresh mode purged $removed_count existing target(s) for package '$package' (backups: ${backup_root}/${package})"
+    fi
+}
+
 # Install packages
 install_packages() {
     if [[ "$INSTALL_PACKAGES" != "true" ]]; then
@@ -291,6 +548,15 @@ setup_dotfiles() {
     
     # Change to packages directory
     cd "$PACKAGES_DIR"
+
+    local fresh_backup_root=""
+    if [[ "$FRESH_MODE" == "true" ]]; then
+        local ts
+        ts=$(date +%Y%m%d-%H%M%S)
+        fresh_backup_root="$HOME/.local/state/dotfiles/backups/${ts}/fresh-mode"
+        log_warning "Fresh machine mode enabled: conflicting dotfile targets will be backed up+removed before stow"
+        log_warning "Fresh mode backups will be stored under: $fresh_backup_root"
+    fi
     
     # Auto-discover packages with .package marker file
     # This allows seamless addition/removal of packages without editing this script
@@ -319,34 +585,70 @@ setup_dotfiles() {
     for package in "${packages[@]}"; do
         if [[ -d "$package" ]]; then
             log_info "Installing dotfiles package: $package"
+
+            if [[ "$FRESH_MODE" == "true" ]]; then
+                fresh_purge_stow_conflicts_for_package "$package" "$fresh_backup_root"
+            fi
             
             # Try stowing with restow (handles existing symlinks)
             # Note: Removed --no-folding to allow directory symlinks for deep structures
-            if stow --restow -t "$HOME" "$package" 2>&1 | tee /tmp/stow_output.txt | grep -qi "conflict"; then
-                # Conflicts detected - show them and attempt cleanup
+            local stow_ec=0
+            set +e
+            stow --restow -t "$HOME" "$package" 2>&1 | tee /tmp/stow_output.txt
+            stow_ec=${PIPESTATUS[0]}
+            set -e
+
+            local has_conflict="false"
+            if grep -qi "conflict\\|would cause conflicts" /tmp/stow_output.txt; then
+                has_conflict="true"
+            fi
+
+            if [[ "$has_conflict" == "true" ]]; then
                 log_warning "$package has conflicts:"
-                grep -i "conflict\|would cause" /tmp/stow_output.txt | sed 's/^/  /'
-                log_info "Attempting to resolve..."
-                
-                # Unstow completely, then restow fresh
-                stow -D -t "$HOME" "$package" 2>/dev/null || true
-                sleep 0.5  # Brief delay to ensure filesystem catches up
-                
-                if stow -t "$HOME" "$package" 2>/dev/null; then
-                    log_success "Installed $package dotfiles after cleanup"
+                grep -i "conflict\\|would cause" /tmp/stow_output.txt | sed 's/^/  /' || true
+
+                if [[ "$FRESH_MODE" == "true" ]]; then
+                    log_info "Fresh mode: backing up+removing conflicting targets and retrying stow..."
+                    fresh_purge_stow_conflicts_for_package "$package" "$fresh_backup_root"
+
+                    set +e
+                    stow --restow -t "$HOME" "$package" 2>&1 | tee /tmp/stow_output_retry.txt
+                    stow_ec=${PIPESTATUS[0]}
+                    set -e
+
+                    has_conflict="false"
+                    if grep -qi "conflict\\|would cause conflicts" /tmp/stow_output_retry.txt; then
+                        has_conflict="true"
+                    fi
+
+                    if [[ $stow_ec -eq 0 && "$has_conflict" != "true" ]]; then
+                        log_success "Installed $package dotfiles (fresh mode)"
+                    else
+                        log_error "Failed to install $package even after fresh-mode purge"
+                        grep -i "conflict\\|would cause" /tmp/stow_output_retry.txt | sed 's/^/  /' || true
+                        log_info "Backups (if any): ${fresh_backup_root}/${package}"
+                    fi
+
+                    rm -f /tmp/stow_output_retry.txt
                 else
-                    log_error "Failed to install $package - manual intervention needed"
-                    log_info "  Try: cd $PACKAGES_DIR && stow -D $package && stow $package"
+                    log_info "Attempting to resolve..."
+
+                    # Unstow completely, then restow fresh
+                    stow -D -t "$HOME" "$package" 2>/dev/null || true
+                    sleep 0.5  # Brief delay to ensure filesystem catches up
+
+                    if stow -t "$HOME" "$package" 2>/dev/null; then
+                        log_success "Installed $package dotfiles after cleanup"
+                    else
+                        log_error "Failed to install $package - manual intervention needed"
+                        log_info "  Try: cd $PACKAGES_DIR && stow -D $package && stow $package"
+                    fi
                 fi
+            elif [[ $stow_ec -ne 0 ]]; then
+                log_error "Stow failed for package '$package' (exit $stow_ec)"
+                sed 's/^/  /' /tmp/stow_output.txt || true
             else
-                # No conflicts or successful restow
-                if [[ -s /tmp/stow_output.txt ]]; then
-                    # Had output but no conflicts
-                    log_success "Installed $package dotfiles"
-                else
-                    # Clean install
-                    log_success "Installed $package dotfiles"
-                fi
+                log_success "Installed $package dotfiles"
             fi
             
             # Cleanup temp file
@@ -699,6 +1001,7 @@ main() {
     
     # Run setup steps
     check_prerequisites
+    maybe_enable_fresh_mode
     install_packages
     setup_dotfiles
     setup_host_config
