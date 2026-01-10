@@ -331,31 +331,12 @@ cd ~/dotfiles/hosts/firedragon
 - Double-check firmware/EC versions and re-run `asusctl profile -n Balanced` after every BIOS update.
 - If the display still fails to return from s2idle, test with the latest LTS kernel and inspect `/etc/systemd/system-sleep/99-runtime-pm.sh` to ensure the NVMe/Wi-Fi paths match `lspci -nn`.
 
-**UPDATE**: After testing, additional fixes are required:
-
-- ✅ **Locking works** - hyprlock properly locks/unlocks
-- ❌ **Sleep/idle causes screen freeze** - Requires initramfs rebuild + proper service hooks
-- ❌ **TTY shows blinking cursor** - Requires framebuffer restoration service
-
-**Complete Fix (Addresses ALL Issues)**:
+**Suspend/Resume Fix (Recommended)**:
 ```bash
 cd ~/dotfiles/hosts/firedragon
-
-# Step 1: Install systemd services and configure module params
-sudo ./fix-suspend-resume-complete.sh
-
-# Step 2: Update kernel cmdline (CRITICAL for unified kernel images!)
-sudo ./update-kernel-cmdline.sh
-
-# Step 3: Reboot
-reboot
+./fix-lid-close-freeze.sh
+# Then reboot when prompted
 ```
-
-**This script will:**
-1. Configure AMD GPU kernel module parameters
-2. **Rebuild initramfs** (critical step - takes 1-2 minutes)
-3. Install systemd suspend/resume/TTY hooks
-4. Create verification script
 
 **After reboot, verify:**
 ```bash
@@ -364,11 +345,26 @@ reboot
 
 **Full Documentation**: `docs/SUSPEND_RESUME_COMPLETE_FIX.md`
 
-**Root Causes Identified:**
-- Kernel module parameters not loaded (missing initramfs rebuild)
-- Systemd service dependencies incorrect (services never triggered)
-- TTY framebuffer corruption after suspend (fixed by console-restore service)
-- DPMS restore timing issues
+---
+
+### 💤 Hibernate Not Available / Does Not Resume
+
+If `systemctl hibernate` fails, or SDDM doesn’t show a hibernate button, you usually need **disk-backed swap + resume kernel params + initramfs resume hook**.
+
+**Enable hibernate (automated):**
+
+```bash
+cd ~/dotfiles/hosts/firedragon
+bash ./enable-sleep-hibernate.sh
+reboot
+```
+
+After reboot:
+
+```bash
+~/dotfiles/hosts/firedragon/verify-suspend-fix.sh
+systemctl hibernate
+```
 
 ### Battery Not Detected
 

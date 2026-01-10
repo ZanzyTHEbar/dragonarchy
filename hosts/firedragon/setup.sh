@@ -129,23 +129,16 @@ EndSection
 EOF
     
     # Enable AMD GPU power management with suspend/resume fixes
-    sudo tee /etc/modprobe.d/amdgpu.conf > /dev/null << 'EOF'
-# AMD GPU power management options - Optimized for laptop suspend/resume
-# ppfeaturemask enables all power management features
-options amdgpu ppfeaturemask=0xffffffff
-# Enable GPU recovery on crashes
-options amdgpu gpu_recovery=1
-# Enable Display Core (DC) for better power management
-options amdgpu dc=1
-# Disable GPU reset on suspend (prevents hangs)
-options amdgpu gpu_reset=0
-# Enable runtime power management
-options amdgpu runpm=1
-# Set power management policy (auto for best balance)
-options amdgpu dpm=1
-# Disable audio codec power management (can cause resume issues)
-options amdgpu audio=1
-EOF
+    local amdgpu_conf_src="$HOME/dotfiles/hosts/firedragon/etc/modprobe.d/amdgpu.conf"
+    if [[ -f "$amdgpu_conf_src" ]]; then
+        if copy_if_changed "$amdgpu_conf_src" /etc/modprobe.d/amdgpu.conf; then
+            log_success "Installed /etc/modprobe.d/amdgpu.conf"
+        else
+            log_info "/etc/modprobe.d/amdgpu.conf already up to date"
+        fi
+    else
+        log_warning "Missing $amdgpu_conf_src; skipping amdgpu.conf install"
+    fi
     
     # AMD microcode is handled by the amd-ucode package, not as a kernel module
     # The package installs /boot/amd-ucode.img which bootloaders load automatically
@@ -168,84 +161,17 @@ setup_power_management() {
         sudo systemctl enable tlp.service 2>/dev/null || true
         sudo systemctl enable tlp-sleep.service 2>/dev/null || true
         
-        # Create TLP configuration optimized for AMD laptop
-        sudo tee /etc/tlp.d/01-firedragon.conf > /dev/null << 'EOF'
-# FireDragon TLP Configuration - AMD Laptop Optimized
-# Updated to fix suspend/resume issues
-
-# CPU Energy Performance Policies
-CPU_ENERGY_PERF_POLICY_ON_AC=balance_performance
-CPU_ENERGY_PERF_POLICY_ON_BAT=power
-
-# AMD P-State EPP (Energy Performance Preference)
-CPU_BOOST_ON_AC=1
-CPU_BOOST_ON_BAT=0
-
-# CPU Min/Max Performance
-CPU_MIN_PERF_ON_AC=0
-CPU_MAX_PERF_ON_AC=100
-CPU_MIN_PERF_ON_BAT=0
-CPU_MAX_PERF_ON_BAT=50
-
-# AMD Radeon GPU Power Management
-# CRITICAL FIX: Don't force GPU state during suspend/resume
-# Let amdgpu driver handle power states automatically
-RADEON_DPM_PERF_LEVEL_ON_AC=auto
-RADEON_DPM_PERF_LEVEL_ON_BAT=auto
-RADEON_DPM_STATE_ON_AC=performance
-RADEON_DPM_STATE_ON_BAT=battery
-RADEON_POWER_PROFILE_ON_AC=default
-RADEON_POWER_PROFILE_ON_BAT=low
-
-# Platform Profile
-PLATFORM_PROFILE_ON_AC=balanced
-PLATFORM_PROFILE_ON_BAT=low-power
-
-# WiFi Power Saving
-WIFI_PWR_ON_AC=off
-WIFI_PWR_ON_BAT=on
-
-# PCIe Active State Power Management
-PCIE_ASPM_ON_AC=default
-PCIE_ASPM_ON_BAT=powersupersave
-
-# USB Auto-suspend
-USB_AUTOSUSPEND=1
-USB_EXCLUDE_AUDIO=1
-USB_EXCLUDE_BTUSB=1
-USB_EXCLUDE_PHONE=0
-USB_EXCLUDE_PRINTER=1
-USB_EXCLUDE_WWAN=0
-
-# Runtime Power Management
-# CRITICAL FIX: Use 'auto' for both AC and battery to let kernel manage properly
-RUNTIME_PM_ON_AC=auto
-RUNTIME_PM_ON_BAT=auto
-
-# Battery thresholds (if supported)
-START_CHARGE_THRESH_BAT0=75
-STOP_CHARGE_THRESH_BAT0=80
-
-# Disk settings
-DISK_DEVICES="nvme0n1"
-DISK_APM_LEVEL_ON_AC="254 254"
-DISK_APM_LEVEL_ON_BAT="128 128"
-
-# SATA link power management
-SATA_LINKPWR_ON_AC="med_power_with_dipm max_performance"
-SATA_LINKPWR_ON_BAT="min_power"
-
-# Audio power saving
-SOUND_POWER_SAVE_ON_AC=0
-SOUND_POWER_SAVE_ON_BAT=1
-SOUND_POWER_SAVE_CONTROLLER=Y
-
-# CRITICAL FIX: Restore devices on wakeup
-# Ensure TLP doesn't prevent GPU from waking up properly
-RESTORE_DEVICE_STATE_ON_STARTUP=1
-EOF
-        
-        log_success "TLP configured for AMD laptop"
+        # Install canonical firedragon TLP configuration (kept in dotfiles)
+        local tlp_conf_src="$HOME/dotfiles/hosts/firedragon/etc/tlp.d/01-firedragon.conf"
+        if [[ -f "$tlp_conf_src" ]]; then
+            if copy_if_changed "$tlp_conf_src" /etc/tlp.d/01-firedragon.conf; then
+                log_success "Installed /etc/tlp.d/01-firedragon.conf"
+            else
+                log_info "/etc/tlp.d/01-firedragon.conf already up to date"
+            fi
+        else
+            log_warning "Missing $tlp_conf_src; skipping TLP config install"
+        fi
     else
         log_warning "TLP not installed, skipping power management setup"
     fi
@@ -531,10 +457,10 @@ HandleLidSwitchExternalPower=suspend
 HandleLidSwitchDocked=ignore
 HandlePowerKey=suspend
 HandleSuspendKey=suspend
-HandleHibernateKey=ignore
+HandleHibernateKey=hibernate
 IdleAction=ignore
 IdleActionSec=30min
-InhibitDelayMaxSec=5
+InhibitDelayMaxSec=30s
 KillUserProcesses=no
 RemoveIPC=yes
 EOF
@@ -620,6 +546,19 @@ EOF
     
     log_success "Suspend/resume fixes installed"
     log_warning "⚠️  REBOOT REQUIRED - Changes will not work until reboot!"
+}
+
+# Setup hibernation (swap + resume parameters + initramfs resume hook)
+setup_hibernation() {
+    log_info "Setting up hibernation (swap + resume)..."
+    
+    if [[ -x "${SCRIPT_DIR}/enable-sleep-hibernate.sh" ]]; then
+        bash "${SCRIPT_DIR}/enable-sleep-hibernate.sh"
+        log_success "Hibernation configured"
+    else
+        log_warning "enable-sleep-hibernate.sh not found; skipping hibernation setup"
+        log_info "Expected path: ${SCRIPT_DIR}/enable-sleep-hibernate.sh"
+    fi
 }
 
 # Setup Asus VivoBook-specific configurations
@@ -737,34 +676,6 @@ EOF
     
     log_success "Asus VivoBook configuration completed"
     log_info "Keyboard backlight control: kbd-backlight {up|down|toggle}"
-}
-
-# Setup MT7902 WiFi driver (MediaTek WiFi 6E)
-setup_mt7902_wifi() {
-    log_info "Checking MT7902 WiFi chip..."
-    
-    # Check if MT7902 is present
-    if lspci -nn | grep -qi "14c3:0608\|14c3:7902\|Network.*MT7902"; then
-        log_info "MT7902 WiFi chip detected"
-        
-        # Check if WiFi is already working
-        if ip link show | grep -q "wlan\|wlp"; then
-            log_success "WiFi interface already present and working"
-            log_info "Skipping MT7902 driver installation"
-            return 0
-        fi
-        
-        log_info "WiFi not functional, will setup MT7902 driver..."
-        log_warning "MT7902 driver setup is optional and uses community-developed drivers"
-        log_info "The setup script is available at: ~/dotfiles/hosts/firedragon/setup-mt7902-wifi.sh"
-        log_info "Run it manually after the main setup if needed: bash ~/dotfiles/hosts/firedragon/setup-mt7902-wifi.sh"
-        
-        # Don't run automatically - let user decide
-        # Uncomment the line below to run automatically:
-        # bash "$HOME/dotfiles/hosts/firedragon/setup-mt7902-wifi.sh"
-    else
-        log_info "MT7902 chip not detected, skipping driver setup"
-    fi
 }
 
 # Setup advanced touchpad gesture plugins
@@ -929,6 +840,13 @@ main() {
         log_info "✓ Suspend/resume fixes already applied (skipped)"
     fi
     echo
+
+    if ! is_step_completed "firedragon-hibernation"; then
+        setup_hibernation && mark_step_completed "firedragon-hibernation"
+    else
+        log_info "✓ Hibernation already configured (skipped)"
+    fi
+    echo
     
     setup_networking  # Has its own idempotency checks
     echo
@@ -975,13 +893,6 @@ main() {
     fi
     echo
     
-    if ! is_step_completed "firedragon-mt7902-wifi"; then
-        setup_mt7902_wifi && mark_step_completed "firedragon-mt7902-wifi"
-    else
-        log_info "✓ MT7902 WiFi check already done (skipped)"
-    fi
-    echo
-    
     if ! is_step_completed "firedragon-gesture-plugins"; then
         setup_gesture_plugins && mark_step_completed "firedragon-gesture-plugins"
     else
@@ -1012,10 +923,11 @@ main() {
     echo "  4. Use 'corectrl' GUI to fine-tune AMD GPU/CPU settings"
     echo "  5. Check battery status with: battery-status"
     echo "  6. Monitor GPU with: radeontop"
-    echo "  7. Test suspend/resume:"
+    echo "  7. Test suspend/resume + hibernate:"
     echo "     • Close laptop lid → Open → Should resume properly"
     echo "     • Lock screen (Super+L) → Unlock → Should work smoothly"
     echo "     • Test TTY: Ctrl+Alt+F2 → Should show login prompt"
+    echo "     • Test hibernate: systemctl hibernate (after reboot)"
     echo "  8. Test touchpad gestures:"
     echo "     • 3-finger swipe left/right → Switch workspaces"
     echo "     • 3-finger swipe up → Toggle fullscreen"
@@ -1046,16 +958,6 @@ main() {
         echo "  • systemd-boot detected: Configuration updated, reboot to apply"
     fi
     echo
-    if lspci -nn | grep -qi "14c3:0608\|14c3:7902\|Network.*MT7902"; then
-        log_warning "📡 MT7902 WiFi Detected:"
-        if ip link show | grep -q "wlan\|wlp"; then
-            echo "  ✅ WiFi is working! No driver installation needed."
-        else
-            echo "  ⚠️  WiFi not detected. To install MT7902 driver:"
-            echo "  bash ~/dotfiles/hosts/firedragon/setup-mt7902-wifi.sh"
-            echo "  Note: Uses community-developed driver (may have stability issues)"
-        fi
-    fi
     echo
 }
 

@@ -84,122 +84,21 @@ Automatically loaded:
 
 **Configuration**: `/etc/modprobe.d/asus-vivobook.conf`
 
-## MediaTek MT7902 WiFi 6E
+## WiFi + Bluetooth (Intel AX210-class)
 
-Many Asus VivoBooks ship with the MediaTek MT7902 WiFi chip, which lacks official Linux kernel support.
+FireDragon’s current config includes power-management + recovery helpers for Intel AX210-class WiFi/Bluetooth devices:
 
-### Status Check
+- **Bluetooth recovery after resume**: `/etc/systemd/system-sleep/98-ax210-bt-recover.sh`
+- **Keep btusb out of autosuspend**: `/etc/udev/rules.d/99-intel-ax210-btusb-power.rules`
 
-Check if you have MT7902:
+Quick checks:
+
 ```bash
-lspci -nn | grep -i "14c3\|network"
-```
-
-Check if WiFi is working:
-```bash
-ip link show | grep -E "wlan|wlp"
+rfkill list
+ip link show
 nmcli device
+dmesg | grep -iE "iwlwifi|bluetooth|btusb" | tail -80
 ```
-
-### Driver Installation
-
-**Important**: Only run this if WiFi is NOT working after main setup.
-
-```bash
-cd ~/dotfiles/hosts/firedragon
-bash setup-mt7902-wifi.sh
-```
-
-### What the Script Does
-
-1. **Safety Checks**:
-   - Detects if MT7902 chip is present
-   - Checks if WiFi already works (skips if working)
-   - Backs up current network configuration
-
-2. **Installation**:
-   - Installs build dependencies
-   - Clones community driver repository
-   - Builds driver from source
-   - Sets up DKMS for automatic kernel rebuilds
-   - Installs firmware files
-   - Configures module loading
-
-3. **Post-Installation**:
-   - Loads modules
-   - Creates systemd configuration
-   - Verifies WiFi interface
-
-### DKMS Integration
-
-DKMS (Dynamic Kernel Module Support) ensures the driver survives kernel updates:
-
-```bash
-# Check DKMS status
-dkms status
-
-# Manually rebuild (if needed)
-sudo dkms build mt7902/1.0
-sudo dkms install mt7902/1.0
-```
-
-### Troubleshooting
-
-**WiFi not appearing**:
-```bash
-# Check modules
-lsmod | grep mt7902
-
-# Check firmware
-ls /lib/firmware/mediatek/
-
-# Check logs
-dmesg | grep -i mt7902
-journalctl -xeu NetworkManager
-```
-
-**Manual module loading**:
-```bash
-sudo modprobe mt76-connac-lib
-sudo modprobe mt76
-sudo modprobe mt792x-lib
-sudo modprobe mt792x-usb
-sudo modprobe mt7902
-```
-
-**Rollback/Uninstall**:
-```bash
-sudo dkms remove mt7902/1.0 --all
-sudo modprobe -r mt7902
-sudo rm /etc/modules-load.d/mt7902.conf
-sudo rm /etc/modprobe.d/mt7902.conf
-```
-
-### Alternative Solutions
-
-If the community driver doesn't work well:
-
-1. **USB WiFi Adapter**:
-   - TP-Link Archer T3U/T4U (Realtek RTL8812AU)
-   - Intel AX200/AX210 compatible adapters
-
-2. **Replace WiFi Card**:
-   - Intel AX210 (WiFi 6E, excellent Linux support)
-   - Intel AX200 (WiFi 6, excellent Linux support)
-   - Check M.2 slot compatibility first
-
-3. **Wait for Official Support**:
-   - Monitor Linux kernel releases
-   - Check MediaTek/MT76 driver updates
-
-### Full Documentation
-
-See [MT7902_WIFI_SETUP.md](./MT7902_WIFI_SETUP.md) for complete details including:
-- Detailed troubleshooting
-- Safety features
-- DKMS explained
-- Uninstallation procedures
-- Alternative solutions
 
 ## Touchpad Gestures
 
@@ -219,10 +118,10 @@ FireDragon includes advanced touchpad gesture support for Hyprland.
 
 For advanced features like pinch-to-zoom workspace overview and edge swipes:
 
-**Enable advanced gestures**:
+**Load plugins** (if not already loaded):
 ```bash
-cd ~/dotfiles/hosts/firedragon
-bash enable-advanced-gestures.sh
+bash ~/.config/hypr/scripts/load-gesture-plugins.sh
+hyprctl plugin list
 ```
 
 **Advanced gestures include**:
@@ -282,7 +181,6 @@ The `setup.sh` script handles everything:
 ```bash
 # Check hardware
 setup_asus_vivobook()    # Asus-specific config
-setup_mt7902_wifi()      # WiFi driver check
 setup_gesture_plugins()  # Touchpad gestures
 
 # Create configurations
@@ -298,18 +196,15 @@ kbd-backlight down        # Keyboard brightness -
 kbd-backlight toggle      # Keyboard light on/off
 ```
 
-### WiFi (MT7902)
+### WiFi / Bluetooth
 ```bash
-# Setup WiFi driver (if needed)
-bash ~/dotfiles/hosts/firedragon/setup-mt7902-wifi.sh
-
 # Check WiFi status
 nmcli device wifi list
 ip link show
+rfkill list
 
-# Debug WiFi
-dmesg | grep mt7902
-lsmod | grep mt7902
+# Debug WiFi/Bluetooth
+dmesg | grep -iE "iwlwifi|bluetooth|btusb" | tail -80
 ```
 
 ### Gestures
@@ -339,8 +234,6 @@ temp                      # System temperatures
 - `/boot/loader/entries/*.conf` - systemd-boot entries (ACPI fixes, if applicable)
 - `/etc/default/grub.d/asus-vivobook.cfg` - GRUB config (ACPI fixes, if GRUB detected)
 - `/etc/udev/rules.d/90-asus-kbd-backlight.rules` - Keyboard backlight permissions
-- `/etc/modprobe.d/mt7902.conf` - MT7902 driver options (if installed)
-- `/etc/modules-load.d/mt7902.conf` - Auto-load MT7902 (if installed)
 
 ### User Configuration
 - `~/.local/bin/kbd-backlight` - Keyboard backlight control script
@@ -349,8 +242,7 @@ temp                      # System temperatures
 
 ### Scripts
 - `setup.sh` - Main setup (includes all Asus-specific setup)
-- `setup-mt7902-wifi.sh` - MT7902 WiFi driver installer
-- `enable-advanced-gestures.sh` - Advanced gesture plugin enabler
+- (Advanced gestures) use `~/.config/hypr/scripts/load-gesture-plugins.sh` if you need to load plugins manually
 
 ## Troubleshooting
 
@@ -389,9 +281,16 @@ sudo grub-mkconfig -o /boot/grub/grub.cfg
 sudo reboot
 ```
 
-### WiFi Issues
+### WiFi / Bluetooth Issues
 
-See [MT7902_WIFI_SETUP.md](./MT7902_WIFI_SETUP.md) for comprehensive WiFi troubleshooting.
+Start with:
+
+```bash
+rfkill list
+nmcli device
+journalctl -b -u NetworkManager | tail -80
+dmesg | grep -iE "iwlwifi|bluetooth|btusb" | tail -120
+```
 
 ### Gesture Not Working
 
@@ -419,7 +318,7 @@ hyprctl reload
 
 ---
 
-**Last Updated**: October 31, 2024
-**Hardware**: Asus VivoBook with AMD chipset, Radeon graphics, MT7902 WiFi
+**Last Updated**: January 10, 2026
+**Hardware**: Asus VivoBook with AMD chipset, Radeon graphics, Intel AX210-class WiFi/Bluetooth
 **Software**: Arch Linux (CachyOS), Hyprland, TLP, iwd/NetworkManager
 

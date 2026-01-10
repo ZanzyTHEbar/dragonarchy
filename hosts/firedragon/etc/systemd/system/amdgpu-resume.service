@@ -10,10 +10,8 @@ User=root
 ExecStart=/usr/bin/sleep 1
 # Restore AMD GPU power management
 ExecStart=/bin/sh -c 'for card in /sys/class/drm/card*/device/power_dpm_force_performance_level; do echo "auto" > "$card" 2>/dev/null || true; done'
-# Force DRM device reset
-ExecStart=/bin/sh -c 'echo "AMD GPU resumed successfully" > /tmp/amdgpu-resume.log'
-# Restart any GPU-dependent services if needed
-ExecStart=/bin/sh -c 'systemctl --user --machine=$(who | grep "(:0)" | awk '\''{print $1}'\'')@.host restart --all 2>/dev/null || true'
+# Log success (used by verify script)
+ExecStart=/bin/sh -c 'echo "AMD GPU resumed successfully at $(date -Is)" > /tmp/amdgpu-resume.log'
 
 [Install]
 WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
