@@ -8,7 +8,7 @@ This directory contains host-specific configurations for different machines in t
 hosts/
 ├── dragon/          # Desktop workstation
 ├── firedragon/      # AMD laptop
-├── goldendragon/    # Blinq mini pc
+├── goldendragon/    # Lenovo ThinkPad P16s Gen 4 (Intel) laptop (Type 21QV/21QW)
 ├── spacedragon/     # Asus Zenbook G14
 └── microdragon/     # Raspberry pi
 ```

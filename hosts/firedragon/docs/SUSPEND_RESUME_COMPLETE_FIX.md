@@ -48,7 +48,7 @@ Run the complete fix script:
 
 ```bash
 cd ~/dotfiles/hosts/firedragon
-sudo ./fix-suspend-resume-complete.sh
+./fix-lid-close-freeze.sh
 ```
 
 **The script will:**
@@ -239,8 +239,13 @@ hypridle triggers DPMS restore
 
 The TTY console fix works by forcing a VT (virtual terminal) switch:
 ```bash
-chvt 1    # Switch to tty1
-chvt 7    # Switch back to tty7 (Hyprland)
+# Switch away and back to the active VT to re-init the framebuffer.
+# (Don't hardcode tty7 — Wayland sessions are often on tty1.)
+cur="$(fgconsole)"
+tgt="1"; [ "$cur" = "1" ] && tgt="2"
+chvt "$tgt"
+sleep 0.2
+chvt "$cur"
 ```
 
 This reinitializes the framebuffer driver, fixing the blank/corrupted display.

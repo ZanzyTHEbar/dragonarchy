@@ -56,8 +56,10 @@ kbd-backlight down      # Decrease brightness
 ip link show
 
 # If WiFi (wlan0 or wlpXsX) is present - you're good!
-# If not, and you have MT7902 chip:
-bash ~/dotfiles/hosts/firedragon/setup-mt7902-wifi.sh
+# If not:
+rfkill list
+lspci -nn | grep -i network
+journalctl -b | grep -iE "iwlwifi|ath|mt76|wifi" | tail -50
 ```
 
 ### 6. Test Touchpad Gestures
@@ -120,7 +122,8 @@ sudo udevadm trigger
 
 ### WiFi Not Working
 
-See [MT7902_WIFI_SETUP.md](./MT7902_WIFI_SETUP.md) for comprehensive WiFi driver setup.
+FireDragon is configured for Intel AX210-class devices (in-kernel `iwlwifi` + `btusb`).
+If WiFi is missing, check `rfkill`, confirm `linux-firmware` is installed, and inspect the logs shown above.
 
 ## Quick Commands
 
@@ -180,9 +183,8 @@ The setup script also supports:
 
 - [Full Setup Guide](./README.md)
 - [Asus VivoBook Features](./ASUS_VIVOBOOK_FEATURES.md)
-- [MT7902 WiFi Setup](./MT7902_WIFI_SETUP.md)
 - [Gesture Guide](./GESTURES_QUICKSTART.md)
-- [Documentation Index](./INDEX.md)
+- [Suspend/Resume Fix](./SUSPEND_RESUME_COMPLETE_FIX.md)
 
 ---
 

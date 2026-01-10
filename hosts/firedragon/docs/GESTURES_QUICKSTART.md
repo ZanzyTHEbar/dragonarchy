@@ -45,18 +45,14 @@ This will:
 
 After the setup completes, logout and login to load the plugins.
 
-### Step 3: Enable Advanced Gestures
+### Step 3: Load the Plugin (if needed)
 
-Run the enabler script:
+The setup script writes a helper that loads available plugins:
 
 ```bash
-bash ~/dotfiles/hosts/firedragon/enable-advanced-gestures.sh
+bash ~/.config/hypr/scripts/load-gesture-plugins.sh
+hyprctl plugin list
 ```
-
-This will:
-- Check which plugins are available
-- Uncomment the appropriate gesture configurations
-- Reload Hyprland
 
 ### Step 4: Test Advanced Gestures
 
@@ -76,7 +72,7 @@ This will:
 
 This error means hyprexpo is not available. This is normal and expected until you:
 1. Install plugins via setup script
-2. Enable the gestures via enable-advanced-gestures.sh
+2. Load the plugin (see Step 3)
 
 The pinch gesture bindings are commented out by default.
 
@@ -85,7 +81,7 @@ The pinch gesture bindings are commented out by default.
 This error means hyprgrass plugin is not loaded. This is normal and expected until you:
 1. Install plugins via setup script
 2. Logout/login to load plugins
-3. Enable the gestures via enable-advanced-gestures.sh
+3. Load the plugin (see Step 3)
 
 The edge swipe configurations are commented out by default.
 
@@ -120,7 +116,6 @@ Then perform gestures and watch for:
 
 - **Configuration**: `~/.config/hypr/config/gestures.conf`
 - **Plugin Loader**: `~/.config/hypr/scripts/load-gesture-plugins.sh`
-- **Enable Script**: `~/dotfiles/hosts/firedragon/enable-advanced-gestures.sh`
 - **Plugin Location**: `~/.local/share/hyprland-plugins/hyprgrass/`
 
 ## Quick Commands
@@ -157,7 +152,7 @@ This approach prevents errors while keeping advanced features ready to enable!
 
 1. **Right now**: Use 3/4-finger swipes (working immediately)
 2. **Optional**: Run setup script to install plugins
-3. **After setup**: Run enable script to unlock edge swipes and pinch gestures
+3. **After setup**: Load the plugin (and confirm with `hyprctl plugin list`) to unlock edge swipes/pinch gestures
 
 **No errors, smooth experience! 🎉**
 
