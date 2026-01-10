@@ -32,12 +32,18 @@ detect_hardware() {
         cpu_vendor="intel"
     fi
 
-    if lspci | grep -qi "amd\|radeon"; then
-        gpu_vendor="amd"
-    elif lspci | grep -qi "intel.*graphics"; then
-        gpu_vendor="intel"
-    elif lspci | grep -qi "nvidia"; then
-        gpu_vendor="nvidia"
+    # GPU detection must handle hybrid graphics (e.g. Intel iGPU + NVIDIA dGPU).
+    # Prefer NVIDIA when present, otherwise fall back to AMD/Intel.
+    if command -v lspci >/dev/null 2>&1; then
+        local display_lines
+        display_lines="$(lspci -nn 2>/dev/null | grep -Ei 'VGA compatible controller|3D controller|Display controller' || true)"
+        if echo "$display_lines" | grep -qi "nvidia"; then
+            gpu_vendor="nvidia"
+        elif echo "$display_lines" | grep -qi "amd\|radeon"; then
+            gpu_vendor="amd"
+        elif echo "$display_lines" | grep -qi "intel"; then
+            gpu_vendor="intel"
+        fi
     fi
 
     printf "%s-%s" "$cpu_vendor" "$gpu_vendor"
@@ -45,18 +51,27 @@ detect_hardware() {
 
 # ------------------------ Hardware Config ------------------------
 
+ensure_modules_load_conf() {
+    # Args: file module1 [module2...]
+    local file="$1"
+    shift || true
+    mkdir -p "$(dirname "$file")"
+    touch "$file"
+    local mod
+    for mod in "$@"; do
+        if [[ -n "$mod" ]] && ! grep -qxF "$mod" "$file" 2>/dev/null; then
+            echo "$mod" >> "$file"
+        fi
+    done
+}
+
 setup_amd_nvidia_configuration() {
     log_info "Setting up AMD CPU + NVIDIA GPU kernel parameters..."
     local kernel_params="amd_pstate=active nvidia-drm.modeset=1 nvidia.NVreg_PreserveVideoMemoryAllocations=1"
     boot_append_kernel_params "$kernel_params"
 
     mkdir -p /etc/modules-load.d
-    {
-        echo "nvidia"
-        echo "nvidia_modeset"
-        echo "nvidia_uvm"
-        echo "nvidia_drm"
-    } >> /etc/modules-load.d/nvidia.conf
+    ensure_modules_load_conf /etc/modules-load.d/nvidia.conf nvidia nvidia_modeset nvidia_uvm nvidia_drm
     log_success "AMD+NVIDIA configuration applied"
 }
 
@@ -66,10 +81,8 @@ setup_intel_nvidia_configuration() {
     boot_append_kernel_params "$kernel_params"
 
     mkdir -p /etc/modules-load.d
-    echo "i915" >> /etc/modules-load.d/intel.conf
-    {
-        echo "nvidia"; echo "nvidia_modeset"; echo "nvidia_uvm"; echo "nvidia_drm"
-    } >> /etc/modules-load.d/nvidia.conf
+    ensure_modules_load_conf /etc/modules-load.d/intel.conf i915
+    ensure_modules_load_conf /etc/modules-load.d/nvidia.conf nvidia nvidia_modeset nvidia_uvm nvidia_drm
     log_success "Intel+NVIDIA configuration applied"
 }
 
@@ -79,8 +92,7 @@ setup_amd_configuration() {
     boot_append_kernel_params "$kernel_params"
 
     mkdir -p /etc/modules-load.d
-    echo "amdgpu" >> /etc/modules-load.d/amd.conf
-    echo "crc32c" >> /etc/modules-load.d/amd.conf
+    ensure_modules_load_conf /etc/modules-load.d/amd.conf amdgpu crc32c
     log_success "AMD configuration applied"
 }
 
@@ -90,8 +102,7 @@ setup_intel_configuration() {
     boot_append_kernel_params "$kernel_params"
 
     mkdir -p /etc/modules-load.d
-    echo "i915" >> /etc/modules-load.d/intel.conf
-    echo "crc32c" >> /etc/modules-load.d/intel.conf
+    ensure_modules_load_conf /etc/modules-load.d/intel.conf i915 crc32c
     log_success "Intel configuration applied"
 }
 

@@ -15,5 +15,5 @@ ExecStart=/bin/sh -c 'sync'
 ExecStart=/usr/bin/sleep 0.5
 
 [Install]
-WantedBy=sleep.target
+WantedBy=sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
 

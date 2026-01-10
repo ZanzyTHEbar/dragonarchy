@@ -19,8 +19,13 @@ While the documentation (`SUSPEND_RESUME_COMPLETE_FIX.md`) mentioned this servic
 The `amdgpu-console-restore.service` performs a critical VT (virtual terminal) switch after resume:
 
 ```bash
-chvt 1    # Switch to tty1
-chvt 7    # Switch back to tty7 (Hyprland)
+# Switch away and back to the active VT to re-init the framebuffer.
+# (Don't hardcode tty7 — Wayland sessions are often on tty1.)
+cur="$(fgconsole)"
+tgt="1"; [ "$cur" = "1" ] && tgt="2"
+chvt "$tgt"
+sleep 0.2
+chvt "$cur"
 ```
 
 This reinitializes the framebuffer driver, preventing the freeze/corruption that occurs when the lid closes.
@@ -49,8 +54,8 @@ StopWhenUnneeded=yes
 Type=oneshot
 User=root
 ExecStart=/usr/bin/sleep 0.5
-ExecStart=/bin/sh -c 'chvt 1 && sleep 0.2 && chvt 7'
-ExecStart=/bin/sh -c 'echo "Console framebuffer restored at $(date)" > /tmp/amdgpu-console.log'
+ExecStart=/bin/sh -c 'command -v chvt >/dev/null 2>&1 || exit 0; cur="$(fgconsole 2>/dev/null || echo 1)"; case "$cur" in (""|*[!0-9]*) cur=1;; esac; tgt=1; [ "$cur" = "1" ] && tgt=2; chvt "$tgt" 2>/dev/null || true; sleep 0.2; chvt "$cur" 2>/dev/null || true'
+ExecStart=/bin/sh -c 'echo "Console framebuffer restored at $(date -Is)" > /tmp/amdgpu-console.log'
 
 [Install]
 WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
@@ -240,7 +245,7 @@ The console restore service specifically addresses this. If TTY is still corrupt
 
 ```bash
 # Manually test VT switch
-sudo chvt 1 && sleep 0.5 && sudo chvt 7
+sudo sh -c 'cur="$(fgconsole)"; tgt="1"; [ "$cur" = "1" ] && tgt="2"; chvt "$tgt"; sleep 0.5; chvt "$cur"'
 
 # If that fixes it, verify service is running:
 systemctl status amdgpu-console-restore.service

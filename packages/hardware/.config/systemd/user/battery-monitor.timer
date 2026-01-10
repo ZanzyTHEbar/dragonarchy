@@ -1,6 +1,6 @@
 [Unit]
 Description=Dragon Battery Monitor Timer
-Requires=dragon-battery-monitor.service
+Requires=battery-monitor.service
 
 [Timer]
 OnBootSec=1min

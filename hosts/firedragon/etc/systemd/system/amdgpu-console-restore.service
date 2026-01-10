@@ -8,10 +8,11 @@ Type=oneshot
 User=root
 # Wait for GPU resume to complete
 ExecStart=/usr/bin/sleep 0.5
-# Force VT switch to reinitialize framebuffer (fixes TTY blank/corruption)
-ExecStart=/bin/sh -c 'chvt 1 && sleep 0.2 && chvt 7'
+# Force VT switch to reinitialize framebuffer (fixes TTY blank/corruption).
+# IMPORTANT: do NOT hardcode tty7 (Wayland is often on tty1). Switch away and back to the active VT.
+ExecStart=/bin/sh -c 'command -v chvt >/dev/null 2>&1 || exit 0; cur="$(fgconsole 2>/dev/null || echo 1)"; case "$cur" in (""|*[!0-9]*) cur=1;; esac; tgt=1; [ "$cur" = "1" ] && tgt=2; chvt "$tgt" 2>/dev/null || true; sleep 0.2; chvt "$cur" 2>/dev/null || true'
 # Log success
-ExecStart=/bin/sh -c 'echo "Console framebuffer restored at $(date)" > /tmp/amdgpu-console.log'
+ExecStart=/bin/sh -c 'echo "Console framebuffer restored at $(date -Is) (vt=$(fgconsole 2>/dev/null || echo "?"))" > /tmp/amdgpu-console.log'
 
 [Install]
 WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
