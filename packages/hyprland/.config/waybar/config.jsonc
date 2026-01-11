@@ -123,7 +123,7 @@
     "format-charging": "{icon}",
     "format-plugged": "",
     "on-click-right": "bash -lc '$HOME/.local/bin/power-saving-mode disable >/dev/null 2>&1'",
-    "on-click-middle": "bash -lc 'notify-send --app-name=waybar --icon=battery -u low \"Power saving status\" \"$($HOME/.local/bin/power-saving-mode status)\" >/dev/null 2>&1'",
+    "on-click-middle": "bash -lc 'status=\"$($HOME/.local/bin/power-saving-mode status)\"; notify-send --app-name=waybar --icon=battery -u low \"Power saving status\" \"$status\" >/dev/null 2>&1'",
     "format-icons": {
       "charging": [
         "󰢜",
