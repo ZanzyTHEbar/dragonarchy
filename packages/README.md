@@ -4,9 +4,9 @@ This directory contains modular package configurations managed by GNU Stow.
 
 ## Stow Configuration
 
-### `.stow-global-ignore`
+### `.stowrc` (recommended / supported by GNU Stow)
 
-The `.stow-global-ignore` file at the root of this `packages/` directory applies to **all packages**. This prevents unwanted files from being symlinked to the home directory.
+GNU Stow (2.4.x) supports a resource file named `.stowrc`. The `.stowrc` file at the root of this `packages/` directory applies to **all stow commands run from this directory**. This prevents unwanted files (like package marker files) from being symlinked into your home directory.
 
 **Ignored patterns:**
 
@@ -25,7 +25,7 @@ cd ~/dotfiles/packages
 stow <package-name>
 ```
 
-The `.stow-global-ignore` file is automatically applied to all stow operations.
+The `.stowrc` file is automatically applied to all stow operations.
 
 ### Adding New Packages
 
@@ -70,7 +70,7 @@ Run `ls -d */` in this directory to see all available packages.
 
 ### Modifying Ignore Patterns
 
-To add or modify global ignore patterns, edit `.stow-global-ignore` in this directory. The file uses Perl regular expressions.
+To add or modify global ignore patterns, edit `.stowrc` in this directory. Stow options in `.stowrc` are treated like default CLI options, and ignore patterns use Perl regular expressions.
 
 **Examples:**
 

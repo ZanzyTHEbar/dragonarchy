@@ -60,6 +60,7 @@ packages = [
     "zsh-theme-powerlevel10k",
     "gum",
     "img2pdf",
+    "cronie",
 ]
 
 [platforms.arch.pacman.dev]
@@ -93,6 +94,30 @@ packages = [
 
 [platforms.arch.paru.fonts]
 packages = ["ttf-cascadia-mono-nerd", "ttf-ia-writer"]
+
+# Host-specific groups (installed automatically by install-deps.sh via `host_` prefix).
+[platforms.arch.pacman.host_dragon_workstation]
+requires_hosts = ["dragon"]
+packages = [
+    # AMD GPU stack / diagnostics
+    "mesa",
+    "vulkan-radeon",
+    "vulkan-tools",
+    "mesa-utils",
+    "libva-mesa-driver",
+    "mesa-vdpau",
+    "radeontop",
+
+    # AMD CPU microcode
+    "amd-ucode",
+
+    # Tuning / monitoring
+    "lm_sensors",
+    "corectrl",
+
+    # Hardware control
+    "liquidctl",
+]
 
 # Hyprland groups (Arch-family only)
 [platforms.arch.pacman.hyprland_base]
