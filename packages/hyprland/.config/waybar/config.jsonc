@@ -12,6 +12,7 @@
   ],
   "modules-right": [
     "group/tray-expander",
+    "custom/notifications",
     "bluetooth",
     "network",
     "pulseaudio",
@@ -71,6 +72,21 @@
     "on-click-middle": "$HOME/dotfiles/scripts/theme-manager/restart-autostart",
     "on-click-right": "bash -lc 'kitty --class=Dragon --title=Dragon $HOME/dotfiles/scripts/dragon-cli & sleep 1;'"
   },
+  "custom/notifications": {
+    "tooltip": true,
+    "return-type": "json",
+    "exec": "swaync-client -swb",
+    "on-click": "swaync-client -t",
+    "on-click-right": "swaync-client -d",
+    "format": "{icon}",
+    "format-icons": {
+      "notification": "󰂚",
+      "none": "󰂚",
+      "dnd-notification": "󰂛",
+      "dnd-none": "󰂛"
+    },
+    "escape": true
+  },
   "cpu": {
     "interval": 5,
     "format": "󰍛",
@@ -107,7 +123,7 @@
     "format-charging": "{icon}",
     "format-plugged": "",
     "on-click-right": "bash -lc '$HOME/.local/bin/power-saving-mode disable >/dev/null 2>&1'",
-    "on-click-middle": "bash -lc '$HOME/.local/bin/power-saving-mode status | notify-send --app-name=waybar --icon=battery -u low \"Power saving status\" \"$(cat)\" >/dev/null 2>&1'",
+    "on-click-middle": "bash -lc 'notify-send --app-name=waybar --icon=battery -u low \"Power saving status\" \"$($HOME/.local/bin/power-saving-mode status)\" >/dev/null 2>&1'",
     "format-icons": {
       "charging": [
         "󰢜",
