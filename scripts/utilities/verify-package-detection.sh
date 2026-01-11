@@ -32,6 +32,18 @@ is_package_enabled() {
     return 1  # Package is not enabled
 }
 
+package_scope() {
+    local package="$1"
+    local marker="$PACKAGES_DIR/$package/.package"
+    [[ -f "$marker" ]] || { echo "disabled"; return 0; }
+
+    if grep -Eq '^[[:space:]]*scope[[:space:]]*[:=][[:space:]]*system[[:space:]]*$' "$marker"; then
+        echo "system"
+    else
+        echo "user"
+    fi
+}
+
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║          Package Detection Verification                     ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
@@ -46,8 +58,8 @@ log_info "Scanning packages directory: $PACKAGES_DIR"
 echo
 
 # Header
-printf "%-25s %-15s %-40s\n" "PACKAGE" "ENABLED" "STATUS"
-printf "%-25s %-15s %-40s\n" "-------" "-------" "------"
+printf "%-25s %-15s %-10s %-40s\n" "PACKAGE" "ENABLED" "SCOPE" "STATUS"
+printf "%-25s %-15s %-10s %-40s\n" "-------" "-------" "-----" "------"
 
 # Track counts
 total_packages=0
@@ -60,9 +72,14 @@ while IFS= read -r package_path; do
     
     if is_package_enabled "$package"; then
         enabled_count=$((enabled_count + 1))
-        printf "%-25s ${GREEN}%-15s${NC} %-40s\n" "$package" "✓ Yes" "will be installed"
+        scope="$(package_scope "$package")"
+        if [[ "$scope" == "system" ]]; then
+            printf "%-25s ${GREEN}%-15s${NC} %-10s %-40s\n" "$package" "✓ Yes" "system" "will be installed (to /)"
+        else
+            printf "%-25s ${GREEN}%-15s${NC} %-10s %-40s\n" "$package" "✓ Yes" "user" "will be installed (to \$HOME)"
+        fi
     else
-        printf "%-25s ${YELLOW}%-15s${NC} %-40s\n" "$package" "✗ No" "marker file missing"
+        printf "%-25s ${YELLOW}%-15s${NC} %-10s %-40s\n" "$package" "✗ No" "-" "marker file missing"
     fi
 done < <(find "$PACKAGES_DIR" -maxdepth 1 -type d ! -path "$PACKAGES_DIR" | sort)
 

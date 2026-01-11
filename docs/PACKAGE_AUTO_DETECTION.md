@@ -14,6 +14,21 @@ Create a `.package` file in your package directory:
 touch packages/YOUR_PACKAGE/.package
 ```
 
+### Optional: Scoped Packages (System vs User)
+
+By default, a `.package` marker enables a **user-scoped** package (stowed into `$HOME`).
+
+For **system-scoped** packages (must be stowed into `/`), put this line inside the marker:
+
+```bash
+echo "scope=system" > packages/some-system-package/.package
+```
+
+System-scoped packages are:
+
+- Skipped by the normal dotfiles stow pass (so they never create things like `~/usr`)
+- Auto-detected and installed by `scripts/install/stow-system.sh` (target: `/`)
+
 **Why this works:**
 
 - ✅ Explicit and clear intent
@@ -80,7 +95,7 @@ All existing packages already have marker files:
 - ✅ `lazygit/.package`
 - ✅ `nvim/.package`
 - ✅ `qt5ct/.package`
-- ✅ `sddm/.package`
+- ✅ `sddm/.package` (**scope=system**)
 - ✅ `ssh/.package`
 - ✅ `themes/.package`
 - ✅ `tmux/.package`

@@ -1,24 +1,218 @@
 #!/bin/bash
 # Checks battery status and sends a notification if the level is low.
 
-NOTIFY_THRESHOLD=10
+WARN_THRESHOLD=25
 POWER_SAVER_THRESHOLD=30
 POWER_RESUME_THRESHOLD=35
 
 NOTIFICATION_FLAG="/run/user/$UID/battery_low_notified"
+ACTION_PROMPT_LOCK="/run/user/$UID/battery_low_action_prompt.lock"
+ACTION_PROMPT_PID="/run/user/$UID/battery_low_action_prompt.pid"
 LOW_POWER_FLAG="/run/user/$UID/battery_low_profile"
 
+usage() {
+  cat <<'EOF'
+Usage: battery-monitor [--dry-run] [--reset-flags] [--test --level N --state STATE --eta ETA]
+
+Options:
+  --dry-run       Do not send notifications or change power profiles; prints what would happen.
+  --reset-flags   Clears notification/action/profile flags so the warning can trigger again.
+  --test          Bypass upower and use the provided --level/--state/--eta values.
+  --level N       Battery percent (0-100) (requires --test)
+  --state STATE   One of: discharging|charging|fully-charged (requires --test)
+  --eta ETA       Human string like "1h 10m" (requires --test)
+  -h, --help      Show this help.
+EOF
+}
+
+DRY_RUN=0
+RESET_FLAGS=0
+TEST_MODE=0
+TEST_LEVEL=""
+TEST_STATE=""
+TEST_ETA=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1; shift ;;
+    --reset-flags) RESET_FLAGS=1; shift ;;
+    --test) TEST_MODE=1; shift ;;
+    --level) TEST_LEVEL="${2:-}"; shift 2 ;;
+    --state) TEST_STATE="${2:-}"; shift 2 ;;
+    --eta) TEST_ETA="${2:-}"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "battery-monitor: unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+if [[ $RESET_FLAGS -eq 1 ]]; then
+  rm -f "$NOTIFICATION_FLAG" "$ACTION_PROMPT_LOCK" "$ACTION_PROMPT_PID" "$LOW_POWER_FLAG" 2>/dev/null || true
+fi
+
+get_battery_device() {
+  upower -e | grep -m1 'BAT' || true
+}
+
 get_battery_percentage() {
-  upower -i "$(upower -e | grep 'BAT')" | grep -E "percentage" | grep -o '[0-9]\+%' | sed 's/%//'
+  upower -i "$1" | awk '/percentage/ { gsub("%","",$2); print $2; exit }'
 }
 
 get_battery_state() {
-  upower -i "$(upower -e | grep 'BAT')" | grep -E "state" | awk '{print $2}'
+  upower -i "$1" | awk '/state/ { print $2; exit }'
 }
 
-send_notification() {
-  # We use swaync-client as it's our installed notification daemon
-  swaync-client -n -t notification -ID 99 -d "Battery Low" -s "Time to recharge! (Battery is at ${1}%)" -i "battery-caution"
+get_time_to_empty() {
+  local device="$1"
+  local tte
+  tte="$(upower -i "$device" | awk -F: '/time to empty/ { sub(/^[ \t]+/,"",$2); print $2; exit }')"
+  if [[ -n "${tte:-}" ]]; then
+    echo "$tte"
+    return 0
+  fi
+
+  # Fallback: compute from energy / energy-rate (Wh / W = hours)
+  local energy energy_rate
+  energy="$(upower -i "$device" | awk '/energy:/ { print $2; exit }')"
+  energy_rate="$(upower -i "$device" | awk '/energy-rate:/ { print $2; exit }')"
+  if [[ -n "${energy:-}" && -n "${energy_rate:-}" ]]; then
+    awk -v e="$energy" -v r="$energy_rate" '
+      function round(x){ return int(x+0.5) }
+      BEGIN {
+        if (r <= 0) { exit 1 }
+        mins = round((e / r) * 60)
+        if (mins < 1) mins = 1
+        h = int(mins / 60); m = mins % 60
+        if (h > 0) printf "%dh %dm\n", h, m
+        else printf "%dm\n", m
+      }
+    ' 2>/dev/null && return 0
+  fi
+
+  echo "unknown"
+}
+
+send_warning_with_action_async() {
+  local level="$1"
+  local eta="$2"
+
+  if [[ $DRY_RUN -eq 1 ]]; then
+    echo "[dry-run] Would notify: Battery low (${level}%) | Plug in now. Estimated remaining: ${eta}."
+    echo "[dry-run] Would offer action: Enable power saving mode -> power-saving-mode"
+    return 0
+  fi
+
+  # Ensure required tools exist
+  if ! command -v notify-send >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # Avoid spawning multiple waiters
+  if [[ -f "$ACTION_PROMPT_LOCK" ]]; then
+    if [[ -f "$ACTION_PROMPT_PID" ]]; then
+      local pid
+      pid="$(cat "$ACTION_PROMPT_PID" 2>/dev/null || true)"
+      if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+        return 0
+      fi
+    fi
+    rm -f "$ACTION_PROMPT_LOCK" "$ACTION_PROMPT_PID" 2>/dev/null || true
+  fi
+
+  : > "$ACTION_PROMPT_LOCK"
+
+  (
+    set -euo pipefail
+    trap 'rm -f "$ACTION_PROMPT_LOCK" "$ACTION_PROMPT_PID" 2>/dev/null || true' EXIT
+
+    local action
+    action="$(
+      timeout 45m notify-send \
+        --urgency=critical \
+        --app-name="battery-monitor" \
+        --icon="battery-caution" \
+        --expire-time=0 \
+        --action="powersave=Enable power saving mode" \
+        --action="dismiss=Dismiss" \
+        --wait \
+        "Battery low (${level}%)" \
+        "Plug in now. Estimated remaining: ${eta}." \
+        2>/dev/null || true
+    )"
+
+    if [[ "$action" == "powersave" ]]; then
+      local ps_cmd
+      ps_cmd=""
+      if [[ -x "$HOME/.local/bin/power-saving-mode" ]]; then
+        ps_cmd="$HOME/.local/bin/power-saving-mode"
+      elif [[ -x "$(dirname "$0")/power-saving-mode" ]]; then
+        ps_cmd="$(dirname "$0")/power-saving-mode"
+      elif command -v power-saving-mode >/dev/null 2>&1; then
+        ps_cmd="$(command -v power-saving-mode)"
+      fi
+
+      local verify_ppd verify_asus
+      local verify_ppd verify_asus verify_tlp verify_bri verify_bt
+      verify_ppd="n/a"
+      verify_asus="n/a"
+      verify_tlp="n/a"
+      verify_bri="n/a"
+      verify_bt="n/a"
+
+      if command -v powerprofilesctl >/dev/null 2>&1; then
+        verify_ppd="$(powerprofilesctl get 2>/dev/null || echo "unknown")"
+      fi
+      if command -v asusctl >/dev/null 2>&1; then
+        verify_asus="$(asusctl profile -p 2>/dev/null || echo "unknown")"
+      fi
+      if command -v tlp-stat >/dev/null 2>&1; then
+        verify_tlp="$(tlp-stat -s 2>/dev/null | awk -F: '/Mode/ { sub(/^[ \t]+/,"",$2); print $2; exit }' || true)"
+        [[ -z "${verify_tlp:-}" ]] && verify_tlp="unknown"
+      fi
+      if command -v brightnessctl >/dev/null 2>&1; then
+        verify_bri="$(brightnessctl -m 2>/dev/null | awk -F, 'NR==1 { print $4; exit }' || true)"
+        [[ -z "${verify_bri:-}" ]] && verify_bri="unknown"
+      fi
+      if command -v bluetoothctl >/dev/null 2>&1; then
+        verify_bt="$(bluetoothctl show 2>/dev/null | awk '/Powered/ { print $2; exit }' || true)"
+        [[ -z "${verify_bt:-}" ]] && verify_bt="unknown"
+      fi
+
+      if [[ -n "${ps_cmd:-}" ]]; then
+        local out
+        out="$("$ps_cmd" 2>/dev/null || true)"
+        # Refresh verification after applying
+        if command -v powerprofilesctl >/dev/null 2>&1; then
+          verify_ppd="$(powerprofilesctl get 2>/dev/null || echo "unknown")"
+        fi
+        if command -v asusctl >/dev/null 2>&1; then
+          verify_asus="$(asusctl profile -p 2>/dev/null || echo "unknown")"
+        fi
+        if command -v tlp-stat >/dev/null 2>&1; then
+          verify_tlp="$(tlp-stat -s 2>/dev/null | awk -F: '/Mode/ { sub(/^[ \t]+/,"",$2); print $2; exit }' || true)"
+          [[ -z "${verify_tlp:-}" ]] && verify_tlp="unknown"
+        fi
+        if command -v brightnessctl >/dev/null 2>&1; then
+          verify_bri="$(brightnessctl -m 2>/dev/null | awk -F, 'NR==1 { print $4; exit }' || true)"
+          [[ -z "${verify_bri:-}" ]] && verify_bri="unknown"
+        fi
+        if command -v bluetoothctl >/dev/null 2>&1; then
+          verify_bt="$(bluetoothctl show 2>/dev/null | awk '/Powered/ { print $2; exit }' || true)"
+          [[ -z "${verify_bt:-}" ]] && verify_bt="unknown"
+        fi
+        notify-send --urgency=normal --app-name="battery-monitor" --icon="battery-good" \
+          "Power saving mode applied" \
+          "powerprofilesctl=${verify_ppd}\nasusctl=${verify_asus}\ntlp=${verify_tlp}\nbrightness=${verify_bri}\nbluetooth=${verify_bt}\n${out}" \
+          2>/dev/null || true
+      else
+        notify-send --urgency=critical --app-name="battery-monitor" --icon="battery-caution" \
+          "Power saving mode unavailable" \
+          "Couldn't find power-saving-mode in PATH or ~/.local/bin.\n(powerprofilesctl=${verify_ppd}, asusctl=${verify_asus}, tlp=${verify_tlp}, brightness=${verify_bri}, bluetooth=${verify_bt})" \
+          2>/dev/null || true
+      fi
+    fi
+  ) &
+
+  echo $! > "$ACTION_PROMPT_PID" 2>/dev/null || true
 }
 
 # Ensure we are on a machine with a battery
@@ -26,30 +220,50 @@ if ! upower -e | grep -q 'BAT'; then
     exit 0
 fi
 
-BATTERY_LEVEL=$(get_battery_percentage)
-BATTERY_STATE=$(get_battery_state)
+if [[ $TEST_MODE -eq 1 ]]; then
+  if [[ -z "${TEST_LEVEL:-}" || -z "${TEST_STATE:-}" ]]; then
+    echo "battery-monitor: --test requires --level and --state" >&2
+    exit 2
+  fi
+  BATTERY_LEVEL="$TEST_LEVEL"
+  BATTERY_STATE="$TEST_STATE"
+  TIME_TO_EMPTY="${TEST_ETA:-unknown}"
+else
+  BATTERY_DEVICE="$(get_battery_device)"
+  if [[ -z "${BATTERY_DEVICE:-}" ]]; then
+    exit 0
+  fi
 
-if [[ "$BATTERY_STATE" == "discharging" && "$BATTERY_LEVEL" -le "$NOTIFY_THRESHOLD" ]]; then
+  BATTERY_LEVEL="$(get_battery_percentage "$BATTERY_DEVICE")"
+  BATTERY_STATE="$(get_battery_state "$BATTERY_DEVICE")"
+  TIME_TO_EMPTY="$(get_time_to_empty "$BATTERY_DEVICE")"
+fi
+
+if [[ "$BATTERY_STATE" == "discharging" && "$BATTERY_LEVEL" -le "$WARN_THRESHOLD" ]]; then
   if [[ ! -f "$NOTIFICATION_FLAG" ]]; then
-    send_notification "$BATTERY_LEVEL"
+    send_warning_with_action_async "$BATTERY_LEVEL" "$TIME_TO_EMPTY"
     touch "$NOTIFICATION_FLAG"
   fi
-else
+elif [[ "$BATTERY_LEVEL" -gt "$WARN_THRESHOLD" || "$BATTERY_STATE" == "charging" || "$BATTERY_STATE" == "fully-charged" ]]; then
+  rm -f "$NOTIFICATION_FLAG" "$ACTION_PROMPT_LOCK" "$ACTION_PROMPT_PID" 2>/dev/null || true
+fi
+
 if [[ "$BATTERY_STATE" == "discharging" && "$BATTERY_LEVEL" -le "$POWER_SAVER_THRESHOLD" ]]; then
   if [[ ! -f "$LOW_POWER_FLAG" ]]; then
-    if command -v asusctl >/dev/null 2>&1; then
+    if [[ $DRY_RUN -eq 1 ]]; then
+      echo "[dry-run] Would auto-switch ASUS profile: Quiet (<=${POWER_SAVER_THRESHOLD}%)"
+    elif command -v asusctl >/dev/null 2>&1; then
       asusctl profile -n Quiet >/dev/null 2>&1 || true
     fi
     touch "$LOW_POWER_FLAG"
   fi
 elif [[ "$BATTERY_LEVEL" -ge "$POWER_RESUME_THRESHOLD" || "$BATTERY_STATE" == "charging" ]]; then
   if [[ -f "$LOW_POWER_FLAG" ]]; then
-    if command -v asusctl >/dev/null 2>&1; then
+    if [[ $DRY_RUN -eq 1 ]]; then
+      echo "[dry-run] Would auto-switch ASUS profile: Balanced (>=${POWER_RESUME_THRESHOLD}% or charging)"
+    elif command -v asusctl >/dev/null 2>&1; then
       asusctl profile -n Balanced >/dev/null 2>&1 || true
     fi
     rm -f "$LOW_POWER_FLAG"
   fi
-fi
-  # Reset the flag once the battery is charging again or above the threshold
-  rm -f "$NOTIFICATION_FLAG"
 fi

@@ -681,6 +681,13 @@ setup_dotfiles() {
         if [[ -d "$package" ]]; then
             log_info "Installing dotfiles package: $package"
 
+            # Safety: never stow system-scoped packages into $HOME.
+            # Packages are enabled by `.package`; system packages declare `scope=system` inside that file.
+            if [[ -f "$PACKAGES_DIR/$package/.package" ]] && grep -Eq '^[[:space:]]*scope[[:space:]]*[:=][[:space:]]*system[[:space:]]*$' "$PACKAGES_DIR/$package/.package"; then
+                log_info "Skipping '$package' for user-level stow (scope=system; handled by stow-system.sh)"
+                continue
+            fi
+
             if [[ "$FRESH_MODE" == "true" ]]; then
                 fresh_purge_stow_conflicts_for_package "$package" "$fresh_backup_root"
             fi
@@ -955,6 +962,108 @@ deploy_dragon_icons() {
     log_success "Dragon Control icons deployed"
 }
 
+deploy_icon_aliases() {
+    # Some apps (notably on CachyOS) ship .desktop files referencing icon names that may not exist
+    # in the active icon theme. When the icon name doesn't exist, Waybar tray + Walker show a blank square.
+    #
+    # We create safe aliases in hicolor so any icon theme can resolve them.
+    log_step "Deploying icon aliases..."
+
+    local dst_dir="/usr/share/icons/hicolor/scalable/apps"
+    local aliases=(
+        # cachy-update ships color-variant icons, but some tray clients request the base name
+        "cachy-update.svg:cachy-update-blue.svg"
+        "cachy-update_updates-available.svg:cachy-update_updates-available-blue.svg"
+
+        # arch-update references these names but does not ship the icons; alias to cachy-update equivalents
+        "arch-update-blue.svg:cachy-update-blue.svg"
+        "arch-update_updates-available-blue.svg:cachy-update_updates-available-blue.svg"
+    )
+
+    local did_any=false
+    local pair dst_name src_name src_path dst_path
+    for pair in "${aliases[@]}"; do
+        dst_name="${pair%%:*}"
+        src_name="${pair##*:}"
+        src_path="$dst_dir/$src_name"
+        dst_path="$dst_dir/$dst_name"
+
+        # Only create alias if destination is missing and source exists
+        if [[ ! -e "$dst_path" && -e "$src_path" ]]; then
+            if [[ $EUID -eq 0 ]]; then
+                ln -s "$src_name" "$dst_path"
+            else
+                sudo ln -s "$src_name" "$dst_path"
+            fi
+            did_any=true
+            log_success "Aliased icon: $dst_name -> $src_name"
+        fi
+    done
+
+    if [[ "$did_any" == "true" ]]; then
+        refresh_icon_cache
+        log_success "Icon aliases deployed"
+    else
+        log_info "No icon aliases needed"
+    fi
+}
+
+deploy_icon_png_fallbacks() {
+    # Some environments still fail to render SVG icons in certain tray clients.
+    # Generate small PNG fallbacks for the common update icons so Waybar's tray can always display them.
+    log_step "Deploying icon PNG fallbacks..."
+
+    if ! command -v rsvg-convert >/dev/null 2>&1; then
+        log_warning "rsvg-convert not available; skipping PNG fallback generation"
+        return 0
+    fi
+
+    local src_dir="/usr/share/icons/hicolor/scalable/apps"
+    local dst_root="/usr/share/icons/hicolor"
+
+    # name:source_svg
+    local icons=(
+        "cachy-update:${src_dir}/cachy-update-blue.svg"
+        "cachy-update_updates-available:${src_dir}/cachy-update_updates-available-blue.svg"
+    )
+    local sizes=(16 22 24 32)
+
+    local did_any=false
+    local entry name src size outdir outfile tmp
+    for entry in "${icons[@]}"; do
+        name="${entry%%:*}"
+        src="${entry##*:}"
+        [[ -f "$src" ]] || continue
+
+        for size in "${sizes[@]}"; do
+            outdir="${dst_root}/${size}x${size}/apps"
+            outfile="${outdir}/${name}.png"
+            if [[ -e "$outfile" ]]; then
+                continue
+            fi
+
+            tmp="$(mktemp --suffix=.png /tmp/${name}-${size}.XXXXXX 2>/dev/null || mktemp /tmp/${name}-${size}.XXXXXX)"
+            if rsvg-convert -w "$size" -h "$size" "$src" -o "$tmp" >/dev/null 2>&1; then
+                if [[ $EUID -eq 0 ]]; then
+                    install -Dm644 "$tmp" "$outfile"
+                else
+                    sudo install -Dm644 "$tmp" "$outfile"
+                fi
+                did_any=true
+                log_success "Generated PNG: ${size}x${size} ${name}.png"
+            fi
+            rm -f "$tmp" 2>/dev/null || true
+        done
+    done
+
+    if [[ "$did_any" == "true" ]]; then
+        refresh_icon_cache
+        log_success "Icon PNG fallbacks deployed"
+    else
+        log_info "No icon PNG fallbacks needed"
+    fi
+}
+
 # Setup secrets management
 setup_secrets() {
     if [[ "$SETUP_SECRETS" != "true" || "$SKIP_SECRETS" == "true" ]]; then
@@ -1151,6 +1260,8 @@ main() {
     fi
 
     deploy_dragon_icons
+    deploy_icon_aliases
+    deploy_icon_png_fallbacks
     
     if [[ "$RUN_SHELL_CONFIG" == "true" ]]; then
         configure_shell

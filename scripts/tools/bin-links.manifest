@@ -12,6 +12,7 @@ package=hyprland target=scripts/walker/walker-clipboard link=packages/hyprland/.
 package=hyprland target=scripts/utilities/clipboard-menu link=packages/hyprland/.local/bin/clipboard-menu
 package=hyprland target=scripts/utilities/clipse-wrapper link=packages/hyprland/.local/bin/clipse-wrapper
 package=hardware target=scripts/hardware/battery-monitor link=packages/hardware/.local/bin/battery-monitor
+package=hardware target=scripts/hardware/power-saving-mode link=packages/hardware/.local/bin/power-saving-mode
 package=hardware target=scripts/hardware/fido2 link=packages/hardware/.local/bin/fido2
 package=hardware target=scripts/hardware/fingerprint link=packages/hardware/.local/bin/fingerprint
 package=hardware target=scripts/hardware/setup-apple-display-brightness link=packages/hardware/.local/bin/setup-apple-display-brightness

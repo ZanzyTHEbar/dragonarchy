@@ -1,0 +1,5 @@
+scope=system
+
+# This package contains system-wide files (e.g. /usr/share/sddm/themes).
+# It must NOT be stowed into $HOME. It is installed via scripts/install/stow-system.sh.
+

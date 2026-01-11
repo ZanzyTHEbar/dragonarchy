@@ -45,6 +45,17 @@ When creating a new package:
    touch packages/mypackage/.package
    ```
 
+#### System Packages (Advanced)
+
+If a package must be installed system-wide (target: `/`) and must **not** be stowed into `$HOME`,
+set the marker content to:
+
+```bash
+echo "scope=system" > packages/<pkg>/.package
+```
+
+These are installed via `scripts/install/stow-system.sh`.
+
 4. (Optional) Add a README:
 
    ```bash

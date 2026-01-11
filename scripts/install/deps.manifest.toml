@@ -63,6 +63,12 @@ packages = [
     "cronie",
 ]
 
+[platforms.arch.pacman.host_firedragon_laptop]
+requires_hosts = ["firedragon"]
+packages = [
+    "asusctl",
+]
+
 [platforms.arch.pacman.dev]
 packages = [
     "git",
@@ -152,6 +158,9 @@ packages = [
     "flatpak",
     "gcc",
     "gnome-themes-extra",
+    "adwaita-icon-theme",
+    "hicolor-icon-theme",
+    "glycin-gtk4",
     "gst-plugin-pipewire",
     "imagemagick",
     "imv",
