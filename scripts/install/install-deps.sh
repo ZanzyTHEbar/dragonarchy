@@ -34,6 +34,7 @@ MANIFEST_FILE="${SCRIPT_DIR}/deps.manifest.toml"
 FORCE_CURSOR_INSTALL=false
 SKIP_CURSOR_INSTALL=false
 KEEP_GIT_HYPRLAND=false
+RUN_SETUP_SCRIPTS=true
 
 # Internal state
 APT_UPDATED=false
@@ -85,6 +86,26 @@ install_manifest_group() {
 
     "$installer_fn" "${pkgs[@]}"
     return 0
+}
+
+install_manifest_groups_by_prefix() {
+    # Args: platform manager prefix installer_fn host feature_csv
+    local platform="$1"
+    local manager="$2"
+    local prefix="$3"
+    local installer_fn="$4"
+    local host="${5:-}"
+    local feature_csv="${6:-}"
+
+    local groups=()
+    mapfile -t groups < <(manifest_yq_query "$MANIFEST_FILE" ".platforms.${platform}.${manager} | keys | .[]" | sort)
+
+    local group
+    for group in "${groups[@]}"; do
+        [[ -z "$group" || "$group" == "null" ]] && continue
+        [[ "$group" != "${prefix}"* ]] && continue
+        install_manifest_group "$platform" "$manager" "$group" "$installer_fn" "$host" "$feature_csv"
+    done
 }
 
 # Detect if system has -git versions of Hyprland packages installed
@@ -431,6 +452,10 @@ install_for_arch() {
 
     install_manifest_group "$platform_key" "paru" "gui" install_paru "$host" "$feature_csv"
     install_manifest_group "$platform_key" "paru" "fonts" install_paru "$host" "$feature_csv"
+
+    # Host-scoped packages (opt-in per host via requires_hosts)
+    install_manifest_groups_by_prefix "$platform_key" "pacman" "host_" install_pacman "$host" "$feature_csv"
+    install_manifest_groups_by_prefix "$platform_key" "paru" "host_" install_paru "$host" "$feature_csv"
     
     # Install Go from source (latest version; function is idempotent)
     if ! install_go_from_source "arch"; then
@@ -683,8 +708,12 @@ finalize_setup() {
         fi
     fi
     
-    log_info "Running setup scripts..."
-    bash "$SCRIPT_DIR/setup.sh"
+    if [[ "$RUN_SETUP_SCRIPTS" == "true" ]]; then
+        log_info "Running setup scripts..."
+        bash "$SCRIPT_DIR/setup.sh"
+    else
+        log_info "Skipping setup scripts (--no-setup)"
+    fi
 }
 
 # --- Main Function ---
@@ -719,9 +748,13 @@ main() {
                 KEEP_GIT_HYPRLAND=true
                 shift
             ;;
+            --no-setup)
+                RUN_SETUP_SCRIPTS=false
+                shift
+            ;;
             *)
                 log_error "Unknown argument: $1"
-                log_info "Usage: $0 [--host <host>] [--cursor|--no-cursor] [--keep-git-hyprland]"
+                log_info "Usage: $0 [--host <host>] [--cursor|--no-cursor] [--keep-git-hyprland] [--no-setup]"
                 exit 1
             ;;
         esac

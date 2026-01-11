@@ -17,6 +17,15 @@ CURRENT_THEME_LINK="$HOME/.config/current/theme"
 ACTIVE_THEME_PATH="$(readlink -f "$CURRENT_THEME_LINK" 2>/dev/null || true)"
 ACTIVE_THEME_NAME="default"
 
+is_stow_managed_link() {
+    # True if PATH is a symlink resolving into our dotfiles packages tree.
+    local p="$1"
+    [[ -L "$p" ]] || return 1
+    local resolved
+    resolved="$(readlink -f "$p" 2>/dev/null || true)"
+    [[ -n "$resolved" && "$resolved" == "$DOTFILES_ROOT/packages/"* ]]
+}
+
 mkdir -p "$WALKER_THEMES_ROOT"
 rm -f "$WALKER_THEMES_ROOT/default.css"
 
@@ -24,8 +33,12 @@ if [[ -n "$ACTIVE_THEME_PATH" && -d "$ACTIVE_THEME_PATH" ]]; then
     ACTIVE_THEME_NAME="$(basename "$ACTIVE_THEME_PATH")"
     if [[ -f "$ACTIVE_THEME_PATH/walker.css" ]]; then
         mkdir -p "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME"
-        cp "$ACTIVE_THEME_PATH/walker.css" "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/style.css"
-        log_success "Copied Walker CSS for theme '$ACTIVE_THEME_NAME'"
+        if is_stow_managed_link "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/style.css"; then
+            log_info "Walker theme CSS is stow-managed; skipping copy for '$ACTIVE_THEME_NAME'"
+        else
+            cp "$ACTIVE_THEME_PATH/walker.css" "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/style.css"
+            log_success "Copied Walker CSS for theme '$ACTIVE_THEME_NAME'"
+        fi
     else
         log_warning "Walker CSS not found in $ACTIVE_THEME_PATH; using default theme assets"
         ACTIVE_THEME_NAME="default"
@@ -35,44 +48,68 @@ fi
 # Fallback to bundled default if no theme CSS copied
 if [[ ! -f "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/style.css" ]]; then
     mkdir -p "$WALKER_THEMES_ROOT/default"
-    cp "$DOTFILES_ROOT/vendored/walker/resources/themes/default/style.css" \
-    "$WALKER_THEMES_ROOT/default/style.css"
+    if is_stow_managed_link "$WALKER_THEMES_ROOT/default/style.css"; then
+        log_info "Walker default CSS is stow-managed; skipping install"
+    else
+        cp "$DOTFILES_ROOT/vendored/walker/resources/themes/default/style.css" \
+        "$WALKER_THEMES_ROOT/default/style.css"
+        log_success "Installed Walker default CSS"
+    fi
     ACTIVE_THEME_NAME="default"
-    log_success "Installed Walker default CSS"
 fi
 
 # Optional layout file
 if [[ -n "$ACTIVE_THEME_PATH" && -f "$ACTIVE_THEME_PATH/walker.toml" ]]; then
-    cp "$ACTIVE_THEME_PATH/walker.toml" "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/layout.toml"
+    if is_stow_managed_link "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/layout.toml"; then
+        log_info "Walker layout.toml is stow-managed; skipping copy for '$ACTIVE_THEME_NAME'"
+    else
+        cp "$ACTIVE_THEME_PATH/walker.toml" "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/layout.toml"
+    fi
 fi
 
 mkdir -p "$WALKER_THEMES_ROOT/current"
-ln -snf "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/style.css" "$WALKER_THEMES_ROOT/current/style.css"
-if [[ -f "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/layout.toml" ]]; then
-    ln -snf "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/layout.toml" "$WALKER_THEMES_ROOT/current/layout.toml"
+if is_stow_managed_link "$WALKER_THEMES_ROOT/current/style.css"; then
+    log_info "Walker current/style.css is stow-managed; skipping relink"
 else
-    rm -f "$WALKER_THEMES_ROOT/current/layout.toml"
+    ln -snf "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/style.css" "$WALKER_THEMES_ROOT/current/style.css"
+fi
+if [[ -f "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/layout.toml" ]]; then
+    if is_stow_managed_link "$WALKER_THEMES_ROOT/current/layout.toml"; then
+        log_info "Walker current/layout.toml is stow-managed; skipping relink"
+    else
+        ln -snf "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/layout.toml" "$WALKER_THEMES_ROOT/current/layout.toml"
+    fi
+else
+    if is_stow_managed_link "$WALKER_THEMES_ROOT/current/layout.toml"; then
+        log_info "Walker current/layout.toml is stow-managed; skipping removal"
+    else
+        rm -f "$WALKER_THEMES_ROOT/current/layout.toml"
+    fi
 fi
 
 # Ensure Walker config references the active theme
 WALKER_CONFIG="$HOME/.config/walker/config.toml"
 if [[ -f "$WALKER_CONFIG" ]]; then
-    tmp_cfg=$(mktemp)
-    awk -v theme="$ACTIVE_THEME_NAME" '
-    BEGIN { updated = 0 }
-    /^[[:space:]]*theme[[:space:]]*=/ && !updated {
-      printf("theme = \"%s\"\n", theme);
-      updated = 1;
-      next;
-    }
-    { print }
-    END {
-      if (!updated) {
-        printf("\ntheme = \"%s\"\n", theme);
-      }
-    }
-    ' "$WALKER_CONFIG" >"$tmp_cfg" && mv "$tmp_cfg" "$WALKER_CONFIG"
-    log_success "Walker theme configured to '$ACTIVE_THEME_NAME'"
+    if is_stow_managed_link "$WALKER_CONFIG"; then
+        log_info "Walker config.toml is stow-managed; skipping theme assignment"
+    else
+        tmp_cfg=$(mktemp)
+        awk -v theme="$ACTIVE_THEME_NAME" '
+        BEGIN { updated = 0 }
+        /^[[:space:]]*theme[[:space:]]*=/ && !updated {
+          printf("theme = \"%s\"\n", theme);
+          updated = 1;
+          next;
+        }
+        { print }
+        END {
+          if (!updated) {
+            printf("\ntheme = \"%s\"\n", theme);
+          }
+        }
+        ' "$WALKER_CONFIG" >"$tmp_cfg" && mv "$tmp_cfg" "$WALKER_CONFIG"
+        log_success "Walker theme configured to '$ACTIVE_THEME_NAME'"
+    fi
 else
     log_warning "Walker config.toml not found; skipped theme assignment"
 fi
@@ -102,7 +139,7 @@ WantedBy=graphical-session.target
 EOF
 log_success "Wrote $ELEPHANT_UNIT_PATH"
 
-# --- Elephant config: force correct runprefix for app launches ---
+# --- Elephant config: ensure correct runprefix for app launches ---
 ELEPHANT_CFG_DIR="$HOME/.config/elephant"
 ELEPHANT_CFG_REAL="$ELEPHANT_CFG_DIR"
 
@@ -114,33 +151,53 @@ fi
 mkdir -p "$ELEPHANT_CFG_REAL"
 mkdir -p "$ELEPHANT_CFG_REAL/providers"
 
-cat > "$ELEPHANT_CFG_REAL/elephant.toml" <<'EOF'
+if [[ -e "$ELEPHANT_CFG_REAL/elephant.toml" ]]; then
+    log_info "Elephant elephant.toml already present; leaving as-is"
+else
+    cat > "$ELEPHANT_CFG_REAL/elephant.toml" <<'EOF'
 # Force launcher prefix (overrides autodetect like systemd-run)
 runprefix = "uwsm app -- "
 EOF
-log_success "Wrote $ELEPHANT_CFG_REAL/elephant.toml (runprefix)"
+    log_success "Wrote $ELEPHANT_CFG_REAL/elephant.toml (runprefix)"
+fi
 
 # Provider-specific overrides (desktop entries and runner)
-cat > "$ELEPHANT_CFG_REAL/desktopapplications.toml" <<'EOF'
+if [[ -e "$ELEPHANT_CFG_REAL/desktopapplications.toml" ]]; then
+    log_info "Elephant desktopapplications.toml already present; leaving as-is"
+else
+    cat > "$ELEPHANT_CFG_REAL/desktopapplications.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_success "Wrote $ELEPHANT_CFG_REAL/desktopapplications.toml (runprefix)"
+    log_success "Wrote $ELEPHANT_CFG_REAL/desktopapplications.toml (runprefix)"
+fi
 
-cat > "$ELEPHANT_CFG_REAL/runner.toml" <<'EOF'
+if [[ -e "$ELEPHANT_CFG_REAL/runner.toml" ]]; then
+    log_info "Elephant runner.toml already present; leaving as-is"
+else
+    cat > "$ELEPHANT_CFG_REAL/runner.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_success "Wrote $ELEPHANT_CFG_REAL/runner.toml (runprefix)"
+    log_success "Wrote $ELEPHANT_CFG_REAL/runner.toml (runprefix)"
+fi
 
 # Duplicate provider configs under providers/ (some builds read from providers/*)
-cat > "$ELEPHANT_CFG_REAL/providers/desktopapplications.toml" <<'EOF'
+if [[ -e "$ELEPHANT_CFG_REAL/providers/desktopapplications.toml" ]]; then
+    log_info "Elephant providers/desktopapplications.toml already present; leaving as-is"
+else
+    cat > "$ELEPHANT_CFG_REAL/providers/desktopapplications.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_success "Wrote $ELEPHANT_CFG_REAL/providers/desktopapplications.toml (runprefix)"
+    log_success "Wrote $ELEPHANT_CFG_REAL/providers/desktopapplications.toml (runprefix)"
+fi
 
-cat > "$ELEPHANT_CFG_REAL/providers/runner.toml" <<'EOF'
+if [[ -e "$ELEPHANT_CFG_REAL/providers/runner.toml" ]]; then
+    log_info "Elephant providers/runner.toml already present; leaving as-is"
+else
+    cat > "$ELEPHANT_CFG_REAL/providers/runner.toml" <<'EOF'
 runprefix = "uwsm app -- "
 EOF
-log_success "Wrote $ELEPHANT_CFG_REAL/providers/runner.toml (runprefix)"
+    log_success "Wrote $ELEPHANT_CFG_REAL/providers/runner.toml (runprefix)"
+fi
 
 # --- Reload and enable user service ---
 systemctl --user daemon-reload

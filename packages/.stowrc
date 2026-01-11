@@ -1,0 +1,21 @@
+--ignore=\.package$
+--ignore=^README\.md$
+--ignore=^README\.txt$
+--ignore=^README$
+--ignore=^\.git$
+--ignore=^\.gitignore$
+--ignore=^\.gitmodules$
+--ignore=^\.vscode$
+--ignore=^\.idea$
+--ignore=.*~$
+--ignore=^\#.*\#$
+--ignore=^\.#.*$
+--ignore=.*\.bak$
+--ignore=.*\.backup$
+--ignore=.*\.swp$
+--ignore=.*\.swo$
+#
+# Runtime-managed theme "current" links:
+# These are created/updated by theme scripts and should not be stowed.
+--ignore=\\.config/btop/themes/current\\.theme$
+--ignore=\\.config/walker/themes/current/style\\.css$

@@ -89,25 +89,32 @@ fi
 
 # Set btop theme
 mkdir -p ~/.config/btop/themes
-ln -snf ~/.config/current/theme/btop.theme ~/.config/btop/themes/current.theme
+# Use a relative symlink (avoid absolute links which confuse stow and are less portable)
+ln -snf ../../current/theme/btop.theme ~/.config/btop/themes/current.theme
 
 # Set walker theme (Walker expects themes/<name>/style.css)
 WALKER_THEMES_ROOT="${XDG_CONFIG_HOME:-$HOME/.config}/walker/themes"
 mkdir -p "$WALKER_THEMES_ROOT/$THEME_NAME"
 rm -f "$WALKER_THEMES_ROOT/default.css"
-if [[ -f "$CURRENT_THEME_DIR/walker.css" ]]; then
+
+# If the theme CSS is already stow-managed (or otherwise present), do not overwrite it.
+# Only copy from the current theme if the destination doesn't exist yet.
+if [[ -f "$CURRENT_THEME_DIR/walker.css" && ! -e "$WALKER_THEMES_ROOT/$THEME_NAME/style.css" ]]; then
     cp "$CURRENT_THEME_DIR/walker.css" "$WALKER_THEMES_ROOT/$THEME_NAME/style.css"
 fi
 
 # Maintain a convenience symlink for scripts that still reference themes/current
 mkdir -p "$WALKER_THEMES_ROOT/current"
-if [[ -f "$WALKER_THEMES_ROOT/$THEME_NAME/style.css" ]]; then
-    ln -snf "$WALKER_THEMES_ROOT/$THEME_NAME/style.css" "$WALKER_THEMES_ROOT/current/style.css"
+if [[ -e "$WALKER_THEMES_ROOT/$THEME_NAME/style.css" ]]; then
+    # Relative symlink within walker themes root
+    ln -snf "../$THEME_NAME/style.css" "$WALKER_THEMES_ROOT/current/style.css"
 fi
 
 if [[ -f "$CURRENT_THEME_DIR/walker.toml" ]]; then
-    cp "$CURRENT_THEME_DIR/walker.toml" "$WALKER_THEMES_ROOT/$THEME_NAME/layout.toml"
-    ln -snf "$WALKER_THEMES_ROOT/$THEME_NAME/layout.toml" "$WALKER_THEMES_ROOT/current/layout.toml"
+    if [[ ! -e "$WALKER_THEMES_ROOT/$THEME_NAME/layout.toml" ]]; then
+        cp "$CURRENT_THEME_DIR/walker.toml" "$WALKER_THEMES_ROOT/$THEME_NAME/layout.toml"
+    fi
+    ln -snf "../$THEME_NAME/layout.toml" "$WALKER_THEMES_ROOT/current/layout.toml"
 else
     rm -f "$WALKER_THEMES_ROOT/current/layout.toml"
 fi

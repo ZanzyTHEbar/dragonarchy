@@ -259,6 +259,74 @@ maybe_enable_fresh_mode() {
     fi
 }
 
+# Purge stow conflicts based on a captured stow output log (from a real stow/restow run).
+# This is more reliable than parsing LINK lines because stow can abort before applying anything.
+purge_stow_conflicts_from_output() {
+    local package="$1"
+    local backup_root="$2"
+    local output_file="$3"
+
+    if [[ -z "${package:-}" || -z "${backup_root:-}" || -z "${output_file:-}" ]]; then
+        log_error "purge_stow_conflicts_from_output: missing args"
+        return 1
+    fi
+    if [[ ! -f "$output_file" ]]; then
+        log_error "purge_stow_conflicts_from_output: output file not found: $output_file"
+        return 1
+    fi
+
+    declare -A targets=()
+    local line
+    local re_cannot='\\*[[:space:]]+cannot[[:space:]]+stow[[:space:]]+.+[[:space:]]+over[[:space:]]+existing[[:space:]]+target[[:space:]]+([^[:space:]]+)[[:space:]]+since[[:space:]]+'
+    local re_not_owned='\\*[[:space:]]+existing[[:space:]]+target[[:space:]]+is[[:space:]]+not[[:space:]]+owned[[:space:]]+by[[:space:]]+stow:[[:space:]]+(.+)$'
+    local re_diff_pkg='\\*[[:space:]]+existing[[:space:]]+target[[:space:]]+is[[:space:]]+stowed[[:space:]]+to[[:space:]]+a[[:space:]]+different[[:space:]]+package:[[:space:]]+([^[:space:]]+)[[:space:]]+=>[[:space:]]+'
+
+    while IFS= read -r line; do
+        # Example:
+        # * cannot stow ... over existing target .config/foo/bar since ...
+        if [[ "$line" =~ $re_cannot ]]; then
+            targets["${BASH_REMATCH[1]}"]=1
+            continue
+        fi
+
+        # Example:
+        # * existing target is not owned by stow: .config/foo
+        if [[ "$line" =~ $re_not_owned ]]; then
+            local t="${BASH_REMATCH[1]}"
+            t=$(printf '%s' "$t" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+            [[ -n "$t" ]] && targets["$t"]=1
+            continue
+        fi
+
+        # Example:
+        # * existing target is stowed to a different package: .package => dotfiles/packages/hyprland/.package
+        if [[ "$line" =~ $re_diff_pkg ]]; then
+            targets["${BASH_REMATCH[1]}"]=1
+            continue
+        fi
+    done < "$output_file"
+
+    local removed_count=0
+    local t
+    for t in "${!targets[@]}"; do
+        # Basic safety: stow targets are relative to $HOME
+        if [[ "$t" == /* || "$t" == *".."* ]]; then
+            log_warning "Conflict purge skipping unsafe target: $t"
+            continue
+        fi
+
+        local dst="$HOME/$t"
+        if [[ -e "$dst" || -L "$dst" ]]; then
+            fresh_backup_and_remove "$dst" "$backup_root" "$package" || return 1
+            removed_count=$((removed_count + 1))
+        fi
+    done
+
+    if [[ $removed_count -gt 0 ]]; then
+        log_warning "Purged $removed_count conflict target(s) for package '$package' (backups: ${backup_root}/${package})"
+    fi
+}
+
 # Fresh-machine helper: backup and remove a path under $HOME (files, symlinks, or directories)
 fresh_backup_and_remove() {
     local abs_path="$1"
@@ -287,7 +355,16 @@ fresh_backup_and_remove() {
     mkdir -p "$(dirname "$backup_path")"
 
     # Backup first, then remove
-    cp -a "$abs_path" "$backup_path" 2>/dev/null || cp -aL "$abs_path" "$backup_path" 2>/dev/null || true
+    if cp -a "$abs_path" "$backup_path" 2>/dev/null; then
+        :
+    elif cp -aL "$abs_path" "$backup_path" 2>/dev/null; then
+        :
+    else
+        log_error "Fresh mode backup failed; refusing to delete: $abs_path"
+        log_error "Intended backup destination: $backup_path"
+        return 1
+    fi
+
     rm -rf "$abs_path"
 }
 
@@ -325,6 +402,10 @@ fresh_purge_stow_conflicts_for_package() {
             local target_rel="${BASH_REMATCH[1]}"
             local source_rel="${BASH_REMATCH[2]}"
 
+            # Trim whitespace (stow output can sometimes include trailing spaces)
+            target_rel=$(printf '%s' "$target_rel" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+            source_rel=$(printf '%s' "$source_rel" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+
             # Guard against weird targets
             if [[ "$target_rel" == /* || "$target_rel" == *".."* ]]; then
                 log_warning "Fresh mode skipping unexpected stow target: $target_rel"
@@ -333,7 +414,12 @@ fresh_purge_stow_conflicts_for_package() {
 
             local dst="$HOME/$target_rel"
             local src_abs=""
-            src_abs=$(readlink -f "$source_rel" 2>/dev/null || true)
+            # stow prints the link source as it will appear at the destination (usually relative to $HOME)
+            if [[ "$source_rel" == /* ]]; then
+                src_abs=$(readlink -f "$source_rel" 2>/dev/null || true)
+            else
+                src_abs=$(readlink -f "$HOME/$source_rel" 2>/dev/null || true)
+            fi
 
             # Ensure directory prefixes exist as directories (remove any file/symlink that blocks mkdir)
             local target_dir
@@ -486,12 +572,20 @@ install_packages() {
     if [[ -f "$install_script" ]]; then
         # Ensure the script is executable
         chmod +x "$install_script"
+
+        # IMPORTANT: `install-deps.sh` runs setup scripts which may create dotfiles under ~/.config.
+        # When we intend to stow dotfiles in this run, we skip that phase and run it *after* stow
+        # so stow-managed files don't conflict with pre-created regular files.
+        local deps_flags=("${INSTALL_DEPS_FLAGS[@]}")
+        if [[ "$INSTALL_DOTFILES" == "true" ]]; then
+            deps_flags+=("--no-setup")
+        fi
         
         # Pass the host argument if it's set
         if [[ -n "$HOST" ]]; then
-            "$install_script" "${INSTALL_DEPS_FLAGS[@]}" --host "$HOST"
+            "$install_script" "${deps_flags[@]}" --host "$HOST"
         else
-            "$install_script" "${INSTALL_DEPS_FLAGS[@]}"
+            "$install_script" "${deps_flags[@]}"
         fi
     else
         log_error "Package installation script not found: $install_script"
@@ -550,6 +644,7 @@ setup_dotfiles() {
     cd "$PACKAGES_DIR"
 
     local fresh_backup_root=""
+    local conflict_backup_root=""
     if [[ "$FRESH_MODE" == "true" ]]; then
         local ts
         ts=$(date +%Y%m%d-%H%M%S)
@@ -609,41 +704,48 @@ setup_dotfiles() {
 
                 if [[ "$FRESH_MODE" == "true" ]]; then
                     log_info "Fresh mode: backing up+removing conflicting targets and retrying stow..."
-                    fresh_purge_stow_conflicts_for_package "$package" "$fresh_backup_root"
-
-                    set +e
-                    stow --restow -t "$HOME" "$package" 2>&1 | tee /tmp/stow_output_retry.txt
-                    stow_ec=${PIPESTATUS[0]}
-                    set -e
-
-                    has_conflict="false"
-                    if grep -qi "conflict\\|would cause conflicts" /tmp/stow_output_retry.txt; then
-                        has_conflict="true"
+                    purge_stow_conflicts_from_output "$package" "$fresh_backup_root" /tmp/stow_output.txt
+                else
+                    # Even on non-fresh machines, resolve stow conflicts by backing up and removing only the
+                    # targets that this package would manage. This makes installs idempotent and avoids
+                    # requiring a second run / manual deletions.
+                    if [[ -z "$conflict_backup_root" ]]; then
+                        local ts
+                        ts=$(date +%Y%m%d-%H%M%S)
+                        conflict_backup_root="$HOME/.local/state/dotfiles/backups/${ts}/stow-conflicts"
                     fi
+                    log_warning "Auto-resolving stow conflicts for '$package' (backup+remove conflicting targets, then retry)"
+                    log_warning "Conflict backups will be stored under: $conflict_backup_root"
+                    purge_stow_conflicts_from_output "$package" "$conflict_backup_root" /tmp/stow_output.txt
+                fi
 
-                    if [[ $stow_ec -eq 0 && "$has_conflict" != "true" ]]; then
+                set +e
+                stow --restow -t "$HOME" "$package" 2>&1 | tee /tmp/stow_output_retry.txt
+                stow_ec=${PIPESTATUS[0]}
+                set -e
+
+                has_conflict="false"
+                if grep -qi "conflict\\|would cause conflicts" /tmp/stow_output_retry.txt; then
+                    has_conflict="true"
+                fi
+
+                if [[ $stow_ec -eq 0 && "$has_conflict" != "true" ]]; then
+                    if [[ "$FRESH_MODE" == "true" ]]; then
                         log_success "Installed $package dotfiles (fresh mode)"
                     else
-                        log_error "Failed to install $package even after fresh-mode purge"
-                        grep -i "conflict\\|would cause" /tmp/stow_output_retry.txt | sed 's/^/  /' || true
-                        log_info "Backups (if any): ${fresh_backup_root}/${package}"
+                        log_success "Installed $package dotfiles (after conflict auto-resolve)"
                     fi
-
-                    rm -f /tmp/stow_output_retry.txt
                 else
-                    log_info "Attempting to resolve..."
-
-                    # Unstow completely, then restow fresh
-                    stow -D -t "$HOME" "$package" 2>/dev/null || true
-                    sleep 0.5  # Brief delay to ensure filesystem catches up
-
-                    if stow -t "$HOME" "$package" 2>/dev/null; then
-                        log_success "Installed $package dotfiles after cleanup"
+                    log_error "Failed to install $package even after conflict auto-resolve"
+                    grep -i "conflict\\|would cause" /tmp/stow_output_retry.txt | sed 's/^/  /' || true
+                    if [[ "$FRESH_MODE" == "true" ]]; then
+                        log_info "Backups (if any): ${fresh_backup_root}/${package}"
                     else
-                        log_error "Failed to install $package - manual intervention needed"
-                        log_info "  Try: cd $PACKAGES_DIR && stow -D $package && stow $package"
+                        log_info "Backups (if any): ${conflict_backup_root}/${package}"
                     fi
                 fi
+
+                rm -f /tmp/stow_output_retry.txt
             elif [[ $stow_ec -ne 0 ]]; then
                 log_error "Stow failed for package '$package' (exit $stow_ec)"
                 sed 's/^/  /' /tmp/stow_output.txt || true
@@ -1004,6 +1106,18 @@ main() {
     maybe_enable_fresh_mode
     install_packages
     setup_dotfiles
+
+    # Run setup orchestration after dotfiles are stowed so setup scripts don't create conflicting files
+    # which would block stow on first run.
+    if [[ "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
+        if [[ -x "$SCRIPTS_DIR/install/setup.sh" ]]; then
+            log_info "Running setup orchestration (post-stow)..."
+            bash "$SCRIPTS_DIR/install/setup.sh" || log_warning "Setup orchestration failed"
+        else
+            log_warning "Setup orchestration script not found at: $SCRIPTS_DIR/install/setup.sh"
+        fi
+    fi
+
     setup_host_config
     
     if [[ "$RUN_THEME" == "true" ]]; then

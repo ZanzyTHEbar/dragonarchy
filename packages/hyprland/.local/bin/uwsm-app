@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+#
+# uwsm-app: launch an application via UWSM if we're inside a UWSM-managed session,
+# otherwise fall back to direct execution.
+#
+# This makes Hyprland keybinds work on both:
+# - UWSM-launched sessions (preferred: uwsm app -- ...)
+# - Directly-launched Hyprland sessions (fallback: exec ...)
+#
+set -euo pipefail
+
+if command -v uwsm >/dev/null 2>&1; then
+    # Only use uwsm app when a compositor is active under UWSM.
+    if uwsm check is-active >/dev/null 2>&1; then
+        # Note: `uwsm app` takes the application command line directly (no `--` delimiter).
+        # UWSM also uses a global lock; if it's busy, retry briefly and then fall back.
+        tmp_err="$(mktemp)"
+        if uwsm app "$@" 2>"$tmp_err"; then
+            rm -f "$tmp_err"
+            exit 0
+        fi
+
+        if grep -q "Could not acquire lock" "$tmp_err" 2>/dev/null; then
+            sleep 0.15
+            if uwsm app "$@" 2>>"$tmp_err"; then
+                rm -f "$tmp_err"
+                exit 0
+            fi
+        fi
+
+        rm -f "$tmp_err"
+    fi
+fi
+
+exec "$@"
+
