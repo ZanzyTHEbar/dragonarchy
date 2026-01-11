@@ -88,11 +88,20 @@ setup_intel_nvidia_configuration() {
 
 setup_amd_configuration() {
     log_info "Setting up AMD CPU + AMD GPU kernel parameters..."
-    local kernel_params="amd_pstate=active amdgpu.si_support=1 amdgpu.cik_support=1 amdgpu.dc=1 amdgpu.ppfeaturemask=0xffffffff radeon.si_support=0 radeon.cik_support=0 processor.max_cstate=1"
+    # Keep this intentionally minimal/safe.
+    #
+    # Notes:
+    # - SI/CIK toggles (amdgpu.si_support / amdgpu.cik_support) are ONLY for older GCN GPUs and can
+    #   be harmful/noisy on modern cards. Do not set them globally.
+    # - amdgpu.ppfeaturemask enables overdrive/extra powerplay features; keep host-specific & opt-in.
+    # - processor.max_cstate is a broad CPU power/perf hack; keep host-specific & opt-in.
+    #
+    # If you need workstation tuning, do it in host config (e.g. hosts/<host>/docs + bootloader drop-ins).
+    local kernel_params="amd_pstate=active amdgpu.modeset=1"
     boot_append_kernel_params "$kernel_params"
 
     mkdir -p /etc/modules-load.d
-    ensure_modules_load_conf /etc/modules-load.d/amd.conf amdgpu crc32c
+    ensure_modules_load_conf /etc/modules-load.d/amd.conf amdgpu
     log_success "AMD configuration applied"
 }
 

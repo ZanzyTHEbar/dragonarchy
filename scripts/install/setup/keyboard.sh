@@ -10,7 +10,9 @@ source "${SCRIPT_DIR}/../../lib/logging.sh"
 
 VCONSOLE_CONF="/etc/vconsole.conf"
 KEYBOARD_CONF_DIR="$HOME/.config/hypr/config"
-KEYBOARD_CONF_FILE="$KEYBOARD_CONF_DIR/keyboard.conf"
+# Write host-specific detected settings into a separate file so it never conflicts
+# with stow-managed base config (keyboard.conf).
+KEYBOARD_CONF_FILE="$KEYBOARD_CONF_DIR/keyboard.local.conf"
 
 if [ -f "$VCONSOLE_CONF" ]; then
   layout=$(grep '^XKBLAYOUT=' "$VCONSOLE_CONF" | cut -d= -f2 | tr -d '"')
@@ -32,7 +34,7 @@ if [ -f "$VCONSOLE_CONF" ]; then
   
   echo "}" >> "$KEYBOARD_CONF_FILE"
   log_info "Keyboard configuration written to $KEYBOARD_CONF_FILE"
-  log_warning "Please ensure you have 'source = ~/.config/hypr/config/keyboard.conf' in your main hyprland.conf."
+  log_warning "Please ensure you have 'source = ~/.config/hypr/config/keyboard.local.conf' in your main hyprland.conf."
 else
   log_warning "/etc/vconsole.conf not found. Skipping auto-detection."
 fi
