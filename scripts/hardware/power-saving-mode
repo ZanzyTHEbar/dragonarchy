@@ -1,0 +1,279 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Enables a "power saving mode" with safe, user-level optimizations.
+# Intended to be invoked from the low-battery notification action.
+
+log() {
+  echo "power-saving-mode: $*"
+}
+
+STATE_FILE="/run/user/${UID}/power-saving-mode.state"
+
+get_ppd_profile() {
+  if command -v powerprofilesctl >/dev/null 2>&1; then
+    powerprofilesctl get 2>/dev/null || echo "unknown"
+    return 0
+  fi
+  echo "n/a"
+}
+
+get_asus_profile() {
+  if command -v asusctl >/dev/null 2>&1; then
+    local out prof
+    out="$(asusctl profile -p 2>/dev/null || true)"
+    prof="$(echo "$out" | awk -F'Active profile is ' 'NF>1 {print $2; exit}' | awk '{print $1}' || true)"
+    [[ -n "${prof:-}" ]] && { echo "$prof"; return 0; }
+    echo "unknown"
+    return 0
+  fi
+  echo "n/a"
+}
+
+get_brightness() {
+  if command -v brightnessctl >/dev/null 2>&1; then
+    # brightnessctl -m prints: device,current,max,percent
+    local pct
+    pct="$(brightnessctl -m 2>/dev/null | awk -F, 'NR==1 { print $4; exit }' || true)"
+    [[ -n "${pct:-}" ]] && { echo "$pct"; return 0; }
+    echo "unknown"
+    return 0
+  fi
+  echo "n/a"
+}
+
+get_bluetooth_powered() {
+  if command -v bluetoothctl >/dev/null 2>&1; then
+    local powered
+    powered="$(bluetoothctl show 2>/dev/null | awk '/Powered/ { print $2; exit }' || true)"
+    [[ -n "${powered:-}" ]] && { echo "$powered"; return 0; }
+    echo "unknown"
+    return 0
+  fi
+  echo "n/a"
+}
+
+enable_powerprofiles_daemon() {
+  # Avoid conflicts: if TLP is installed, don't touch power-profiles-daemon profiles.
+  if command -v tlp >/dev/null 2>&1; then
+    return 2
+  fi
+  if command -v powerprofilesctl >/dev/null 2>&1; then
+    powerprofilesctl set power-saver >/dev/null 2>&1 || return 1
+    return 0
+  fi
+  return 2
+}
+
+enable_asus_quiet_profile() {
+  if command -v asusctl >/dev/null 2>&1; then
+    asusctl profile -n Quiet >/dev/null 2>&1 || return 1
+    return 0
+  fi
+  return 2
+}
+
+enable_tlp_bat() {
+  # TLP is system-level; require polkit. This will prompt the user when run from the notification click.
+  if command -v tlp >/dev/null 2>&1 && command -v pkexec >/dev/null 2>&1; then
+    pkexec tlp bat >/dev/null 2>&1 || return 1
+    return 0
+  fi
+  return 2
+}
+
+dim_screen() {
+  # Conservative dim: set brightness to 30% (only if brightnessctl is available).
+  if command -v brightnessctl >/dev/null 2>&1; then
+    brightnessctl set 30% >/dev/null 2>&1 || return 1
+    return 0
+  fi
+  return 2
+}
+
+reduce_radios() {
+  # Optional: turn off bluetooth (user may have permissions via polkit/dbus).
+  if command -v bluetoothctl >/dev/null 2>&1; then
+    bluetoothctl power off >/dev/null 2>&1 || return 1
+    return 0
+  fi
+  return 2
+}
+
+save_state() {
+  mkdir -p "$(dirname "$STATE_FILE")" 2>/dev/null || true
+  cat >"$STATE_FILE" <<EOF
+ppd=$(get_ppd_profile)
+asus=$(get_asus_profile)
+brightness=$(get_brightness)
+bluetooth=$(get_bluetooth_powered)
+EOF
+}
+
+load_state_value() {
+  local key="$1"
+  [[ -f "$STATE_FILE" ]] || return 1
+  grep -E "^${key}=" "$STATE_FILE" 2>/dev/null | head -n1 | cut -d= -f2- || true
+}
+
+disable_power_saving_mode() {
+  local did_any=0
+
+  local target_ppd target_asus target_bri target_bt
+  target_ppd="$(load_state_value ppd || true)"
+  target_asus="$(load_state_value asus || true)"
+  target_bri="$(load_state_value brightness || true)"
+  target_bt="$(load_state_value bluetooth || true)"
+
+  # Restore brightness
+  if command -v brightnessctl >/dev/null 2>&1 && [[ -n "${target_bri:-}" && "$target_bri" != "n/a" && "$target_bri" != "unknown" ]]; then
+    if brightnessctl set "$target_bri" >/dev/null 2>&1; then
+      did_any=1
+      log "brightness: restored to ${target_bri}"
+    fi
+  fi
+
+  # Restore bluetooth power state
+  if command -v bluetoothctl >/dev/null 2>&1 && [[ -n "${target_bt:-}" && "$target_bt" != "n/a" && "$target_bt" != "unknown" ]]; then
+    if [[ "$target_bt" == "yes" ]]; then
+      if bluetoothctl power on >/dev/null 2>&1; then
+        did_any=1
+        log "bluetooth: power on"
+      fi
+    fi
+    if [[ "$target_bt" == "no" ]]; then
+      if bluetoothctl power off >/dev/null 2>&1; then
+        did_any=1
+        log "bluetooth: power off"
+      fi
+    fi
+  fi
+
+  # Restore power-profiles-daemon profile
+  if ! command -v tlp >/dev/null 2>&1 && command -v powerprofilesctl >/dev/null 2>&1; then
+    if [[ -n "${target_ppd:-}" && "$target_ppd" != "n/a" && "$target_ppd" != "unknown" ]]; then
+      powerprofilesctl set "$target_ppd" >/dev/null 2>&1 && did_any=1
+    else
+      powerprofilesctl set balanced >/dev/null 2>&1 && did_any=1
+    fi
+  fi
+
+  # Restore ASUS profile
+  if command -v asusctl >/dev/null 2>&1; then
+    if [[ -n "${target_asus:-}" && "$target_asus" != "n/a" && "$target_asus" != "unknown" ]]; then
+      asusctl profile -n "$target_asus" >/dev/null 2>&1 && did_any=1
+    else
+      asusctl profile -n Balanced >/dev/null 2>&1 && did_any=1
+    fi
+  fi
+
+  # Re-apply TLP defaults for the current power source (safe "disable" behavior)
+  if command -v tlp >/dev/null 2>&1 && command -v pkexec >/dev/null 2>&1; then
+    if pkexec tlp start >/dev/null 2>&1; then
+      did_any=1
+      log "tlp: re-applied defaults (tlp start)"
+    fi
+  fi
+
+  rm -f "$STATE_FILE" 2>/dev/null || true
+
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send --urgency=normal --app-name="battery-monitor" --icon="battery-good" \
+      "Power saving mode disabled" \
+      "powerprofilesctl=$(get_ppd_profile)\nasusctl=$(get_asus_profile)\nbrightness=$(get_brightness)\nbluetooth=$(get_bluetooth_powered)" \
+      2>/dev/null || true
+  fi
+
+  [[ $did_any -eq 1 ]] || return 1
+  return 0
+}
+
+enable_power_saving_mode() {
+  local did_any=0
+  local before_ppd before_asus before_bri
+  local before_bt
+  before_ppd="$(get_ppd_profile | tr '\n' ' ' | xargs || true)"
+  before_asus="$(get_asus_profile | tr '\n' ' ' | xargs || true)"
+  before_bri="$(get_brightness | tr '\n' ' ' | xargs || true)"
+  before_bt="$(get_bluetooth_powered | tr '\n' ' ' | xargs || true)"
+
+  save_state
+
+  if enable_powerprofiles_daemon; then
+    did_any=1
+  fi
+
+  if enable_asus_quiet_profile; then
+    did_any=1
+  fi
+
+  if enable_tlp_bat; then
+    did_any=1
+    log "tlp: set BAT mode (via pkexec)"
+  fi
+
+  if dim_screen; then
+    did_any=1
+    log "brightness: set to 30%"
+  fi
+
+  if reduce_radios; then
+    did_any=1
+    log "bluetooth: power off"
+  fi
+
+  if [[ $did_any -ne 1 ]]; then
+    echo "power-saving-mode: no supported backend found (need powerprofilesctl/asusctl and/or tlp+pkexec/brightnessctl)" >&2
+    exit 1
+  fi
+
+  # Print a short verification summary for callers (and logs)
+  log "before: powerprofilesctl=${before_ppd:-n/a} asusctl=${before_asus:-n/a} brightnessctl=${before_bri:-n/a} bluetooth=${before_bt:-n/a}"
+  log "after:  powerprofilesctl=$(get_ppd_profile | tr '\n' ' ' | xargs || true) asusctl=$(get_asus_profile | tr '\n' ' ' | xargs || true) brightnessctl=$(get_brightness | tr '\n' ' ' | xargs || true) bluetooth=$(get_bluetooth_powered | tr '\n' ' ' | xargs || true)"
+}
+
+main() {
+  local cmd="${1:-enable}"
+  case "$cmd" in
+    enable|"")
+      enable_power_saving_mode
+      ;;
+    disable|off)
+      disable_power_saving_mode
+      ;;
+    status)
+      local enabled="no"
+      [[ -f "$STATE_FILE" ]] && enabled="yes"
+      echo "enabled=$enabled"
+      if command -v tlp >/dev/null 2>&1; then
+        local ppd_enabled
+        ppd_enabled="$(systemctl is-enabled power-profiles-daemon.service 2>/dev/null || true)"
+        if [[ "$ppd_enabled" == "masked" ]]; then
+          echo "note=power-profiles-daemon masked (TLP active)"
+        fi
+      fi
+      echo "powerprofilesctl=$(get_ppd_profile)"
+      echo "asusctl=$(get_asus_profile)"
+      echo "brightness=$(get_brightness)"
+      echo "bluetooth=$(get_bluetooth_powered)"
+      echo "state_file=$([[ -f "$STATE_FILE" ]] && echo present || echo missing)"
+      ;;
+    -h|--help|help)
+      cat <<'EOF'
+Usage: power-saving-mode [enable|disable|status]
+
+Commands:
+  enable   Apply power saving changes (default)
+  disable  Revert previously applied changes using saved state
+  status   Print current status + whether a saved state exists
+EOF
+      ;;
+    *)
+      echo "power-saving-mode: unknown command: $cmd" >&2
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"
+

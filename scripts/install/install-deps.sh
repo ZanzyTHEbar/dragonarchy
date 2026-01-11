@@ -84,6 +84,20 @@ install_manifest_group() {
         return 0
     fi
 
+    # Backwards-compat / safety: a few entries are sometimes written as command names instead of package names.
+    # (e.g. "powerprofilesctl" is provided by "power-profiles-daemon" on Arch/CachyOS)
+    if [[ "$platform" == "arch" ]]; then
+        local normalized=()
+        local p
+        for p in "${pkgs[@]}"; do
+            case "$p" in
+                powerprofilesctl) normalized+=("power-profiles-daemon") ;;
+                *) normalized+=("$p") ;;
+            esac
+        done
+        pkgs=("${normalized[@]}")
+    fi
+
     "$installer_fn" "${pkgs[@]}"
     return 0
 }

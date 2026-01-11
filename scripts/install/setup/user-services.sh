@@ -87,14 +87,15 @@ else
     fi
 fi
 
-# Ensure Walker config references the active theme
+# Ensure Walker config references our stable theme name ("current").
+# Theme selection is done by relinking ~/.config/walker/themes/current/style.css above.
 WALKER_CONFIG="$HOME/.config/walker/config.toml"
 if [[ -f "$WALKER_CONFIG" ]]; then
     if is_stow_managed_link "$WALKER_CONFIG"; then
         log_info "Walker config.toml is stow-managed; skipping theme assignment"
     else
         tmp_cfg=$(mktemp)
-        awk -v theme="$ACTIVE_THEME_NAME" '
+        awk -v theme="current" '
         BEGIN { updated = 0 }
         /^[[:space:]]*theme[[:space:]]*=/ && !updated {
           printf("theme = \"%s\"\n", theme);
@@ -107,8 +108,11 @@ if [[ -f "$WALKER_CONFIG" ]]; then
             printf("\ntheme = \"%s\"\n", theme);
           }
         }
-        ' "$WALKER_CONFIG" >"$tmp_cfg" && mv "$tmp_cfg" "$WALKER_CONFIG"
-        log_success "Walker theme configured to '$ACTIVE_THEME_NAME'"
+        ' "$WALKER_CONFIG" >"$tmp_cfg"
+        # Preserve symlinks by writing through the path instead of replacing it.
+        cat "$tmp_cfg" >"$WALKER_CONFIG"
+        rm -f "$tmp_cfg"
+        log_success "Walker theme configured to 'current'"
     fi
 else
     log_warning "Walker config.toml not found; skipped theme assignment"

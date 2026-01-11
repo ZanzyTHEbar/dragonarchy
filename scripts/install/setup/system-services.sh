@@ -23,6 +23,13 @@ if ! command -v tlp &>/dev/null; then
     log_info "Adding power-profiles-daemon.service (TLP not detected)"
 else
     log_info "Skipping power-profiles-daemon.service (TLP is installed)"
+    # Also prevent activation of power-profiles-daemon if it happens to be installed anyway.
+    if systemctl list-unit-files 2>/dev/null | grep -q "^power-profiles-daemon\\.service"; then
+      log_info "Masking power-profiles-daemon.service (installed but conflicts with TLP)"
+      sudo systemctl stop power-profiles-daemon.service 2>/dev/null || true
+      sudo systemctl disable power-profiles-daemon.service 2>/dev/null || true
+      sudo systemctl mask power-profiles-daemon.service 2>/dev/null || true
+    fi
 fi
 
 log_info "Enabling essential system services..."

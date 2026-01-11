@@ -2,7 +2,8 @@ app_launch_prefix = "uwsm app -- "
 terminal_title_flag = ""
 locale = ""
 close_when_open = true                                # Toggle on reopen
-theme = "tokyo-night"
+# Theme is always "current"; theme-set/user-services maintains ~/.config/walker/themes/current/style.css
+theme = "current"
 installed_providers = [
   "desktopapplications",
   "calc",

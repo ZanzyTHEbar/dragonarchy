@@ -15,11 +15,29 @@ log_info "Setting up power management..."
 if command -v tlp &>/dev/null; then
     log_info "TLP detected - using TLP for power management (laptop configuration)"
     log_info "Skipping power-profiles-daemon (conflicts with TLP)"
+
+    # If power-profiles-daemon is installed/enabled anyway, disable it to avoid conflicts.
+    if systemctl list-unit-files 2>/dev/null | grep -q "^power-profiles-daemon\\.service"; then
+        # power-profiles-daemon can also be started via D-Bus activation even if "disabled".
+        # Masking prevents both explicit and activation-based starts.
+        log_info "Ensuring power-profiles-daemon.service is stopped + masked (conflicts with TLP)..."
+        sudo systemctl stop power-profiles-daemon.service 2>/dev/null || true
+        sudo systemctl disable power-profiles-daemon.service 2>/dev/null || true
+        sudo systemctl mask power-profiles-daemon.service 2>/dev/null || log_warning "Could not mask power-profiles-daemon (may keep conflicting with TLP)"
+    fi
     
     # Start TLP if not running
-    if ! systemctl is-active --quiet tlp.service; then
+    if ! systemctl is-active --quiet tlp.service 2>/dev/null; then
         log_info "Starting TLP service..."
-        sudo systemctl start tlp.service 2>/dev/null || log_warning "Could not start TLP"
+        if systemctl list-unit-files 2>/dev/null | grep -q "^tlp\\.service"; then
+            sudo systemctl start tlp.service 2>/dev/null || {
+                log_warning "Could not start tlp.service via systemd; falling back to 'sudo tlp start'"
+                sudo tlp start 2>/dev/null || log_warning "Fallback 'sudo tlp start' failed"
+            }
+        else
+            log_warning "tlp.service unit not found; trying 'sudo tlp start'"
+            sudo tlp start 2>/dev/null || log_warning "Could not start TLP via 'sudo tlp start'"
+        fi
     fi
     
 elif command -v powerprofilesctl &>/dev/null; then

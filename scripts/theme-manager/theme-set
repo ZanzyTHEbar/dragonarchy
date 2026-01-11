@@ -119,25 +119,10 @@ else
     rm -f "$WALKER_THEMES_ROOT/current/layout.toml"
 fi
 
-# Ensure Walker loads the selected theme
-WALKER_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/walker/config.toml"
-if [[ -f "$WALKER_CONFIG" ]]; then
-    tmp_config=$(mktemp)
-    awk -v theme="$THEME_NAME" '
-    BEGIN { updated = 0 }
-    /^[[:space:]]*theme[[:space:]]*=/ && !updated {
-      printf("theme = \"%s\"\n", theme);
-      updated = 1;
-      next;
-    }
-    { print }
-    END {
-      if (!updated) {
-        printf("\ntheme = \"%s\"\n", theme);
-      }
-    }
-    ' "$WALKER_CONFIG" >"$tmp_config" && mv "$tmp_config" "$WALKER_CONFIG"
-fi
+# Walker theme selection:
+# Our stow-managed Walker config uses `theme = "current"`, and we keep
+# ~/.config/walker/themes/current/style.css pointed at the chosen theme above.
+# This avoids rewriting stow-managed config.toml (which would break symlinks).
 
 # Set GTK theme for Nemo
 mkdir -p ~/.config/gtk-3.0
@@ -151,21 +136,9 @@ ln -snf ~/.config/current/theme/gtk.css ~/.config/gtk-3.0/gtk.css
 mkdir -p "$HOME/.config/kitty"
 ln -snf "$CURRENT_THEME_DIR/kitty.conf" "$HOME/.config/kitty/colors.conf"
 
-# Ensure kitty includes colors.conf exactly once
-mkdir -p "$HOME/.config/kitty"
-touch "$HOME/.config/kitty/kitty.conf"
-if grep -Eq '^[[:space:]]*include[[:space:]]+colors\.conf([[:space:]]|$)' "$HOME/.config/kitty/kitty.conf"; then
-    # De-duplicate existing include lines (keep the first one)
-    tmpkitty=$(mktemp)
-    awk 'BEGIN{found=0} { if ($0 ~ /^[ \t]*include[ \t]+colors\.conf([ \t]|$)/) { if (!found) { print; found=1 } } else { print } }' "$HOME/.config/kitty/kitty.conf" >"$tmpkitty" && mv "$tmpkitty" "$HOME/.config/kitty/kitty.conf"
-else
-    # Prepend include at the top
-    tmpkitty=$(mktemp)
-    {
-        echo "include colors.conf"
-        cat "$HOME/.config/kitty/kitty.conf"
-    } >"$tmpkitty" && mv "$tmpkitty" "$HOME/.config/kitty/kitty.conf"
-fi
+# NOTE: Do not rewrite ~/.config/kitty/kitty.conf here.
+# It's stow-managed in this repo, and rewriting it (via mv/sed -i) would break the symlink
+# and cause stow conflicts on the next install/update.
 
 # Restart walker to pick up theme changes
 if command -v walker-restart >/dev/null 2>&1; then
