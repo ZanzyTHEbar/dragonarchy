@@ -43,7 +43,8 @@
 #clock,
 #custom-session,
 #custom-idle,
-#custom-thermals {
+#custom-thermals,
+#custom-notifications {
   min-width: 12px;
   margin: 0 7.5px;
 }
