@@ -6,6 +6,8 @@ package=hyprland target=scripts/theme-manager/theme-remove link=packages/hyprlan
 package=hyprland target=scripts/theme-manager/theme-set link=packages/hyprland/.local/bin/theme-set
 package=hyprland target=scripts/theme-manager/theme-set-background link=packages/hyprland/.local/bin/theme-set-background
 package=hyprland target=scripts/theme-manager/theme-update link=packages/hyprland/.local/bin/theme-update
+package=hyprland target=scripts/theme-manager/waybar-hoverd link=packages/hyprland/.local/bin/waybar-hoverd
+package=hyprland target=scripts/theme-manager/verify-waybar-hoverd link=packages/hyprland/.local/bin/verify-waybar-hoverd
 package=hyprland target=scripts/walker/dragon/walker-dragon link=packages/hyprland/.local/bin/dragon-walker
 package=hyprland target=scripts/walker/restart-walker.sh link=packages/hyprland/.local/bin/walker-restart
 package=hyprland target=scripts/walker/walker-clipboard link=packages/hyprland/.local/bin/walker-clipboard
