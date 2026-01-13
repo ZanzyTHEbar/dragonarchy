@@ -19,6 +19,10 @@
 # These are created/updated by theme scripts and should not be stowed.
 --ignore=\\.config/btop/themes/current\\.theme$
 --ignore=\\.config/walker/themes/current/style\\.css$
+--ignore=\\.config/kitty/colors\\.conf$
+
+# Systemd wants symlinks (created by systemd when enabling services, should not be stowed)
+--ignore=\\.config/systemd/user/.*\\.target\\.wants/.*\\.service$
 
 # Never stow a user-level hicolor theme definition; it overrides /usr/share/icons/hicolor/index.theme
 # and can break scalable/symbolic icon lookup across GTK apps (Waybar tray, Walker, notifications).

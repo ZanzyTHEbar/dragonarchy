@@ -15,6 +15,8 @@ to_celsius() {
 read_temp_from_hwmon_by_labels() {
   # $1: hwmon dir, remaining args: preferred labels
   local hwdir="$1"; shift || true
+  # /sys/class/hwmon/hwmon* entries are often symlinks; resolve so `find` traverses.
+  hwdir="$(readlink -f "$hwdir" 2>/dev/null || echo "$hwdir")"
   local label
   # Prefer labeled temp*_label entries
   if compgen -G "$hwdir/temp*_*" > /dev/null; then
@@ -26,7 +28,7 @@ read_temp_from_hwmon_by_labels() {
           local valfile="$hwdir/temp${idx}_input"
           if [[ -f "$valfile" ]]; then
             local v; v=$(<"$valfile")
-            "$(to_celsius "$v")"
+            to_celsius "$v"
             return 0
           fi
         fi
@@ -37,7 +39,7 @@ read_temp_from_hwmon_by_labels() {
     first=$(find "$hwdir" -maxdepth 1 -type f -name 'temp*_input' | sort | head -n1)
     if [[ -n "$first" && -f "$first" ]]; then
       local v; v=$(<"$first")
-      "$(to_celsius "$v")"
+      to_celsius "$v"
       return 0
     fi
   fi
@@ -74,7 +76,8 @@ get_cpu_temp() {
     if [[ -n "$line" ]]; then
       # Extract number like 65.0 or 65
       local t
-      t=$(grep -oE '[0-9]+(\.[0-9]+)?' <<<"$line" | head -n1)
+      # Avoid matching the "id 0" from "Package id 0:" by extracting the first value after '+'.
+      t=$(sed -nE 's/.*\\+([0-9]+(\\.[0-9]+)?).*/\\1/p' <<<"$line" | head -n1)
       if [[ -n "$t" ]]; then
         awk "BEGIN {printf \"%.0f\", $t}"
         return 0

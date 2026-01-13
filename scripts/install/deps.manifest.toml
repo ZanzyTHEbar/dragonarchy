@@ -96,6 +96,7 @@ packages = [
     "difftastic",
     "visual-studio-code-bin",
     "visual-studio-code-insiders-bin",
+    "localsend",
 ]
 
 [platforms.arch.paru.fonts]
@@ -130,10 +131,15 @@ packages = [
 requires_features = ["hyprland"]
 packages = [
     "bash-completion",
-    "blueberry",
+    "blueberry-wayland",
+    # Provides blueman-manager (needed by many BT workflows; keep alongside blueberry)
+    "blueman",
     "bluez",
     "bluez-utils",
     "brightnessctl",
+    # Ensure `cargo` is available from repos so AUR builds don't prompt to choose a provider.
+    # (Rust toolchain management is still handled by rustup elsewhere.)
+    "rust",
     "rustup",
     "clang",
     "cups",
@@ -198,12 +204,16 @@ packages = [
     "swaybg",
     "swaync",
     "swayosd",
+    # OSD bar used by Hyprland keybinds (writes to /tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob)
+    "wob",
     "swappy",
     "system-config-printer",
     "tree-sitter-cli",
     "ufw",
     "uwsm",
     "waybar",
+    # Power menu UI used by waybar custom/session
+    "wlogout",
     "wf-recorder",
     "whois",
     "wireplumber",
@@ -227,7 +237,6 @@ packages = [
     "kdenlive",
     "lazydocker-bin",
     "libreoffice-fresh",
-    "localsend-bin",
     "pinta",
     "spotify",
     "swaync-widgets-git",

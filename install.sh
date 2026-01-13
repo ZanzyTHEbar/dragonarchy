@@ -36,6 +36,8 @@ RUN_SHELL_CONFIG=true
 RUN_POST_SETUP=true
 SETUP_UTILITIES=false
 RESET_STATE=false
+# Force re-run of package installation step (clears cached package markers for this host)
+RESET_PACKAGES=false
 # Fresh-machine mode: purge conflicting dotfile targets before stowing
 FRESH_MODE=false
 # Pass-through flags for install-deps.sh (e.g., --cursor/--no-cursor)
@@ -52,6 +54,7 @@ OPTIONS:
     -h, --help              Show this help message
     -v, --verbose           Enable verbose output
     --reset                 Clear installation state and force full re-run of all steps
+    --reset-packages        Force re-run of package installation step (for this host)
     --fresh, -f             Fresh machine mode: backup+remove existing dotfile targets that would block stow
     --host HOST             Setup for specific host (any hostname supported)
     --packages-only         Only install packages
@@ -95,6 +98,10 @@ parse_args() {
             ;;
             --reset)
                 RESET_STATE=true
+                shift
+            ;;
+            --reset-packages)
+                RESET_PACKAGES=true
                 shift
             ;;
             -f | --fresh)
@@ -175,6 +182,25 @@ parse_args() {
             ;;
         esac
     done
+}
+
+reset_host_package_steps() {
+    local host="$1"
+    [[ -z "${host:-}" ]] && return 0
+    # scripts/lib/install-state.sh defines STATE_DIR
+    if [[ -n "${STATE_DIR:-}" && -d "${STATE_DIR:-}" ]]; then
+        rm -f "${STATE_DIR}/install:${host}:packages:"* 2>/dev/null || true
+    fi
+}
+
+packages_sanity_ok() {
+    local host="$1"
+    # On Hyprland hosts, waybar is a hard requirement for this setup.
+    if [[ -n "${host:-}" ]] && is_hyprland_host "$HOSTS_DIR" "$host" >/dev/null 2>&1; then
+        command -v waybar >/dev/null 2>&1 || return 1
+        command -v hyprland >/dev/null 2>&1 || return 1
+    fi
+    return 0
 }
 
 # Check prerequisites
@@ -554,6 +580,18 @@ install_packages() {
         fi
     fi
 
+    # Include installer logic fingerprint so changes to install-deps.sh invalidate cached "packages installed"
+    # (prevents stale state from hiding missing packages like waybar).
+    local install_script="$SCRIPTS_DIR/install/install-deps.sh"
+    local installer_fingerprint="no-installer"
+    if [[ -f "$install_script" ]]; then
+        if command -v sha256sum >/dev/null 2>&1; then
+            installer_fingerprint=$(sha256sum "$install_script" | awk '{print substr($1,1,12)}')
+        elif command -v shasum >/dev/null 2>&1; then
+            installer_fingerprint=$(shasum -a 256 "$install_script" | awk '{print substr($1,1,12)}')
+        fi
+    fi
+
     local feature_fingerprint=""
     if [[ -n "${HOST:-}" ]] && is_hyprland_host "$HOSTS_DIR" "$HOST"; then
         feature_fingerprint="hyprland"
@@ -561,13 +599,20 @@ install_packages() {
         feature_fingerprint="nohypr"
     fi
 
-    local step_id="install:${HOST:-generic}:packages:${feature_fingerprint}:${manifest_fingerprint}"
-    if is_step_completed "$step_id"; then
-        log_info "Skipping $step_id (already completed)"
-        return 0
+    local step_id="install:${HOST:-generic}:packages:${feature_fingerprint}:${manifest_fingerprint}:${installer_fingerprint}"
+    if [[ "$RESET_PACKAGES" == "true" ]]; then
+        reset_host_package_steps "${HOST:-generic}"
+        reset_step "$step_id" 2>/dev/null || true
     fi
-    
-    local install_script="$SCRIPTS_DIR/install/install-deps.sh"
+
+    if is_step_completed "$step_id"; then
+        if packages_sanity_ok "${HOST:-}"; then
+            log_info "Skipping $step_id (already completed)"
+            return 0
+        fi
+        log_warning "Package step marked completed, but required commands are missing; re-running package install."
+        reset_step "$step_id" 2>/dev/null || true
+    fi
     
     if [[ -f "$install_script" ]]; then
         # Ensure the script is executable
@@ -692,11 +737,62 @@ setup_dotfiles() {
                 fresh_purge_stow_conflicts_for_package "$package" "$fresh_backup_root"
             fi
             
+            # Handle absolute symlinks in package source (stow can't handle them)
+            # Temporarily remove symlinks that point outside the package directory (these are runtime-managed)
+            # Store them for restoration after stowing
+            declare -A removed_symlinks=()
+            while IFS= read -r -d '' symlink_path; do
+                if [[ -L "$symlink_path" ]]; then
+                    local link_target
+                    link_target=$(readlink "$symlink_path")
+                    # If it's an absolute symlink pointing outside the package, temporarily remove it
+                    if [[ "$link_target" == /* ]]; then
+                        local pkg_abs="$(readlink -f "$package")"
+                        local link_target_abs
+                        link_target_abs=$(readlink -f "$link_target" 2>/dev/null || echo "$link_target")
+                        
+                        # Check if target is outside the package directory
+                        if [[ "$link_target_abs" != "$pkg_abs"/* ]]; then
+                            # Store the symlink target for restoration
+                            removed_symlinks["$symlink_path"]="$link_target"
+                            log_info "Temporarily removing absolute symlink pointing outside package: $(basename "$symlink_path") -> $link_target"
+                            rm "$symlink_path"
+                            continue
+                        fi
+                        
+                        # Target is inside package - try to make it relative
+                        local symlink_abs="$(readlink -f "$symlink_path")"
+                        local symlink_dir="$(dirname "$symlink_abs")"
+                        local rel_target
+                        if rel_target=$(realpath --relative-to="$symlink_dir" "$link_target" 2>/dev/null); then
+                            log_info "Resolving absolute symlink in $package: $(basename "$symlink_path") -> $rel_target"
+                            rm "$symlink_path"
+                            ln -s "$rel_target" "$symlink_path"
+                        else
+                            log_warning "Cannot resolve absolute symlink in $package: $symlink_path -> $link_target"
+                        fi
+                    fi
+                fi
+            done < <(find "$package" -type l -print0 2>/dev/null)
+            
             # Try stowing with restow (handles existing symlinks)
-            # Note: Removed --no-folding to allow directory symlinks for deep structures
+            #
+            # Important: some packages (notably `zsh`) are meant to be *extended* by host-specific dotfiles
+            # under the same directory tree (e.g. hosts/<host>/dotfiles/.config/zsh/**). If the base package
+            # is "folded" into a single directory symlink (e.g. ~/.config/zsh -> dotfiles/packages/zsh/.config/zsh),
+            # then host-specific stow cannot place files under it.
+            #
+            # So we stow `zsh` with --no-folding (file-by-file) and do a one-time clean unstow/restow
+            # to migrate away from an existing folded directory link.
+            local stow_args=(--restow -t "$HOME")
+            if [[ "$package" == "zsh" ]]; then
+                stow_args=(--no-folding --restow -t "$HOME")
+                # Best-effort remove any previous folded layout so we can recreate file-by-file links.
+                stow -D -t "$HOME" "$package" >/dev/null 2>&1 || true
+            fi
             local stow_ec=0
             set +e
-            stow --restow -t "$HOME" "$package" 2>&1 | tee /tmp/stow_output.txt
+            stow "${stow_args[@]}" "$package" 2>&1 | tee /tmp/stow_output.txt
             stow_ec=${PIPESTATUS[0]}
             set -e
 
@@ -727,7 +823,7 @@ setup_dotfiles() {
                 fi
 
                 set +e
-                stow --restow -t "$HOME" "$package" 2>&1 | tee /tmp/stow_output_retry.txt
+                stow "${stow_args[@]}" "$package" 2>&1 | tee /tmp/stow_output_retry.txt
                 stow_ec=${PIPESTATUS[0]}
                 set -e
 
@@ -743,12 +839,19 @@ setup_dotfiles() {
                         log_success "Installed $package dotfiles (after conflict auto-resolve)"
                     fi
                 else
-                    log_error "Failed to install $package even after conflict auto-resolve"
-                    grep -i "conflict\\|would cause" /tmp/stow_output_retry.txt | sed 's/^/  /' || true
-                    if [[ "$FRESH_MODE" == "true" ]]; then
-                        log_info "Backups (if any): ${fresh_backup_root}/${package}"
+                    # Check if it's an absolute symlink issue that we can't resolve
+                    if grep -qi "absolute symlink" /tmp/stow_output_retry.txt; then
+                        log_warning "Package '$package' has absolute symlinks that cannot be resolved automatically"
+                        log_info "You may need to manually fix symlinks in packages/$package/"
+                        log_info "Backups (if any): ${fresh_backup_root:-${conflict_backup_root}}/${package}"
                     else
-                        log_info "Backups (if any): ${conflict_backup_root}/${package}"
+                        log_error "Failed to install $package even after conflict auto-resolve"
+                        grep -i "conflict\\|would cause" /tmp/stow_output_retry.txt | sed 's/^/  /' || true
+                        if [[ "$FRESH_MODE" == "true" ]]; then
+                            log_info "Backups (if any): ${fresh_backup_root}/${package}"
+                        else
+                            log_info "Backups (if any): ${conflict_backup_root}/${package}"
+                        fi
                     fi
                 fi
 
@@ -759,6 +862,15 @@ setup_dotfiles() {
             else
                 log_success "Installed $package dotfiles"
             fi
+            
+            # Restore temporarily removed absolute symlinks that point outside the package
+            for symlink_path in "${!removed_symlinks[@]}"; do
+                if [[ ! -e "$symlink_path" ]]; then
+                    local link_target="${removed_symlinks[$symlink_path]}"
+                    log_info "Restoring absolute symlink: $(basename "$symlink_path") -> $link_target"
+                    ln -s "$link_target" "$symlink_path"
+                fi
+            done
             
             # Cleanup temp file
             rm -f /tmp/stow_output.txt
@@ -819,9 +931,13 @@ stow_host_dotfiles() {
 
         # If the source is a file/symlink but destination is a directory, that's a structural conflict.
         if [[ -d "$dst" && ! -L "$dst" ]]; then
-            log_error "Host dotfiles stow conflict: destination is a directory but source is a file: $dst"
-            log_error "Resolve manually (move/remove the directory), then re-run."
-            return 1
+            log_warning "Host dotfiles stow conflict: destination is a directory but source is a file: $dst"
+            log_info "Backing up directory and removing it..."
+            had_backups="true"
+            mkdir -p "$backup_root/$(dirname "$rel")"
+            cp -a "$dst" "$backup_root/$rel" 2>/dev/null || cp -aL "$dst" "$backup_root/$rel" 2>/dev/null || true
+            rm -rf "$dst"
+            continue
         fi
 
         # If destination doesn't exist (including broken symlink), nothing to do.
@@ -850,7 +966,23 @@ stow_host_dotfiles() {
     fi
 
     log_info "Installing host-specific dotfiles (stow) from: $dotfiles_dir"
-    (cd "$dotfiles_dir" && stow -t "$HOME" -R .)
+    # Use --no-folding to avoid attempting to replace existing directories (e.g. ~/.config/zsh)
+    # with a single directory symlink; instead, stow will link individual files under the dir.
+    set +e
+    (cd "$dotfiles_dir" && stow --no-folding -t "$HOME" -R . 2>&1 | tee /tmp/stow_host_output.txt)
+    local stow_ec=${PIPESTATUS[0]}
+    set -e
+    
+    if [[ $stow_ec -ne 0 ]]; then
+        if grep -qi "conflict\\|would cause conflicts" /tmp/stow_host_output.txt; then
+            log_warning "Host dotfiles stow had conflicts (see above). Some files may not be installed."
+        else
+            log_error "Host dotfiles stow failed with exit code $stow_ec"
+        fi
+        rm -f /tmp/stow_host_output.txt
+        return 1
+    fi
+    rm -f /tmp/stow_host_output.txt
 }
 
 # Setup host-specific configuration

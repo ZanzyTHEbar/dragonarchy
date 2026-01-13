@@ -17,22 +17,24 @@ services=(
   "iwd.service"
 )
 
-# Add power-profiles-daemon ONLY if TLP is not installed (they conflict)
-if ! command -v tlp &>/dev/null; then
-    services+=("power-profiles-daemon.service")
-    log_info "Adding power-profiles-daemon.service (TLP not detected)"
-else
-    log_info "Skipping power-profiles-daemon.service (TLP is installed)"
-    # Also prevent activation of power-profiles-daemon if it happens to be installed anyway.
-    if systemctl list-unit-files 2>/dev/null | grep -q "^power-profiles-daemon\\.service"; then
-      log_info "Masking power-profiles-daemon.service (installed but conflicts with TLP)"
-      sudo systemctl stop power-profiles-daemon.service 2>/dev/null || true
-      sudo systemctl disable power-profiles-daemon.service 2>/dev/null || true
-      sudo systemctl mask power-profiles-daemon.service 2>/dev/null || true
-    fi
-fi
-
 log_info "Enabling essential system services..."
+
+# Handle power-profiles-daemon vs TLP conflict at runtime
+# Check if TLP is installed - if so, skip power-profiles-daemon and mask it
+if command -v tlp &>/dev/null; then
+    log_info "TLP detected - skipping power-profiles-daemon.service (conflicts)"
+    # Prevent activation of power-profiles-daemon if it happens to be installed anyway
+    if systemctl list-unit-files 2>/dev/null | grep -q "^power-profiles-daemon\\.service"; then
+        log_info "Masking power-profiles-daemon.service (installed but conflicts with TLP)"
+        sudo systemctl stop power-profiles-daemon.service 2>/dev/null || true
+        sudo systemctl disable power-profiles-daemon.service 2>/dev/null || true
+        sudo systemctl mask power-profiles-daemon.service 2>/dev/null || true
+    fi
+else
+    # TLP not installed - add power-profiles-daemon to services list
+    services+=("power-profiles-daemon.service")
+    log_info "TLP not detected - adding power-profiles-daemon.service"
+fi
 
 for service in "${services[@]}"; do
   # Check if service exists before trying to enable

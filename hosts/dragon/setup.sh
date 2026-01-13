@@ -65,6 +65,11 @@ apply_host_system_configs() {
 
 restart_resolved_if_needed() {
     log_step "Applying DNS changes (systemd-resolved)..."
+    if command -v systemctl >/dev/null 2>&1; then
+        if systemctl list-unit-files 2>/dev/null | grep -q '^systemd-resolved\.service'; then
+            sudo systemctl enable --now systemd-resolved.service >/dev/null 2>&1 || true
+        fi
+    fi
     restart_if_running systemd-resolved || true
     log_success "DNS configuration applied"
 }
