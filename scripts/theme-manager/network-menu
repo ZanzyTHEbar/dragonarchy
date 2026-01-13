@@ -37,12 +37,15 @@ fi
 
 # iwd TUI for wifi management.
 if have impala; then
-  exec kitty --class=Network --title=Network impala
+  # Run impala in a floating terminal (Hyprland rules already float/center/size class "Impala")
+  # and run it as root (some operations require elevated privileges).
+  exec kitty --class=Impala --title=Impala bash -lc 'exec sudo -E impala'
 fi
 
 # Last resort: raw iwd shell.
 if have iwctl; then
-  exec kitty --class=Network --title=Network iwctl
+  # Keep the fallback TUI floating as well.
+  exec kitty --class=termfloat --title=termfloat iwctl
 fi
 
 notify "No network UI found (need one of: nmtui/iwgtk/impala/iwctl)."
