@@ -247,6 +247,11 @@ setup_networking() {
     # Apply DNS changes (only if configs changed or first time)
     if ! is_step_completed "firedragon-restart-resolved"; then
         log_info "Restarting systemd-resolved to apply DNS changes..."
+        if command_exists systemctl; then
+            if systemctl list-unit-files 2>/dev/null | grep -q '^systemd-resolved\.service'; then
+                sudo systemctl enable --now systemd-resolved.service >/dev/null 2>&1 || true
+            fi
+        fi
         if restart_if_running systemd-resolved; then
             log_success "systemd-resolved restarted"
         fi

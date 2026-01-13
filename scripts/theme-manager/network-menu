@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Waybar network launcher.
+#
+# Why this exists:
+# - Some hosts use NetworkManager (best UX: `nmtui`/GUI)
+# - Some hosts use iwd directly (fallback: `impala` or `iwctl`)
+#
+# This script picks the most appropriate available tool and launches it.
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+is_active() {
+  # systemd might not be present in minimal environments; treat failures as inactive.
+  systemctl is-active --quiet "$1" 2>/dev/null
+}
+
+notify() {
+  local msg="$1"
+  if have notify-send; then
+    notify-send --app-name=dragon --icon=network-wireless "Network" "$msg" >/dev/null 2>&1 || true
+  else
+    printf '%s\n' "$msg" >&2
+  fi
+}
+
+# Prefer impala when available (best UX).
+# Note: on hosts where NetworkManager manages Wi‑Fi, impala/iwd can fail with DBus NotSupported.
+# GoldenDragon solves this by configuring NetworkManager to NOT manage wlan0 and enabling
+# iwd's network configuration (see hosts/goldendragon/etc/).
+
+# If an iwd GUI is installed, prefer it (doesn't need a terminal).
+if have iwgtk; then
+  exec iwgtk
+fi
+
+# iwd TUI for wifi management.
+if have impala; then
+  exec kitty --class=Network --title=Network impala
+fi
+
+# Last resort: raw iwd shell.
+if have iwctl; then
+  exec kitty --class=Network --title=Network iwctl
+fi
+
+notify "No network UI found (need one of: nmtui/iwgtk/impala/iwctl)."
+exit 1
+

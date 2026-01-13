@@ -69,6 +69,7 @@ is_hyprland_host() {
 
     local method
     method=$(hyprland_detection_method "$hosts_dir" "$hostname") || return 1
-    __hosts_log_info "Host '$hostname' detected as Hyprland ($method)"
+    # Log to stderr to avoid being captured in command substitution
+    __hosts_log_info "Host '$hostname' detected as Hyprland ($method)" >&2
     return 0
 }

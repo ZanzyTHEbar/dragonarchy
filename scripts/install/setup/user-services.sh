@@ -51,9 +51,15 @@ if [[ ! -f "$WALKER_THEMES_ROOT/$ACTIVE_THEME_NAME/style.css" ]]; then
     if is_stow_managed_link "$WALKER_THEMES_ROOT/default/style.css"; then
         log_info "Walker default CSS is stow-managed; skipping install"
     else
-        cp "$DOTFILES_ROOT/vendored/walker/resources/themes/default/style.css" \
-        "$WALKER_THEMES_ROOT/default/style.css"
-        log_success "Installed Walker default CSS"
+        # Check if vendored walker theme exists before copying
+        if [[ -f "$DOTFILES_ROOT/vendored/walker/resources/themes/default/style.css" ]]; then
+            cp "$DOTFILES_ROOT/vendored/walker/resources/themes/default/style.css" \
+            "$WALKER_THEMES_ROOT/default/style.css"
+            log_success "Installed Walker default CSS"
+        else
+            log_warning "Walker default CSS not found at $DOTFILES_ROOT/vendored/walker/resources/themes/default/style.css; skipping"
+            log_info "Walker will use its built-in default theme"
+        fi
     fi
     ACTIVE_THEME_NAME="default"
 fi

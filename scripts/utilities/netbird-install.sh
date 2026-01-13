@@ -6,6 +6,54 @@
 
 set -e
 
+# Ensure we don't leave the machine with /etc/resolv.conf pointing at the
+# systemd-resolved stub (127.0.0.53) when systemd-resolved isn't running.
+ensure_systemd_resolved_stub_resolvconf() {
+    # If systemd isn't present, do nothing.
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo "systemctl not found; skipping systemd-resolved DNS stub configuration."
+        return 0
+    fi
+
+    # If the unit exists, try to enable+start it (best-effort).
+    if systemctl list-unit-files 2>/dev/null | grep -q '^systemd-resolved\.service'; then
+        sudo systemctl enable --now systemd-resolved.service >/dev/null 2>&1 || true
+    fi
+
+    # Only touch /etc/resolv.conf if systemd-resolved is actually running.
+    if ! systemctl is-active --quiet systemd-resolved.service 2>/dev/null; then
+        echo "WARNING: systemd-resolved is not running; leaving /etc/resolv.conf unchanged."
+        echo "         (If you want to use the stub resolver, enable/start systemd-resolved first.)"
+        return 0
+    fi
+
+    local stub="/run/systemd/resolve/stub-resolv.conf"
+    if [[ ! -e "$stub" ]]; then
+        echo "WARNING: Expected stub resolv.conf not found at $stub; leaving /etc/resolv.conf unchanged."
+        return 0
+    fi
+
+    # Idempotent handling:
+    # - If already symlinked to the stub, do nothing.
+    # - Otherwise, backup the current file once and link to the stub.
+    if [[ -L /etc/resolv.conf ]]; then
+        local target
+        target="$(readlink -f /etc/resolv.conf 2>/dev/null || true)"
+        if [[ "$target" == "$stub" ]]; then
+            return 0
+        fi
+        sudo mv /etc/resolv.conf /etc/resolv.conf.bak >/dev/null 2>&1 || true
+    else
+        if [[ -f /etc/resolv.conf && ! -f /etc/resolv.conf.bak ]]; then
+            sudo mv /etc/resolv.conf /etc/resolv.conf.bak
+        elif [[ -f /etc/resolv.conf ]]; then
+            sudo mv /etc/resolv.conf /etc/resolv.conf.bak.latest >/dev/null 2>&1 || true
+        fi
+    fi
+
+    sudo ln -sf "$stub" /etc/resolv.conf
+}
+
 # Check if NetBird is already installed to make the script idempotent.
 if command -v netbird &> /dev/null; then
     echo "NetBird is already installed. Skipping core installation."
@@ -52,10 +100,9 @@ else
 
     sudo systemctl enable netbird
 
-    # We need to fix systemd-resolved to use the correct DNS servers. https://github.com/netbirdio/netbird/issues/1483#issuecomment-2774324545
-    sudo mv /etc/resolv.conf /etc/resolv.conf.bak
-
-    sudo ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+    # We need to fix systemd-resolved to use the correct DNS servers.
+    # Ref: https://github.com/netbirdio/netbird/issues/1483#issuecomment-2774324545
+    ensure_systemd_resolved_stub_resolvconf
 
     sudo systemctl restart netbird
 fi

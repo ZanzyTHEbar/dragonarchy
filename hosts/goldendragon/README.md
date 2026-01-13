@@ -25,6 +25,7 @@ This host aims to be **boring and reliable**: good power management, sane lid/sl
 - **Existing host tweaks retained**:
   - `v4l2loopback` module config (virtual camera)
   - `systemd-resolved` DNS drop-in (if you use it)
+  - **Fingerprint auth (if hardware is detected)**: installs/enables `fprintd` and wires PAM for sudo/polkit/SDDM with password fallback
 
 ## Install / Run
 
@@ -40,6 +41,31 @@ Or run only the host setup:
 ```bash
 cd ~/dotfiles/hosts/goldendragon
 bash setup.sh
+```
+
+## Fingerprint Setup / Verification
+
+This host can enable fingerprint authentication via **fprintd** (when a sensor is detected).
+
+- **What gets enabled**:
+  - `fprintd.service`
+  - PAM rules for `/etc/pam.d/sudo`, `/etc/pam.d/polkit-1`, `/etc/pam.d/system-local-login`, `/etc/pam.d/sddm`
+  - A host-scoped `/etc/pam.d/hyprlock` that includes `system-local-login` (so Hyprlock can use fingerprint too)
+  - Password fallback remains enabled (fingerprint is added as `sufficient`, not `required`)
+
+- **Verify wiring**:
+
+```bash
+cd ~/dotfiles/hosts/goldendragon
+bash ./verify-fingerprint.sh
+```
+
+- **Enroll + test (interactive)**:
+
+```bash
+fprintd-enroll
+fprintd-verify
+sudo true
 ```
 
 ## Secure Boot (Limine + sbctl)

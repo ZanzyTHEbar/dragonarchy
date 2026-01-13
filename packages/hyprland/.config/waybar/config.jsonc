@@ -14,7 +14,6 @@
     "group/tray-expander",
     "custom/notifications",
     "bluetooth",
-    "network",
     "pulseaudio",
     "custom/thermals",
     "cpu",
@@ -115,7 +114,7 @@
     "tooltip-format-disconnected": "Disconnected",
     "interval": 3,
     "nospacing": 1,
-    "on-click": "kitty --class=Impala --title=Impala impala"
+    "on-click": "bash -lc '$HOME/dotfiles/scripts/theme-manager/network-menu'"
   },
   "battery": {
     "format": "{capacity}% {icon}",
@@ -189,7 +188,8 @@
     },
     "modules": [
       "custom/expand-icon",
-      "tray"
+      "tray",
+      "network"
     ]
   },
   "custom/expand-icon": {
