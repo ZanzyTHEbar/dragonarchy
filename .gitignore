@@ -20,3 +20,8 @@ packages/fcitx5/.config/fcitx5/conf/notifications.conf
 # Cursor
 .cursorignore
 vendored/
+
+# Clipse clipboard manager - contains sensitive clipboard history
+packages/hyprland/.config/clipse/clipboard_history.json
+packages/hyprland/.config/clipse/clipse.log
+packages/hyprland/.config/clipse/tmp_files/
