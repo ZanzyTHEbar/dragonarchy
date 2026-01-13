@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$DOTFILES_ROOT/scripts/lib/logging.sh"
+
+WAYBAR_HOVERD="$DOTFILES_ROOT/scripts/theme-manager/waybar-hoverd"
+
+log_step "Validating prerequisites and config"
+if ! "$WAYBAR_HOVERD" --status; then
+  log_error "waybar-hoverd --status failed (missing deps)"
+  exit 1
+fi
+
+LOG_PATH="${WAYBAR_HOVERD_LOG:-$HOME/.cache/waybar-hoverd/verify.log}"
+mkdir -p "$(dirname "$LOG_PATH")"
+rm -f "$LOG_PATH"
+
+log_step "Starting waybar-hoverd with logging"
+log_info "Log: $LOG_PATH"
+log_info "Move your cursor to the configured edge (EDGE=${EDGE:-top}) to trigger Waybar."
+log_info "This verifier will run for ~20s and then report whether it saw start/stop events."
+
+WAYBAR_HOVERD_LOG="$LOG_PATH" "$WAYBAR_HOVERD" --run &
+pid=$!
+
+cleanup() {
+  kill "$pid" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+sleep 20
+
+log_step "Analyzing logs"
+if [[ ! -s "$LOG_PATH" ]]; then
+  log_error "No log output produced. waybar-hoverd may not be running."
+  log_info "Try: WAYBAR_HOVERD_LOG=\"$LOG_PATH\" $WAYBAR_HOVERD --diagnose"
+  exit 1
+fi
+
+started="$(grep -c 'starting waybar' "$LOG_PATH" || true)"
+stopped="$(grep -c 'stopping waybar' "$LOG_PATH" || true)"
+
+log_info "Events: started=$started stopped=$stopped"
+
+if [[ "$started" -ge 1 ]]; then
+  log_success "PASS: hover trigger was observed at least once"
+  exit 0
+fi
+
+log_error "FAIL: no 'starting waybar' event observed in 20s"
+log_info "Next step: run live telemetry:"
+log_info "  $WAYBAR_HOVERD --diagnose"
+log_info "and confirm dist_px reaches <= TRIGGER_PX when you touch the edge."
+exit 1
+

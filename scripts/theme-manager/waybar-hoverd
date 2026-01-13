@@ -1,0 +1,346 @@
+#!/usr/bin/env bash
+#
+# waybar-hoverd
+#
+# Edge-triggered Waybar show/hide for Hyprland (true expand/collapse).
+# Designed to be resilient: if Hyprland JSON formats differ or jq is missing,
+# it will fall back to best-effort parsing instead of exiting.
+#
+set -uo pipefail
+IFS=$'\n\t'
+
+# Prefer the shared logging helpers for user-facing output, but keep a separate
+# file logger for the daemon so we don't spam stdout during login/session start.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES_ROOT="${DOTFILES_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+
+# shellcheck disable=SC1090
+if [[ -f "$DOTFILES_ROOT/scripts/lib/logging.sh" ]]; then
+  source "$DOTFILES_ROOT/scripts/lib/logging.sh"
+else
+  # Minimal fallback (no colors) if the lib isn't present.
+  log_info() { echo "[INFO] $1"; }
+  log_success() { echo "[SUCCESS] $1"; }
+  log_warning() { echo "[WARNING] $1" >&2; }
+  log_error() { echo "[ERROR] $1" >&2; }
+  log_step() { echo "[STEP] $1"; }
+fi
+
+# --- CLI / usage -------------------------------------------------------------
+usage() {
+  cat <<'EOF'
+waybar-hoverd - edge-triggered Waybar show/hide for Hyprland
+
+Environment:
+  EDGE=top|left|right|bottom        (default: top)
+  BAR_THICKNESS_PX=<px>             (default: 26)
+  TRIGGER_PX=<px>                   (default: 2)
+  POLL_MS=<ms>                      (default: 120)
+  HIDE_DELAY_MS=<ms>                (default: 500)
+  WAYBAR_HOVERD_LOG=<path>          (default: unset)
+
+Commands:
+  --status          Print dependencies + current config. Exit 0 if usable.
+  --print-config    Print effective config only.
+  --diagnose        Print live cursor + computed edge distance (Ctrl+C to stop).
+  --run             Run daemon (default).
+
+Notes:
+  - For debugging, set WAYBAR_HOVERD_LOG to capture start/stop events.
+  - This daemon only stops Waybar if it started Waybar itself.
+EOF
+}
+
+# Which edge triggers the bar: top|left|right|bottom
+EDGE="${EDGE:-top}"
+
+# Thickness of the region that keeps Waybar open (px).
+# For EDGE=top/bottom this is Waybar's height; for left/right it's the width.
+BAR_THICKNESS_PX="${BAR_THICKNESS_PX:-26}"
+
+# How many pixels from the edge count as a "touch" to trigger Waybar.
+TRIGGER_PX="${TRIGGER_PX:-2}"
+
+# Poll interval (ms). Keep this modest to reduce login/CPU overhead.
+POLL_MS="${POLL_MS:-120}"
+
+# How long the cursor must be outside the bar region before we hide (ms).
+HIDE_DELAY_MS="${HIDE_DELAY_MS:-500}"
+
+# Optional log file for debugging (set to non-empty to enable).
+LOG_FILE="${WAYBAR_HOVERD_LOG:-}"
+
+# Whether this daemon should "own" Waybar:
+# - If 1 (default), we will kill any existing Waybar instance on startup and
+#   we will always kill Waybar on hide (prevents stacked/double bars).
+# - If 0, we only stop Waybar if we started it ourselves.
+OWN_WAYBAR="${OWN_WAYBAR:-1}"
+
+have_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+file_log() {
+  [[ -z "${LOG_FILE:-}" ]] && return 0
+  mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+  printf "[%(%F %T)T] %s\n" -1 "$*" >>"$LOG_FILE" 2>/dev/null || true
+}
+
+print_config() {
+  cat <<EOF
+EDGE=$EDGE
+BAR_THICKNESS_PX=$BAR_THICKNESS_PX
+TRIGGER_PX=$TRIGGER_PX
+POLL_MS=$POLL_MS
+HIDE_DELAY_MS=$HIDE_DELAY_MS
+WAYBAR_HOVERD_LOG=${LOG_FILE:-}
+EOF
+}
+
+status() {
+  local ok=1
+  if ! have_cmd hyprctl; then
+    log_error "hyprctl: MISSING"
+    ok=0
+  else
+    log_success "hyprctl: OK"
+  fi
+  if have_cmd jq; then
+    log_success "jq: OK"
+  else
+    log_warning "jq: missing (will use best-effort parsing)"
+  fi
+  if ! have_cmd waybar; then
+    log_error "waybar: MISSING"
+    ok=0
+  else
+    log_success "waybar: OK"
+  fi
+  echo ""
+  log_step "config"
+  print_config
+  [[ $ok -eq 1 ]]
+}
+
+now_ms() { date +%s%3N; }
+
+sleep_ms() {
+  local ms="$1"
+  awk -v ms="$ms" 'BEGIN { printf "%.3f\n", ms/1000 }' | xargs sleep
+}
+
+waybar_running() { pgrep -x waybar >/dev/null 2>&1; }
+
+# Track whether WE started Waybar (so we don't kill a user-managed instance).
+MANAGED_WAYBAR=0
+
+start_waybar() {
+  waybar_running && return 0
+  file_log "starting waybar"
+  # Start directly so $! is the actual waybar PID.
+  # If logging is enabled, capture Waybar output for troubleshooting.
+  if [[ -n "${LOG_FILE:-}" ]]; then
+    WAYBAR_LOG_LEVEL="${WAYBAR_LOG_LEVEL:-info}" waybar >>"$LOG_FILE" 2>&1 &
+  else
+    waybar >/dev/null 2>&1 &
+  fi
+  disown || true
+  MANAGED_WAYBAR=1
+  # Quick sanity: if waybar dies instantly, record it.
+  sleep 0.2
+  if ! waybar_running; then
+    file_log "waybar exited immediately after start (check config/style paths; try running: WAYBAR_LOG_LEVEL=trace waybar)"
+  fi
+  return 0
+}
+
+stop_waybar() {
+  [[ $MANAGED_WAYBAR -eq 1 || $OWN_WAYBAR -eq 1 ]] || return 0
+  file_log "stopping waybar"
+  pkill -x waybar >/dev/null 2>&1 || true
+  MANAGED_WAYBAR=0
+}
+
+cursor_pos() {
+  # Output: "x<TAB>y" (integers)
+  local out x y
+
+  if have_cmd hyprctl && have_cmd jq; then
+    out="$(hyprctl cursorpos -j 2>/dev/null || true)"
+    x="$(printf "%s" "$out" | jq -r '.x // empty' 2>/dev/null || true)"
+    y="$(printf "%s" "$out" | jq -r '.y // empty' 2>/dev/null || true)"
+    if [[ "$x" =~ ^-?[0-9]+$ && "$y" =~ ^-?[0-9]+$ ]]; then
+      printf "%s\t%s\n" "$x" "$y"
+      return 0
+    fi
+  fi
+
+  out="$(hyprctl cursorpos 2>/dev/null || true)"
+  # Extract first 2 integers from any format (e.g. "123,456", "x: 123 y: 456", etc.)
+  x="$(printf "%s" "$out" | grep -oE -- '-?[0-9]+' | sed -n '1p' || true)"
+  y="$(printf "%s" "$out" | grep -oE -- '-?[0-9]+' | sed -n '2p' || true)"
+
+  if [[ "$x" =~ ^-?[0-9]+$ && "$y" =~ ^-?[0-9]+$ ]]; then
+    printf "%s\t%s\n" "$x" "$y"
+    return 0
+  fi
+
+  echo ""
+}
+
+# Cache monitor geometry for 1s to avoid hammering hyprctl.
+MON_CACHE_JSON=""
+MON_CACHE_AT_MS=0
+MON_CACHE_TTL_MS=1000
+
+monitors_json() {
+  local now
+  now="$(now_ms)"
+  if [[ -n "${MON_CACHE_JSON:-}" && $((now - MON_CACHE_AT_MS)) -lt $MON_CACHE_TTL_MS ]]; then
+    printf "%s" "$MON_CACHE_JSON"
+    return 0
+  fi
+  if ! have_cmd hyprctl || ! have_cmd jq; then
+    echo ""
+    return 0
+  fi
+  MON_CACHE_JSON="$(hyprctl monitors -j 2>/dev/null || true)"
+  MON_CACHE_AT_MS="$now"
+  printf "%s" "$MON_CACHE_JSON"
+}
+
+edge_distance_px() {
+  # Distance from chosen EDGE for the monitor under cursor.
+  # Returns large number if unknown.
+  local x y
+  read -r x y < <(cursor_pos)
+  [[ -z "${x:-}" || -z "${y:-}" ]] && { echo "99999"; return 0; }
+
+  if ! have_cmd jq; then
+    # Fallback without monitor awareness: only works reasonably for single-monitor at origin.
+    case "$EDGE" in
+      top) echo "$y" ;;
+      left) echo "$x" ;;
+      right) echo "99999" ;;
+      bottom) echo "99999" ;;
+      *) echo "$y" ;;
+    esac
+    return 0
+  fi
+
+  local mons rel
+  mons="$(monitors_json)"
+  [[ -z "$mons" ]] && { echo "99999"; return 0; }
+
+  rel="$(
+    printf "%s" "$mons" | jq -r --argjson cx "$x" --argjson cy "$y" --arg edge "$EDGE" '
+      def inside(m): ($cx >= m.x and $cx < (m.x + m.width) and $cy >= m.y and $cy < (m.y + m.height));
+      .[] | select(inside(.)) | (
+        if $edge == "top" then ($cy - .y)
+        elif $edge == "bottom" then ((.y + .height) - $cy)
+        elif $edge == "left" then ($cx - .x)
+        elif $edge == "right" then ((.x + .width) - $cx)
+        else ($cy - .y)
+        end
+      )
+    ' 2>/dev/null | head -n1
+  )"
+
+  [[ "$rel" =~ ^-?[0-9]+$ ]] && echo "$rel" || echo "99999"
+}
+
+diagnose() {
+  log_step "waybar-hoverd diagnose (Ctrl+C to stop)"
+  echo ""
+  print_config
+  echo ""
+  while true; do
+    local x y dist
+    read -r x y < <(cursor_pos)
+    dist="$(edge_distance_px)"
+    local wb="stopped"
+    waybar_running && wb="running"
+    printf "cursor=(%s,%s) edge=%s dist_px=%s trigger<=%s keep<=%s\n" \
+      "${x:-?}" "${y:-?}" "$EDGE" "$dist" "$TRIGGER_PX" "$BAR_THICKNESS_PX"
+    printf "waybar=%s (managed=%s)\n" "$wb" "$MANAGED_WAYBAR"
+    sleep_ms "$POLL_MS"
+  done
+}
+
+main() {
+  file_log "waybar-hoverd starting (EDGE=$EDGE TRIGGER_PX=$TRIGGER_PX BAR_THICKNESS_PX=$BAR_THICKNESS_PX POLL_MS=$POLL_MS HIDE_DELAY_MS=$HIDE_DELAY_MS)"
+
+  # Ensure single instance (best-effort).
+  if have_cmd flock; then
+    mkdir -p "$HOME/.cache/waybar-hoverd" 2>/dev/null || true
+    exec 9>"$HOME/.cache/waybar-hoverd/lock"
+    if ! flock -n 9; then
+      file_log "another waybar-hoverd instance is already running; exiting"
+      exit 0
+    fi
+  fi
+
+  # Avoid stacked bars by taking ownership (default).
+  if [[ $OWN_WAYBAR -eq 1 ]]; then
+    pkill -x waybar >/dev/null 2>&1 || true
+    MANAGED_WAYBAR=0
+  fi
+
+  local last_inside_ms
+  last_inside_ms="$(now_ms)"
+
+  while true; do
+    if ! have_cmd hyprctl; then
+      sleep_ms 250
+      continue
+    fi
+
+    local dist
+    dist="$(edge_distance_px)"
+
+    # Touch edge => show
+    if [[ "$dist" -le "$TRIGGER_PX" ]]; then
+      start_waybar
+    fi
+
+    # Within bar thickness => keep alive
+    if [[ "$dist" -le "$BAR_THICKNESS_PX" ]]; then
+      last_inside_ms="$(now_ms)"
+    else
+      if waybar_running && [[ $MANAGED_WAYBAR -eq 1 ]]; then
+        local elapsed=$(( $(now_ms) - last_inside_ms ))
+        if [[ "$elapsed" -ge "$HIDE_DELAY_MS" ]]; then
+          stop_waybar
+        fi
+      fi
+    fi
+
+    sleep_ms "$POLL_MS"
+  done
+}
+
+cmd="${1:---run}"
+case "$cmd" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  --print-config)
+    print_config
+    exit 0
+    ;;
+  --status)
+    status
+    exit $?
+    ;;
+  --diagnose)
+    diagnose
+    ;;
+  --run|"")
+    main
+    ;;
+  *)
+    echo "waybar-hoverd: unknown option: $cmd" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
+

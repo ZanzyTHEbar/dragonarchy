@@ -21,6 +21,10 @@ restart_proc() {
   local pname="$1"; shift
   local cmd="$*"
   pkill -x "$pname" >/dev/null 2>&1 || true
+  # Back-compat cleanup: older versions ran as "bash .../waybar-hoverd", so -x won't match.
+  if [[ "$pname" == "waybar-hoverd" ]]; then
+    pkill -f "/waybar-hoverd(\\s|$)" >/dev/null 2>&1 || true
+  fi
   sleep 0.05
   run_exec "$cmd"
 }
@@ -29,7 +33,9 @@ restart_proc() {
 restart_proc swaybg "uwsm app -- swaybg -i ~/.config/current/background -m fill"
 
 # Waybar
-restart_proc waybar "uwsm app -- waybar"
+# True show/hide for Waybar is managed by waybar-hoverd
+pkill -x waybar >/dev/null 2>&1 || true
+restart_proc waybar-hoverd "uwsm app -- bash -c 'exec -a waybar-hoverd bash \"$HOME/.local/bin/waybar-hoverd\" --run'"
 
 # Input/IME
 start_if_missing fcitx5 "uwsm app -- fcitx5"
