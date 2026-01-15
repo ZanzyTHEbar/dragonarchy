@@ -132,7 +132,7 @@ Provides a single helper for sending desktop notifications consistently.
 
 #### Available Functions
 
-- `notify_send [--app name] [--icon name] [--urgency level] [--expire ms] [--action key=Label] [--wait] "Title" "Body"`
+- `notify_send [--app name] [--icon name] [--urgency level] [--expire ms] [--timeout duration] [--action key=Label] [--wait] -- "Title" "Body"`
 
 #### Usage
 
