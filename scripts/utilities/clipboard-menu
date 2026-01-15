@@ -4,6 +4,12 @@
 
 set -euo pipefail
 
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/lib/notifications.sh"
+
 # Define options with nerd font icons
 OPTIONS="󰅍 Clipse (Quick TUI)
 󰸉 Walker (Images & Multi-line)
@@ -30,7 +36,7 @@ case "$CHOICE" in
     rm -f ~/.local/share/clipse/clipboard_history.json
     # Restart elephant to clear its memory
     systemctl --user restart elephant 2>/dev/null || true
-    notify-send "Clipboard" "History cleared"
+    notify_send "Clipboard" "History cleared"
     ;;
   *"Settings"*)
     # Open relevant configs

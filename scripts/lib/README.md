@@ -125,3 +125,23 @@ Enable debug logging by setting the `DEBUG` environment variable:
 ```bash
 DEBUG=1 ./your-script.sh
 ```
+
+### `notifications.sh`
+
+Provides a single helper for sending desktop notifications consistently.
+
+#### Available Functions
+
+- `notify_send [--app name] [--icon name] [--urgency level] [--expire ms] [--action key=Label] [--wait] "Title" "Body"`
+
+#### Usage
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/notifications.sh"  # Adjust path as needed
+
+notify_send --app "My Script" "Done" "All tasks completed"
+```

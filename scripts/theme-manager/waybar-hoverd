@@ -132,15 +132,49 @@ waybar_running() { pgrep -x waybar >/dev/null 2>&1; }
 # Track whether WE started Waybar (so we don't kill a user-managed instance).
 MANAGED_WAYBAR=0
 
+resolve_waybar_style() {
+  local config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+  local cache_home="${XDG_CACHE_HOME:-$HOME/.cache}"
+  local style_src="${config_home}/waybar/style.css"
+  local theme_css="${config_home}/current/theme/waybar.css"
+  local out="${cache_home}/waybar/style.css"
+
+  [[ -f "$style_src" ]] || return 1
+  [[ -f "$theme_css" ]] || return 1
+
+  mkdir -p "$(dirname "$out")"
+
+  if grep -qE '^[[:space:]]*@import' "$style_src" 2>/dev/null; then
+    awk -v theme="$theme_css" '
+      BEGIN { done = 0 }
+      /^[[:space:]]*@import/ && done == 0 { printf "@import \"%s\";\n", theme; done = 1; next }
+      { print }
+    ' "$style_src" > "$out"
+  else
+    printf '@import "%s";\n' "$theme_css" > "$out"
+    cat "$style_src" >> "$out"
+  fi
+
+  echo "$out"
+}
+
 start_waybar() {
   waybar_running && return 0
   file_log "starting waybar"
+  local style_arg=()
+  local resolved_style=""
+  resolved_style="$(resolve_waybar_style || true)"
+  if [[ -n "$resolved_style" ]]; then
+    style_arg=(-s "$resolved_style")
+  else
+    file_log "waybar style resolve failed (missing current theme CSS); using default style path"
+  fi
   # Start directly so $! is the actual waybar PID.
   # If logging is enabled, capture Waybar output for troubleshooting.
   if [[ -n "${LOG_FILE:-}" ]]; then
-    WAYBAR_LOG_LEVEL="${WAYBAR_LOG_LEVEL:-info}" waybar >>"$LOG_FILE" 2>&1 &
+    WAYBAR_LOG_LEVEL="${WAYBAR_LOG_LEVEL:-info}" waybar "${style_arg[@]}" >>"$LOG_FILE" 2>&1 &
   else
-    waybar >/dev/null 2>&1 &
+    waybar "${style_arg[@]}" >/dev/null 2>&1 &
   fi
   disown || true
   MANAGED_WAYBAR=1

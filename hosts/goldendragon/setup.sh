@@ -233,8 +233,16 @@ setup_openfortivpn_access() {
   log_step "Provisioning OpenFortiVPN access..."
 
   local config="/etc/openfortivpn/config"
+  local service_config="/etc/openfortivpn/waybar.conf"
   local group="openfortivpn"
   local target_user="${OPENFORTIVPN_USER:-${SUDO_USER:-$USER}}"
+  local host_short
+  host_short="$(hostname | cut -d. -f1)"
+  local target_home=""
+  target_home="$(getent passwd "$target_user" 2>/dev/null | awk -F: '{print $6}')"
+  [[ -z "$target_home" ]] && target_home="$HOME"
+  local marker_path="${target_home}/.config/waybar-hosts/${host_short}/vpn-enabled"
+  local marker_src="${SCRIPT_DIR}/dotfiles/.config/waybar-hosts/${host_short}/vpn-enabled"
 
   if ! command -v sudo >/dev/null 2>&1; then
     log_warning "sudo not available; skipping OpenFortiVPN provisioning"
@@ -300,6 +308,89 @@ EOF
   else
     log_warning "OpenFortiVPN config not found: $config"
   fi
+
+  if [[ -f "$config" ]]; then
+    sudo python - <<'PY'
+from pathlib import Path
+
+src = Path("/etc/openfortivpn/config")
+dst = Path("/etc/openfortivpn/waybar.conf")
+
+lines = src.read_text().splitlines()
+filtered = []
+for line in lines:
+    stripped = line.strip()
+    if stripped.startswith("#") or not stripped:
+        filtered.append(line)
+        continue
+    if stripped.lower().startswith("saml-login"):
+        continue
+    filtered.append(line)
+
+dst.write_text("\n".join(filtered) + "\n")
+PY
+    sudo chgrp "$group" "$service_config" || log_warning "Failed to chgrp $service_config"
+    sudo chmod 640 "$service_config" || log_warning "Failed to chmod 640 $service_config"
+    log_success "Generated service config: $service_config"
+  fi
+
+  if [[ -f /etc/systemd/system/openfortivpn.service ]]; then
+    sudo systemctl daemon-reload >/dev/null 2>&1 || log_warning "systemctl daemon-reload failed"
+  fi
+
+  if [[ -f "$marker_src" ]]; then
+    mkdir -p "$(dirname "$marker_path")"
+    local marker_link="$marker_src"
+    if command -v realpath >/dev/null 2>&1; then
+      local marker_dir rel
+      marker_dir="$(dirname "$marker_path")"
+      rel="$(realpath --relative-to="$marker_dir" "$marker_src" 2>/dev/null || true)"
+      if [[ -n "$rel" ]]; then
+        marker_link="$rel"
+      fi
+    fi
+    if [[ "$target_user" != "$USER" ]]; then
+      sudo -u "$target_user" ln -snf "$marker_link" "$marker_path"
+    else
+      ln -snf "$marker_link" "$marker_path"
+    fi
+    log_success "Provisioned Waybar host marker: $marker_path"
+  else
+    log_warning "Waybar host marker missing in dotfiles: $marker_src"
+  fi
+}
+
+openfortivpn_is_provisioned() {
+  local config="/etc/openfortivpn/config"
+  local service_config="/etc/openfortivpn/waybar.conf"
+  local group="openfortivpn"
+  local target_user="${OPENFORTIVPN_USER:-${SUDO_USER:-$USER}}"
+  local host_short
+  host_short="$(hostname | cut -d. -f1)"
+  local target_home=""
+  target_home="$(getent passwd "$target_user" 2>/dev/null | awk -F: '{print $6}')"
+  [[ -z "$target_home" ]] && target_home="$HOME"
+  local marker_path="${target_home}/.config/waybar-hosts/${host_short}/vpn-enabled"
+
+  command -v openfortivpn >/dev/null 2>&1 || return 1
+  getent group "$group" >/dev/null 2>&1 || return 1
+  [[ -f "$config" ]] || return 1
+  [[ -f "$service_config" ]] || return 1
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl list-unit-files --type=service 2>/dev/null | grep -q '^openfortivpn\.service' || return 1
+  fi
+  [[ "$(stat -c '%G' "$config" 2>/dev/null || true)" == "$group" ]] || return 1
+  getent group "$group" | awk -F: -v u="$target_user" '
+    {
+      n=split($4, users, ",");
+      for (i=1; i<=n; i++) {
+        if (users[i] == u) { found=1; break }
+      }
+    }
+    END { exit(found ? 0 : 1) }
+  ' || return 1
+  [[ -f "$marker_path" ]] || return 1
+  return 0
 }
 
 apply_host_system_configs() {
@@ -434,7 +525,7 @@ EOF
   # Enable battery-monitor timer if present (installed via packages/hardware)
   if command -v systemctl >/dev/null 2>&1; then
     if systemctl --user list-unit-files 2>/dev/null | grep -q '^battery-monitor\.timer'; then
-      systemctl --user enable battery-monitor.timer 2>/dev/null || true
+      systemctl --user enable --now battery-monitor.timer 2>/dev/null || true
       log_info "battery-monitor.timer enabled (user)"
     else
       log_info "battery-monitor.timer not found; battery-status installed only"
@@ -486,19 +577,20 @@ main() {
   fi
   echo
 
-  if ! is_step_completed "goldendragon-openfortivpn"; then
-    setup_openfortivpn_access && mark_step_completed "goldendragon-openfortivpn"
-  else
-    log_info "✓ OpenFortiVPN access already provisioned (skipped)"
-  fi
-  echo
-
   if ! is_step_completed "goldendragon-system-configs"; then
     apply_host_system_configs && mark_step_completed "goldendragon-system-configs"
   else
     # Still check for drift
     apply_host_system_configs || true
     log_info "✓ Host system configs already applied (checked)"
+  fi
+  echo
+
+  if openfortivpn_is_provisioned; then
+    log_info "✓ OpenFortiVPN access already provisioned (skipped)"
+  else
+    log_warning "OpenFortiVPN access incomplete; provisioning now..."
+    setup_openfortivpn_access && mark_step_completed "goldendragon-openfortivpn"
   fi
   echo
 

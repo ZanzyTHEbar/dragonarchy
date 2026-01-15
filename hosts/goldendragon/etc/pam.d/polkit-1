@@ -1,0 +1,9 @@
+#%PAM-1.0
+
+# Allow fingerprint authentication for polkit prompts.
+auth        sufficient  pam_fprintd.so
+auth        include     system-auth
+
+account     include     system-auth
+password    include     system-auth
+session     include     system-auth

@@ -14,7 +14,6 @@
   "modules-right": [
     "group/tray-expander",
     "custom/notifications",
-    "custom/vpn",
     "bluetooth",
     "pulseaudio",
     "custom/thermals",
@@ -207,7 +206,8 @@
     "modules": [
       "custom/expand-icon",
       "tray",
-      "network"
+      "network",
+      "custom/vpn"
     ]
   },
   "custom/expand-icon": {

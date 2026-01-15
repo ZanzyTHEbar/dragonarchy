@@ -4,6 +4,12 @@ set -euo pipefail
 # Enables a "power saving mode" with safe, user-level optimizations.
 # Intended to be invoked from the low-battery notification action.
 
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/lib/notifications.sh"
+
 log() {
   echo "power-saving-mode: $*"
 }
@@ -177,12 +183,10 @@ disable_power_saving_mode() {
 
   rm -f "$STATE_FILE" 2>/dev/null || true
 
-  if command -v notify-send >/dev/null 2>&1; then
-    notify-send --urgency=normal --app-name="battery-monitor" --icon="battery-good" \
-      "Power saving mode disabled" \
-      "powerprofilesctl=$(get_ppd_profile)\nasusctl=$(get_asus_profile)\nbrightness=$(get_brightness)\nbluetooth=$(get_bluetooth_powered)" \
-      2>/dev/null || true
-  fi
+  notify_send --app "battery-monitor" --icon "battery-good" --urgency "normal" \
+    "Power saving mode disabled" \
+    "powerprofilesctl=$(get_ppd_profile)\nasusctl=$(get_asus_profile)\nbrightness=$(get_brightness)\nbluetooth=$(get_bluetooth_powered)" \
+    2>/dev/null || true
 
   [[ $did_any -eq 1 ]] || return 1
   return 0

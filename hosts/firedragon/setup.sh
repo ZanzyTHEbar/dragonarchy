@@ -346,7 +346,7 @@ EOF
     
     # Check if battery-monitor timer exists from hardware package
     if systemctl --user list-unit-files | grep -q "battery-monitor.timer"; then
-        systemctl --user enable battery-monitor.timer 2>/dev/null || true
+        systemctl --user enable --now battery-monitor.timer 2>/dev/null || true
         log_info "Battery monitor timer enabled"
     else
         log_info "Battery monitoring script installed at ~/.local/bin/battery-status"

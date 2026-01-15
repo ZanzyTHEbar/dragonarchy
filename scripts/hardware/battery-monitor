@@ -1,6 +1,12 @@
 #!/bin/bash
 # Checks battery status and sends a notification if the level is low.
 
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/lib/notifications.sh"
+
 WARN_THRESHOLD=25
 POWER_SAVER_THRESHOLD=30
 POWER_RESUME_THRESHOLD=35
@@ -126,13 +132,13 @@ send_warning_with_action_async() {
 
     local action
     action="$(
-      timeout 45m notify-send \
-        --urgency=critical \
-        --app-name="battery-monitor" \
-        --icon="battery-caution" \
-        --expire-time=0 \
-        --action="powersave=Enable power saving mode" \
-        --action="dismiss=Dismiss" \
+      timeout 45m notify_send \
+        --app "battery-monitor" \
+        --icon "battery-caution" \
+        --urgency "critical" \
+        --expire 0 \
+        --action "powersave=Enable power saving mode" \
+        --action "dismiss=Dismiss" \
         --wait \
         "Battery low (${level}%)" \
         "Plug in now. Estimated remaining: ${eta}." \
@@ -199,12 +205,12 @@ send_warning_with_action_async() {
           verify_bt="$(bluetoothctl show 2>/dev/null | awk '/Powered/ { print $2; exit }' || true)"
           [[ -z "${verify_bt:-}" ]] && verify_bt="unknown"
         fi
-        notify-send --urgency=normal --app-name="battery-monitor" --icon="battery-good" \
+        notify_send --app "battery-monitor" --icon "battery-good" --urgency "normal" \
           "Power saving mode applied" \
           "powerprofilesctl=${verify_ppd}\nasusctl=${verify_asus}\ntlp=${verify_tlp}\nbrightness=${verify_bri}\nbluetooth=${verify_bt}\n${out}" \
           2>/dev/null || true
       else
-        notify-send --urgency=critical --app-name="battery-monitor" --icon="battery-caution" \
+        notify_send --app "battery-monitor" --icon "battery-caution" --urgency "critical" \
           "Power saving mode unavailable" \
           "Couldn't find power-saving-mode in PATH or ~/.local/bin.\n(powerprofilesctl=${verify_ppd}, asusctl=${verify_asus}, tlp=${verify_tlp}, brightness=${verify_bri}, bluetooth=${verify_bt})" \
           2>/dev/null || true

@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenFortiVPN (SAML)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/openfortivpn --config /etc/openfortivpn/waybar.conf --saml-login=8080
+Restart=on-failure
+RestartSec=2
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
