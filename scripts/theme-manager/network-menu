@@ -24,7 +24,7 @@ is_active() {
 
 notify() {
   local msg="$1"
-  if have notify-send; then
+  if notify_available; then
     notify_send --app "dragon" --icon "network-wireless" "Network" "$msg"
   else
     printf '%s\n' "$msg" >&2

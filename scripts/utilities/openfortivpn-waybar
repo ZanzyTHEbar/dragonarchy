@@ -16,7 +16,7 @@ VPN_CONFIG="${OPENFORTIVPN_CONFIG:-/etc/openfortivpn/config}"
 VPN_CMD="${OPENFORTIVPN_CMD:-openfortivpn}"
 VPN_PROC_NAME="${OPENFORTIVPN_PROC_NAME:-${VPN_CMD##*/}}"
 SUDO_CMD="${OPENFORTIVPN_SUDO_CMD:-sudo}"
-SAML_PORT_DEFAULT="${OPENFORTIVPN_SAML_PORT:-8080}"
+SAML_PORT_DEFAULT="${OPENFORTIVPN_SAML_PORT:-8020}"
 
 have_cmd() { command -v "$1" >/dev/null 2>&1; }
 
@@ -48,6 +48,21 @@ port_in_use() {
     netstat -ltn 2>/dev/null | awk -v p=":$port" '$4 ~ p {print $6; exit}' | grep -q LISTEN
     return $?
   fi
+  return 1
+}
+
+wait_for_port() {
+  local port="$1"
+  local max_wait_ms="${2:-5000}"
+  local slept=0
+  local step=200
+  while (( slept < max_wait_ms )); do
+    if port_in_use "$port"; then
+      return 0
+    fi
+    sleep 0.2
+    slept=$((slept + step))
+  done
   return 1
 }
 
@@ -328,6 +343,11 @@ connect_vpn() {
     run_background pkexec "${cmd[@]}"
   else
     notify "VPN" "Need sudo or pkexec to start OpenFortiVPN."
+    return 1
+  fi
+
+  if ! wait_for_port "$saml_port" 6000; then
+    notify "VPN" "SAML listener not ready on port ${saml_port}."
     return 1
   fi
 

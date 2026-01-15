@@ -107,11 +107,6 @@ send_warning_with_action_async() {
     return 0
   fi
 
-  # Ensure required tools exist
-  if ! command -v notify-send >/dev/null 2>&1; then
-    return 0
-  fi
-
   # Avoid spawning multiple waiters
   if [[ -f "$ACTION_PROMPT_LOCK" ]]; then
     if [[ -f "$ACTION_PROMPT_PID" ]]; then
@@ -132,14 +127,16 @@ send_warning_with_action_async() {
 
     local action
     action="$(
-      timeout 45m notify_send \
+      notify_send \
         --app "battery-monitor" \
         --icon "battery-caution" \
         --urgency "critical" \
         --expire 0 \
+        --timeout 45m \
         --action "powersave=Enable power saving mode" \
         --action "dismiss=Dismiss" \
         --wait \
+        -- \
         "Battery low (${level}%)" \
         "Plug in now. Estimated remaining: ${eta}." \
         2>/dev/null || true

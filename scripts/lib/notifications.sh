@@ -6,7 +6,7 @@
 #
 
 notify_send() {
-  local app="" icon="" urgency="" expire="" wait=0
+  local app="" icon="" urgency="" expire="" wait=0 timeout_duration=""
   local -a actions=()
 
   while [[ $# -gt 0 ]]; do
@@ -15,6 +15,7 @@ notify_send() {
       --icon) icon="$2"; shift 2 ;;
       --urgency) urgency="$2"; shift 2 ;;
       --expire) expire="$2"; shift 2 ;;
+      --timeout) timeout_duration="$2"; shift 2 ;;
       --action) actions+=("$2"); shift 2 ;;
       --wait) wait=1; shift ;;
       --) shift; break ;;
@@ -33,6 +34,15 @@ notify_send() {
   [[ -n "$urgency" ]] && cmd+=(--urgency="$urgency")
   [[ -n "$expire" ]] && cmd+=(--expire-time="$expire")
 
+  run_notify() {
+    local -a run_cmd=("${cmd[@]}" "$title" "$body")
+    if [[ -n "$timeout_duration" ]] && command -v timeout >/dev/null 2>&1; then
+      timeout "$timeout_duration" "${run_cmd[@]}" 2>/dev/null || true
+      return 0
+    fi
+    "${run_cmd[@]}" 2>/dev/null || true
+  }
+
   local supports_actions=0
   if [[ ${#actions[@]} -gt 0 || $wait -eq 1 ]]; then
     if notify-send --help 2>/dev/null | grep -q -- '--action'; then
@@ -46,9 +56,13 @@ notify_send() {
       cmd+=(--action="$action")
     done
     [[ $wait -eq 1 ]] && cmd+=(--wait)
-    "${cmd[@]}" "$title" "$body" 2>/dev/null || true
+    run_notify
     return 0
   fi
 
-  "${cmd[@]}" "$title" "$body" 2>/dev/null || true
+  run_notify
+}
+
+notify_available() {
+  command -v notify-send >/dev/null 2>&1
 }
