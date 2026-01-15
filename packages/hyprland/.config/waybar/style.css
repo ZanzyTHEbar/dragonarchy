@@ -1,4 +1,4 @@
-@import "../current/theme/waybar.css";
+@import "/home/daofficialwizard/.config/current/theme/waybar.css";
 
 * {
   background-color: @background;
@@ -43,6 +43,7 @@
 #clock,
 #custom-session,
 #custom-idle,
+#custom-vpn,
 #custom-thermals,
 #custom-notifications {
   min-width: 12px;
@@ -63,4 +64,23 @@ tooltip {
 
 #custom-thermals.critical {
   color: @error;
+}
+
+#custom-vpn.connecting {
+  color: @warning;
+}
+
+#custom-vpn.error {
+  color: @error;
+}
+
+#custom-vpn.disconnected {
+  color: @error;
+}
+
+#custom-vpn.hidden {
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+  font-size: 0;
 }

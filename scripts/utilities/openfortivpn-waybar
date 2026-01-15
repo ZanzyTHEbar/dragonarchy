@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+HOST_SHORT="$(hostname | cut -d. -f1)"
+DEFAULT_ENABLE_FILE="$HOME/.config/waybar-hosts/$HOST_SHORT/vpn-enabled"
+ENABLE_FILE="${OPENFORTIVPN_WAYBAR_ENABLE_FILE:-$DEFAULT_ENABLE_FILE}"
+VPN_IFACE="${OPENFORTIVPN_IFACE:-ppp0}"
+VPN_CONFIG="${OPENFORTIVPN_CONFIG:-/etc/openfortivpn/config}"
+VPN_CMD="${OPENFORTIVPN_CMD:-openfortivpn}"
+VPN_PROC_NAME="${OPENFORTIVPN_PROC_NAME:-${VPN_CMD##*/}}"
+SUDO_CMD="${OPENFORTIVPN_SUDO_CMD:-sudo}"
+
+have_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+json_escape() {
+  local value="$1"
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//$'\n'/\\n}
+  printf "%s" "$value"
+}
+
+notify() {
+  local title="$1"
+  local body="${2:-}"
+  if have_cmd notify-send; then
+    notify-send -a "VPN" "$title" "$body" >/dev/null 2>&1 || true
+  fi
+}
+
+enabled() { [[ -f "$ENABLE_FILE" ]]; }
+
+config_value() {
+  local key="$1"
+  [[ -f "$VPN_CONFIG" && -r "$VPN_CONFIG" ]] || return 0
+  awk -F= -v key="$key" '
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*$/ { next }
+    $1 ~ "^[[:space:]]*"key"[[:space:]]*$" {
+      val=$2
+      sub(/^[[:space:]]+/, "", val)
+      sub(/[[:space:]]+$/, "", val)
+      print val
+      exit
+    }
+  ' "$VPN_CONFIG"
+}
+
+vpn_iface_up() {
+  have_cmd ip || return 1
+  ip link show dev "$VPN_IFACE" >/dev/null 2>&1
+}
+
+vpn_addr() {
+  have_cmd ip || return 0
+  ip -brief addr show dev "$VPN_IFACE" 2>/dev/null | awk 'NR==1 {print $3}' | cut -d/ -f1
+}
+
+vpn_proc_running() {
+  pgrep -x "$VPN_PROC_NAME" >/dev/null 2>&1
+}
+
+vpn_state() {
+  if vpn_iface_up; then
+    echo "connected"
+  elif vpn_proc_running; then
+    echo "connecting"
+  else
+    echo "disconnected"
+  fi
+}
+
+build_cmd_string() {
+  local out="" part
+  for part in "$@"; do
+    out+="$(printf '%q' "$part") "
+  done
+  printf "%s" "${out% }"
+}
+
+launch_terminal() {
+  local cmd_string="$1"
+  local -a term=()
+
+  if have_cmd kitty; then
+    term=(kitty --class=OpenFortiVPN --title=OpenFortiVPN)
+  elif have_cmd foot; then
+    term=(foot -a OpenFortiVPN)
+  elif have_cmd alacritty; then
+    term=(alacritty --class OpenFortiVPN,OpenFortiVPN)
+  elif have_cmd wezterm; then
+    term=(wezterm start --class OpenFortiVPN)
+  elif have_cmd gnome-terminal; then
+    term=(gnome-terminal --)
+  elif have_cmd xterm; then
+    term=(xterm -T OpenFortiVPN)
+  fi
+
+  if [[ ${#term[@]} -eq 0 ]]; then
+    notify "VPN" "No terminal found to launch OpenFortiVPN."
+    return 1
+  fi
+
+  if have_cmd uwsm && uwsm check is-active >/dev/null 2>&1; then
+    uwsm app -- "${term[@]}" bash -lc "$cmd_string" &
+  else
+    "${term[@]}" bash -lc "$cmd_string" &
+  fi
+  disown || true
+}
+
+status_json() {
+  if ! enabled; then
+    echo '{"text":"","alt":"","tooltip":"","class":"hidden"}'
+    return 0
+  fi
+
+  if ! have_cmd "$VPN_CMD"; then
+    echo '{"text":"","alt":"error","tooltip":"openfortivpn not found","class":"error"}'
+    return 0
+  fi
+
+  if [[ -f "$VPN_CONFIG" && ! -r "$VPN_CONFIG" ]]; then
+    echo "{\"text\":\"\",\"alt\":\"error\",\"tooltip\":\"$(json_escape "Permission denied reading: $VPN_CONFIG")\",\"class\":\"error\"}"
+    return 0
+  fi
+
+  if [[ ! -f "$VPN_CONFIG" ]]; then
+    echo "{\"text\":\"\",\"alt\":\"error\",\"tooltip\":\"$(json_escape "Missing config: $VPN_CONFIG")\",\"class\":\"error\"}"
+    return 0
+  fi
+
+  local state tooltip host addr
+  state="$(vpn_state)"
+  host="$(config_value host)"
+  addr="$(vpn_addr)"
+
+  case "$state" in
+    connected)
+      tooltip="VPN: connected"
+      ;;
+    connecting)
+      tooltip="VPN: connecting"
+      ;;
+    *)
+      tooltip="VPN: disconnected"
+      ;;
+  esac
+
+  if [[ -n "$host" ]]; then
+    tooltip="${tooltip}\nHost: ${host}"
+  fi
+  if [[ -n "$addr" && "$state" == "connected" ]]; then
+    tooltip="${tooltip}\nIP: ${addr}"
+  fi
+
+  tooltip="${tooltip}\nLeft: toggle | Middle: connect | Right: disconnect"
+
+  echo "{\"text\":\"\",\"alt\":\"$(json_escape "$state")\",\"tooltip\":\"$(json_escape "$tooltip")\",\"class\":\"$(json_escape "$state")\"}"
+}
+
+connect_vpn() {
+  if ! enabled; then
+    notify "VPN" "VPN widget disabled on this host."
+    return 0
+  fi
+
+  local state
+  state="$(vpn_state)"
+  if [[ "$state" == "connected" ]]; then
+    notify "VPN" "Already connected."
+    return 0
+  fi
+  if [[ "$state" == "connecting" ]]; then
+    notify "VPN" "Already connecting."
+    return 0
+  fi
+
+  if ! have_cmd "$VPN_CMD"; then
+    notify "VPN" "openfortivpn not found."
+    return 1
+  fi
+  if [[ ! -f "$VPN_CONFIG" ]]; then
+    notify "VPN" "Missing config: $VPN_CONFIG"
+    return 1
+  fi
+
+  local -a cmd=("$SUDO_CMD" "$VPN_CMD" "--config" "$VPN_CONFIG")
+  if [[ -n "${OPENFORTIVPN_EXTRA_ARGS:-}" ]]; then
+    read -r -a extra <<<"${OPENFORTIVPN_EXTRA_ARGS}"
+    cmd+=("${extra[@]}")
+  fi
+
+  notify "VPN" "Launching OpenFortiVPN..."
+  launch_terminal "$(build_cmd_string "${cmd[@]}")"
+}
+
+disconnect_vpn() {
+  if ! vpn_proc_running && ! vpn_iface_up; then
+    notify "VPN" "Already disconnected."
+    return 0
+  fi
+
+  if ! have_cmd "$SUDO_CMD"; then
+    notify "VPN" "sudo not found; cannot stop OpenFortiVPN."
+    return 1
+  fi
+
+  if "$SUDO_CMD" -n true >/dev/null 2>&1; then
+    "$SUDO_CMD" -n pkill -INT "$VPN_PROC_NAME" >/dev/null 2>&1 || true
+    notify "VPN" "Disconnecting..."
+    return 0
+  fi
+
+  notify "VPN" "sudo password required to disconnect."
+  launch_terminal "$(build_cmd_string "$SUDO_CMD" "pkill" "-INT" "$VPN_PROC_NAME")"
+}
+
+toggle_vpn() {
+  local state
+  state="$(vpn_state)"
+  if [[ "$state" == "connected" || "$state" == "connecting" ]]; then
+    disconnect_vpn
+  else
+    connect_vpn
+  fi
+}
+
+case "${1:-status}" in
+  status)
+    status_json
+    ;;
+  connect)
+    connect_vpn
+    ;;
+  disconnect)
+    disconnect_vpn
+    ;;
+  toggle)
+    toggle_vpn
+    ;;
+  *)
+    echo "Usage: $0 {status|connect|disconnect|toggle}" >&2
+    exit 2
+    ;;
+esac

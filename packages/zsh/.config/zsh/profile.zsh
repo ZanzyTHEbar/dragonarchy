@@ -68,7 +68,7 @@ export VISUAL=nvim
 export SUDO_EDITOR="nvim visudo"
 export FCEDIT=nvim
 export TERMINAL=kitty
-export BROWSER=vivaldi
+export BROWSER=vivaldi-stable
 export PROTON_ENABLE_WAYLAND=1
 export CHROME_EXECUTABLE=/usr/bin/vivaldi-stable
 
@@ -90,6 +90,13 @@ if [[ -d "$HOME/.nvm" ]]; then
     export NVM_DIR="$HOME/.nvm"
     [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
     [[ -s "$NVM_DIR/bash_completion" ]] && source "$NVM_DIR/bash_completion"
+fi
+
+# fnm
+FNM_PATH="$HOME/.local/share/fnm"
+if [ -d "$FNM_PATH" ]; then
+  export PATH="$FNM_PATH:$PATH"
+  eval "`fnm env`"
 fi
 
 # Rust environment
@@ -151,179 +158,3 @@ esac
 
 [ "$TERM" = "xterm-kitty" ] && alias ssh="kitty +kitten ssh"
 export GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
-
-# Git safe.directory helpers
-_git_safe_usage() {
-    echo "usage: git_safe [add|remove|list] [-v|--verbose] [--single|--children|--recursive] <path>" 1>&2
-}
-
-_git_safe_collect_repos() {
-    # args: mode path
-    local mode="$1"
-    local base="$2"
-    case "$mode" in
-        single)
-            if [ -d "$base/.git" ]; then
-                echo "$base"
-            fi
-            ;;
-        children)
-            if [ -d "$base" ]; then
-                setopt localoptions extendedglob globstarshort null_glob
-                local -a _dirs
-                local d
-                _dirs=( $base/*(N/) )
-                for d in "${_dirs[@]}"; do
-                    [ -d "$d/.git" ] && printf '%s\n' "$d"
-                done
-            fi
-            ;;
-        recursive)
-            if [ -d "$base" ]; then
-                setopt localoptions extendedglob globstarshort null_glob
-                local -a _dirs
-                local d
-                _dirs=( $base/**/*(N/) )
-                for d in "${_dirs[@]}"; do
-                    [ -d "$d/.git" ] && printf '%s\n' "$d"
-                done
-            fi
-            ;;
-    esac
-}
-
-git_safe() {
-    local op mode path verbose
-    op="$1"; shift || true
-    case "$op" in
-        add|remove|list) ;;
-        *) _git_safe_usage; return 2 ;;
-    esac
-
-    mode="single"
-    verbose=0
-    # parse options
-    while :; do
-        case "${1-}" in
-            --single) mode="single"; shift ;;
-            --children) mode="children"; shift ;;
-            --recursive) mode="recursive"; shift ;;
-            -v|--verbose) verbose=1; shift ;;
-            *) break ;;
-        esac
-    done
-
-    local _log
-    _log() { [ "$verbose" -eq 1 ] && echo "git_safe: $*" 1>&2; }
-
-    # Resolve git binary robustly
-    local GIT_BIN
-    if command -v git >/dev/null 2>&1; then
-        GIT_BIN="$(command -v git)"
-    elif [ -x /usr/bin/git ]; then
-        GIT_BIN="/usr/bin/git"
-    elif [ -x /bin/git ]; then
-        GIT_BIN="/bin/git"
-    else
-        echo "git_safe: git not found" 1>&2; return 127
-    fi
-
-    if [ "$op" = "list" ]; then
-        local entries uentries
-        entries=( "${(@f)$("$GIT_BIN" config --file "$HOME/.gitconfig.local" --get-all safe.directory 2>/dev/null)}" )
-        typeset -aU uentries
-        uentries=( "${entries[@]}" )
-        printf "%s\n" "${uentries[@]}"
-        return 0
-    fi
-
-    path="${1-}"
-    if [ -z "$path" ]; then
-        _git_safe_usage; return 2
-    fi
-
-    _log "op=$op mode=$mode path=$path git=$GIT_BIN"
-
-    # Validate base path
-    if [ ! -e "$path" ]; then
-        echo "git_safe: path not found: $path" 1>&2; return 1
-    fi
-
-    # Ensure local config exists without truncation
-    [ -f "$HOME/.gitconfig.local" ] || : > "$HOME/.gitconfig.local"
-
-    # Ensure [safe] section exists before adding entries (only if no safe.* present and no [safe] header)
-    if [ "$op" = "add" ]; then
-        local _has_safe=0 _names _n
-        _names=( "${(@f)$("$GIT_BIN" config --file "$HOME/.gitconfig.local" --name-only --list 2>/dev/null)}" )
-        for _n in "${_names[@]}"; do
-            [[ "$_n" == safe.* ]] && _has_safe=1 && break
-        done
-        if (( _has_safe == 0 )); then
-            local _line
-            while IFS= read -r _line; do
-                [[ "$_line" == "[safe]"* ]] && _has_safe=1 && break
-            done < "$HOME/.gitconfig.local"
-        fi
-        if (( _has_safe == 0 )); then
-            _log "creating [safe] section"
-            printf '%s\n' '[safe]' >> "$HOME/.gitconfig.local"
-        fi
-    fi
-
-    # Single repo path
-    if [ "$mode" = "single" ]; then
-        if [ ! -d "$path/.git" ]; then
-            echo "git_safe: not a git repo (no .git): $path" 1>&2; return 1
-        fi
-        local repo="$path" _curr _e _exists
-        _curr=( "${(@f)$("$GIT_BIN" config --file "$HOME/.gitconfig.local" --get-all safe.directory 2>/dev/null)}" )
-        if [ "$op" = "add" ]; then
-            _exists=0
-            for _e in "${_curr[@]}"; do
-                [[ "$_e" == "$repo" ]] && _exists=1 && break
-            done
-            if (( _exists == 0 )); then
-                _log "adding $repo"
-                "$GIT_BIN" config --file "$HOME/.gitconfig.local" --add safe.directory "$repo"
-            else
-                _log "already present $repo"
-            fi
-        else
-            _log "removing $repo"
-            "$GIT_BIN" config --file "$HOME/.gitconfig.local" --unset-all safe.directory "$repo" 2>/dev/null || true
-        fi
-        return 0
-    fi
-
-    # children/recursive enumeration using array to avoid subshell issues
-    local repos
-    repos=( "${(@f)$(_git_safe_collect_repos "$mode" "$path")}" )
-    _log "enumerated repos: ${#repos[@]}"
-
-    local count=0 _curr _e repo
-    _curr=( "${(@f)$("$GIT_BIN" config --file "$HOME/.gitconfig.local" --get-all safe.directory 2>/dev/null)}" )
-    for repo in "${repos[@]}"; do
-        [ -n "$repo" ] || continue
-        [ -d "$repo/.git" ] || continue
-        if [ "$op" = "add" ]; then
-            local _exists=0
-            for _e in "${_curr[@]}"; do
-                [[ "$_e" == "$repo" ]] && _exists=1 && break
-            done
-            if (( _exists == 0 )); then
-                _log "adding $repo"
-                "$GIT_BIN" config --file "$HOME/.gitconfig.local" --add safe.directory "$repo"
-            else
-                _log "already present $repo"
-            fi
-        else
-            _log "removing $repo"
-            "$GIT_BIN" config --file "$HOME/.gitconfig.local" --unset-all safe.directory "$repo" 2>/dev/null || true
-        fi
-        count=$((count+1))
-    done
-    _log "processed $count repo(s)"
-}
-
-alias git-safe=git_safe

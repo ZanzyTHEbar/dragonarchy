@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/theme-utils.sh
+source "$SCRIPT_DIR/lib/theme-utils.sh"
+
+hex_to_rgb() {
+  local hex="${1#\#}"
+  local r g b
+  r=$((16#${hex:0:2}))
+  g=$((16#${hex:2:2}))
+  b=$((16#${hex:4:2}))
+  printf '%d, %d, %d' "$r" "$g" "$b"
+}
+
+rgb_from_hex() {
+  printf 'rgb(%s)' "$(hex_to_rgb "$1")"
+}
+
+rgba_from_hex() {
+  local alpha="${2:-1}"
+  printf 'rgba(%s, %s)' "$(hex_to_rgb "$1")" "$alpha"
+}
+
+for theme in "$THEMES_DIR"/*/; do
+  palette="$theme/hyprland-palette.conf"
+  [[ -f "$palette" ]] || continue
+
+  background="$(tm_palette_hex "$palette" background)" || continue
+  foreground="$(tm_palette_hex "$palette" foreground "$background")"
+  comment="$(tm_palette_hex "$palette" comment "$foreground")"
+  accent="$(tm_palette_hex "$palette" accent "$foreground")"
+  red="$(tm_palette_hex "$palette" red "$accent")"
+
+  noti_bg_hover="$(tm_hex_blend "$background" "$foreground" 12)"
+  noti_bg_focus="$(tm_hex_blend "$background" "$foreground" 20)"
+  noti_bg_darker="$(tm_hex_blend "$background" "$comment" 25)"
+
+  output_file="${theme%/}/swaync.css"
+
+  {
+    printf '/* Auto-generated SwayNC theme - color overrides only */\n'
+    printf '/* Source: hyprland-palette.conf */\n'
+    printf ':root {\n'
+    printf '  --cc-bg: %s;\n' "$(rgba_from_hex "$background" 0.96)"
+    printf '  --noti-border-color: %s;\n' "$(rgba_from_hex "$foreground" 0.15)"
+    printf '  --noti-bg: %s;\n' "$(hex_to_rgb "$background")"
+    printf '  --noti-bg-alpha: 0.9;\n'
+    printf '  --noti-bg-darker: %s;\n' "$(rgb_from_hex "$noti_bg_darker")"
+    printf '  --noti-bg-hover: %s;\n' "$(rgb_from_hex "$noti_bg_hover")"
+    printf '  --noti-bg-focus: %s;\n' "$(rgba_from_hex "$noti_bg_focus" 0.6)"
+    printf '  --noti-close-bg: %s;\n' "$(rgba_from_hex "$foreground" 0.10)"
+    printf '  --noti-close-bg-hover: %s;\n' "$(rgba_from_hex "$foreground" 0.15)"
+    printf '  --text-color: %s;\n' "$(rgb_from_hex "$foreground")"
+    printf '  --text-color-disabled: %s;\n' "$(rgb_from_hex "$comment")"
+    printf '  --bg-selected: %s;\n' "$(rgb_from_hex "$accent")"
+    printf '}\n\n'
+    printf '@define-color background %s;\n' "$background"
+    printf '@define-color foreground %s;\n' "$foreground"
+    printf '@define-color accent %s;\n' "$accent"
+    printf '@define-color comment %s;\n' "$comment"
+    printf '@define-color error %s;\n' "$red"
+    printf '@define-color cc-bg %s;\n' "$(rgba_from_hex "$background" 0.96)"
+    printf '@define-color noti-border-color %s;\n' "$(rgba_from_hex "$foreground" 0.15)"
+    printf '@define-color noti-bg %s;\n' "$(rgba_from_hex "$background" 0.9)"
+    printf '@define-color noti-bg-opaque %s;\n' "$background"
+    printf '@define-color noti-bg-darker %s;\n' "$(rgb_from_hex "$noti_bg_darker")"
+    printf '@define-color noti-bg-hover %s;\n' "$(rgb_from_hex "$noti_bg_hover")"
+    printf '@define-color noti-bg-hover-opaque %s;\n' "$(rgb_from_hex "$noti_bg_hover")"
+    printf '@define-color noti-bg-focus %s;\n' "$(rgba_from_hex "$noti_bg_focus" 0.6)"
+    printf '@define-color noti-close-bg %s;\n' "$(rgba_from_hex "$foreground" 0.10)"
+    printf '@define-color noti-close-bg-hover %s;\n' "$(rgba_from_hex "$foreground" 0.15)"
+    printf '@define-color text-color %s;\n' "$foreground"
+    printf '@define-color text-color-disabled %s;\n' "$comment"
+    printf '@define-color bg-selected %s;\n' "$accent"
+  } >"$output_file"
+
+  echo "Wrote ${theme}swaync.css"
+done

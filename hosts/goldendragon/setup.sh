@@ -229,6 +229,79 @@ setup_goldendragon_packages() {
   log_success "Laptop packages installed"
 }
 
+setup_openfortivpn_access() {
+  log_step "Provisioning OpenFortiVPN access..."
+
+  local config="/etc/openfortivpn/config"
+  local group="openfortivpn"
+  local target_user="${OPENFORTIVPN_USER:-${SUDO_USER:-$USER}}"
+
+  if ! command -v sudo >/dev/null 2>&1; then
+    log_warning "sudo not available; skipping OpenFortiVPN provisioning"
+    return 0
+  fi
+
+  if is_arch_based; then
+    install_pacman_packages openfortivpn
+  else
+    log_warning "Non-Arch platform detected; install openfortivpn manually."
+  fi
+
+  if ! getent group "$group" >/dev/null 2>&1; then
+    if sudo groupadd -r "$group"; then
+      log_success "Created group: $group"
+    else
+      log_warning "Failed to create group: $group"
+    fi
+  else
+    log_info "Group already exists: $group"
+  fi
+
+  if [[ ! -f "$config" ]]; then
+    sudo install -d -m 755 /etc/openfortivpn
+    sudo tee "$config" >/dev/null <<'EOF'
+### configuration file for openfortivpn, see man openfortivpn(1) ###
+
+host = vpn.avular.com
+port = 443
+# username = you@example.com   # optional, can prompt
+# password = yourpassword      # optional, better to prompt
+saml-login = 8080              # or any free port; triggers browser SAML flow
+#trusted-cert = <sha256_hash>  # get this first
+# realm = <if needed; try without>
+# set-dns = 1                  # auto-set DNS if possible
+# set-routes = 1
+# pppd-use-peerdns = 1
+EOF
+    log_success "Seeded OpenFortiVPN config at $config"
+  else
+    log_info "OpenFortiVPN config already present: $config"
+  fi
+
+  if [[ -z "$target_user" || "$target_user" == "root" ]]; then
+    log_warning "Cannot determine non-root user to add to $group (set OPENFORTIVPN_USER to override)"
+  else
+    if id -nG "$target_user" 2>/dev/null | grep -qw "$group"; then
+      log_info "User already in $group: $target_user"
+    else
+      if sudo usermod -aG "$group" "$target_user"; then
+        log_success "Added user to group: $target_user -> $group"
+        log_warning "Logout/login required to pick up group membership"
+      else
+        log_warning "Failed to add user to group: $target_user -> $group"
+      fi
+    fi
+  fi
+
+  if [[ -f "$config" ]]; then
+    sudo chgrp "$group" "$config" || log_warning "Failed to chgrp $config"
+    sudo chmod 640 "$config" || log_warning "Failed to chmod 640 $config"
+    log_success "Adjusted permissions on $config"
+  else
+    log_warning "OpenFortiVPN config not found: $config"
+  fi
+}
+
 apply_host_system_configs() {
   log_step "Applying host /etc drop-ins..."
 
@@ -410,6 +483,13 @@ main() {
     setup_goldendragon_packages && mark_step_completed "goldendragon-packages"
   else
     log_info "✓ Packages already installed (skipped)"
+  fi
+  echo
+
+  if ! is_step_completed "goldendragon-openfortivpn"; then
+    setup_openfortivpn_access && mark_step_completed "goldendragon-openfortivpn"
+  else
+    log_info "✓ OpenFortiVPN access already provisioned (skipped)"
   fi
   echo
 

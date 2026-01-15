@@ -14,6 +14,7 @@
   "modules-right": [
     "group/tray-expander",
     "custom/notifications",
+    "custom/vpn",
     "bluetooth",
     "pulseaudio",
     "custom/thermals",
@@ -69,7 +70,7 @@
     "tooltip": true,
     "tooltip-format": "Left: power menu | Middle: rerun autostart | Right: settings",
     "on-click": "$HOME/dotfiles/scripts/theme-manager/power-menu",
-    "on-click-middle": "$HOME/dotfiles/scripts/theme-manager/restart-autostart",
+    "on-click-middle": "bash -lc 'hyprctl dispatch exec \"$HOME/dotfiles/scripts/theme-manager/restart-autostart\"'",
     "on-click-right": "bash -lc 'kitty --class=Dragon --title=Dragon $HOME/dotfiles/scripts/dragon-cli & sleep 1;'"
   },
   "custom/notifications": {
@@ -86,6 +87,22 @@
       "dnd-none": "󰂛"
     },
     "escape": true
+  },
+  "custom/vpn": {
+    "format": "{icon}",
+    "return-type": "json",
+    "exec": "bash -lc 'bash $HOME/dotfiles/scripts/utilities/openfortivpn-waybar status'",
+    "interval": 5,
+    "tooltip": true,
+    "format-icons": {
+      "connected": "",
+      "connecting": "",
+      "disconnected": "",
+      "error": ""
+    },
+    "on-click": "bash -lc 'bash $HOME/dotfiles/scripts/utilities/openfortivpn-waybar toggle'",
+    "on-click-middle": "bash -lc 'bash $HOME/dotfiles/scripts/utilities/openfortivpn-waybar connect'",
+    "on-click-right": "bash -lc 'bash $HOME/dotfiles/scripts/utilities/openfortivpn-waybar disconnect'"
   },
   "cpu": {
     "interval": 5,
