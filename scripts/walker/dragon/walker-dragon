@@ -9,6 +9,8 @@ UTILITIES_DIR="$DOTFILES_ROOT/scripts/utilities"
 SDDM_PKG_THEMES_DIR="$DOTFILES_ROOT/packages/sddm/usr/share/sddm/themes"
 SDDM_SYS_THEMES_DIR="/usr/share/sddm/themes"
 RESTART_WALKER_SCRIPT="$DOTFILES_ROOT/scripts/walker/restart-walker.sh"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/lib/notifications.sh"
 
 CURRENT_THEME_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
 CURRENT_BG_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
@@ -155,11 +157,7 @@ show_theme_summary() {
   theme_name="${theme_name:-unknown}"
   background_name="${background_name:-unknown}"
 
-  if command -v notify-send >/dev/null 2>&1; then
-    notify-send "Theme Applied" "Theme: ${theme_name}\nBackground: ${background_name}"
-  else
-    printf 'Theme Applied -> theme: %s | background: %s\n' "$theme_name" "$background_name"
-  fi
+  notify_send "Theme Applied" "Theme: ${theme_name}\nBackground: ${background_name}"
 }
 
 apply_theme() {

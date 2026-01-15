@@ -3,14 +3,20 @@
 
 #set -euo pipefail
 
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/lib/notifications.sh"
+
 HYPRIDLE_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hypridle.conf"
 
 if pgrep -x hypridle >/dev/null 2>&1; then
   pkill -x hypridle || true
-  command -v notify-send >/dev/null 2>&1 && notify-send -a "Idle" "Idle Inhibited" "Computer will not lock when idle."
+  notify_send --app "Idle" "Idle Inhibited" "Computer will not lock when idle."
 else
   # Relaunch hypridle with our config via uwsm
   uwsm app -- hypridle -c "$HYPRIDLE_CFG" >/dev/null 2>&1 &
   disown || true
-  command -v notify-send >/dev/null 2>&1 && notify-send -a "Idle" "Idle Enabled" "Computer will now lock when idle."
+  notify_send --app "Idle" "Idle Enabled" "Computer will now lock when idle."
 fi

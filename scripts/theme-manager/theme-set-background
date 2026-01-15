@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/lib/notifications.sh"
+
 if [[ $# -lt 1 ]]; then
   echo "Usage: theme-set-background <image-path>" >&2
   exit 1
@@ -25,8 +31,6 @@ ln -nsf "$target" "$link"
 pkill -x swaybg >/dev/null 2>&1 || true
 setsid uwsm app -- swaybg -i "$link" -m fill >/dev/null 2>&1 &
 
-if command -v notify-send >/dev/null 2>&1; then
-  notify-send "Background Updated" "$(basename "$target")"
-fi
+notify_send "Background Updated" "$(basename "$target")"
 
 

@@ -684,6 +684,19 @@ setup_dotfiles() {
         log_error "GNU Stow is required but not available"
         exit 1
     fi
+
+    # Ensure package-local bin links are up to date before stow
+    local sync_script="$SCRIPTS_DIR/tools/sync-bin-links"
+    if [[ -x "$sync_script" ]]; then
+        log_step "Syncing package bin links..."
+        if "$sync_script"; then
+            log_success "Package bin links synced"
+        else
+            log_warning "sync-bin-links failed (continuing with stow)"
+        fi
+    else
+        log_warning "sync-bin-links not found or not executable: $sync_script"
+    fi
     
     # Change to packages directory
     cd "$PACKAGES_DIR"
@@ -947,6 +960,17 @@ stow_host_dotfiles() {
 
         # If destination already points to this exact source, keep it.
         if [[ -L "$dst" ]]; then
+            local dst_target
+            dst_target=$(readlink "$dst" 2>/dev/null || true)
+            if [[ "$dst_target" == /* ]]; then
+                # Absolute symlinks are rejected by stow; convert them by removing now.
+                had_backups="true"
+                mkdir -p "$backup_root/$(dirname "$rel")"
+                cp -a "$dst" "$backup_root/$rel" 2>/dev/null || cp -aL "$dst" "$backup_root/$rel" 2>/dev/null || true
+                rm -f "$dst"
+                continue
+            fi
+
             local dst_resolved src_resolved
             dst_resolved=$(readlink -f "$dst" 2>/dev/null || true)
             src_resolved=$(readlink -f "$src" 2>/dev/null || true)
