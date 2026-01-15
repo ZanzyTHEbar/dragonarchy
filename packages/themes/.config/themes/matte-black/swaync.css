@@ -1,0 +1,35 @@
+/* Auto-generated SwayNC theme - color overrides only */
+/* Source: hyprland-palette.conf */
+:root {
+  --cc-bg: rgba(30, 30, 30, 0.96);
+  --noti-border-color: rgba(138, 138, 141, 0.15);
+  --noti-bg: 30, 30, 30;
+  --noti-bg-alpha: 0.9;
+  --noti-bg-darker: rgb(45, 45, 46);
+  --noti-bg-hover: rgb(43, 43, 43);
+  --noti-bg-focus: rgba(52, 52, 52, 0.6);
+  --noti-close-bg: rgba(138, 138, 141, 0.10);
+  --noti-close-bg-hover: rgba(138, 138, 141, 0.15);
+  --text-color: rgb(138, 138, 141);
+  --text-color-disabled: rgb(90, 90, 93);
+  --bg-selected: rgb(122, 162, 247);
+}
+
+@define-color background #1e1e1e;
+@define-color foreground #8a8a8d;
+@define-color accent #7aa2f7;
+@define-color comment #5a5a5d;
+@define-color error #f44747;
+@define-color cc-bg rgba(30, 30, 30, 0.96);
+@define-color noti-border-color rgba(138, 138, 141, 0.15);
+@define-color noti-bg rgba(30, 30, 30, 0.9);
+@define-color noti-bg-opaque #1e1e1e;
+@define-color noti-bg-darker rgb(45, 45, 46);
+@define-color noti-bg-hover rgb(43, 43, 43);
+@define-color noti-bg-hover-opaque rgb(43, 43, 43);
+@define-color noti-bg-focus rgba(52, 52, 52, 0.6);
+@define-color noti-close-bg rgba(138, 138, 141, 0.10);
+@define-color noti-close-bg-hover rgba(138, 138, 141, 0.15);
+@define-color text-color #8a8a8d;
+@define-color text-color-disabled #5a5a5d;
+@define-color bg-selected #7aa2f7;

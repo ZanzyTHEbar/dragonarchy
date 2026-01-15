@@ -34,6 +34,7 @@ schedule_ui_refresh() {
             hyprctl reload >/dev/null 2>&1 || true
         fi
         if command -v swaync-client >/dev/null 2>&1 && command pgrep -x swaync >/dev/null 2>&1; then
+            swaync-client -rs >/dev/null 2>&1 || true
             swaync-client -R >/dev/null 2>&1 || true
         fi
         if command pgrep -x nemo >/dev/null 2>&1; then
@@ -131,6 +132,7 @@ ln -snf ~/.config/current/theme/gtk.css ~/.config/gtk-3.0/gtk.css
 # Generate kitty theme from palettes and link current
 "$SCRIPT_DIR/generate-kitty-themes" >/dev/null 2>&1 || true
 "$SCRIPT_DIR/generate-walker-themes" >/dev/null 2>&1 || true
+"$SCRIPT_DIR/generate-swaync-themes" >/dev/null 2>&1 || true
 "$SCRIPT_DIR/generate-clipse-themes" >/dev/null 2>&1 || true
 
 mkdir -p "$HOME/.config/kitty"

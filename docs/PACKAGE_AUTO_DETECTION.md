@@ -96,6 +96,7 @@ All existing packages already have marker files:
 - ✅ `nvim/.package`
 - ✅ `qt5ct/.package`
 - ✅ `sddm/.package` (**scope=system**)
+- ✅ `swaync/.package`
 - ✅ `ssh/.package`
 - ✅ `themes/.package`
 - ✅ `tmux/.package`
