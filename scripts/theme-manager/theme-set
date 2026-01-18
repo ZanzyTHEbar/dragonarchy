@@ -250,11 +250,13 @@ ln -snf "$CURRENT_THEME_DIR/kitty.conf" "$HOME/.config/kitty/colors.conf"
 # and cause stow conflicts on the next install/update.
 
 # Restart walker to pick up theme changes
-if command -v walker-restart >/dev/null 2>&1; then
-    walker-restart >/dev/null 2>&1 || true
-else
-    command pkill -x walker >/dev/null 2>&1 || true
-    setsid uwsm app -- walker --gapplication-service >/dev/null 2>&1 &
+if [[ "${DRAGON_SKIP_WALKER_RESTART:-0}" != "1" ]]; then
+    if command -v walker-restart >/dev/null 2>&1; then
+        walker-restart >/dev/null 2>&1 || true
+    else
+        command pkill -x walker >/dev/null 2>&1 || true
+        setsid uwsm app -- walker --gapplication-service >/dev/null 2>&1 &
+    fi
 fi
 
 # Link wlogout CSS for this theme if provided
