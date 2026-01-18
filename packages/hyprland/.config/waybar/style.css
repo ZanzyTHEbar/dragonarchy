@@ -35,6 +35,7 @@
 }
 
 #tray,
+#taskbar,
 #cpu,
 #battery,
 #network,
@@ -52,6 +53,14 @@
 
 #custom-expand-icon {
   margin-right: 12px;
+}
+
+#taskbar button {
+  all: initial;
+  padding: 0 4px;
+  margin: 0 1.5px;
+  min-width: 12px;
+  min-height: 0;
 }
 
 tooltip {
