@@ -1084,7 +1084,45 @@ deploy_dragon_icons() {
         return 1
     fi
 
-    "$generator"
+    # Asset generation is intentionally idempotent:
+    # - We only (re)generate icon variants if any are missing from the repo assets folder.
+    # - We track completion in install-state so subsequent installer runs don't redo work.
+    local assets_step_id="assets:dragon-icons"
+    local assets_root="$CONFIG_DIR/assets/dragon/icons/hicolor"
+    local expected_sizes=(16 24 32 48 64 96 128 192 256 512)
+
+    local missing_any="false"
+    local size icon_path
+    for size in "${expected_sizes[@]}"; do
+        icon_path="${assets_root}/${size}x${size}/apps/dragon-control.png"
+        if [[ ! -f "$icon_path" ]]; then
+            missing_any="true"
+            break
+        fi
+    done
+
+    if [[ "$missing_any" != "true" ]]; then
+        if is_step_completed "$assets_step_id"; then
+            log_info "Dragon icon assets already generated; skipping generation ($assets_step_id)"
+        else
+            log_info "Dragon icon assets already present; marking generation step completed ($assets_step_id)"
+            mark_step_completed "$assets_step_id"
+        fi
+    else
+        # If assets are missing, re-run generation even if a previous run marked the step complete.
+        log_info "Dragon icon assets missing; generating icon variants..."
+        "$generator"
+
+        # Verify generation succeeded (fail fast if the generator didn't actually produce outputs)
+        for size in "${expected_sizes[@]}"; do
+            icon_path="${assets_root}/${size}x${size}/apps/dragon-control.png"
+            if [[ ! -f "$icon_path" ]]; then
+                log_error "Dragon icon generation incomplete; missing expected asset: $icon_path"
+                return 1
+            fi
+        done
+        mark_step_completed "$assets_step_id"
+    fi
 
     local src_root="$CONFIG_DIR/assets/dragon/icons/hicolor"
     local dst_root="/usr/share/icons/hicolor"
