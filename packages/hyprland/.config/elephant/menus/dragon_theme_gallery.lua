@@ -282,7 +282,9 @@ function GetEntries()
         Subtext = "Install / Update / Remove / Background tools",
         Icon = "preferences-desktop-theme",
         Value = "",
-        SubMenu = "dragon_theme"
+        Actions = {
+            ["menus:default"] = "/usr/bin/elephant menu menus:dragon_theme"
+        }
     })
 
     return entries
