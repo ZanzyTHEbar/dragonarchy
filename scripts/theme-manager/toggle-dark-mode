@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Toggle or set global preference to light/dark mode (best-effort).
+# This does NOT force light themes to be dark; it sets the system default.
+
+usage() {
+  cat <<'EOF'
+Usage:
+  toggle-dark-mode [toggle|dark|light]
+
+Defaults to "toggle".
+EOF
+}
+
+want_mode="${1:-toggle}"
+case "$want_mode" in
+  toggle|dark|light) ;;
+  -h|--help|help) usage; exit 0 ;;
+  *) echo "Unknown mode: $want_mode" >&2; usage; exit 2 ;;
+esac
+
+get_current_mode() {
+  # Prefer gsettings when available.
+  if command -v gsettings >/dev/null 2>&1; then
+    local cs
+    cs="$(timeout 2s gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null || true)"
+    case "$cs" in
+      *prefer-dark*) echo dark; return 0 ;;
+      *default*) echo light; return 0 ;;
+    esac
+  fi
+
+  # Fallback: infer from GTK base settings.
+  local base
+  for base in \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/gtk-4.0/settings.base.ini" \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/gtk-3.0/settings.base.ini"
+  do
+    if [[ -f "$base" ]]; then
+      if grep -Eq '^[[:space:]]*gtk-application-prefer-dark-theme[[:space:]]*=[[:space:]]*true[[:space:]]*$' "$base"; then
+        echo dark
+        return 0
+      fi
+      if grep -Eq '^[[:space:]]*gtk-application-prefer-dark-theme[[:space:]]*=[[:space:]]*false[[:space:]]*$' "$base"; then
+        echo light
+        return 0
+      fi
+    fi
+  done
+
+  # Default if unknown.
+  echo light
+}
+
+set_mode() {
+  local mode="$1"
+
+  if command -v gsettings >/dev/null 2>&1; then
+    if [[ "$mode" == "dark" ]]; then
+      timeout 2s gsettings set org.gnome.desktop.interface color-scheme "prefer-dark" >/dev/null 2>&1 || true
+      # Some setups still key off this older toggle:
+      timeout 2s gsettings set org.gnome.desktop.interface gtk-application-prefer-dark-theme true >/dev/null 2>&1 || true
+    else
+      timeout 2s gsettings set org.gnome.desktop.interface color-scheme "default" >/dev/null 2>&1 || true
+      timeout 2s gsettings set org.gnome.desktop.interface gtk-application-prefer-dark-theme false >/dev/null 2>&1 || true
+    fi
+  fi
+
+  mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/gtk-3.0" "${XDG_CONFIG_HOME:-$HOME/.config}/gtk-4.0"
+
+  # Ensure base settings default to the desired mode, so theme-set can overlay theme-specific values cleanly.
+  local base desired
+  desired="gtk-application-prefer-dark-theme=$([[ "$mode" == "dark" ]] && echo true || echo false)"
+  for base in "${XDG_CONFIG_HOME:-$HOME/.config}/gtk-3.0/settings.base.ini" "${XDG_CONFIG_HOME:-$HOME/.config}/gtk-4.0/settings.base.ini"; do
+    if [[ ! -f "$base" ]]; then
+      printf '[Settings]\n' >"$base"
+    fi
+
+    # If a previous run appended without a newline, the key may be glued to the end of a line.
+    # Insert a newline before the key only when it's preceded by a non-whitespace character.
+    sed -i 's/\([^[:space:]]\)gtk-application-prefer-dark-theme=/\1\ngtk-application-prefer-dark-theme=/' "$base"
+
+    # Remove any existing (uncommented) setting line, then append the desired default.
+    sed -i '/^gtk-application-prefer-dark-theme=/d' "$base"
+
+    # Ensure file ends with a newline before appending.
+    if [[ -s "$base" && "$(tail -c1 "$base" 2>/dev/null || true)" != $'\n' ]]; then
+      printf '\n' >>"$base"
+    fi
+
+    printf '%s\n' "$desired" >>"$base"
+  done
+
+  echo "Set global ${mode}-mode preference (gsettings + GTK base settings)."
+}
+
+mode="$want_mode"
+if [[ "$mode" == "toggle" ]]; then
+  current="$(get_current_mode)"
+  if [[ "$current" == "dark" ]]; then
+    mode="light"
+  else
+    mode="dark"
+  fi
+fi
+
+set_mode "$mode"
+

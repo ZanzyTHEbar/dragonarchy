@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Undo last background change (toggle between current and previously set background).
+#
+# Usage: theme-bg-undo
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dragon/theme-manager"
+mkdir -p "$STATE_DIR"
+
+CURRENT_BG_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
+
+current=""
+[[ -L "$CURRENT_BG_LINK" ]] && current="$(readlink -f "$CURRENT_BG_LINK" 2>/dev/null || true)"
+
+prev_file="$STATE_DIR/prev-background"
+prev=""
+[[ -f "$prev_file" ]] && prev="$(head -n 1 "$prev_file" || true)"
+
+if [[ -z "$prev" ]]; then
+  echo "theme-bg-undo: no previous background recorded yet" >&2
+  exit 1
+fi
+
+# Swap so undo can be pressed again to toggle back
+if [[ -n "$current" ]]; then
+  printf '%s\n' "$current" >"$prev_file"
+fi
+
+exec theme-set-background "$prev"
+

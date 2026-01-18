@@ -1,10 +1,17 @@
 # link manifest: package-scoped symlinks pointing to canonical scripts
 # format: package=<name> target=<relative path from repo root> link=<relative path>
 package=hyprland target=scripts/theme-manager/theme-bg-next link=packages/hyprland/.local/bin/theme-bg-next
+package=hyprland target=scripts/theme-manager/theme-bg-undo link=packages/hyprland/.local/bin/theme-bg-undo
 package=hyprland target=scripts/theme-manager/theme-install link=packages/hyprland/.local/bin/theme-install
+package=hyprland target=scripts/theme-manager/theme-favorite-toggle link=packages/hyprland/.local/bin/theme-favorite-toggle
 package=hyprland target=scripts/theme-manager/theme-remove link=packages/hyprland/.local/bin/theme-remove
+package=hyprland target=scripts/theme-manager/theme-apply link=packages/hyprland/.local/bin/theme-apply
+package=hyprland target=scripts/theme-manager/theme-preview link=packages/hyprland/.local/bin/theme-preview
+package=hyprland target=scripts/theme-manager/theme-preview-revert link=packages/hyprland/.local/bin/theme-preview-revert
+package=hyprland target=scripts/theme-manager/theme-preview-clear link=packages/hyprland/.local/bin/theme-preview-clear
 package=hyprland target=scripts/theme-manager/theme-set link=packages/hyprland/.local/bin/theme-set
 package=hyprland target=scripts/theme-manager/theme-set-background link=packages/hyprland/.local/bin/theme-set-background
+package=hyprland target=scripts/theme-manager/theme-undo link=packages/hyprland/.local/bin/theme-undo
 package=hyprland target=scripts/theme-manager/theme-update link=packages/hyprland/.local/bin/theme-update
 package=hyprland target=scripts/theme-manager/waybar-hoverd link=packages/hyprland/.local/bin/waybar-hoverd
 package=hyprland target=scripts/theme-manager/verify-waybar-hoverd link=packages/hyprland/.local/bin/verify-waybar-hoverd

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Revert a preview-session back to the snapshotted theme/background.
+#
+# Usage: theme-preview-revert
+
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dragon/theme-manager"
+snap_theme="$STATE_DIR/preview-theme"
+snap_bg="$STATE_DIR/preview-background"
+snap_active="$STATE_DIR/preview-active"
+
+if [[ ! -f "$snap_active" ]]; then
+  echo "theme-preview-revert: no active preview session" >&2
+  exit 1
+fi
+
+theme_slug=""
+[[ -f "$snap_theme" ]] && theme_slug="$(head -n 1 "$snap_theme" || true)"
+bg_path=""
+[[ -f "$snap_bg" ]] && bg_path="$(head -n 1 "$snap_bg" || true)"
+
+rm -f "$snap_active" "$snap_theme" "$snap_bg" >/dev/null 2>&1 || true
+
+if [[ -n "$theme_slug" ]]; then
+  "$SCRIPT_DIR/theme-set" "$theme_slug" || true
+fi
+
+if [[ -n "$bg_path" && -f "$bg_path" ]]; then
+  theme-set-background "$bg_path" || true
+fi
+

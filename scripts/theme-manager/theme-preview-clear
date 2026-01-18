@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Clear preview snapshot state (use when committing a theme).
+#
+# Usage: theme-preview-clear
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dragon/theme-manager"
+rm -f \
+  "$STATE_DIR/preview-active" \
+  "$STATE_DIR/preview-theme" \
+  "$STATE_DIR/preview-background" \
+  >/dev/null 2>&1 || true
+

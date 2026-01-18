@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Undo last theme change (toggle between current and previously applied theme).
+#
+# Usage: theme-undo
+
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dragon/theme-manager"
+mkdir -p "$STATE_DIR"
+
+CURRENT_THEME_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
+
+current=""
+[[ -L "$CURRENT_THEME_LINK" ]] && current="$(basename "$(readlink -f "$CURRENT_THEME_LINK" 2>/dev/null || true)")"
+
+prev_file="$STATE_DIR/prev-theme"
+prev=""
+[[ -f "$prev_file" ]] && prev="$(head -n 1 "$prev_file" || true)"
+
+if [[ -z "$prev" ]]; then
+  echo "theme-undo: no previous theme recorded yet" >&2
+  exit 1
+fi
+
+# Swap so undo can be pressed again to toggle back
+if [[ -n "$current" ]]; then
+  printf '%s\n' "$current" >"$prev_file"
+fi
+
+exec "$SCRIPT_DIR/theme-set" "$prev"
+

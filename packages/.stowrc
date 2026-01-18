@@ -14,6 +14,7 @@
 --ignore=.*\.backup$
 --ignore=.*\.swp$
 --ignore=.*\.swo$
+--ignore=^\.config/zsh/autosuggest-theme\.zsh$
 #
 # Runtime-managed theme "current" links:
 # These are created/updated by theme scripts and should not be stowed.

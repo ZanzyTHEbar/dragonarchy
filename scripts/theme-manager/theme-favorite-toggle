@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Toggle a theme in the favorites list.
+#
+# Usage: theme-favorite-toggle <theme-slug>
+
+slug="${1:-}"
+if [[ -z "$slug" ]]; then
+  echo "Usage: theme-favorite-toggle <theme-slug>" >&2
+  exit 2
+fi
+
+cfg_root="${XDG_CONFIG_HOME:-$HOME/.config}/dragon"
+mkdir -p "$cfg_root"
+fav_file="$cfg_root/theme-favorites"
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+
+touch "$fav_file"
+
+if grep -qxF "$slug" "$fav_file"; then
+  # Remove
+  grep -vxF "$slug" "$fav_file" >"$tmp" || true
+  mv -f "$tmp" "$fav_file"
+  echo "unfavorited: $slug"
+else
+  # Add to top (most recent favorite first), keep unique
+  {
+    echo "$slug"
+    cat "$fav_file"
+  } | awk 'NF && !seen[$0]++' >"$tmp"
+  mv -f "$tmp" "$fav_file"
+  echo "favorited: $slug"
+fi
+

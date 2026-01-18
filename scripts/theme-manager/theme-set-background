@@ -23,8 +23,19 @@ if [[ ! -f "$target" ]]; then
   exit 1
 fi
 
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dragon/theme-manager"
+mkdir -p "$STATE_DIR"
+PREV_BG_FILE="$STATE_DIR/prev-background"
+
 link="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
 mkdir -p "$(dirname "$link")"
+
+# Record previous background for undo
+if [[ -L "$link" ]]; then
+  prev="$(readlink -f "$link" 2>/dev/null || true)"
+  [[ -n "$prev" ]] && printf '%s\n' "$prev" >"$PREV_BG_FILE"
+fi
+
 ln -nsf "$target" "$link"
 
 # Restart swaybg to apply the new background
