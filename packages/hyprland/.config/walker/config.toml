@@ -20,6 +20,7 @@ installed_providers = [
   "bluetooth",
   "menus:dragon",
   "menus:dragon_theme",
+  "menus:dragon_theme_gallery",
   "menus:dragon_backgrounds",
   "menus:dragon_utilities",
   "menus:keybindings"
@@ -165,6 +166,22 @@ dmenu = [{ action = "select", default = true, bind = "Return" }]
 "menus:dragon_theme" = [
   { action = "menus:default", label = "apply", after = "Nothing" },
   { action = "remove", label = "remove", bind = "ctrl d", after = "Nothing" },
+  { action = "menus:parent", label = "back", bind = "Escape", after = "Nothing" },
+]
+
+"menus:dragon_theme_gallery" = [
+  { action = "menus:default", label = "apply", after = "Nothing" },
+  { action = "preview", label = "preview", bind = "ctrl p", after = "AsyncReload" },
+  { action = "revert_preview", label = "revert", bind = "ctrl r", after = "AsyncReload" },
+  { action = "favorite", label = "favorite", bind = "ctrl f", after = "AsyncReload" },
+  { action = "undo", label = "undo", bind = "ctrl z", after = "AsyncReload" },
+  { action = "remove", label = "remove", bind = "ctrl d", after = "Nothing" },
+  { action = "menus:parent", label = "back", bind = "Escape", after = "Nothing" },
+]
+
+"menus:dragon_backgrounds" = [
+  { action = "menus:default", label = "apply", after = "Nothing" },
+  { action = "undo", label = "undo", bind = "ctrl z", after = "AsyncReload" },
   { action = "menus:parent", label = "back", bind = "Escape", after = "Nothing" },
 ]
 

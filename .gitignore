@@ -25,3 +25,6 @@ vendored/
 packages/hyprland/.config/clipse/clipboard_history.json
 packages/hyprland/.config/clipse/clipse.log
 packages/hyprland/.config/clipse/tmp_files/
+
+# zsh autosuggest theme
+packages/zsh/.config/zsh/autosuggest-theme.zsh

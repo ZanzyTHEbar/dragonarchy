@@ -6,6 +6,11 @@ search_name = true
 
 [[entries]]
 text = "Themes"
+submenu = "dragon_theme_gallery"
+icon = "preferences-desktop-theme"
+
+[[entries]]
+text = "Theme Controls (advanced)"
 submenu = "dragon_theme"
 icon = "preferences-desktop-theme"
 

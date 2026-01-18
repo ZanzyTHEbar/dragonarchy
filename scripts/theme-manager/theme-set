@@ -24,6 +24,30 @@ if [[ -z "$THEME_NAME" ]]; then
     exit 1
 fi
 
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dragon/theme-manager"
+mkdir -p "$STATE_DIR"
+RECENTS_FILE="$STATE_DIR/recent-themes"
+PREV_THEME_FILE="$STATE_DIR/prev-theme"
+
+record_recent_theme() {
+    local slug="$1"
+    [[ -z "$slug" ]] && return 0
+    local tmp; tmp="$(mktemp)"
+    {
+        echo "$slug"
+        [[ -f "$RECENTS_FILE" ]] && cat "$RECENTS_FILE" || true
+    } | awk 'NF && !seen[$0]++' | head -n 10 >"$tmp"
+    mv -f "$tmp" "$RECENTS_FILE"
+}
+
+record_prev_theme() {
+    local link="$1"
+    if [[ -L "$link" ]]; then
+        local cur; cur="$(basename "$(readlink -f "$link" 2>/dev/null || true)")"
+        [[ -n "$cur" ]] && printf '%s\n' "$cur" >"$PREV_THEME_FILE"
+    fi
+}
+
 schedule_ui_refresh() {
     setsid bash -c '
         sleep 0.15
@@ -62,6 +86,10 @@ if [[ ! -d "$THEME_PATH" ]]; then
     exit 2
 fi
 
+# Record previous theme for undo and record recents
+record_prev_theme "$CURRENT_THEME_DIR"
+record_recent_theme "$THEME_NAME"
+
 # Update theme symlink with absolute path
 mkdir -p "$(dirname "$CURRENT_THEME_DIR")"
 ln -Tnsf "$THEME_PATH" "$CURRENT_THEME_DIR"
@@ -76,17 +104,6 @@ ln -Tnsf "$THEME_PATH" "$CURRENT_THEME_DIR"
 
 # "Compile" the dynamic theme colors into a static file for Hyprland to source
 [ -f "$THEME_PATH/hyprland-palette.conf" ] && cp "$THEME_PATH/hyprland-palette.conf" ~/.config/hypr/colors-theme.conf || true
-
-# Change GNOME modes (best-effort; skip if gsettings or DBus not available)
-if command -v gsettings >/dev/null 2>&1; then
-    if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/current/theme/light.mode" ]]; then
-        timeout 2s gsettings set org.gnome.desktop.interface color-scheme "prefer-light" >/dev/null 2>&1 || true
-        timeout 2s gsettings set org.gnome.desktop.interface gtk-theme "Adwaita" >/dev/null 2>&1 || true
-    else
-        timeout 2s gsettings set org.gnome.desktop.interface color-scheme "prefer-dark" >/dev/null 2>&1 || true
-        timeout 2s gsettings set org.gnome.desktop.interface gtk-theme "Adwaita-dark" >/dev/null 2>&1 || true
-    fi
-fi
 
 # Set btop theme
 mkdir -p ~/.config/btop/themes
@@ -126,8 +143,98 @@ fi
 # This avoids rewriting stow-managed config.toml (which would break symlinks).
 
 # Set GTK theme for Nemo
-mkdir -p ~/.config/gtk-3.0
-ln -snf ~/.config/current/theme/gtk.css ~/.config/gtk-3.0/gtk.css
+mkdir -p ~/.config/gtk-3.0 ~/.config/gtk-4.0
+
+# Generate GTK theme assets (gtk.css + settings.ini) from palette, then link current.
+"$SCRIPT_DIR/generate-gtk-themes" >/dev/null 2>&1 || true
+
+# Apply GTK CSS overrides:
+# - GTK3: app/widget overrides (Nemo, etc.)
+# - GTK4: libadwaita color token overrides (more future-proof than deep selector theming)
+if [[ -f "$HOME/.config/current/theme/gtk-3.0/gtk.css" ]]; then
+    ln -snf "$HOME/.config/current/theme/gtk-3.0/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
+else
+    ln -snf "$HOME/.config/current/theme/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
+fi
+
+if [[ -f "$HOME/.config/current/theme/gtk-4.0/gtk.css" ]]; then
+    ln -snf "$HOME/.config/current/theme/gtk-4.0/gtk.css" "$HOME/.config/gtk-4.0/gtk.css"
+else
+    # Fallback: do not link GTK4 to the Nemo-specific GTK3 overrides
+    rm -f "$HOME/.config/gtk-4.0/gtk.css"
+fi
+
+# Apply GTK settings.ini if present for this theme
+GTK3_BASE="$HOME/.config/gtk-3.0/settings.base.ini"
+GTK4_BASE="$HOME/.config/gtk-4.0/settings.base.ini"
+GTK3_THEME="$HOME/.config/current/theme/gtk-3.0/settings.ini"
+GTK4_THEME="$HOME/.config/current/theme/gtk-4.0/settings.ini"
+
+GTK3_OUT="$HOME/.config/gtk-3.0/settings.ini"
+GTK4_OUT="$HOME/.config/gtk-4.0/settings.ini"
+
+if [[ -f "$GTK3_BASE" ]]; then
+    cp "$GTK3_BASE" "$GTK3_OUT"
+else
+    printf '[Settings]\n' >"$GTK3_OUT"
+fi
+if [[ -f "$GTK3_THEME" ]]; then
+    awk 'BEGIN{in_settings=0} /^\[Settings\]/{in_settings=1; next} {if(in_settings) print}' "$GTK3_THEME" >>"$GTK3_OUT"
+fi
+
+if [[ -f "$GTK4_BASE" ]]; then
+    cp "$GTK4_BASE" "$GTK4_OUT"
+else
+    printf '[Settings]\n' >"$GTK4_OUT"
+fi
+if [[ -f "$GTK4_THEME" ]]; then
+    awk 'BEGIN{in_settings=0} /^\[Settings\]/{in_settings=1; next} {if(in_settings) print}' "$GTK4_THEME" >>"$GTK4_OUT"
+fi
+
+# If the selected GTK3 theme isn't installed, fall back to Adwaita to avoid mismatched/broken theming.
+gtk_theme_installed() {
+    local name="$1"
+    [[ -z "$name" ]] && return 1
+    local d
+    for d in \
+        "$HOME/.local/share/themes" \
+        "$HOME/.themes" \
+        "/usr/local/share/themes" \
+        "/usr/share/themes"
+    do
+        [[ -d "$d/$name" ]] && return 0
+    done
+    return 1
+}
+
+GTK3_NAME="$(awk -F= '/^gtk-theme-name=/{val=$2} END{print val}' "$GTK3_OUT" 2>/dev/null | tr -d '\r' || true)"
+if [[ -n "$GTK3_NAME" ]] && ! gtk_theme_installed "$GTK3_NAME"; then
+    if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/current/theme/light.mode" ]]; then
+        GTK3_FALLBACK="Adwaita"
+    else
+        GTK3_FALLBACK="Adwaita-dark"
+    fi
+    # Replace the gtk-theme-name line (uncommented) with the fallback.
+    sed -i '/^gtk-theme-name=/d' "$GTK3_OUT"
+    if [[ -s "$GTK3_OUT" && "$(tail -c1 "$GTK3_OUT" 2>/dev/null || true)" != $'\n' ]]; then
+        printf '\n' >>"$GTK3_OUT"
+    fi
+    printf 'gtk-theme-name=%s\n' "$GTK3_FALLBACK" >>"$GTK3_OUT"
+fi
+
+# Change GNOME modes (best-effort; skip if gsettings or DBus not available)
+if command -v gsettings >/dev/null 2>&1; then
+    if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/current/theme/light.mode" ]]; then
+        timeout 2s gsettings set org.gnome.desktop.interface color-scheme "prefer-light" >/dev/null 2>&1 || true
+    else
+        timeout 2s gsettings set org.gnome.desktop.interface color-scheme "prefer-dark" >/dev/null 2>&1 || true
+    fi
+
+    GTK_GSET_THEME="$(awk -F= '/^gtk-theme-name=/{val=$2} END{print val}' "$GTK3_OUT" 2>/dev/null | tr -d '\r' || true)"
+    if [[ -n "$GTK_GSET_THEME" ]]; then
+        timeout 2s gsettings set org.gnome.desktop.interface gtk-theme "$GTK_GSET_THEME" >/dev/null 2>&1 || true
+    fi
+fi
 
 # Generate kitty theme from palettes and link current
 "$SCRIPT_DIR/generate-kitty-themes" >/dev/null 2>&1 || true

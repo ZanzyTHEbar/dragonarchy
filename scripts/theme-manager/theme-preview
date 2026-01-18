@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Preview a theme (revertable):
+# - snapshot current theme + background
+# - apply new theme normally (so you see it)
+#
+# Usage: theme-preview <theme-slug>
+
+slug="${1:-}"
+if [[ -z "$slug" ]]; then
+  echo "Usage: theme-preview <theme-slug>" >&2
+  exit 2
+fi
+
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dragon/theme-manager"
+mkdir -p "$STATE_DIR"
+
+CURRENT_THEME_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
+CURRENT_BG_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
+
+snap_theme="$STATE_DIR/preview-theme"
+snap_bg="$STATE_DIR/preview-background"
+snap_active="$STATE_DIR/preview-active"
+
+# Only take the snapshot once per preview-session (so you can preview multiple themes then revert back)
+if [[ ! -f "$snap_active" ]]; then
+  if [[ -L "$CURRENT_THEME_LINK" ]]; then
+    basename "$(readlink -f "$CURRENT_THEME_LINK" 2>/dev/null || true)" >"$snap_theme" || true
+  fi
+  if [[ -L "$CURRENT_BG_LINK" ]]; then
+    readlink -f "$CURRENT_BG_LINK" 2>/dev/null >"$snap_bg" || true
+  fi
+  printf '%s\n' "1" >"$snap_active"
+fi
+
+exec "$SCRIPT_DIR/theme-set" "$slug"
+

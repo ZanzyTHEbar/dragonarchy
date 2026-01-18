@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Generate (and cache) a composite preview image for a theme:
+# - wallpaper thumbnail
+# - palette strip (extracted from hyprland-palette.conf if available)
+#
+# Outputs the preview file path on stdout.
+#
+# Usage: theme-gallery-preview <theme-slug>
+
+slug="${1:-}"
+if [[ -z "$slug" ]]; then
+  echo "Usage: theme-gallery-preview <theme-slug>" >&2
+  exit 2
+fi
+
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DOTFILES_ROOT="${DOTFILES_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+
+THEME_DIR="$DOTFILES_ROOT/packages/themes/.config/themes/$slug"
+BG_DIR="$THEME_DIR/backgrounds"
+PALETTE_FILE="$THEME_DIR/hyprland-palette.conf"
+
+if [[ ! -d "$THEME_DIR" ]]; then
+  echo "theme-gallery-preview: theme not found: $THEME_DIR" >&2
+  exit 3
+fi
+
+wallpaper=""
+if [[ -d "$BG_DIR" ]]; then
+  # Pick the first image deterministically
+  wallpaper="$(find "$BG_DIR" -maxdepth 1 -type f \( \
+    -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.bmp' \
+  \) 2>/dev/null | sort | head -n 1 || true)"
+fi
+
+if [[ -z "$wallpaper" || ! -f "$wallpaper" ]]; then
+  # No wallpaper, nothing to preview
+  echo ""
+  exit 0
+fi
+
+cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/dragon/theme-gallery"
+mkdir -p "$cache_root"
+
+wall_mtime="$(stat -c %Y "$wallpaper" 2>/dev/null || echo 0)"
+pal_mtime=0
+[[ -f "$PALETTE_FILE" ]] && pal_mtime="$(stat -c %Y "$PALETTE_FILE" 2>/dev/null || echo 0)"
+script_mtime="$(stat -c %Y "$SCRIPT_PATH" 2>/dev/null || echo 0)"
+
+key_src="$wallpaper|$wall_mtime|$PALETTE_FILE|$pal_mtime|$script_mtime"
+if command -v sha1sum >/dev/null 2>&1; then
+  key="$(printf '%s' "$key_src" | sha1sum | awk '{print $1}' | cut -c1-12)"
+else
+  key="$(printf '%s' "$key_src" | cksum | awk '{print $1}')"
+fi
+
+out="$cache_root/${slug}-${key}.png"
+if [[ -f "$out" ]]; then
+  echo "$out"
+  exit 0
+fi
+
+# If ImageMagick isn't available, fall back to showing the wallpaper directly.
+magick_bin=""
+if command -v magick >/dev/null 2>&1; then
+  magick_bin="magick"
+elif command -v convert >/dev/null 2>&1; then
+  magick_bin="convert"
+else
+  echo "$wallpaper"
+  exit 0
+fi
+
+# Extract up to 6 palette colors as #RRGGBB from rgba(XXXXXXXX) values.
+colors=()
+if [[ -f "$PALETTE_FILE" ]]; then
+  while IFS= read -r hex; do
+    rgb="#${hex:0:6}"
+    # de-dup while preserving order
+    skip=false
+    for c in "${colors[@]:-}"; do
+      [[ "$c" == "$rgb" ]] && skip=true && break
+    done
+    $skip && continue
+    colors+=("$rgb")
+    [[ ${#colors[@]} -ge 6 ]] && break
+  done < <(
+    grep -Eo 'rgba\\([0-9a-fA-F]{8}\\)' "$PALETTE_FILE" 2>/dev/null \
+      | sed -E 's/^rgba\\(([0-9a-fA-F]{8})\\)$/\\1/' \
+      || true
+  )
+fi
+
+# Ensure we have 6 colors (fallbacks keep it clean even if palette file is missing).
+fallbacks=( "#0b0f14" "#111827" "#1f2937" "#334155" "#64748b" "#e5e7eb" )
+for fb in "${fallbacks[@]}"; do
+  [[ ${#colors[@]} -ge 6 ]] && break
+  colors+=("$fb")
+done
+
+thumb_w=900
+thumb_h=500
+pal_h=110
+sw_w=$(( thumb_w / 6 ))
+
+# Create palette strip: 6 swatches appended horizontally.
+palette_png="$cache_root/.palette-${slug}-${key}.png"
+rm -f "$palette_png" >/dev/null 2>&1 || true
+
+"$magick_bin" \
+  -size "${sw_w}x${pal_h}" "xc:${colors[0]}" \
+  -size "${sw_w}x${pal_h}" "xc:${colors[1]}" +append \
+  -size "${sw_w}x${pal_h}" "xc:${colors[2]}" +append \
+  -size "${sw_w}x${pal_h}" "xc:${colors[3]}" +append \
+  -size "${sw_w}x${pal_h}" "xc:${colors[4]}" +append \
+  -size "${sw_w}x${pal_h}" "xc:${colors[5]}" +append \
+  "$palette_png" >/dev/null 2>&1 || true
+
+# Create composite preview: wallpaper thumb + palette strip.
+tmp_thumb="$cache_root/.thumb-${slug}-${key}.png"
+rm -f "$tmp_thumb" >/dev/null 2>&1 || true
+
+"$magick_bin" "$wallpaper" \
+  -auto-orient \
+  -resize "${thumb_w}x${thumb_h}^" \
+  -gravity center \
+  -extent "${thumb_w}x${thumb_h}" \
+  "$tmp_thumb" >/dev/null 2>&1 || true
+
+if [[ -f "$tmp_thumb" && -f "$palette_png" ]]; then
+  "$magick_bin" "$tmp_thumb" "$palette_png" -append "$out" >/dev/null 2>&1 || true
+fi
+
+rm -f "$tmp_thumb" "$palette_png" >/dev/null 2>&1 || true
+
+if [[ -f "$out" ]]; then
+  echo "$out"
+else
+  # Fallback to wallpaper if composite fails.
+  echo "$wallpaper"
+fi
+
