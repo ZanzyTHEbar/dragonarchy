@@ -158,8 +158,8 @@ fallback = [
 dmenu = [{ action = "select", default = true, bind = "Return" }]
 
 "menus:dragon" = [
-  { action = "menus:open", label = "open submenu", after = "Nothing" },
-  { action = "menus:default", label = "run", after = "Nothing" },
+  { action = "menus:open", label = "open", default = true, bind = "Return", after = "Nothing" },
+  { action = "menus:default", label = "run", bind = "shift Return", after = "Nothing" },
   { action = "menus:parent", label = "back", bind = "Escape", after = "Nothing" },
 ]
 
