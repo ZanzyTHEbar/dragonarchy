@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Blueberry Tray (Disabled)
+# Override system autostart (/etc/xdg/autostart/blueberry-tray.desktop) to prevent
+# duplicate Bluetooth tray icons (blueman + blueberry).
+Hidden=true
+NoDisplay=true

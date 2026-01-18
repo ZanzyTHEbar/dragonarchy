@@ -14,14 +14,34 @@
   "modules-right": [
     "group/tray-expander",
     "custom/notifications",
-    "bluetooth",
     "pulseaudio",
     "custom/thermals",
     "cpu",
     "custom/idle",
     "custom/session",
+    "bluetooth",
+    "network",
     "battery"
   ],
+  "network": {
+    "format-icons": [
+      "󰤯",
+      "󰤟",
+      "󰤢",
+      "󰤥",
+      "󰤨"
+    ],
+    "format": "{icon}",
+    "format-wifi": "{icon}",
+    "format-ethernet": "󰀂",
+    "format-disconnected": "󰖪",
+    "tooltip-format-wifi": "{essid} ({frequency} GHz)\n⇣{bandwidthDownBytes}  ⇡{bandwidthUpBytes}",
+    "tooltip-format-ethernet": "⇣{bandwidthDownBytes}  ⇡{bandwidthUpBytes}",
+    "tooltip-format-disconnected": "Disconnected",
+    "interval": 3,
+    "nospacing": 1,
+    "on-click": "bash -lc 'impala || $HOME/dotfiles/scripts/theme-manager/network-menu'"
+  },
   "hyprland/workspaces": {
     "on-click": "activate",
     "format": "{icon}",
@@ -45,6 +65,14 @@
       "4": [],
       "5": []
     }
+  },
+  "wlr/taskbar": {
+    "format": "{icon}",
+    "icon-size": 14,
+    "tooltip": true,
+    "tooltip-format": "{title}",
+    "on-click": "activate",
+    "on-click-middle": "close"
   },
   "custom/thermals": {
     "format": "{text}",
@@ -114,25 +142,6 @@
     "tooltip": false,
     "on-click-right": "~/.local/share/dragon/bin/dragon-cmd-tzupdate"
   },
-  "network": {
-    "format-icons": [
-      "󰤯",
-      "󰤟",
-      "󰤢",
-      "󰤥",
-      "󰤨"
-    ],
-    "format": "{icon}",
-    "format-wifi": "{icon}",
-    "format-ethernet": "󰀂",
-    "format-disconnected": "󰖪",
-    "tooltip-format-wifi": "{essid} ({frequency} GHz)\n⇣{bandwidthDownBytes}  ⇡{bandwidthUpBytes}",
-    "tooltip-format-ethernet": "⇣{bandwidthDownBytes}  ⇡{bandwidthUpBytes}",
-    "tooltip-format-disconnected": "Disconnected",
-    "interval": 3,
-    "nospacing": 1,
-    "on-click": "bash -lc '$HOME/dotfiles/scripts/theme-manager/network-menu'"
-  },
   "battery": {
     "format": "{capacity}% {icon}",
     "format-discharging": "{icon}",
@@ -175,13 +184,6 @@
       "critical": 10
     }
   },
-  "bluetooth": {
-    "format": "",
-    "format-disabled": "󰂲",
-    "format-connected": "",
-    "tooltip-format": "Devices connected: {num_connections}",
-    "on-click": "blueberry"
-  },
   "pulseaudio": {
     "format": "{icon}",
     "on-click": "kitty --class=Wiremix --title=Wiremix wiremix",
@@ -197,6 +199,13 @@
       ]
     }
   },
+  "bluetooth": {
+    "format": "",
+    "format-disabled": "󰂲",
+    "format-connected": "",
+    "tooltip-format": "Devices connected: {num_connections}",
+    "on-click": "blueman-manager"
+  },
   "group/tray-expander": {
     "orientation": "inherit",
     "drawer": {
@@ -206,7 +215,7 @@
     "modules": [
       "custom/expand-icon",
       "tray",
-      "network",
+      "wlr/taskbar",
       "custom/vpn"
     ]
   },
