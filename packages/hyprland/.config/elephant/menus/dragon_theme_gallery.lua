@@ -7,6 +7,7 @@ Action = "theme-set %VALUE%"
 History = false
 Cache = false
 SearchName = true
+FixedOrder = true
 
 local function dotfiles_root()
     local env = os.getenv("DOTFILES_ROOT")
@@ -184,12 +185,14 @@ function GetEntries()
         Text = "Undo last theme change",
         Subtext = "Toggle back to the previous theme",
         Icon = "edit-undo",
+        Value = "",
         Actions = { ["menus:default"] = "theme-undo", undo = "theme-undo" }
     })
     table.insert(entries, {
         Text = "Revert preview session",
         Subtext = "Go back to the theme/background you had before previewing",
         Icon = "edit-undo",
+        Value = "",
         Actions = { ["menus:default"] = "theme-preview-revert", revert_preview = "theme-preview-revert" }
     })
 
@@ -278,6 +281,7 @@ function GetEntries()
         Text = "Theme Controls (advanced list)",
         Subtext = "Install / Update / Remove / Background tools",
         Icon = "preferences-desktop-theme",
+        Value = "",
         SubMenu = "dragon_theme"
     })
 

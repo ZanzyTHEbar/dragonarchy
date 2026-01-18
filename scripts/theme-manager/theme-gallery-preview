@@ -88,8 +88,8 @@ if [[ -f "$PALETTE_FILE" ]]; then
     colors+=("$rgb")
     [[ ${#colors[@]} -ge 6 ]] && break
   done < <(
-    grep -Eo 'rgba\\([0-9a-fA-F]{8}\\)' "$PALETTE_FILE" 2>/dev/null \
-      | sed -E 's/^rgba\\(([0-9a-fA-F]{8})\\)$/\\1/' \
+    grep -Eo 'rgba\([0-9a-fA-F]{8}\)' "$PALETTE_FILE" 2>/dev/null \
+      | sed -E 's/^rgba\(([0-9a-fA-F]{8})\)$/\1/' \
       || true
   )
 fi

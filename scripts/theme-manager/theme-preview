@@ -37,5 +37,6 @@ if [[ ! -f "$snap_active" ]]; then
   printf '%s\n' "1" >"$snap_active"
 fi
 
+export DRAGON_SKIP_WALKER_RESTART=1
 exec "$SCRIPT_DIR/theme-set" "$slug"
 

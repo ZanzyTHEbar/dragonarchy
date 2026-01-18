@@ -30,5 +30,6 @@ if [[ -n "$current" ]]; then
   printf '%s\n' "$current" >"$prev_file"
 fi
 
+export DRAGON_SKIP_WALKER_RESTART=1
 exec "$SCRIPT_DIR/theme-set" "$prev"
 

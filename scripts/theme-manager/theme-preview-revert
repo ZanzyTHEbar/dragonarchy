@@ -26,7 +26,7 @@ bg_path=""
 rm -f "$snap_active" "$snap_theme" "$snap_bg" >/dev/null 2>&1 || true
 
 if [[ -n "$theme_slug" ]]; then
-  "$SCRIPT_DIR/theme-set" "$theme_slug" || true
+  DRAGON_SKIP_WALKER_RESTART=1 "$SCRIPT_DIR/theme-set" "$theme_slug" || true
 fi
 
 if [[ -n "$bg_path" && -f "$bg_path" ]]; then
