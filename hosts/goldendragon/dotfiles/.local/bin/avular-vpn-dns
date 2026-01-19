@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+# Host-specific DNS helper for Avular VPN (goldendragon).
+# Usage:
+#   avular-vpn-dns              # auto-detect interface, apply DNS
+#   avular-vpn-dns --reset      # remove DNS overrides
+#   VPN_LINK=ppp0 avular-vpn-dns
+#   VPN_DOMAIN=avular.dev avular-vpn-dns
+#   VPN_DNS_SERVERS="10.10.100.50 10.10.100.11" avular-vpn-dns
+
+if [[ $EUID -ne 0 ]]; then
+  sudo -k
+  exec sudo "$0" "$@"
+fi
+
+VPN_DOMAIN="${VPN_DOMAIN:-avular.dev}"
+VPN_DNS_SERVERS="${VPN_DNS_SERVERS:-10.10.100.50 10.10.100.11}"
+VPN_LINK="${VPN_LINK:-}"
+WAIT_SECS="${WAIT_SECS:-30}"
+SLEEP_SECS="${SLEEP_SECS:-1}"
+RESET=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --reset) RESET=1; shift ;;
+    *) echo "Usage: $0 [--reset]" >&2; exit 2 ;;
+  esac
+done
+
+have_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+detect_link() {
+  local link=""
+  link="$(resolvectl status 2>/dev/null | awk '/^Link [0-9]+ \(/ {name=$3; gsub(/[()]/,"",name); if (name ~ /^fctvpn/) {print name; exit}}')"
+  if [[ -z "$link" ]] && resolvectl status 2>/dev/null | grep -q 'Link .* (ppp0)'; then
+    link="ppp0"
+  fi
+  if [[ -z "$link" ]]; then
+    link="$(resolvectl status 2>/dev/null | awk '/^Link [0-9]+ \(/ {name=$3; gsub(/[()]/,"",name); if (name ~ /^(ppp|tun|tap)/) {print name; exit}}')"
+  fi
+  echo "$link"
+}
+
+if ! have_cmd resolvectl; then
+  echo "resolvectl not found; cannot set VPN DNS." >&2
+  exit 1
+fi
+
+if [[ -z "$VPN_LINK" ]]; then
+  local waited=0
+  while (( waited < WAIT_SECS )); do
+    VPN_LINK="$(detect_link)"
+    if [[ -n "$VPN_LINK" ]]; then
+      break
+    fi
+    sleep "$SLEEP_SECS"
+    waited=$((waited + SLEEP_SECS))
+  done
+fi
+
+if [[ -z "$VPN_LINK" ]]; then
+  echo "Could not detect VPN link after ${WAIT_SECS}s. Set VPN_LINK=<interface> and retry." >&2
+  exit 1
+fi
+
+if [[ $RESET -eq 1 ]]; then
+  if resolvectl revert "$VPN_LINK" >/dev/null 2>&1; then
+    resolvectl flush-caches >/dev/null 2>&1 || true
+    resolvectl status "$VPN_LINK"
+    exit 0
+  fi
+  resolvectl dns "$VPN_LINK" >/dev/null 2>&1 || true
+  resolvectl domain "$VPN_LINK" >/dev/null 2>&1 || true
+  resolvectl flush-caches >/dev/null 2>&1 || true
+  resolvectl status "$VPN_LINK"
+  exit 0
+fi
+
+resolvectl dns "$VPN_LINK" $VPN_DNS_SERVERS
+resolvectl domain "$VPN_LINK" "~${VPN_DOMAIN}"
+resolvectl status "$VPN_LINK"
