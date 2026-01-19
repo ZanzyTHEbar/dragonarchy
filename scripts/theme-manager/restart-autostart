@@ -57,8 +57,13 @@ start_if_missing hypridle "uwsm app -- hypridle"
 # OSD server
 start_if_missing swayosd-server "uwsm app -- swayosd-server"
 
-# Runner/service
-start_if_missing walker "uwsm app -- walker --gapplication-service"
+# Runner/service (force restart to ensure fresh state)
+restart_proc walker "uwsm app -- walker --gapplication-service"
+
+# Elephant service (gesture/window management daemon)
+if command -v systemctl >/dev/null 2>&1 && systemctl --user list-unit-files --type=service 2>/dev/null | grep -q '^elephant\.service'; then
+  systemctl --user restart elephant.service >/dev/null 2>&1 || true
+fi
 
 # Polkit agent
 start_if_missing polkit-gnome-authentication-agent-1 "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"

@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Restart walker and elephant services
+
+restart_walker() {
+  local pids
+  mapfile -t pids < <(pgrep -f 'walker --gapplication-service' || true)
+  
+  if [[ ${#pids[@]} -gt 0 ]]; then
+    printf 'Stopping walker service (PIDs: %s)\n' "${pids[*]}" >&2
+    kill "${pids[@]}" 2>/dev/null || true
+    
+    for pid in "${pids[@]}"; do
+      for _ in {1..20}; do
+        if ! kill -0 "$pid" >/dev/null 2>&1; then
+          break
+        fi
+        sleep 0.1
+      done
+      if kill -0 "$pid" >/dev/null 2>&1; then
+        printf 'PID %s still alive, forcing kill\n' "$pid" >&2
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+    done
+  fi
+  
+  printf 'Starting walker service\n' >&2
+  setsid uwsm app -- walker --gapplication-service >/dev/null 2>&1 &
+  printf 'Walker service restarted.\n'
+}
+
+restart_elephant() {
+  printf 'Restarting elephant service\n' >&2
+  if command -v systemctl >/dev/null 2>&1 && systemctl --user list-unit-files --type=service 2>/dev/null | grep -q '^elephant\.service'; then
+    systemctl --user restart elephant.service >/dev/null 2>&1 || true
+    printf 'Elephant service restarted.\n'
+  else
+    printf 'Elephant service not found, skipping.\n' >&2
+  fi
+}
+
+restart_walker
+restart_elephant
+
+printf 'Walker and elephant restart complete.\n'

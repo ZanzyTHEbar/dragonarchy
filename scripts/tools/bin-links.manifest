@@ -17,6 +17,7 @@ package=hyprland target=scripts/theme-manager/waybar-hoverd link=packages/hyprla
 package=hyprland target=scripts/theme-manager/verify-waybar-hoverd link=packages/hyprland/.local/bin/verify-waybar-hoverd
 package=hyprland target=scripts/walker/dragon/walker-dragon link=packages/hyprland/.local/bin/dragon-walker
 package=hyprland target=scripts/walker/restart-walker.sh link=packages/hyprland/.local/bin/walker-restart
+package=hyprland target=scripts/theme-manager/restart-walker-elephant link=packages/hyprland/.local/bin/restart-walker-elephant
 package=hyprland target=scripts/walker/walker-clipboard link=packages/hyprland/.local/bin/walker-clipboard
 package=hyprland target=scripts/utilities/clipboard-menu link=packages/hyprland/.local/bin/clipboard-menu
 package=hyprland target=scripts/utilities/clipse-wrapper link=packages/hyprland/.local/bin/clipse-wrapper
