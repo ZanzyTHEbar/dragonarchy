@@ -1,22 +1,28 @@
 # Fingerprint Authentication Quick Start (goldendragon)
 
-## TL;DR - Fix 40+ Second Login Delays
+## TL;DR - Fix Fingerprint Issues
 
-If you're experiencing 40+ second delays at login/lock screens but fingerprint works fine during sessions, run:
-
+### Issue 1: 40+ Second Login Delays
 ```bash
 cd ~/dotfiles/hosts/goldendragon
 bash ./fix-fingerprint-delays.sh
 ```
 
-Then reboot.
+### Issue 2: Fingerprint Stops Working After Lock/Resume
+```bash
+cd ~/dotfiles/hosts/goldendragon
+bash ./install-fprintd-watchdog.sh
+```
+
+This installs automatic recovery from stuck device claims.
 
 ## What This Fixes
 
-Two issues combine to create the delay:
+Three common fingerprint authentication issues:
 
-1. **USB Autosuspend** (primary issue): Fingerprint reader goes to sleep, takes 40s to wake up
-2. **PAM Timeout** (secondary): PAM waits indefinitely for the sleeping device
+1. **USB Autosuspend** (primary delay issue): Fingerprint reader goes to sleep, takes 40s to wake up
+2. **PAM Timeout** (secondary delay): PAM waits indefinitely for the sleeping device
+3. **Device Claim Stuck** (recurring issue): Hyprlock doesn't release device after auth, causing "already claimed" errors
 
 ## Quick Verification
 
@@ -85,13 +91,20 @@ You can test immediately after running the script:
    # Output should be: on
    ```
 
-## Files Modified
+## Files Modified/Created
 
+### Delay Fix:
 - `/etc/pam.d/sudo` - Added timeout parameter
 - `/etc/pam.d/polkit-1` - Added timeout parameter
 - `/etc/pam.d/system-local-login` - Added timeout parameter
 - `/etc/pam.d/sddm` - Added timeout parameter
-- `/etc/udev/rules.d/99-fingerprint-no-autosuspend.rules` - Created (disables USB autosuspend)
+- `/etc/udev/rules.d/99-fingerprint-no-autosuspend.rules` - Disables USB autosuspend
+
+### Watchdog System (prevents recurring issues):
+- `/usr/lib/systemd/system-sleep/99-fprintd-reset.sh` - Restarts fprintd on suspend/resume
+- `~/.local/bin/fprintd-watchdog` - Monitors and auto-restarts if claims stuck
+- `~/.config/systemd/user/fprintd-watchdog.timer` - Runs watchdog every 30 minutes
+- `~/.config/systemd/user/fprintd-watchdog.service` - Watchdog service unit
 
 Backups: `/etc/pam.d/.dragonarchy-backups/`
 
