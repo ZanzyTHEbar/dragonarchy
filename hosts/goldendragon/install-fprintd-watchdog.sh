@@ -4,6 +4,14 @@
 
 set -euo pipefail
 
+NON_INTERACTIVE=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --non-interactive) NON_INTERACTIVE=1; shift ;;
+    *) echo "Usage: $0 [--non-interactive]" >&2; exit 2 ;;
+  esac
+done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../../scripts/lib/logging.sh"
 
@@ -69,7 +77,10 @@ echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart fprintd.service"
 echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop fprintd.service"
 echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl start fprintd.service"
 log_info ""
-if [[ -t 0 && -t 1 ]]; then
+if [[ $NON_INTERACTIVE -eq 1 ]]; then
+  log_info "Non-interactive mode; skipping sudoers prompt."
+  REPLY="n"
+elif [[ -t 0 && -t 1 ]]; then
   read -p "Add these rules to /etc/sudoers.d/fprintd-watchdog? (y/N) " -n 1 -r || true
   echo
 else
