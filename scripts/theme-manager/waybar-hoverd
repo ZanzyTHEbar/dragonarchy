@@ -145,7 +145,7 @@ MANAGED_WAYBAR=0
 
 waybar_signal() {
   local sig="$1"
-  pkill -x "-SIG${sig}" waybar >/dev/null 2>&1
+  pkill "-SIG${sig}" -x waybar >/dev/null 2>&1
 }
 
 show_waybar() {
