@@ -1,5 +1,7 @@
 {
   "reload_style_on_change": true,
+  "on-sigusr1": "show",
+  "on-sigusr2": "hide",
   "layer": "top",
   "position": "top",
   "exclusive": true,

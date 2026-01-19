@@ -39,6 +39,40 @@ systemd_stop_vpn() {
   systemctl reset-failed openfortivpn.service >/dev/null 2>&1 || true
 }
 
+systemd_cleanup_exists() {
+  have_cmd systemctl || return 1
+  systemctl list-unit-files --type=service 2>/dev/null | grep -q '^openfortivpn-cleanup\.service'
+}
+
+systemd_cleanup_vpn() {
+  systemctl start openfortivpn-cleanup.service
+}
+
+systemd_main_pid() {
+  have_cmd systemctl || return 1
+  systemctl show -p MainPID --value openfortivpn.service 2>/dev/null || true
+}
+
+openfortivpn_pids() {
+  pgrep -x "$VPN_PROC_NAME" 2>/dev/null || true
+}
+
+stray_openfortivpn_pids() {
+  local main_pid=""
+  main_pid="$(systemd_main_pid)"
+  local pid
+  for pid in $(openfortivpn_pids); do
+    if [[ -n "$main_pid" && "$main_pid" != "0" && "$pid" == "$main_pid" ]]; then
+      continue
+    fi
+    echo "$pid"
+  done
+}
+
+stray_openfortivpn_running() {
+  [[ -n "$(stray_openfortivpn_pids)" ]]
+}
+
 port_in_use() {
   local port="$1"
   if have_cmd ss; then
@@ -207,8 +241,16 @@ vpn_proc_running() {
 vpn_state() {
   if vpn_iface_up; then
     echo "connected"
-  elif systemd_service_exists && systemd_is_active; then
-    echo "connecting"
+  elif systemd_service_exists; then
+    if systemd_is_active; then
+      echo "connecting"
+    elif stray_openfortivpn_running; then
+      echo "error"
+    elif vpn_proc_running; then
+      echo "error"
+    else
+      echo "disconnected"
+    fi
   elif vpn_proc_running; then
     echo "connecting"
   else
@@ -333,6 +375,9 @@ status_json() {
   fi
 
   tooltip="${tooltip}"$'\n'"Left: toggle | Middle: connect | Right: disconnect"
+  if [[ "$state" == "error" ]]; then
+    tooltip="${tooltip}"$'\n'"Stray OpenFortiVPN process detected; click to disconnect"
+  fi
 
   echo "{\"text\":\"\",\"alt\":\"$(json_escape "$state")\",\"tooltip\":\"$(json_escape "$tooltip")\",\"class\":\"$(json_escape "$state")\"}"
 }
@@ -382,6 +427,19 @@ connect_vpn() {
   fi
 
   if systemd_service_exists; then
+    if systemd_is_active; then
+      notify "VPN" "OpenFortiVPN is already running."
+      return 0
+    fi
+    if stray_openfortivpn_running; then
+      notify "VPN" "Stray OpenFortiVPN process detected; cleaning up."
+      if systemd_cleanup_exists; then
+        systemd_cleanup_vpn || true
+      else
+        force_disconnect_root || true
+      fi
+      wait_for_disconnect 5000 || true
+    fi
     notify "VPN" "Starting OpenFortiVPN (auth prompt may appear)..."
     if ! systemd_start_vpn; then
       notify "VPN" "Failed to start OpenFortiVPN (check polkit prompt)."
@@ -419,7 +477,11 @@ disconnect_vpn() {
   # If openfortivpn is running outside systemd, kill directly.
   if vpn_proc_running && !(systemd_service_exists && systemd_is_active); then
     notify "VPN" "Disconnecting (auth prompt may appear)..."
-    force_disconnect_root || true
+    if systemd_cleanup_exists; then
+      systemd_cleanup_vpn || true
+    else
+      force_disconnect_root || true
+    fi
     wait_for_disconnect 6000 || true
     if ! vpn_proc_running && ! vpn_iface_up; then
       notify "VPN" "Disconnected."
@@ -446,7 +508,11 @@ disconnect_vpn() {
       notify "VPN" "Disconnected."
       return 0
     fi
-    force_disconnect_root || true
+    if systemd_cleanup_exists; then
+      systemd_cleanup_vpn || true
+    else
+      force_disconnect_root || true
+    fi
     if wait_for_disconnect 3000; then
       notify "VPN" "Disconnected."
       return 0
@@ -473,7 +539,7 @@ disconnect_vpn() {
 toggle_vpn() {
   local state
   state="$(vpn_state)"
-  if [[ "$state" == "connected" || "$state" == "connecting" ]]; then
+  if [[ "$state" == "connected" || "$state" == "connecting" || "$state" == "error" ]]; then
     disconnect_vpn
   else
     connect_vpn
