@@ -334,7 +334,7 @@ PY
     log_success "Generated service config: $service_config"
   fi
 
-  if [[ -f /etc/systemd/system/openfortivpn.service ]]; then
+  if [[ -f /etc/systemd/system/openfortivpn.service || -f /etc/systemd/system/openfortivpn-cleanup.service ]]; then
     sudo systemctl daemon-reload >/dev/null 2>&1 || log_warning "systemctl daemon-reload failed"
   fi
 
@@ -378,6 +378,7 @@ openfortivpn_is_provisioned() {
   [[ -f "$service_config" ]] || return 1
   if command -v systemctl >/dev/null 2>&1; then
     systemctl list-unit-files --type=service 2>/dev/null | grep -q '^openfortivpn\.service' || return 1
+    systemctl list-unit-files --type=service 2>/dev/null | grep -q '^openfortivpn-cleanup\.service' || return 1
   fi
   [[ "$(stat -c '%G' "$config" 2>/dev/null || true)" == "$group" ]] || return 1
   getent group "$group" | awk -F: -v u="$target_user" '
