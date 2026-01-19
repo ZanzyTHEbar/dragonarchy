@@ -12,7 +12,8 @@ ExecStart=/usr/bin/bash -lc '\
   /usr/bin/pkill -KILL openfortivpn 2>/dev/null || true; \
   /usr/bin/pkill -TERM pppd 2>/dev/null || true; \
   /usr/bin/pkill -KILL pppd 2>/dev/null || true; \
-  /usr/bin/ip link set ppp0 down 2>/dev/null || true'
+  /usr/bin/ip link set ppp0 down 2>/dev/null || true; \
+  [ -x /home/daofficialwizard/.local/bin/avular-vpn-dns ] && /home/daofficialwizard/.local/bin/avular-vpn-dns --reset || true'
 
 [Install]
 WantedBy=multi-user.target
