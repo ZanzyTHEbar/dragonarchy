@@ -206,7 +206,7 @@ EOF
   # Install watchdog system to prevent recurring device claim issues
   log_info ""
   log_info "Installing fprintd watchdog system (prevents device claim issues)..."
-  if bash "${SCRIPT_DIR}/install-fprintd-watchdog.sh" >/dev/null 2>&1; then
+  if bash "${SCRIPT_DIR}/install-fprintd-watchdog.sh"; then
     log_success "Fprintd watchdog installed"
   else
     log_warning "Could not install fprintd watchdog (run manually if needed)"

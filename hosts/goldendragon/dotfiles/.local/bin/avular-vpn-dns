@@ -49,7 +49,7 @@ if ! have_cmd resolvectl; then
 fi
 
 if [[ -z "$VPN_LINK" ]]; then
-  local waited=0
+  waited=0
   while (( waited < WAIT_SECS )); do
     VPN_LINK="$(detect_link)"
     if [[ -n "$VPN_LINK" ]]; then
