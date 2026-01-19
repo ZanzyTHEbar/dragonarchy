@@ -1,7 +1,8 @@
 #%PAM-1.0
 
 # Allow fingerprint authentication for polkit prompts.
-auth        sufficient  pam_fprintd.so
+# timeout=10 prevents long delays when the fingerprint reader is unresponsive.
+auth        sufficient  pam_fprintd.so timeout=10
 auth        include     system-auth
 
 account     include     system-auth
