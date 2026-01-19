@@ -69,8 +69,13 @@ echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart fprintd.service"
 echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop fprintd.service"
 echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl start fprintd.service"
 log_info ""
-read -p "Add these rules to /etc/sudoers.d/fprintd-watchdog? (y/N) " -n 1 -r
-echo
+if [[ -t 0 && -t 1 ]]; then
+  read -p "Add these rules to /etc/sudoers.d/fprintd-watchdog? (y/N) " -n 1 -r || true
+  echo
+else
+  log_info "Non-interactive session; skipping sudoers prompt."
+  REPLY="n"
+fi
 if [[ $REPLY =~ ^[Yy]$ ]]; then
   sudo tee /etc/sudoers.d/fprintd-watchdog >/dev/null <<EOF
 # Allow $USER to restart fprintd service without password (for watchdog)
