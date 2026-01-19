@@ -132,13 +132,35 @@ fi
 
 log_info ""
 log_success "All fixes completed!"
+
+# Restart fprintd to release any device claims and pick up new configuration
+log_info ""
+log_step "Restarting fprintd service to apply changes..."
+if sudo systemctl restart fprintd.service 2>/dev/null; then
+  log_success "fprintd service restarted successfully"
+  sleep 2
+  
+  # Test if fingerprint reader is accessible
+  if fprintd-list "$USER" >/dev/null 2>&1; then
+    log_success "Fingerprint reader is accessible"
+  else
+    log_warning "Fingerprint reader may not be accessible yet"
+    log_info "If issues persist, run: bash ./restart-fprintd.sh"
+  fi
+else
+  log_warning "Could not restart fprintd service"
+  log_info "Run manually: sudo systemctl restart fprintd.service"
+fi
+
 log_info ""
 log_info "Next steps:"
-log_info "  1. Reboot to ensure all changes take effect"
-log_info "  2. Test login/lock screen - should respond immediately"
-log_info "  3. If issues persist, check: sudo systemctl status fprintd.service"
-log_info "  4. Verify fingerprint reader: fprintd-verify"
+log_info "  1. Test fingerprint: fprintd-verify"
+log_info "  2. Test sudo: sudo true"
+log_info "  3. Test lock screen: loginctl lock-session"
+log_info "  4. If fingerprint doesn't work, run: bash ./restart-fprintd.sh"
+log_info ""
+log_info "Optional: Reboot to ensure all changes are fully applied"
 log_info ""
 log_info "To verify USB autosuspend status:"
-log_info "  lsusb -t | grep -i fingerprint -A5"
-log_info "  cat /sys/bus/usb/devices/*/power/control | grep -v auto"
+log_info "  lsusb | grep -i fingerprint"
+log_info "  # Check power control (should be 'on' not 'auto')"
