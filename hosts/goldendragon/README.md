@@ -52,6 +52,7 @@ This host can enable fingerprint authentication via **fprintd** (when a sensor i
   - PAM rules for `/etc/pam.d/sudo`, `/etc/pam.d/polkit-1`, `/etc/pam.d/system-local-login`, `/etc/pam.d/sddm`
   - A host-scoped `/etc/pam.d/hyprlock` that includes `system-local-login` (so Hyprlock can use fingerprint too)
   - Password fallback remains enabled (fingerprint is added as `sufficient`, not `required`)
+  - **Timeout protection**: `timeout=10` parameter prevents 40+ second delays when the fingerprint reader is unresponsive
 
 - **Verify wiring**:
 
@@ -66,6 +67,13 @@ bash ./verify-fingerprint.sh
 fprintd-enroll
 fprintd-verify
 sudo true
+```
+
+- **Fix authentication delays** (if experiencing 40+ second delays at login/lock screens):
+
+```bash
+cd ~/dotfiles/hosts/goldendragon
+bash ./fix-fingerprint-delays.sh
 ```
 
 ## Secure Boot (Limine + sbctl)

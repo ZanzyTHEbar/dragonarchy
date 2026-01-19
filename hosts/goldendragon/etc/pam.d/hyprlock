@@ -4,7 +4,8 @@
 # while preserving password fallback.
 #
 # Note: system-local-login is patched by hosts/goldendragon/setup.sh to include:
-#   auth sufficient pam_fprintd.so
+#   auth sufficient pam_fprintd.so timeout=10
+# The timeout prevents long delays when the fingerprint reader is unresponsive.
 #
 auth        include     system-local-login
 account     include     system-local-login

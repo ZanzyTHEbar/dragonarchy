@@ -89,10 +89,11 @@ backup_root_pam_file() {
 }
 
 ensure_pam_fprintd_enabled() {
-  # Insert 'auth sufficient pam_fprintd.so' before the first auth rule (fallback to password remains).
+  # Insert 'auth sufficient pam_fprintd.so timeout=10' before the first auth rule (fallback to password remains).
+  # The timeout prevents long delays when the fingerprint reader is unresponsive.
   # This is idempotent and avoids replacing entire PAM files.
   local pam_file="$1"
-  local line='auth      sufficient pam_fprintd.so'
+  local line='auth      sufficient pam_fprintd.so timeout=10'
 
   if [[ ! -f "$pam_file" ]]; then
     log_warning "PAM file not found (skipping): $pam_file"
@@ -168,6 +169,36 @@ setup_fingerprint_auth() {
   ensure_pam_fprintd_enabled /etc/pam.d/polkit-1
   ensure_pam_fprintd_enabled /etc/pam.d/system-local-login
   ensure_pam_fprintd_enabled /etc/pam.d/sddm
+
+  # USB autosuspend fix: prevent fingerprint reader from being suspended
+  # This is critical to avoid 30-40 second wake-up delays at login/lock screens
+  log_info "Installing USB autosuspend fix for fingerprint reader..."
+  
+  local fingerprint_usb_id
+  fingerprint_usb_id=$(lsusb 2>/dev/null | grep -Ei 'fingerprint|fprint|synaptics|validity|goodix|elan|egis' | awk '{print $6}' | head -1)
+  
+  if [[ -n "$fingerprint_usb_id" ]]; then
+    local vendor_id="${fingerprint_usb_id%:*}"
+    local product_id="${fingerprint_usb_id#*:}"
+    
+    log_info "Detected fingerprint reader: ${fingerprint_usb_id}"
+    
+    # Create udev rule to disable autosuspend
+    sudo tee /etc/udev/rules.d/99-fingerprint-no-autosuspend.rules >/dev/null <<EOF
+# Disable USB autosuspend for fingerprint reader (${fingerprint_usb_id})
+# This prevents the 30-40 second wakeup delay at login/lock screens.
+
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="${vendor_id}", ATTR{idProduct}=="${product_id}", TEST=="power/control", ATTR{power/control}="on"
+EOF
+    
+    log_success "Created udev rule: /etc/udev/rules.d/99-fingerprint-no-autosuspend.rules"
+    
+    # Reload udev rules
+    sudo udevadm control --reload-rules 2>/dev/null || true
+    sudo udevadm trigger --subsystem-match=usb 2>/dev/null || true
+  else
+    log_warning "Could not detect fingerprint USB ID for autosuspend exclusion"
+  fi
 
   log_info "Next: enroll a finger (interactive): fprintd-enroll"
   log_info "Then test: fprintd-verify, and try sudo / polkit prompts"

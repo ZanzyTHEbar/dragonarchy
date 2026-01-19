@@ -1,0 +1,10 @@
+# Disable USB autosuspend for Synaptics fingerprint reader (06cb:00f9)
+# This prevents the 30-40 second wakeup delay at login/lock screens.
+#
+# The fingerprint reader needs to respond immediately for PAM authentication,
+# and USB autosuspend causes unacceptable delays during device wake-up.
+
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="06cb", ATTR{idProduct}=="00f9", TEST=="power/control", ATTR{power/control}="on"
+
+# Alternative: Exclude all Synaptics fingerprint readers
+# ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="06cb", TEST=="power/control", ATTR{power/control}="on"
