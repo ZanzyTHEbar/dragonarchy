@@ -69,12 +69,21 @@ fprintd-verify
 sudo true
 ```
 
-- **Fix authentication delays** (if experiencing 40+ second delays at login/lock screens):
+- **Fix authentication delays** (if experiencing 40+ second delays):
 
 ```bash
 cd ~/dotfiles/hosts/goldendragon
 bash ./fix-fingerprint-delays.sh
 ```
+
+- **Fix recurring "device claimed" issues** (fingerprint stops working after lock/resume):
+
+```bash
+cd ~/dotfiles/hosts/goldendragon
+bash ./install-fprintd-watchdog.sh
+```
+
+See [docs/FPRINTD_WATCHDOG.md](docs/FPRINTD_WATCHDOG.md) for details.
 
 ## Secure Boot (Limine + sbctl)
 

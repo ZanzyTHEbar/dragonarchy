@@ -202,6 +202,17 @@ EOF
 
   log_info "Next: enroll a finger (interactive): fprintd-enroll"
   log_info "Then test: fprintd-verify, and try sudo / polkit prompts"
+  
+  # Install watchdog system to prevent recurring device claim issues
+  log_info ""
+  log_info "Installing fprintd watchdog system (prevents device claim issues)..."
+  if bash "${SCRIPT_DIR}/install-fprintd-watchdog.sh" >/dev/null 2>&1; then
+    log_success "Fprintd watchdog installed"
+  else
+    log_warning "Could not install fprintd watchdog (run manually if needed)"
+    log_info "Manual install: bash ${SCRIPT_DIR}/install-fprintd-watchdog.sh"
+  fi
+  
   log_success "Fingerprint setup step completed (goldendragon)"
 }
 

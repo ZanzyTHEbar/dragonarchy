@@ -1,0 +1,11 @@
+[Unit]
+Description=Check fprintd device claims every 30 minutes
+After=graphical-session.target
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+Unit=fprintd-watchdog.service
+
+[Install]
+WantedBy=timers.target
