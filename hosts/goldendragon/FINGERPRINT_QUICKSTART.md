@@ -43,12 +43,20 @@ If you see `Power: auto`, that's the problem.
 The script will:
 - ✅ Add `timeout=10` to PAM fingerprint authentication
 - ✅ Create udev rule to keep fingerprint reader powered on
-- ✅ Apply changes immediately
+- ✅ Restart fprintd service to apply changes
 - ✅ Back up all modified files
+- ✅ Test fingerprint reader accessibility
 
-## Testing
+## Testing (No Reboot Needed!)
 
-1. **Reboot** (recommended) or reload udev:
+You can test immediately after running the script:
+
+1. **If fingerprint doesn't work** (shows "Device already claimed"):
+   ```bash
+   bash ./restart-fprintd.sh
+   ```
+
+2. **Test fingerprint authentication**:
    ```bash
    sudo udevadm control --reload-rules
    sudo udevadm trigger --subsystem-match=usb
