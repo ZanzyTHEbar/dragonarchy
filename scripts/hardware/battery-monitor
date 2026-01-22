@@ -126,8 +126,10 @@ send_warning_with_action_async() {
     trap 'rm -f "$ACTION_PROMPT_LOCK" "$ACTION_PROMPT_PID" 2>/dev/null || true' EXIT
 
     local action
+    local notify_ec=0
     action="$(
       notify_send \
+        --strict \
         --app "battery-monitor" \
         --icon "battery-caution" \
         --urgency "critical" \
@@ -139,8 +141,12 @@ send_warning_with_action_async() {
         -- \
         "Battery low (${level}%)" \
         "Plug in now. Estimated remaining: ${eta}." \
-        2>/dev/null || true
+        2>/dev/null || notify_ec=$?
     )"
+    if [[ $notify_ec -ne 0 && $notify_ec -ne 124 ]]; then
+      rm -f "$NOTIFICATION_FLAG" 2>/dev/null || true
+      return 0
+    fi
 
     if [[ "$action" == "powersave" ]]; then
       local ps_cmd

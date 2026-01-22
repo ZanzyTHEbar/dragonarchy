@@ -38,6 +38,7 @@ Environment:
   POLL_MS=<ms>                      (default: 120)
   HIDE_DELAY_MS=<ms>                (default: 500)
   WAYBAR_HOVERD_LOG=<path>          (default: unset)
+  OWN_WAYBAR=1|0                    (default: 1)
   USE_SIGNALS=1|0                   (default: 1)
   PREWARM_WAYBAR=1|0                (default: 1)
 
@@ -51,6 +52,7 @@ Notes:
   - For debugging, set WAYBAR_HOVERD_LOG to capture start/stop events.
   - This daemon only stops Waybar if it started Waybar itself.
   - With USE_SIGNALS=1, configure Waybar to map SIGUSR1=show SIGUSR2=hide.
+  - For Hyprland layer animations, set USE_SIGNALS=0 (start/stop Waybar).
 EOF
 }
 
@@ -101,6 +103,7 @@ TRIGGER_PX=$TRIGGER_PX
 POLL_MS=$POLL_MS
 HIDE_DELAY_MS=$HIDE_DELAY_MS
 WAYBAR_HOVERD_LOG=${LOG_FILE:-}
+OWN_WAYBAR=$OWN_WAYBAR
 USE_SIGNALS=$USE_SIGNALS
 PREWARM_WAYBAR=$PREWARM_WAYBAR
 EOF

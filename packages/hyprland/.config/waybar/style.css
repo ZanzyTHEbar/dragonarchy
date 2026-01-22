@@ -19,6 +19,16 @@
   font-size: 12px;
 }
 
+#waybar {
+  transition-property: opacity, background-color, color;
+  transition-duration: 180ms;
+  transition-timing-function: ease-out;
+}
+
+#waybar.hidden {
+  opacity: 0;
+}
+
 .modules-left {
   margin-left: 8px;
 }

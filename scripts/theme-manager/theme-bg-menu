@@ -4,9 +4,12 @@ set -euo pipefail
 # Background manager: pick from installed themes or add a background to a theme
 
 SCRIPT_DIR=$(cd -P "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)
+DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 THEMES_DIR="${SCRIPT_DIR}/../../packages/themes/.config/themes"
 CURRENT_THEME_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
 CURRENT_BG_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/theme-manager/lib/wallpaper-utils.sh"
 
 # Require gum
 if ! command -v gum >/dev/null 2>&1; then
@@ -117,9 +120,7 @@ case "${action}" in
     file=$(pick_background_from_theme "$theme") || exit 0
     ln -nsf "$file" "$CURRENT_BG_LINK"
     echo "Background link set to $(basename "$file")"
-    # Restart swaybg to apply the new background
-    pkill -x swaybg || true
-    setsid uwsm app -- swaybg -i "$CURRENT_BG_LINK" -m fill >/dev/null 2>&1 &
+    theme_wallpaper_apply "$CURRENT_BG_LINK"
     echo "Background applied!"
     ;;
   "Add background to a theme")
@@ -128,9 +129,7 @@ case "${action}" in
     if gum confirm "Set as current background now?"; then
       ln -nsf "$file" "$CURRENT_BG_LINK"
       echo "Background link set to $(basename "$file")"
-      # Restart swaybg to apply the new background
-      pkill -x swaybg || true
-      setsid uwsm app -- swaybg -i "$CURRENT_BG_LINK" -m fill >/dev/null 2>&1 &
+      theme_wallpaper_apply "$CURRENT_BG_LINK"
       echo "Background applied!"
     else
       echo "Added $(basename "$file") to ${theme}"

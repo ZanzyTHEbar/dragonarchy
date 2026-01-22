@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck disable=SC1091
 source "$DOTFILES_ROOT/scripts/lib/notifications.sh"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/theme-manager/lib/wallpaper-utils.sh"
 
 if [[ $# -lt 1 ]]; then
   echo "Usage: theme-set-background <image-path>" >&2
@@ -38,9 +40,7 @@ fi
 
 ln -nsf "$target" "$link"
 
-# Restart swaybg to apply the new background
-pkill -x swaybg >/dev/null 2>&1 || true
-setsid uwsm app -- swaybg -i "$link" -m fill >/dev/null 2>&1 &
+theme_wallpaper_apply "$link"
 
 notify_send "Background Updated" "$(basename "$target")"
 

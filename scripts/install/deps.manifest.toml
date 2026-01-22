@@ -202,6 +202,7 @@ packages = [
     "slurp",
     "sushi",
     "swaybg",
+    "swww",
     "swaync",
     "swayosd",
     # OSD bar used by Hyprland keybinds (writes to /tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob)

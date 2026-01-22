@@ -1,6 +1,7 @@
 # link manifest: package-scoped symlinks pointing to canonical scripts
 # format: package=<name> target=<relative path from repo root> link=<relative path>
 package=hyprland target=scripts/theme-manager/theme-bg-next link=packages/hyprland/.local/bin/theme-bg-next
+package=hyprland target=scripts/theme-manager/theme-bg-apply link=packages/hyprland/.local/bin/theme-bg-apply
 package=hyprland target=scripts/theme-manager/theme-bg-undo link=packages/hyprland/.local/bin/theme-bg-undo
 package=hyprland target=scripts/theme-manager/theme-install link=packages/hyprland/.local/bin/theme-install
 package=hyprland target=scripts/theme-manager/theme-favorite-toggle link=packages/hyprland/.local/bin/theme-favorite-toggle
