@@ -29,8 +29,8 @@ restart_proc() {
   run_exec "$cmd"
 }
 
-# Background (swaybg)
-restart_proc swaybg "uwsm app -- swaybg -i ~/.config/current/background -m fill"
+# Background (swww/swaybg)
+run_exec "uwsm app -- ~/.local/bin/theme-bg-apply"
 
 # Waybar
 # True show/hide for Waybar is managed by waybar-hoverd
@@ -38,7 +38,7 @@ pkill -x waybar >/dev/null 2>&1 || true
 if command -v systemctl >/dev/null 2>&1 && systemctl --user list-unit-files --type=service 2>/dev/null | grep -q '^waybar-hoverd\.service'; then
   systemctl --user restart waybar-hoverd.service >/dev/null 2>&1 || true
 else
-  restart_proc waybar-hoverd "uwsm app -- bash -c 'exec -a waybar-hoverd bash \"$HOME/.local/bin/waybar-hoverd\" --run'"
+  restart_proc waybar-hoverd "uwsm app -- bash -c 'USE_SIGNALS=0 PREWARM_WAYBAR=0 exec -a waybar-hoverd bash \"$HOME/.local/bin/waybar-hoverd\" --run'"
 fi
 
 # Input/IME

@@ -6,7 +6,7 @@
 #
 
 notify_send() {
-  local app="" icon="" urgency="" expire="" wait=0 timeout_duration=""
+  local app="" icon="" urgency="" expire="" wait=0 timeout_duration="" strict=0
   local -a actions=()
 
   while [[ $# -gt 0 ]]; do
@@ -16,6 +16,7 @@ notify_send() {
       --urgency) urgency="$2"; shift 2 ;;
       --expire) expire="$2"; shift 2 ;;
       --timeout) timeout_duration="$2"; shift 2 ;;
+      --strict) strict=1; shift ;;
       --action) actions+=("$2"); shift 2 ;;
       --wait) wait=1; shift ;;
       --) shift; break ;;
@@ -37,8 +38,16 @@ notify_send() {
   run_notify() {
     local -a run_cmd=("${cmd[@]}" "$title" "$body")
     if [[ -n "$timeout_duration" ]] && command -v timeout >/dev/null 2>&1; then
+      if [[ $strict -eq 1 ]]; then
+        timeout "$timeout_duration" "${run_cmd[@]}" 2>/dev/null
+        return $?
+      fi
       timeout "$timeout_duration" "${run_cmd[@]}" 2>/dev/null || true
       return 0
+    fi
+    if [[ $strict -eq 1 ]]; then
+      "${run_cmd[@]}" 2>/dev/null
+      return $?
     fi
     "${run_cmd[@]}" 2>/dev/null || true
   }

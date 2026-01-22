@@ -3,6 +3,12 @@
 
 SKIP_APPLY=false
 
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/theme-manager/lib/wallpaper-utils.sh"
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-apply|--no-apply|--link-only)
@@ -22,22 +28,14 @@ LOG_FILE="/tmp/theme-bg-next.log"
 
 apply_background() {
   [[ "$SKIP_APPLY" == "true" ]] && return 0
-  local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}"
-  local wayland_display="${WAYLAND_DISPLAY:-}"
-  if [[ -z "$wayland_display" && -d "$runtime_dir" ]]; then
-    local candidate
-    for candidate in "$runtime_dir"/wayland-*; do
-      [[ -S "$candidate" ]] || continue
-      wayland_display=$(basename "$candidate")
-      break
-    done
+  if [[ "${1:-}" == "--color" ]]; then
+    shift
+    theme_wallpaper_apply_color "${1:-${WALLPAPER_FALLBACK_COLOR:-#000000}}"
+    return 0
   fi
-  command pkill -x swaybg
-  if [[ -n "$wayland_display" ]]; then
-    setsid env XDG_RUNTIME_DIR="$runtime_dir" WAYLAND_DISPLAY="$wayland_display" uwsm app -- swaybg "$@" >/dev/null 2>&1 &
-  else
-    setsid uwsm app -- swaybg "$@" >/dev/null 2>&1 &
-  fi
+  local target="${1:-}"
+  [[ -n "$target" ]] || return 0
+  theme_wallpaper_apply "$target"
 }
 
 log_event() {
@@ -100,5 +98,5 @@ else
 
   # Relaunch swaybg unless suppressed
   log_event "set_background=$NEW_BACKGROUND"
-  apply_background -i "$CURRENT_BACKGROUND_LINK" -m fill
+  apply_background "$CURRENT_BACKGROUND_LINK"
 fi

@@ -11,6 +11,8 @@ SDDM_SYS_THEMES_DIR="/usr/share/sddm/themes"
 RESTART_WALKER_SCRIPT="$DOTFILES_ROOT/scripts/walker/restart-walker.sh"
 # shellcheck disable=SC1091
 source "$DOTFILES_ROOT/scripts/lib/notifications.sh"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/theme-manager/lib/wallpaper-utils.sh"
 
 CURRENT_THEME_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/theme"
 CURRENT_BG_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
@@ -240,8 +242,7 @@ set_background() {
   local file="$1"
   [[ -z "$file" ]] && return
   ln -nsf "$file" "$CURRENT_BG_LINK"
-  pkill -x swaybg >/dev/null 2>&1 || true
-  setsid uwsm app -- swaybg -i "$CURRENT_BG_LINK" -m fill >/dev/null 2>&1 &
+  theme_wallpaper_apply "$CURRENT_BG_LINK"
   show_theme_summary
 }
 

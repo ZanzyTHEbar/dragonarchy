@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/theme-manager/lib/wallpaper-utils.sh"
+
+CURRENT_BG_LINK="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
+
+target=""
+if [[ -L "$CURRENT_BG_LINK" ]]; then
+  target="$(readlink -f "$CURRENT_BG_LINK" 2>/dev/null || true)"
+  [[ -n "$target" ]] || target="$CURRENT_BG_LINK"
+elif [[ -f "$CURRENT_BG_LINK" ]]; then
+  target="$CURRENT_BG_LINK"
+fi
+
+if [[ -n "$target" ]]; then
+  theme_wallpaper_apply "$target"
+else
+  theme_wallpaper_apply_color "${WALLPAPER_FALLBACK_COLOR:-#000000}"
+fi
