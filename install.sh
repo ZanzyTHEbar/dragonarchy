@@ -1293,7 +1293,6 @@ configure_shell() {
     fi
     
     # Create necessary directories
-    mkdir -p "$HOME/.config/functions"
     mkdir -p "$HOME/.local/bin"
     
     log_success "Shell configuration completed"

@@ -19,6 +19,7 @@
     "pulseaudio",
     "custom/thermals",
     "cpu",
+    "custom/disk",
     "custom/idle",
     "custom/session",
     "bluetooth",
@@ -84,6 +85,13 @@
     "tooltip": true,
     "on-click": "$HOME/.local/bin/thermal-profile-cycle",
     "signal": 11
+  },
+  "custom/disk": {
+    "format": "{text}",
+    "return-type": "json",
+    "exec": "$HOME/.local/bin/disk-usage",
+    "interval": 10,
+    "tooltip": true
   },
   "custom/idle": {
     "format": "{text}",
