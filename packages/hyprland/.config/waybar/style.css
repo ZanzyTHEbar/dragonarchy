@@ -54,6 +54,7 @@
 #clock,
 #custom-session,
 #custom-idle,
+#custom-disk,
 #custom-vpn,
 #custom-thermals,
 #custom-notifications {
@@ -82,6 +83,14 @@ tooltip {
 }
 
 #custom-thermals.critical {
+  color: @error;
+}
+
+#custom-disk.warning {
+  color: @warning;
+}
+
+#custom-disk.critical {
   color: @error;
 }
 

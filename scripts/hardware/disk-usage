@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+have_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+json_escape() {
+  local value="$1"
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//$'\n'/\\n}
+  printf "%s" "$value"
+}
+
+human_bytes() {
+  local bytes="${1:-0}"
+  LC_NUMERIC=C awk -v b="$bytes" '
+    BEGIN {
+      split("B KiB MiB GiB TiB PiB", u, " ")
+      i=1
+      v=b+0
+      while (v >= 1024 && i < 6) { v /= 1024; i++ }
+      if (i == 1) { printf "%.0f%s", v, u[i] }
+      else { printf "%.1f%s", v, u[i] }
+    }'
+}
+
+primary="${WAYBAR_DISK_PRIMARY:-auto}"
+if [[ "$primary" == "auto" ]]; then
+  if have_cmd findmnt; then
+    primary="$(findmnt -n -o TARGET --target / 2>/dev/null | head -n1 || true)"
+  fi
+  primary="${primary:-/}"
+fi
+
+targets_raw="${WAYBAR_DISK_TARGETS:-/,/home,/var,/boot,/boot/efi}"
+warn="${WAYBAR_DISK_WARN:-85}"
+crit="${WAYBAR_DISK_CRIT:-95}"
+
+df_cmd=(
+  df
+  -B1
+  --output=target,used,size,pcent,avail
+  -x tmpfs
+  -x devtmpfs
+  -x overlay
+  -x squashfs
+)
+
+df_lines=()
+if have_cmd df; then
+  while IFS=' ' read -r target used size pcent avail; do
+    [[ -z "${target:-}" ]] && continue
+    df_lines+=("$target $used $size $pcent $avail")
+  done < <("${df_cmd[@]}" 2>/dev/null | tail -n +2)
+fi
+
+if [[ ${#df_lines[@]} -eq 0 ]]; then
+  echo '{"text":"󰋊 ?","tooltip":"Disk: unavailable","class":"critical"}'
+  exit 0
+fi
+
+declare -A used_map size_map avail_map pct_map
+for line in "${df_lines[@]}"; do
+  IFS=' ' read -r target used size pcent avail <<<"$line"
+  pcent="${pcent%\%}"
+  [[ -z "$target" ]] && continue
+  used_map["$target"]="$used"
+  size_map["$target"]="$size"
+  avail_map["$target"]="$avail"
+  pct_map["$target"]="$pcent"
+done
+
+primary_target="$primary"
+if [[ -z "${pct_map[$primary_target]:-}" ]]; then
+  primary_target="/"
+fi
+if [[ -z "${pct_map[$primary_target]:-}" ]]; then
+  primary_target="${df_lines[0]%% *}"
+fi
+
+primary_pct="${pct_map[$primary_target]:-}"
+class=""
+if [[ "$primary_pct" =~ ^[0-9]+$ ]]; then
+  if (( primary_pct >= crit )); then
+    class="critical"
+  elif (( primary_pct >= warn )); then
+    class="warning"
+  fi
+  text="󰋊 ${primary_pct}%"
+else
+  text="󰋊 ?"
+fi
+tooltip="Disk usage"
+
+shown_any=0
+IFS=',' read -r -a targets <<<"$targets_raw"
+for target in "${targets[@]}"; do
+  target="${target//[[:space:]]/}"
+  [[ -z "$target" ]] && continue
+  if [[ -n "${pct_map[$target]:-}" ]]; then
+    tooltip+=$'\n'
+    tooltip+="${target}: ${pct_map[$target]}%  used $(human_bytes "${used_map[$target]}") / $(human_bytes "${size_map[$target]}")  free $(human_bytes "${avail_map[$target]}")"
+    shown_any=1
+  fi
+done
+
+if [[ $shown_any -eq 0 ]]; then
+  while IFS=' ' read -r target used size pcent avail; do
+    pcent="${pcent%\%}"
+    tooltip+=$'\n'
+    tooltip+="${target}: ${pcent}%  used $(human_bytes "$used") / $(human_bytes "$size")  free $(human_bytes "$avail")"
+  done < <(printf "%s\n" "${df_lines[@]}" | sort -nrk3 | head -n 5)
+fi
+
+if command -v jq >/dev/null 2>&1; then
+  text_json=$(printf '%s' "$text" | jq -R -s .)
+  tooltip_json=$(printf '%s' "$tooltip" | jq -R -s .)
+  class_json=$(printf '%s' "$class" | jq -R -s .)
+  printf '{"text":%s,"tooltip":%s,"class":%s}\n' "$text_json" "$tooltip_json" "$class_json"
+else
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' \
+    "$(json_escape "$text")" \
+    "$(json_escape "$tooltip")" \
+    "$(json_escape "$class")"
+fi

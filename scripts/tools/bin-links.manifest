@@ -30,3 +30,4 @@ package=hardware target=scripts/hardware/setup-apple-display-brightness link=pac
 package=hardware target=scripts/hardware/thermal-profile-cycle link=packages/hardware/.local/bin/thermal-profile-cycle
 package=hardware target=scripts/hardware/thermal-profile-init link=packages/hardware/.local/bin/thermal-profile-init
 package=hardware target=scripts/hardware/thermals link=packages/hardware/.local/bin/thermals
+package=hardware target=scripts/hardware/disk-usage link=packages/hardware/.local/bin/disk-usage
