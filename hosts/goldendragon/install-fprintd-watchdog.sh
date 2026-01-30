@@ -30,13 +30,32 @@ fi
 
 # 2. Install watchdog binary
 log_info "Installing fprintd-watchdog..."
-if [ -f "${SCRIPT_DIR}/../../packages/hardware/.local/bin/fprintd-watchdog" ]; then
+SOURCE_WATCHDOG="${SCRIPT_DIR}/../../packages/hardware/.local/bin/fprintd-watchdog"
+DEST_WATCHDOG="$HOME/.local/bin/fprintd-watchdog"
+
+if [ -f "$SOURCE_WATCHDOG" ]; then
   mkdir -p ~/.local/bin
-  cp "${SCRIPT_DIR}/../../packages/hardware/.local/bin/fprintd-watchdog" ~/.local/bin/
-  chmod +x ~/.local/bin/fprintd-watchdog
-  log_success "Installed: ~/.local/bin/fprintd-watchdog"
+  
+  # Check if already installed (same file or symlink)
+  if [ -f "$DEST_WATCHDOG" ]; then
+    SOURCE_REAL=$(realpath "$SOURCE_WATCHDOG")
+    DEST_REAL=$(realpath "$DEST_WATCHDOG" 2>/dev/null || echo "$DEST_WATCHDOG")
+    
+    if [ "$SOURCE_REAL" = "$DEST_REAL" ]; then
+      log_info "fprintd-watchdog already installed (same file)"
+    else
+      log_info "Updating existing fprintd-watchdog..."
+      cp "$SOURCE_WATCHDOG" "$DEST_WATCHDOG"
+      chmod +x "$DEST_WATCHDOG"
+      log_success "Updated: ~/.local/bin/fprintd-watchdog"
+    fi
+  else
+    cp "$SOURCE_WATCHDOG" "$DEST_WATCHDOG"
+    chmod +x "$DEST_WATCHDOG"
+    log_success "Installed: ~/.local/bin/fprintd-watchdog"
+  fi
 else
-  log_error "Watchdog not found: ${SCRIPT_DIR}/../../packages/hardware/.local/bin/fprintd-watchdog"
+  log_error "Watchdog not found: $SOURCE_WATCHDOG"
   exit 1
 fi
 
