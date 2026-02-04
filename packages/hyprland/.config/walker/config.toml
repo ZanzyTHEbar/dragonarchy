@@ -1,7 +1,7 @@
 app_launch_prefix = "uwsm app -- "
 terminal_title_flag = ""
 locale = ""
-close_when_open = true                                # Toggle on reopen
+close_when_open = true             # Toggle on reopen
 # Theme is always "current"; theme-set/user-services maintains ~/.config/walker/themes/current/style.css
 theme = "current"
 installed_providers = [
@@ -13,6 +13,7 @@ installed_providers = [
   "files",
   "clipboard",
   "todo",
+  "copilot",
   "bookmarks",
   "archlinuxpkgs",
   "symbols",
@@ -23,7 +24,7 @@ installed_providers = [
   "menus:dragon_theme_gallery",
   "menus:dragon_backgrounds",
   "menus:dragon_utilities",
-  "menus:keybindings"
+  "menus:keybindings",
 ]
 additional_theme_location = "~/.config/walker/themes"
 monitor = ""
@@ -130,6 +131,10 @@ provider = "calc"
 [[providers.prefixes]]
 prefix = "@"
 provider = "websearch"
+
+[[providers.prefixes]]
+prefix = "~"
+provider = "copilot"
 
 [[providers.prefixes]]
 prefix = ":"
@@ -250,6 +255,31 @@ todo = [
 runner = [
   { action = "run", default = true, bind = "Return" },
   { action = "runterminal", label = "run in terminal", bind = "shift Return" },
+]
+
+copilot = [
+  { action = "send", label = "send", default = true, bind = "Return", after = "ClearReload" },
+  { action = "open_terminal", label = "open terminal", default = true, bind = "Return", after = "Nothing" },
+  { action = "copy_answer", label = "copy answer", bind = "ctrl c", after = "Nothing" },
+  { action = "copy_error", label = "copy error", bind = "ctrl shift c", after = "Nothing" },
+  { action = "copy_transcript", label = "copy transcript", bind = "ctrl shift t", after = "Nothing" },
+  { action = "edit_transcript", label = "edit transcript", bind = "ctrl e", after = "Nothing" },
+  { action = "apply_transcript", label = "apply transcript", bind = "ctrl shift e", after = "AsyncReload" },
+  { action = "copy_command", label = "copy cmd", bind = "ctrl y", after = "Nothing" },
+  { action = "copy_all_commands", label = "copy all", bind = "ctrl shift y", after = "Nothing" },
+  { action = "mode_chat", label = "chat", bind = "ctrl h", after = "AsyncReload" },
+  { action = "mode_models", label = "models", default = true, bind = "ctrl m", after = "AsyncReload" },
+  { action = "mode_sessions", label = "sessions", default = true, bind = "ctrl p", after = "AsyncReload" },
+  { action = "toggle_persist", label = "persist", bind = "ctrl s", after = "ClearReload" },
+  { action = "toggle_pin", label = "pin", bind = "ctrl shift p", after = "ClearReload" },
+  { action = "rename_session", label = "rename", bind = "ctrl r", after = "ClearReload" },
+  { action = "new_session", label = "new session", default = true, bind = "ctrl n", after = "ClearReload" },
+  { action = "new_temp_session", label = "temp session", default = true, bind = "ctrl shift n", after = "ClearReload" },
+  { action = "select_session", label = "select", default = true, bind = "Return", after = "ClearReload" },
+  { action = "delete_session", label = "delete", bind = "ctrl d", after = "ClearReload" },
+  { action = "clear_session", label = "clear", default = true, bind = "ctrl x", after = "ClearReload" },
+  { action = "set_model", label = "set model", default = true, bind = "Return", after = "ClearReload" },
+  { action = "set_cli_mode", label = "set cli", default = true, bind = "Return", after = "ClearReload" },
 ]
 
 symbols = [

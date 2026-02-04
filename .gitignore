@@ -34,3 +34,7 @@ packages/hyprland/.config/clipse/tmp_files/
 
 # zsh autosuggest theme
 packages/zsh/.config/zsh/autosuggest-theme.zsh
+
+# Elephant copilot provider artifacts
+packages/hyprland/.config/elephant/copilot.toml
+packages/hyprland/.config/elephant/providers/*.so
