@@ -30,7 +30,7 @@ fi
 
 # 2. Install watchdog binary
 log_info "Installing fprintd-watchdog..."
-SOURCE_WATCHDOG="${SCRIPT_DIR}/../../packages/hardware/.local/bin/fprintd-watchdog"
+SOURCE_WATCHDOG="${SCRIPT_DIR}/.local/bin/fprintd-watchdog"
 DEST_WATCHDOG="$HOME/.local/bin/fprintd-watchdog"
 
 if [ -f "$SOURCE_WATCHDOG" ]; then
@@ -82,8 +82,7 @@ fi
 # 4. Enable and start timer
 log_info "Enabling fprintd-watchdog timer..."
 systemctl --user daemon-reload
-systemctl --user enable fprintd-watchdog.timer
-systemctl --user start fprintd-watchdog.timer
+systemctl --user enable --now fprintd-watchdog.timer
 
 log_success "fprintd-watchdog timer enabled and started"
 

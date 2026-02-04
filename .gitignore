@@ -13,6 +13,7 @@ packages/applications/.local/share/icons/hicolor/apps/**/*
 packages/hyprland/.config/hypr/colors-theme.conf
 packages/hyprland/.config/walker/themes/current
 .cursor/
+packages/gh-extensions/.local/share/gh/copilot
 
 # Ignore repo-root stow artifacts (these should live under packages/*, not at repo root)
 /.config

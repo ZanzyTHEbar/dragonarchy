@@ -1,5 +1,6 @@
 /* Auto-generated Walker theme - color overrides only */
 @define-color window_bg_color #faf4ed;
+@define-color window_bg_color_transparent alpha(@window_bg_color, 0.92);
 @define-color accent_bg_color #56949f;
 @define-color theme_fg_color #575279;
 @define-color error_bg_color #d7827e;
@@ -26,7 +27,7 @@ scrollbar {
   box-shadow:
     0 19px 38px rgba(0, 0, 0, 0.3),
     0 15px 12px rgba(0, 0, 0, 0.22);
-  background: @window_bg_color;
+  background: @window_bg_color_transparent;
   padding: 20px;
   border-radius: 20px;
   border: 1px solid darker(@accent_bg_color);
