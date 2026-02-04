@@ -110,6 +110,7 @@ build_from_elephant() {
     GOAMD64="$GOAMD64_VALUE" GOFLAGS="$GOFLAGS_VALUE" go build -ldflags="-s -w" -buildvcs=false -buildmode=plugin -trimpath
   )
 
+  mkdir -p "$BUILD_DIR"
   cp -f "$provider_dir/copilot.so" "$PLUGIN_PATH"
 }
 
