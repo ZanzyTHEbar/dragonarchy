@@ -249,6 +249,32 @@ if command -v elephant >/dev/null 2>&1; then
   fi
 fi
 
+# --- Workspace indicator (compile from source) ---
+WS_INDICATOR_SRC="$DOTFILES_ROOT/scripts/theme-manager/workspace-indicator"
+if [[ -f "$WS_INDICATOR_SRC/Makefile" ]]; then
+    if pkg-config --exists gtk+-3.0 gtk-layer-shell-0 2>/dev/null; then
+        if make -C "$WS_INDICATOR_SRC" clean all install; then
+            log_success "workspace-indicator compiled and installed"
+        else
+            log_warning "workspace-indicator build failed; check gtk3/gtk-layer-shell dev packages"
+        fi
+    else
+        log_warning "workspace-indicator build deps missing (gtk+-3.0, gtk-layer-shell-0); skipping"
+    fi
+fi
+
+WORKSPACE_INDICATOR_UNIT="workspace-indicator.service"
+if systemctl --user list-unit-files --no-legend 2>/dev/null | grep -q "^${WORKSPACE_INDICATOR_UNIT}"; then
+    systemctl --user daemon-reload
+    if systemctl --user enable --now "${WORKSPACE_INDICATOR_UNIT}" >/dev/null 2>&1; then
+        log_success "Workspace indicator service enabled"
+    else
+        log_warning "Failed to enable workspace-indicator.service"
+    fi
+else
+    log_info "workspace-indicator.service not present; skipping enablement"
+fi
+
 # --- Thermal profile initialization service ---
 THERMAL_PROFILE_UNIT="thermal-profile-init.service"
 if systemctl --user list-unit-files --no-legend 2>/dev/null | grep -q "^${THERMAL_PROFILE_UNIT}"; then
