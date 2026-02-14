@@ -89,17 +89,11 @@ COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
 # Unalias zi from zinit to avoid conflicts with zoxide zi command
 unalias zi 2>/dev/null
 
+
 # pnpm
-export PNPM_HOME="$HOME/.local/share/pnpm"
+export PNPM_HOME="/home/daofficialwizard/.local/share/pnpm"
 case ":$PATH:" in
-    *":$PNPM_HOME:"*) ;;
-    *) export PATH="$PNPM_HOME:$PATH" ;;
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
-
-# fnm
-FNM_PATH="$HOME/.local/share/fnm"
-if [ -d "$FNM_PATH" ] && command -v fnm >/dev/null 2>&1; then
-    export PATH="$FNM_PATH:$PATH"
-    eval "`fnm env`"
-fi
