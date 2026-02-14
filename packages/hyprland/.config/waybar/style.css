@@ -8,14 +8,9 @@
   border-radius: 0;
   min-height: 0;
   font-family:
-    "LiberationMono Nerd Font",
-    "CaskaydiaMono Nerd Font Propo",
-    "CaskaydiaMono Nerd Font",
-    "Symbols Nerd Font",
-    "Font Awesome 6 Free",
-    "Font Awesome 6 Brands",
-    "Noto Color Emoji",
-    monospace;
+    "LiberationMono Nerd Font", "CaskaydiaMono Nerd Font Propo",
+    "CaskaydiaMono Nerd Font", "Symbols Nerd Font", "Font Awesome 6 Free",
+    "Font Awesome 6 Brands", "Noto Color Emoji", monospace;
   font-size: 12px;
 }
 
@@ -57,7 +52,8 @@
 #custom-disk,
 #custom-vpn,
 #custom-thermals,
-#custom-notifications {
+#custom-notifications,
+#custom-keyboard {
   min-width: 12px;
   margin: 0 7.5px;
 }

@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+# keyboard-layout - Waybar keyboard layout status/switcher
+#
+# Usage:
+#   keyboard-layout status   → JSON for Waybar custom module
+#   keyboard-layout switch   → Switch layout, notify, signal Waybar
+
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck disable=SC1091
+source "$DOTFILES_ROOT/scripts/lib/notifications.sh"
+
+# Must match the "signal" value in Waybar custom/keyboard config
+SIGNAL_NUM=12
+
+get_active_keymap() {
+  # Get the active keymap from the first real (non-virtual) keyboard
+  hyprctl devices -j 2>/dev/null | jq -r '
+    [.keyboards[] | select(.name | test("power|virtual|video|webcam"; "i") | not)]
+    | first | .active_keymap // "unknown"
+  '
+}
+
+get_short_name() {
+  local keymap="${1:-}"
+  case "$keymap" in
+    *English*)    echo "EN" ;;
+    *Portuguese*) echo "PT" ;;
+    *German*)     echo "DE" ;;
+    *French*)     echo "FR" ;;
+    *Spanish*)    echo "ES" ;;
+    *)            echo "${keymap:0:2}" | tr '[:lower:]' '[:upper:]' ;;
+  esac
+}
+
+json_escape() {
+  local value="$1"
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//$'\n'/\\n}
+  printf "%s" "$value"
+}
+
+status_json() {
+  local keymap short css_class
+  keymap="$(get_active_keymap)"
+  short="$(get_short_name "$keymap")"
+  css_class="$(echo "$short" | tr '[:upper:]' '[:lower:]')"
+
+  printf '{"text":"󰌌 %s","tooltip":"%s","class":"%s"}\n' \
+    "$short" \
+    "$(json_escape "Layout: $keymap\nClick to switch")" \
+    "$(json_escape "$css_class")"
+}
+
+switch_layout() {
+  local keyboards
+  keyboards="$(hyprctl devices -j 2>/dev/null | jq -r '.keyboards[].name')"
+
+  while IFS= read -r kb; do
+    [[ -z "$kb" ]] && continue
+    hyprctl switchxkblayout "$kb" next >/dev/null 2>&1 || true
+  done <<< "$keyboards"
+
+  # Brief pause for Hyprland to register the switch
+  sleep 0.15
+
+  local keymap short
+  keymap="$(get_active_keymap)"
+  short="$(get_short_name "$keymap")"
+
+  notify_send --app "Keyboard" --icon "input-keyboard" --expire 2000 \
+    "Keyboard Layout" "Switched to $keymap ($short)"
+
+  # Signal Waybar to refresh the module immediately
+  pkill -RTMIN+${SIGNAL_NUM} waybar 2>/dev/null || true
+}
+
+case "${1:-status}" in
+  status)
+    status_json
+    ;;
+  switch)
+    switch_layout
+    ;;
+  *)
+    echo "Usage: $0 {status|switch}" >&2
+    exit 2
+    ;;
+esac

@@ -15,6 +15,7 @@
   ],
   "modules-right": [
     "group/tray-expander",
+    "custom/keyboard",
     "custom/notifications",
     "pulseaudio",
     "custom/thermals",
@@ -109,6 +110,15 @@
     "on-click": "$HOME/dotfiles/scripts/theme-manager/power-menu",
     "on-click-middle": "bash -lc '$HOME/dotfiles/scripts/theme-manager/restart-autostart'",
     "on-click-right": "bash -lc 'kitty --class=Dragon --title=Dragon $HOME/dotfiles/scripts/dragon-cli & sleep 1;'"
+  },
+  "custom/keyboard": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "bash -lc '$HOME/dotfiles/scripts/utilities/keyboard-layout status'",
+    "interval": 1,
+    "tooltip": true,
+    "on-click": "bash -lc '$HOME/dotfiles/scripts/utilities/keyboard-layout switch'",
+    "signal": 12
   },
   "custom/notifications": {
     "tooltip": true,
