@@ -156,5 +156,14 @@ case ":$PATH:" in
 *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 
+# fnm
+FNM_PATH="$HOME/.local/share/fnm"
+if [ -d "$FNM_PATH" ] && command -v fnm >/dev/null 2>&1; then
+    export PATH="$FNM_PATH:$PATH"
+    eval "`fnm env`"
+fi
+
+. "$HOME/.local/share/../bin/env"
+
 [ "$TERM" = "xterm-kitty" ] && alias ssh="kitty +kitten ssh"
 export GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
