@@ -65,9 +65,7 @@ packages = [
 
 [platforms.arch.pacman.host_firedragon_laptop]
 requires_hosts = ["firedragon"]
-packages = [
-    "asusctl",
-]
+packages = ["asusctl"]
 
 [platforms.arch.pacman.dev]
 packages = [
@@ -261,6 +259,25 @@ packages = [
 requires_features = ["hyprland"]
 packages = ["elephant-all"]
 
+# Creative / multimedia production tools
+[platforms.arch.pacman.creative]
+packages = [
+    "gimp",
+    "inkscape",
+    "blender",
+    "kdenlive",
+    "audacity",
+    "ardour",
+    "obs-studio",
+    "krita",
+    "darktable",
+    "handbrake",
+    "mpv",
+]
+
+[platforms.arch.paru.creative_aur]
+packages = ["davinci-resolve", "reaper-bin"]
+
 [platforms.debian.apt.core_cli]
 packages = [
     "vim",
@@ -304,3 +321,37 @@ packages = [
 
 [tools.pipx]
 packages = ["poetry", "black", "flake8", "mypy"]
+
+# ─── Bundle Compositions ───────────────────────────────────────
+# Bundles compose existing groups into named profiles.
+# Usage: install-deps.sh --bundle <name>
+
+[bundles.desktop]
+description = "Full desktop experience (Hyprland + GUI apps + themes)"
+groups = [
+    "core_cli",
+    "dev",
+    "fonts",
+    "gui",
+    "hyprland_base",
+    "hyprland_core",
+    "hyprland_aur",
+]
+
+[bundles.minimal]
+description = "CLI-only server/container setup"
+groups = ["core_cli", "dev"]
+
+[bundles.creative]
+description = "Desktop + creative/multimedia tools (GIMP, Blender, OBS, Kdenlive, Ardour, etc.)"
+groups = [
+    "core_cli",
+    "dev",
+    "fonts",
+    "gui",
+    "hyprland_base",
+    "hyprland_core",
+    "hyprland_aur",
+    "creative",
+    "creative_aur",
+]

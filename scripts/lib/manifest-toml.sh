@@ -203,3 +203,28 @@ manifest_tool_list() {
 
     manifest_yq_query "$manifest_file" ".${path}[]"
 }
+
+# ─── Bundle helpers ─────────────────────────────────────────────
+
+# List all bundle names defined in [bundles.*], one per line.
+# Args: manifest_file
+manifest_list_bundles() {
+    local manifest_file="$1"
+    manifest_yq_query "$manifest_file" '.bundles | keys | .[]'
+}
+
+# Resolve a bundle name to its constituent group names, one per line.
+# Args: manifest_file bundle_name
+manifest_bundle_groups() {
+    local manifest_file="$1"
+    local bundle_name="$2"
+
+    local exists
+    exists=$(manifest_yq_query "$manifest_file" ".bundles.${bundle_name} | type")
+    if [[ -z "$exists" || "$exists" == "null" ]]; then
+        __manifest_log_error "Bundle not found: $bundle_name"
+        return 1
+    fi
+
+    manifest_yq_query "$manifest_file" ".bundles.${bundle_name}.groups[]"
+}
