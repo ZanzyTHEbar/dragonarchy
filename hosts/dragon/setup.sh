@@ -20,6 +20,8 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 source "${PROJECT_ROOT}/scripts/lib/logging.sh"
 # shellcheck disable=SC1091
 source "${PROJECT_ROOT}/scripts/lib/install-state.sh"
+# shellcheck disable=SC1091
+source "${PROJECT_ROOT}/scripts/lib/system-mods.sh"
 
 install_dragon_packages() {
     # Keep host setup runnable standalone even if install-deps wasn’t invoked.
@@ -55,7 +57,7 @@ setup_netbird() {
 
 apply_host_system_configs() {
     log_step "Copying host-specific system configs..."
-    if copy_dir_if_changed "${PROJECT_ROOT}/hosts/dragon/etc/" /etc/; then
+    if sysmod_install_dir "${PROJECT_ROOT}/hosts/dragon/etc/" /etc/; then
         log_success "System configs updated"
         reset_step "dragon-restart-resolved"
     else
@@ -67,33 +69,33 @@ restart_resolved_if_needed() {
     log_step "Applying DNS changes (systemd-resolved)..."
     if command -v systemctl >/dev/null 2>&1; then
         if systemctl list-unit-files 2>/dev/null | grep -q '^systemd-resolved\.service'; then
-            sudo systemctl enable --now systemd-resolved.service >/dev/null 2>&1 || true
+            sysmod_ensure_service "systemd-resolved.service" || true
         fi
     fi
-    restart_if_running systemd-resolved || true
+    sysmod_restart_if_running systemd-resolved || true
     log_success "DNS configuration applied"
 }
 
 setup_dynamic_led_service() {
     log_step "Installing dynamic_led service..."
 
-    if copy_if_changed "${PROJECT_ROOT}/hosts/dragon/dynamic_led.py" /usr/local/bin/dynamic_led.py; then
-        sudo chmod +x /usr/local/bin/dynamic_led.py
-    fi
-
-    install_service "${PROJECT_ROOT}/hosts/dragon/dynamic_led.service" "dynamic_led.service"
+    sysmod_install_file "${PROJECT_ROOT}/hosts/dragon/dynamic_led.py" /usr/local/bin/dynamic_led.py 755 || true
+    sysmod_ensure_service "dynamic_led.service" "${PROJECT_ROOT}/hosts/dragon/dynamic_led.service"
     log_success "dynamic_led service installed and started"
 }
 
 setup_liquidctl_suspend_hook() {
     log_step "Configuring suspend hooks..."
-    sudo chmod +x /etc/systemd/system-sleep/liquidctl-suspend.sh 2>/dev/null || true
+    # Ensure the suspend hook script is executable (it was deployed via apply_host_system_configs)
+    if [[ -f /etc/systemd/system-sleep/liquidctl-suspend.sh ]]; then
+        _sysmod_sudo chmod +x /etc/systemd/system-sleep/liquidctl-suspend.sh 2>/dev/null || true
+    fi
     log_success "Suspend hooks configured"
 }
 
 setup_liquidctl_service() {
     log_step "Installing liquidctl AIO cooler service..."
-    install_service "${PROJECT_ROOT}/hosts/dragon/liquidctl-dragon.service" "liquidctl-dragon.service"
+    sysmod_ensure_service "liquidctl-dragon.service" "${PROJECT_ROOT}/hosts/dragon/liquidctl-dragon.service"
     log_success "liquidctl service installed and started"
 }
 
@@ -143,13 +145,12 @@ main() {
         setup_dynamic_led_service && mark_step_completed "dragon-install-dynamic-led"
     else
         log_info "✓ dynamic_led already installed (skipped)"
-        if copy_if_changed "${PROJECT_ROOT}/hosts/dragon/dynamic_led.py" /usr/local/bin/dynamic_led.py; then
-            sudo chmod +x /usr/local/bin/dynamic_led.py
-            sudo systemctl restart dynamic_led.service || true
+        if sysmod_install_file "${PROJECT_ROOT}/hosts/dragon/dynamic_led.py" /usr/local/bin/dynamic_led.py 755; then
+            _sysmod_sudo systemctl restart dynamic_led.service || true
         fi
-        if copy_if_changed "${PROJECT_ROOT}/hosts/dragon/dynamic_led.service" /etc/systemd/system/dynamic_led.service; then
-            sudo systemctl daemon-reload
-            sudo systemctl restart dynamic_led.service || true
+        if sysmod_install_file "${PROJECT_ROOT}/hosts/dragon/dynamic_led.service" /etc/systemd/system/dynamic_led.service; then
+            _sysmod_sudo systemctl daemon-reload
+            _sysmod_sudo systemctl restart dynamic_led.service || true
         fi
     fi
     echo
@@ -165,9 +166,9 @@ main() {
         setup_liquidctl_service && mark_step_completed "dragon-install-liquidctl-service"
     else
         log_info "✓ liquidctl service already installed (skipped)"
-        if copy_if_changed "${PROJECT_ROOT}/hosts/dragon/liquidctl-dragon.service" /etc/systemd/system/liquidctl-dragon.service; then
-            sudo systemctl daemon-reload
-            sudo systemctl restart liquidctl-dragon.service || true
+        if sysmod_install_file "${PROJECT_ROOT}/hosts/dragon/liquidctl-dragon.service" /etc/systemd/system/liquidctl-dragon.service; then
+            _sysmod_sudo systemctl daemon-reload
+            _sysmod_sudo systemctl restart liquidctl-dragon.service || true
         fi
     fi
     echo

@@ -85,9 +85,10 @@ dirs_differ() {
     fi
 }
 
-# Copy file only if it has changed
-# Args: source destination [owner]
+# DEPRECATED: Use sysmod_install_file from system-mods.sh instead.
+# Kept for backward compatibility; will be removed in a future release.
 copy_if_changed() {
+    log_warning "DEPRECATED: copy_if_changed() — use sysmod_install_file() instead"
     local src="$1"
     local dest="$2"
     local owner="${3:-}"
@@ -96,15 +97,16 @@ copy_if_changed() {
         mkdir -p "$(dirname "$dest")"
         sudo cp "$src" "$dest"
         [[ -n "$owner" ]] && sudo chown "$owner" "$dest"
-        return 0  # File was copied
+        return 0
     else
-        return 1  # File unchanged, skipped
+        return 1
     fi
 }
 
-# Copy directory only if contents have changed
-# Args: source_dir destination_dir [owner]
+# DEPRECATED: Use sysmod_install_dir from system-mods.sh instead.
+# Kept for backward compatibility; will be removed in a future release.
 copy_dir_if_changed() {
+    log_warning "DEPRECATED: copy_dir_if_changed() — use sysmod_install_dir() instead"
     local src="$1"
     local dest="$2"
     local owner="${3:-}"
@@ -112,9 +114,9 @@ copy_dir_if_changed() {
     if dirs_differ "$src" "$dest"; then
         sudo cp -rT "$src" "$dest"
         [[ -n "$owner" ]] && sudo chown -R "$owner" "$dest"
-        return 0  # Directory was copied
+        return 0
     else
-        return 1  # Directory unchanged, skipped
+        return 1
     fi
 }
 
@@ -131,30 +133,27 @@ is_service_installed() {
     systemctl is-enabled "$service" &>/dev/null
 }
 
-# Install and enable a systemd service
-# Args: source_file service_name
+# DEPRECATED: Use sysmod_ensure_service from system-mods.sh instead.
+# Kept for backward compatibility; will be removed in a future release.
 install_service() {
+    log_warning "DEPRECATED: install_service() — use sysmod_ensure_service() instead"
     local src="$1"
     local service_name="$2"
     local needs_restart=false
     
-    # Copy service file if changed
     if copy_if_changed "$src" "/etc/systemd/system/${service_name}"; then
         needs_restart=true
     fi
     
-    # Reload systemd daemon if service file changed
     if [[ "$needs_restart" == "true" ]]; then
         sudo systemctl daemon-reload
     fi
     
-    # Enable service if not already enabled
     if ! systemctl is-enabled "$service_name" &>/dev/null; then
         sudo systemctl enable "$service_name"
         needs_restart=true
     fi
     
-    # Start or restart service if needed
     if ! systemctl is-active "$service_name" &>/dev/null; then
         sudo systemctl start "$service_name"
         elif [[ "$needs_restart" == "true" ]]; then
@@ -162,9 +161,10 @@ install_service() {
     fi
 }
 
-# Restart a service only if it's running
-# Args: service_name
+# DEPRECATED: Use sysmod_restart_if_running from system-mods.sh instead.
+# Kept for backward compatibility; will be removed in a future release.
 restart_if_running() {
+    log_warning "DEPRECATED: restart_if_running() — use sysmod_restart_if_running() instead"
     local service="$1"
     
     if systemctl is-active "$service" &>/dev/null; then
