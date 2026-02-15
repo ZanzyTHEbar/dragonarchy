@@ -54,14 +54,40 @@ schedule_ui_refresh() {
         command pkill -USR1 -x kitty >/dev/null 2>&1 || true
         command pkill -SIGUSR2 btop >/dev/null 2>&1 || true
         command pkill -SIGUSR2 waybar >/dev/null 2>&1 || true
-        command pkill -SIGUSR2 -f workspace-indicator >/dev/null 2>&1 || true
+        command pkill --signal USR2 -f workspace-indicator --ignore-ancestors >/dev/null 2>&1 || true
         if command -v hyprctl >/dev/null 2>&1; then
             hyprctl reload >/dev/null 2>&1 || true
         fi
-        if command -v swaync-client >/dev/null 2>&1 && command pgrep -x swaync >/dev/null 2>&1; then
-            swaync-client -rs >/dev/null 2>&1 || true
-            swaync-client -R >/dev/null 2>&1 || true
+        # Restart swaync: GTK CSS provider caches resolved @import paths,
+        # so swaync-client -rs does not re-resolve symlink targets.
+        # swaync ignores SIGTERM/SIGINT; SIGKILL is required.
+        if command pgrep -x swaync >/dev/null 2>&1; then
+            command pkill --signal KILL -x swaync >/dev/null 2>&1 || true
+            sleep 0.5
+            setsid uwsm app -- swaync >/dev/null 2>&1 &
         fi
+
+        # Force GTK4/libadwaita live reload: toggle color-scheme so portal
+        # emits SettingChanged, causing CssProvider to re-read CSS from disk (GTK 4.20+).
+        if command -v gsettings >/dev/null 2>&1; then
+            cs=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null | tr -d "'\''" || true)
+            if [[ -n "$cs" ]]; then
+                gsettings set org.gnome.desktop.interface color-scheme "default" 2>/dev/null || true
+                sleep 0.05
+                gsettings set org.gnome.desktop.interface color-scheme "$cs" 2>/dev/null || true
+            fi
+
+            # Force GTK3 live reload: toggle gtk-theme so apps reload the theme
+            # and re-read user CSS from disk.
+            gt=$(gsettings get org.gnome.desktop.interface gtk-theme 2>/dev/null | tr -d "'\''" || true)
+            if [[ -n "$gt" ]]; then
+                gsettings set org.gnome.desktop.interface gtk-theme "Adwaita" 2>/dev/null || true
+                sleep 0.05
+                gsettings set org.gnome.desktop.interface gtk-theme "$gt" 2>/dev/null || true
+            fi
+        fi
+
+        # Nemo fallback: restart if running (GTK3 may not always respond to gsettings toggle)
         if command pgrep -x nemo >/dev/null 2>&1; then
             nemo -q
             setsid nemo >/dev/null 2>&1 &
@@ -149,19 +175,20 @@ mkdir -p ~/.config/gtk-3.0 ~/.config/gtk-4.0
 # Generate GTK theme assets (gtk.css + settings.ini) from palette, then link current.
 "$SCRIPT_DIR/generate-gtk-themes" >/dev/null 2>&1 || true
 
-# Apply GTK CSS overrides:
-# - GTK3: app/widget overrides (Nemo, etc.)
-# - GTK4: libadwaita color token overrides (more future-proof than deep selector theming)
+# Apply GTK CSS overrides (copy, not symlink — enables GFileMonitor to detect changes).
+# --remove-destination handles the case where old symlinks point to the same resolved file.
+# - GTK3: Adwaita @define-color overrides + Nemo selectors
+# - GTK4: libadwaita :root color token overrides
 if [[ -f "$HOME/.config/current/theme/gtk-3.0/gtk.css" ]]; then
-    ln -snf "$HOME/.config/current/theme/gtk-3.0/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
-else
-    ln -snf "$HOME/.config/current/theme/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
+    cp --remove-destination "$HOME/.config/current/theme/gtk-3.0/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
+elif [[ -f "$HOME/.config/current/theme/gtk.css" ]]; then
+    cp --remove-destination "$HOME/.config/current/theme/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
 fi
 
 if [[ -f "$HOME/.config/current/theme/gtk-4.0/gtk.css" ]]; then
-    ln -snf "$HOME/.config/current/theme/gtk-4.0/gtk.css" "$HOME/.config/gtk-4.0/gtk.css"
+    cp --remove-destination "$HOME/.config/current/theme/gtk-4.0/gtk.css" "$HOME/.config/gtk-4.0/gtk.css"
 else
-    # Fallback: do not link GTK4 to the Nemo-specific GTK3 overrides
+    # No GTK4 overrides for this theme; remove stale file
     rm -f "$HOME/.config/gtk-4.0/gtk.css"
 fi
 
