@@ -1,0 +1,9 @@
+# Host traits for goldendragon (ThinkPad laptop)
+# One trait per line. Lines starting with # are comments.
+laptop
+nvidia
+tlp
+hyprland
+desktop
+fingerprint
+vpn-fortinet

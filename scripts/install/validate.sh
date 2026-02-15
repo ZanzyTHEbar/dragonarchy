@@ -9,11 +9,48 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../lib/logging.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/hosts.sh"
 
 # Counters
 CHECKS_PASSED=0
 CHECKS_FAILED=0
 CHECKS_WARNING=0
+
+# JSON output mode
+JSON_OUTPUT=false
+# Override host for validation (empty = auto-detect)
+VALIDATE_HOST=""
+# Structured results (for JSON mode)
+declare -a JSON_RESULTS=()
+
+# Wrapper functions that log AND increment counters
+check_pass() {
+    CHECKS_PASSED=$((CHECKS_PASSED + 1))
+    if [[ "$JSON_OUTPUT" == "true" ]]; then
+        JSON_RESULTS+=("{\"status\":\"pass\",\"message\":$(printf '%s' "$*" | jq -Rs .)}")
+    else
+        log_success "$@"
+    fi
+}
+
+check_fail() {
+    CHECKS_FAILED=$((CHECKS_FAILED + 1))
+    if [[ "$JSON_OUTPUT" == "true" ]]; then
+        JSON_RESULTS+=("{\"status\":\"fail\",\"message\":$(printf '%s' "$*" | jq -Rs .)}")
+    else
+        log_error "$@"
+    fi
+}
+
+check_warn() {
+    CHECKS_WARNING=$((CHECKS_WARNING + 1))
+    if [[ "$JSON_OUTPUT" == "true" ]]; then
+        JSON_RESULTS+=("{\"status\":\"warn\",\"message\":$(printf '%s' "$*" | jq -Rs .)}")
+    else
+        log_warning "$@"
+    fi
+}
 
 # Check essential commands
 check_essential_commands() {
@@ -32,9 +69,9 @@ check_essential_commands() {
     
     for cmd in "${essential_commands[@]}"; do
         if command_exists "$cmd"; then
-            log_success "$cmd is available"
+            check_pass "$cmd is available"
         else
-            log_error "$cmd is missing"
+            check_fail "$cmd is missing"
         fi
     done
 }
@@ -58,9 +95,9 @@ check_modern_tools() {
     
     for tool in "${modern_tools[@]}"; do
         if command_exists "$tool"; then
-            log_success "$tool is available"
+            check_pass "$tool is available"
         else
-            log_warning "$tool is missing (optional but recommended)"
+            check_warn "$tool is missing (optional but recommended)"
         fi
     done
 }
@@ -80,15 +117,15 @@ check_dotfiles() {
     
     for file in "${dotfiles[@]}"; do
         if [[ -f "$file" ]]; then
-            log_success "$file exists"
+            check_pass "$file exists"
         elif [[ -L "$file" ]]; then
             if [[ -e "$file" ]]; then
-                log_success "$file exists (symlink)"
+                check_pass "$file exists (symlink)"
             else
-                log_error "$file is a broken symlink"
+                check_fail "$file is a broken symlink"
             fi
         else
-            log_error "$file is missing"
+            check_fail "$file is missing"
         fi
     done
 }
@@ -99,16 +136,16 @@ check_shell_config() {
     
     # Check default shell
     if [[ "$SHELL" == */zsh ]]; then
-        log_success "Default shell is zsh"
+        check_pass "Default shell is zsh"
     else
-        log_warning "Default shell is not zsh: $SHELL"
+        check_warn "Default shell is not zsh: $SHELL"
     fi
     
     # Check if zsh configuration loads without errors
     if zsh -c 'source ~/.zshrc' 2>/dev/null; then
-        log_success "Zsh configuration loads without errors"
+        check_pass "Zsh configuration loads without errors"
     else
-        log_error "Zsh configuration has errors"
+        check_fail "Zsh configuration has errors"
     fi
     
     # Check environment variables
@@ -120,9 +157,9 @@ check_shell_config() {
     
     for var in "${important_vars[@]}"; do
         if [[ -n "${!var:-}" ]]; then
-            log_success "$var is set: ${!var}"
+            check_pass "$var is set: ${!var}"
         else
-            log_warning "$var is not set"
+            check_warn "$var is not set"
         fi
     done
 }
@@ -137,22 +174,22 @@ check_git_config() {
     git_user_email=$(git config --global user.email 2>/dev/null || echo "")
     
     if [[ -n "$git_user_name" ]]; then
-        log_success "Git user.name is set: $git_user_name"
+        check_pass "Git user.name is set: $git_user_name"
     else
-        log_error "Git user.name is not set"
+        check_fail "Git user.name is not set"
     fi
     
     if [[ -n "$git_user_email" ]]; then
-        log_success "Git user.email is set: $git_user_email"
+        check_pass "Git user.email is set: $git_user_email"
     else
-        log_error "Git user.email is not set"
+        check_fail "Git user.email is not set"
     fi
     
     # Check Git aliases
     if git config --global alias.st >/dev/null 2>&1; then
-        log_success "Git aliases are configured"
+        check_pass "Git aliases are configured"
     else
-        log_warning "Git aliases may not be configured"
+        check_warn "Git aliases may not be configured"
     fi
 }
 
@@ -162,16 +199,16 @@ check_ssh_config() {
     
     # Check SSH config file
     if [[ -f "$HOME/.ssh/config" ]]; then
-        log_success "SSH config file exists"
+        check_pass "SSH config file exists"
         
         # Check for placeholders that weren't replaced
         if grep -q "@.*@" "$HOME/.ssh/config" 2>/dev/null; then
-            log_warning "SSH config contains unreplaced placeholders"
+            check_warn "SSH config contains unreplaced placeholders"
         else
-            log_success "SSH config appears to be properly configured"
+            check_pass "SSH config appears to be properly configured"
         fi
     else
-        log_warning "SSH config file not found"
+        check_warn "SSH config file not found"
     fi
     
     # Check SSH directory permissions
@@ -179,9 +216,9 @@ check_ssh_config() {
         local ssh_perms
         ssh_perms=$(stat -c %a "$HOME/.ssh" 2>/dev/null || stat -f %A "$HOME/.ssh" 2>/dev/null || echo "unknown")
         if [[ "$ssh_perms" == "700" ]]; then
-            log_success "SSH directory has correct permissions (700)"
+            check_pass "SSH directory has correct permissions (700)"
         else
-            log_warning "SSH directory permissions may be incorrect: $ssh_perms"
+            check_warn "SSH directory permissions may be incorrect: $ssh_perms"
         fi
     fi
 }
@@ -192,23 +229,23 @@ check_secrets() {
     
     # Check if age and sops are available
     if command_exists age && command_exists sops; then
-        log_success "Secrets management tools are available"
+        check_pass "Secrets management tools are available"
         
         # Check age keys
         if [[ -f "$HOME/.config/sops/age/keys.txt" ]]; then
-            log_success "Age keys are configured"
+            check_pass "Age keys are configured"
         else
-            log_warning "Age keys not found"
+            check_warn "Age keys not found"
         fi
         
         # Check SOPS config
         if [[ -f ".sops.yaml" ]]; then
-            log_success "SOPS configuration exists"
+            check_pass "SOPS configuration exists"
         else
-            log_warning "SOPS configuration not found"
+            check_warn "SOPS configuration not found"
         fi
     else
-        log_warning "Secrets management tools not available"
+        check_warn "Secrets management tools not available"
     fi
 }
 
@@ -229,9 +266,9 @@ check_dev_environment() {
         if command_exists "$lang_cmd"; then
             local version
             version=$($version_cmd 2>/dev/null | head -1)
-            log_success "$lang_cmd is available: $version"
+            check_pass "$lang_cmd is available: $version"
         else
-            log_warning "$lang_cmd is not installed"
+            check_warn "$lang_cmd is not installed"
         fi
     done
     
@@ -246,9 +283,9 @@ check_dev_environment() {
     
     for pm in "${package_managers[@]}"; do
         if command_exists "$pm"; then
-            log_success "$pm is available"
+            check_pass "$pm is available"
         else
-            log_warning "$pm is not installed"
+            check_warn "$pm is not installed"
         fi
     done
 }
@@ -261,11 +298,11 @@ check_system_health() {
     local disk_usage
     disk_usage=$(df -h / | awk 'NR==2 {print $5}' | sed 's/%//')
     if [[ "$disk_usage" -lt 90 ]]; then
-        log_success "Disk usage is healthy: ${disk_usage}%"
+        check_pass "Disk usage is healthy: ${disk_usage}%"
     elif [[ "$disk_usage" -lt 95 ]]; then
-        log_warning "Disk usage is getting high: ${disk_usage}%"
+        check_warn "Disk usage is getting high: ${disk_usage}%"
     else
-        log_error "Disk usage is critical: ${disk_usage}%"
+        check_fail "Disk usage is critical: ${disk_usage}%"
     fi
     
     # Check if system is up to date (platform specific)
@@ -276,9 +313,9 @@ check_system_health() {
                 local outdated_count
                 outdated_count=$(brew outdated | wc -l | tr -d ' ')
                 if [[ "$outdated_count" -eq 0 ]]; then
-                    log_success "Homebrew packages are up to date"
+                    check_pass "Homebrew packages are up to date"
                 else
-                    log_warning "$outdated_count Homebrew packages need updates"
+                    check_warn "$outdated_count Homebrew packages need updates"
                 fi
             fi
             ;;
@@ -288,12 +325,12 @@ check_system_health() {
                 local updates
                 updates=$(checkupdates 2>/dev/null | wc -l || echo "0")
                 if [[ "$updates" -eq 0 ]]; then
-                    log_success "System packages are up to date"
+                    check_pass "System packages are up to date"
                 else
-                    log_warning "$updates packages need updates"
+                    check_warn "$updates packages need updates"
                 fi
             elif command_exists apt; then
-                log_success "Ubuntu/Debian package check skipped (requires sudo)"
+                check_pass "Ubuntu/Debian package check skipped (requires sudo)"
             fi
             ;;
     esac
@@ -312,7 +349,7 @@ check_common_issues() {
     
     for backup_file in "${backup_files[@]}"; do
         if [[ -f "$backup_file" ]]; then
-            log_warning "Backup file exists: $backup_file"
+            check_warn "Backup file exists: $backup_file"
         fi
     done
     
@@ -321,9 +358,9 @@ check_common_issues() {
     IFS=':' read -ra path_entries <<< "$PATH"
     path_unique=$(printf '%s\n' "${path_entries[@]}" | sort -u | wc -l)
     if [[ "${#path_entries[@]}" -eq "$path_unique" ]]; then
-        log_success "PATH has no duplicate entries"
+        check_pass "PATH has no duplicate entries"
     else
-        log_warning "PATH contains duplicate entries"
+        check_warn "PATH contains duplicate entries"
     fi
     
     # Check for large files in home directory
@@ -331,15 +368,207 @@ check_common_issues() {
         local large_files
         large_files=$(find "$HOME" -maxdepth 2 -type f -size +100M 2>/dev/null | wc -l)
         if [[ "$large_files" -gt 0 ]]; then
-            log_warning "$large_files large files (>100M) found in home directory"
+            check_warn "$large_files large files (>100M) found in home directory"
         else
-            log_success "No large files found in home directory"
+            check_pass "No large files found in home directory"
         fi
     fi
 }
 
+# Check host-specific configuration
+check_host_config() {
+    local repo_root
+    repo_root="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+    local hosts_dir="${repo_root}/hosts"
+    local host
+
+    if [[ -n "$VALIDATE_HOST" ]]; then
+        host="$VALIDATE_HOST"
+    else
+        host=$(detect_host "$hosts_dir")
+    fi
+
+    log_info "Checking host-specific configuration (host: ${host})..."
+
+    # Verify host directory exists
+    if [[ ! -d "${hosts_dir}/${host}" ]]; then
+        check_warn "No host directory found for '${host}' in hosts/"
+        return 0
+    fi
+    check_pass "Host directory exists: hosts/${host}"
+
+    # Check host setup script
+    if [[ -x "${hosts_dir}/${host}/setup.sh" ]]; then
+        check_pass "Host setup script is executable: hosts/${host}/setup.sh"
+    elif [[ -f "${hosts_dir}/${host}/setup.sh" ]]; then
+        check_warn "Host setup script exists but is not executable: hosts/${host}/setup.sh"
+    else
+        check_warn "No setup script found for host '${host}'"
+    fi
+
+    # Load traits
+    local traits_summary
+    traits_summary=$(host_traits_summary "$hosts_dir" "$host")
+    if [[ -n "$traits_summary" ]]; then
+        check_pass "Host traits: ${traits_summary}"
+    else
+        check_warn "No .traits file found for host '${host}'"
+    fi
+
+    # ── Trait: desktop ──
+    if host_has_trait "$hosts_dir" "$host" "desktop"; then
+        _check_service_running "systemd-resolved"
+    fi
+
+    # ── Trait: hyprland ──
+    if host_has_trait "$hosts_dir" "$host" "hyprland"; then
+        check_pass "Host '${host}' has Hyprland trait"
+
+        local hyprland_tools=("Hyprland" "hyprctl" "waybar" "hyprlock" "hypridle" "hyprpaper")
+        for tool in "${hyprland_tools[@]}"; do
+            if command_exists "$tool"; then
+                check_pass "Hyprland component: $tool available"
+            else
+                check_warn "Hyprland component: $tool not found"
+            fi
+        done
+    fi
+
+    # ── Trait: tlp ──
+    if host_has_trait "$hosts_dir" "$host" "tlp"; then
+        if command_exists tlp; then
+            check_pass "TLP is available"
+            _check_service_running "tlp"
+        else
+            check_warn "TLP not installed (power management)"
+        fi
+        _check_service_masked "systemd-rfkill"
+    fi
+
+    # ── Trait: aio-cooler ──
+    if host_has_trait "$hosts_dir" "$host" "aio-cooler"; then
+        if command_exists liquidctl; then
+            check_pass "liquidctl is available"
+        else
+            check_fail "liquidctl is missing (required for AIO cooler control)"
+        fi
+        _check_service_running "liquidctl-${host}"
+        _check_service_running "dynamic_led"
+    fi
+
+    # ── Trait: asus ──
+    if host_has_trait "$hosts_dir" "$host" "asus"; then
+        _check_service_running "asusd"
+    fi
+
+    # ── Trait: laptop ──
+    if host_has_trait "$hosts_dir" "$host" "laptop"; then
+        if command_exists brightnessctl; then
+            check_pass "brightnessctl available (backlight control)"
+        else
+            check_warn "brightnessctl not found (backlight control)"
+        fi
+    fi
+
+    # ── Trait: fingerprint ──
+    if host_has_trait "$hosts_dir" "$host" "fingerprint"; then
+        if command_exists fprintd-enroll; then
+            check_pass "fprintd available (fingerprint auth)"
+        else
+            check_warn "fprintd not found (fingerprint auth)"
+        fi
+    fi
+
+    # Verify /etc configs match source (for any host with an etc/ directory)
+    if [[ -d "${hosts_dir}/${host}/etc" ]]; then
+        local etc_files=()
+        while IFS= read -r -d '' f; do
+            local rel="${f#${hosts_dir}/${host}/etc/}"
+            [[ -n "$rel" ]] && etc_files+=("$rel")
+        done < <(find "${hosts_dir}/${host}/etc" -type f -print0 2>/dev/null)
+
+        if [[ ${#etc_files[@]} -gt 0 ]]; then
+            _check_etc_config_matches \
+                "${hosts_dir}/${host}/etc" \
+                "/etc" \
+                "${etc_files[@]}"
+        fi
+    fi
+}
+
+# Internal: check that a systemd service is active
+_check_service_running() {
+    local name="$1"
+    if systemctl is-active "${name}.service" &>/dev/null; then
+        check_pass "Service ${name} is running"
+    else
+        check_warn "Service ${name} is not running"
+    fi
+}
+
+# Internal: check that a systemd service is masked
+_check_service_masked() {
+    local name="$1"
+    local state
+    state=$(systemctl is-enabled "${name}.service" 2>/dev/null || true)
+    if [[ "$state" == "masked" ]]; then
+        check_pass "Service ${name} is masked (expected)"
+    else
+        check_warn "Service ${name} is not masked (state: ${state:-unknown})"
+    fi
+}
+
+# Internal: verify /etc config files match their source in the repo
+_check_etc_config_matches() {
+    local src_root="$1"
+    local dst_root="$2"
+    shift 2
+
+    for rel in "$@"; do
+        local src="${src_root}/${rel}"
+        local dst="${dst_root}/${rel}"
+
+        if [[ ! -f "$src" ]]; then
+            continue
+        fi
+
+        if [[ ! -f "$dst" ]]; then
+            check_warn "/etc config missing: ${rel}"
+            continue
+        fi
+
+        local sum_src sum_dst
+        sum_src=$(sha256sum "$src" 2>/dev/null | cut -d' ' -f1)
+        sum_dst=$(sudo sha256sum "$dst" 2>/dev/null | cut -d' ' -f1 || true)
+
+        if [[ -n "$sum_src" && "$sum_src" == "$sum_dst" ]]; then
+            check_pass "/etc config matches source: ${rel}"
+        else
+            check_warn "/etc config differs from source: ${rel}"
+        fi
+    done
+}
+
 # Show validation summary
 show_summary() {
+    if [[ "$JSON_OUTPUT" == "true" ]]; then
+        local status="pass"
+        [[ "$CHECKS_WARNING" -gt 0 ]] && status="warn"
+        [[ "$CHECKS_FAILED" -gt 0 ]] && status="fail"
+
+        local results_json
+        results_json=$(printf '%s\n' "${JSON_RESULTS[@]}" | jq -s '.')
+
+        jq -n \
+            --arg status "$status" \
+            --argjson passed "$CHECKS_PASSED" \
+            --argjson failed "$CHECKS_FAILED" \
+            --argjson warnings "$CHECKS_WARNING" \
+            --argjson results "$results_json" \
+            '{status: $status, passed: $passed, failed: $failed, warnings: $warnings, results: $results}'
+        return
+    fi
+
     echo
     log_info "Validation Summary"
     echo "=================="
@@ -366,29 +595,62 @@ show_summary() {
 
 # Main validation function
 main() {
-    echo
-    log_info "🔍 Starting system validation..."
-    echo
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --json)
+                JSON_OUTPUT=true
+                shift
+                ;;
+            --host)
+                if [[ -z "${2:-}" ]]; then
+                    log_error "--host requires a hostname argument"
+                    return 1
+                fi
+                VALIDATE_HOST="$2"
+                shift 2
+                ;;
+            -h|--help)
+                echo "Usage: validate.sh [--json] [--host NAME] [--help]"
+                echo "  --json        Emit structured JSON results (for CI/TUI)"
+                echo "  --host NAME   Validate for a specific host (default: auto-detect)"
+                echo "  --help        Show this help message"
+                return 0
+                ;;
+            *)
+                log_error "Unknown argument: $1"
+                return 1
+                ;;
+        esac
+    done
+
+    if [[ "$JSON_OUTPUT" != "true" ]]; then
+        echo
+        log_info "🔍 Starting system validation..."
+        echo
+    fi
     
     check_essential_commands
-    echo
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
     check_modern_tools
-    echo
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
     check_dotfiles
-    echo
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
     check_shell_config
-    echo
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
     check_git_config
-    echo
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
     check_ssh_config
-    echo
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
     check_secrets
-    echo
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
     check_dev_environment
-    echo
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
     check_system_health
-    echo
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
     check_common_issues
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
+    check_host_config
     
     show_summary
 }

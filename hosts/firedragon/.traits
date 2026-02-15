@@ -1,0 +1,9 @@
+# Host traits for firedragon (ASUS VivoBook AMD laptop)
+# One trait per line. Lines starting with # are comments.
+laptop
+amd-gpu
+tlp
+hyprland
+desktop
+asus
+netbird

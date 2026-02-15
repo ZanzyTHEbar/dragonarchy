@@ -1,0 +1,7 @@
+# Host traits for dragon (AMD workstation)
+# One trait per line. Lines starting with # are comments.
+amd-gpu
+aio-cooler
+hyprland
+desktop
+netbird
