@@ -21,6 +21,8 @@ source "$LOG_LIB"
 source "$BOOT_LIB"
 # shellcheck disable=SC1091
 source "$STATE_LIB"
+# shellcheck disable=SC1091
+source "${PROJECT_ROOT}/scripts/lib/system-mods.sh"
 
 log_info "Running setup for FireDragon laptop..."
 
@@ -39,9 +41,9 @@ setup_firedragon_packages() {
     # Remove conflicting package FIRST before attempting to install TLP
     if pacman -Qi power-profiles-daemon &>/dev/null; then
         log_info "Removing conflicting power-profiles-daemon..."
-        sudo systemctl stop power-profiles-daemon.service 2>/dev/null || true
-        sudo systemctl disable power-profiles-daemon.service 2>/dev/null || true
-        sudo pacman -Rdd --noconfirm power-profiles-daemon || log_warning "Failed to remove power-profiles-daemon"
+        _sysmod_sudo systemctl stop power-profiles-daemon.service 2>/dev/null || true
+        _sysmod_sudo systemctl disable power-profiles-daemon.service 2>/dev/null || true
+        _sysmod_sudo pacman -Rdd --noconfirm power-profiles-daemon || log_warning "Failed to remove power-profiles-daemon"
     fi
     
     local laptop_packages=(
@@ -84,7 +86,7 @@ setup_firedragon_packages() {
     for package in "${laptop_packages[@]}" "${amd_packages[@]}" "${gesture_build_deps[@]}"; do
         if ! pacman -Qi "$package" &>/dev/null; then
             log_info "Installing $package..."
-            sudo pacman -S --noconfirm --needed "$package" || log_warning "Failed to install $package"
+            _sysmod_sudo pacman -S --noconfirm --needed "$package" || log_warning "Failed to install $package"
         else
             log_success "$package already installed"
         fi
@@ -97,7 +99,7 @@ setup_asus_ec_tools() {
     log_info "Configuring ASUS EC integration..."
 
     if systemctl list-unit-files | grep -q '^asusd\.service'; then
-        sudo systemctl enable --now asusd.service 2>/dev/null || true
+        sysmod_ensure_service "asusd.service" || true
     fi
 
     if command_exists asusctl; then
@@ -116,22 +118,19 @@ setup_amd_graphics() {
     log_info "Configuring AMD Radeon graphics..."
     
     # Create AMD GPU configuration
-    sudo mkdir -p /etc/X11/xorg.conf.d
-    
-    sudo tee /etc/X11/xorg.conf.d/20-amdgpu.conf > /dev/null << 'EOF'
-Section "Device"
+    sysmod_tee_file /etc/X11/xorg.conf.d/20-amdgpu.conf 'Section "Device"
     Identifier "AMD Radeon"
     Driver "amdgpu"
     Option "TearFree" "true"
     Option "DRI" "3"
     Option "VariableRefresh" "true"
 EndSection
-EOF
+' 644
     
     # Enable AMD GPU power management with suspend/resume fixes
     local amdgpu_conf_src="$HOME/dotfiles/hosts/firedragon/etc/modprobe.d/amdgpu.conf"
     if [[ -f "$amdgpu_conf_src" ]]; then
-        if copy_if_changed "$amdgpu_conf_src" /etc/modprobe.d/amdgpu.conf; then
+        if sysmod_install_file "$amdgpu_conf_src" /etc/modprobe.d/amdgpu.conf; then
             log_success "Installed /etc/modprobe.d/amdgpu.conf"
         else
             log_info "/etc/modprobe.d/amdgpu.conf already up to date"
@@ -154,17 +153,17 @@ setup_power_management() {
     if command_exists tlp; then
         log_info "Configuring TLP services..."
         # Mask conflicting systemd services
-        sudo systemctl mask systemd-rfkill.service 2>/dev/null || true
-        sudo systemctl mask systemd-rfkill.socket 2>/dev/null || true
+        sysmod_mask_service "systemd-rfkill.service" || true
+        sysmod_mask_service "systemd-rfkill.socket" || true
         
         # Enable TLP services
-        sudo systemctl enable tlp.service 2>/dev/null || true
-        sudo systemctl enable tlp-sleep.service 2>/dev/null || true
+        _sysmod_sudo systemctl enable tlp.service 2>/dev/null || true
+        _sysmod_sudo systemctl enable tlp-sleep.service 2>/dev/null || true
         
         # Install canonical firedragon TLP configuration (kept in dotfiles)
         local tlp_conf_src="$HOME/dotfiles/hosts/firedragon/etc/tlp.d/01-firedragon.conf"
         if [[ -f "$tlp_conf_src" ]]; then
-            if copy_if_changed "$tlp_conf_src" /etc/tlp.d/01-firedragon.conf; then
+            if sysmod_install_file "$tlp_conf_src" /etc/tlp.d/01-firedragon.conf; then
                 log_success "Installed /etc/tlp.d/01-firedragon.conf"
             else
                 log_info "/etc/tlp.d/01-firedragon.conf already up to date"
@@ -178,13 +177,13 @@ setup_power_management() {
     
     # Setup acpid for power events
     if command_exists acpid; then
-        sudo systemctl enable acpid.service
+        _sysmod_sudo systemctl enable acpid.service 2>/dev/null || true
         log_success "ACPI daemon enabled"
     fi
     
     # Configure thermald for thermal management
     if command_exists thermald; then
-        sudo systemctl enable thermald.service
+        _sysmod_sudo systemctl enable thermald.service 2>/dev/null || true
         log_success "Thermald enabled"
     fi
 }
@@ -196,7 +195,7 @@ setup_networking() {
     # Enable NetworkManager
     if command_exists nmcli; then
         if ! systemctl is-enabled NetworkManager.service &>/dev/null; then
-            sudo systemctl enable NetworkManager.service
+            _sysmod_sudo systemctl enable NetworkManager.service
             log_success "NetworkManager enabled"
         else
             log_info "NetworkManager already enabled"
@@ -206,7 +205,7 @@ setup_networking() {
     # Enable Bluetooth
     if command_exists bluetoothctl; then
         if ! systemctl is-enabled bluetooth.service &>/dev/null; then
-            sudo systemctl enable bluetooth.service
+            _sysmod_sudo systemctl enable bluetooth.service
             log_success "Bluetooth enabled"
         else
             log_info "Bluetooth already enabled"
@@ -225,7 +224,7 @@ setup_networking() {
     # Copy host-specific system configs (DNS)
     if ! is_step_completed "firedragon-copy-system-configs"; then
         log_info "Copying host-specific system configs (DNS)..."
-        if copy_dir_if_changed "$HOME/dotfiles/hosts/firedragon/etc/" /etc/; then
+        if sysmod_install_dir "$HOME/dotfiles/hosts/firedragon/etc/" /etc/; then
             log_success "System configs updated"
             mark_step_completed "firedragon-copy-system-configs"
             # Reset DNS restart step since configs changed
@@ -236,7 +235,7 @@ setup_networking() {
         fi
     else
         # Check if configs need updating even if step was completed
-        if copy_dir_if_changed "$HOME/dotfiles/hosts/firedragon/etc/" /etc/; then
+        if sysmod_install_dir "$HOME/dotfiles/hosts/firedragon/etc/" /etc/; then
             log_info "System configs updated (configs changed)"
             reset_step "firedragon-restart-resolved"
         else
@@ -249,10 +248,10 @@ setup_networking() {
         log_info "Restarting systemd-resolved to apply DNS changes..."
         if command_exists systemctl; then
             if systemctl list-unit-files 2>/dev/null | grep -q '^systemd-resolved\.service'; then
-                sudo systemctl enable --now systemd-resolved.service >/dev/null 2>&1 || true
+                sysmod_ensure_service "systemd-resolved.service" || true
             fi
         fi
-        if restart_if_running systemd-resolved; then
+        if sysmod_restart_if_running systemd-resolved; then
             log_success "systemd-resolved restarted"
         fi
         mark_step_completed "firedragon-restart-resolved"
@@ -268,9 +267,7 @@ setup_display_input() {
     log_info "Setting up display and input devices..."
     
     # Create libinput configuration for touchpad with gesture support
-    sudo mkdir -p /etc/X11/xorg.conf.d
-    sudo tee /etc/X11/xorg.conf.d/30-touchpad.conf > /dev/null << 'EOF'
-Section "InputClass"
+    sysmod_tee_file /etc/X11/xorg.conf.d/30-touchpad.conf 'Section "InputClass"
     Identifier "touchpad"
     Driver "libinput"
     MatchIsTouchpad "on"
@@ -288,13 +285,13 @@ Section "InputClass"
     Option "TappingDrag" "on"
     Option "DragLock" "off"
 EndSection
-EOF
+' 644
     
     # Verify touchpad has multi-touch support
     log_info "Verifying touchpad capabilities..."
     if command_exists libinput; then
         log_info "Checking for touchpad devices..."
-        if sudo libinput list-devices | grep -q "Touchpad"; then
+        if _sysmod_sudo libinput list-devices | grep -q "Touchpad"; then
             log_success "Touchpad detected with libinput support"
         else
             log_warning "No touchpad detected - may not be needed for desktop systems"
@@ -392,22 +389,19 @@ setup_laptop_optimizations() {
     log_info "Setting up laptop optimizations..."
     
     # Reduce swappiness for laptop use with SSD
-    sudo tee /etc/sysctl.d/99-laptop-swappiness.conf > /dev/null << 'EOF'
-# Reduce swap usage (better for battery and SSD life)
+    sysmod_tee_file /etc/sysctl.d/99-laptop-swappiness.conf '# Reduce swap usage (better for battery and SSD life)
 vm.swappiness=10
 vm.vfs_cache_pressure=50
-EOF
-    
+' 644
+
     # Setup laptop mode for disk
-    sudo tee /etc/sysctl.d/99-laptop-mode.conf > /dev/null << 'EOF'
-# Laptop mode for better power management
+    sysmod_tee_file /etc/sysctl.d/99-laptop-mode.conf '# Laptop mode for better power management
 vm.laptop_mode=5
 vm.dirty_writeback_centisecs=6000
-EOF
-    
+' 644
+
     # Create udev rules for power management
-    sudo tee /etc/udev/rules.d/50-powersave.rules > /dev/null << 'EOF'
-# PCI Runtime PM
+    sysmod_tee_file /etc/udev/rules.d/50-powersave.rules '# PCI Runtime PM
 ACTION=="add", SUBSYSTEM=="pci", ATTR{power/control}="auto"
 
 # USB Runtime PM
@@ -415,7 +409,7 @@ ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="aut
 
 # SATA power management
 ACTION=="add", SUBSYSTEM=="scsi_host", KERNEL=="host*", ATTR{link_power_management_policy}="med_power_with_dipm"
-EOF
+' 644
     
     log_success "Laptop optimizations configured"
 }
@@ -426,8 +420,7 @@ setup_corectrl() {
     
     if command_exists corectrl; then
         # Add polkit rule for CoreCtrl
-        sudo tee /etc/polkit-1/rules.d/90-corectrl.rules > /dev/null << 'EOF'
-polkit.addRule(function(action, subject) {
+        sysmod_tee_file /etc/polkit-1/rules.d/90-corectrl.rules 'polkit.addRule(function(action, subject) {
     if ((action.id == "org.corectrl.helper.init" ||
          action.id == "org.corectrl.helperkiller.init") &&
         subject.local == true &&
@@ -436,7 +429,7 @@ polkit.addRule(function(action, subject) {
             return polkit.Result.YES;
     }
 });
-EOF
+' 644
         
         log_success "CoreCtrl polkit rules configured"
         log_info "You can start CoreCtrl from your application menu"
@@ -451,11 +444,12 @@ setup_suspend_resume_fixes() {
     
     # 1. Configure systemd-logind for lid handling
     log_info "Configuring systemd-logind for lid switch handling..."
-    sudo mkdir -p /etc/systemd/logind.conf.d
-    sudo cp -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/logind.conf.d/10-firedragon-lid.conf" /etc/systemd/logind.conf.d/ 2>/dev/null || {
-        log_warning "Could not copy logind config from dotfiles, creating directly..."
-        sudo tee /etc/systemd/logind.conf.d/10-firedragon-lid.conf > /dev/null << 'EOF'
-# FireDragon Laptop - systemd-logind Configuration
+    local logind_src="$HOME/dotfiles/hosts/firedragon/etc/systemd/logind.conf.d/10-firedragon-lid.conf"
+    if [[ -f "$logind_src" ]]; then
+        sysmod_install_file "$logind_src" /etc/systemd/logind.conf.d/10-firedragon-lid.conf 644 || true
+    else
+        log_warning "Could not find logind config in dotfiles, creating directly..."
+        sysmod_tee_file /etc/systemd/logind.conf.d/10-firedragon-lid.conf '# FireDragon Laptop - systemd-logind Configuration
 [Login]
 HandleLidSwitch=suspend
 HandleLidSwitchExternalPower=suspend
@@ -468,26 +462,26 @@ IdleActionSec=30min
 InhibitDelayMaxSec=30s
 KillUserProcesses=no
 RemoveIPC=yes
-EOF
-    }
+' 644
+    fi
     
     # 2. Install AMD GPU suspend/resume systemd services
     log_info "Installing AMD GPU suspend/resume hooks..."
-    sudo cp -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system/amdgpu-suspend.service" /etc/systemd/system/ 2>/dev/null || {
-        log_warning "amdgpu-suspend.service not found in dotfiles, skipping..."
-    }
-    sudo cp -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system/amdgpu-resume.service" /etc/systemd/system/ 2>/dev/null || {
-        log_warning "amdgpu-resume.service not found in dotfiles, skipping..."
-    }
-    sudo cp -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system/amdgpu-console-restore.service" /etc/systemd/system/ 2>/dev/null || {
-        log_warning "amdgpu-console-restore.service not found in dotfiles, skipping..."
-    }
-    
+    local amdgpu_svc_dir="$HOME/dotfiles/hosts/firedragon/etc/systemd/system"
+    local svc
+    for svc in amdgpu-suspend.service amdgpu-resume.service amdgpu-console-restore.service; do
+        if [[ -f "${amdgpu_svc_dir}/${svc}" ]]; then
+            sysmod_install_file "${amdgpu_svc_dir}/${svc}" "/etc/systemd/system/${svc}" || true
+        else
+            log_warning "${svc} not found in dotfiles, skipping..."
+        fi
+    done
+
     # 3. Enable services
-    sudo systemctl daemon-reload
-    sudo systemctl enable amdgpu-suspend.service 2>/dev/null || true
-    sudo systemctl enable amdgpu-resume.service 2>/dev/null || true
-    sudo systemctl enable amdgpu-console-restore.service 2>/dev/null || true
+    _sysmod_sudo systemctl daemon-reload
+    _sysmod_sudo systemctl enable amdgpu-suspend.service 2>/dev/null || true
+    _sysmod_sudo systemctl enable amdgpu-resume.service 2>/dev/null || true
+    _sysmod_sudo systemctl enable amdgpu-console-restore.service 2>/dev/null || true
     
     # 4. Ensure kernel command line includes required AMD parameters
     if grep -qw "amdgpu.modeset=1" /proc/cmdline; then
@@ -497,15 +491,14 @@ EOF
         local limine_dropin_src="$HOME/dotfiles/hosts/firedragon/etc/limine-entry-tool.d/10-amdgpu.conf"
         local limine_dropin_dest="/etc/limine-entry-tool.d/10-amdgpu.conf"
         if [[ -f "$limine_dropin_src" ]]; then
-            sudo mkdir -p /etc/limine-entry-tool.d
-            sudo cp -f "$limine_dropin_src" "$limine_dropin_dest"
+            sysmod_install_file "$limine_dropin_src" "$limine_dropin_dest" || true
             log_success "Copied Limine drop-in"
         else
             log_warning "Limine drop-in not found at $limine_dropin_src"
         fi
 
         if [[ -f "$BOOT_LIB" ]]; then
-            sudo env LOG_LIB="$LOG_LIB" BOOT_LIB="$BOOT_LIB" bash -c '
+            _sysmod_sudo env LOG_LIB="$LOG_LIB" BOOT_LIB="$BOOT_LIB" bash -c '
                 set -e
                 # shellcheck disable=SC1091
                 source "$LOG_LIB"
@@ -516,13 +509,13 @@ EOF
         fi
 
         if command -v limine-update >/dev/null 2>&1; then
-            if sudo limine-update; then
+            if _sysmod_sudo limine-update; then
                 log_success "Regenerated Limine configuration via limine-update"
             else
                 log_warning "limine-update failed; run it again manually to apply amdgpu.modeset=1"
             fi
         elif command -v limine-mkinitcpio >/dev/null 2>&1; then
-            if sudo limine-mkinitcpio; then
+            if _sysmod_sudo limine-mkinitcpio; then
                 log_success "Executed limine-mkinitcpio to refresh boot entries"
             else
                 log_warning "limine-mkinitcpio failed; regenerate Limine entries manually"
@@ -540,12 +533,12 @@ EOF
     log_warning "DO NOT restart systemd-logind manually - it will kill your session!"
 
     if [[ -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" ]]; then
-        sudo install -m 755 "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" /etc/systemd/system-sleep/99-runtime-pm.sh
+        sysmod_install_file "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" /etc/systemd/system-sleep/99-runtime-pm.sh 755 || true
         log_info "Installed runtime PM override script"
     fi
 
     if [[ -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" ]]; then
-        sudo install -m 755 "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" /etc/systemd/system-sleep/98-ax210-bt-recover.sh
+        sysmod_install_file "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" /etc/systemd/system-sleep/98-ax210-bt-recover.sh 755 || true
         log_info "Installed Intel AX210 Bluetooth recover script"
     fi
     
@@ -572,15 +565,14 @@ setup_asus_vivobook() {
     
     # Enable asus-nb-wmi module for keyboard backlight and special keys
     log_info "Enabling Asus notebook WMI driver..."
-    sudo tee /etc/modprobe.d/asus-vivobook.conf > /dev/null << 'EOF'
-# Asus VivoBook specific configurations
+    sysmod_tee_file /etc/modprobe.d/asus-vivobook.conf '# Asus VivoBook specific configurations
 options asus-nb-wmi kbd_backlight=1
 options asus_wmi enable_fs=1
-EOF
-    
+' 644
+
     # Load asus-wmi and asus-nb-wmi modules
-    echo "asus_wmi" | sudo tee -a /etc/modules-load.d/asus.conf > /dev/null
-    echo "asus_nb_wmi" | sudo tee -a /etc/modules-load.d/asus.conf > /dev/null
+    sysmod_append_if_missing /etc/modules-load.d/asus.conf "asus_wmi" || true
+    sysmod_append_if_missing /etc/modules-load.d/asus.conf "asus_nb_wmi" || true
     
     # ACPI fixes for Asus VivoBook
     log_info "Applying ACPI fixes for Asus VivoBook..."
@@ -603,13 +595,13 @@ EOF
 
     # Ensure sudo access before applying changes
     log_info "Escalating privileges to update bootloader configuration..."
-    if ! sudo -v 2>/dev/null; then
+    if ! _sysmod_sudo -v 2>/dev/null; then
         log_warning "Cannot access bootloader files (sudo required)"
         log_info "Run manually after setup: bash ~/dotfiles/hosts/firedragon/fix-acpi-boot.sh"
         return 0
     fi
 
-    if sudo env ASUS_PARAMS="$asus_params" LOG_LIB="$LOG_LIB" BOOT_LIB="$BOOT_LIB" bash -c '
+    if _sysmod_sudo env ASUS_PARAMS="$asus_params" LOG_LIB="$LOG_LIB" BOOT_LIB="$BOOT_LIB" bash -c '
         set -e
         # shellcheck disable=SC1091
         source "$LOG_LIB"
@@ -627,14 +619,13 @@ EOF
 
     # Add keyboard backlight control via udev
     log_info "Setting up keyboard backlight controls..."
-    sudo tee /etc/udev/rules.d/90-asus-kbd-backlight.rules > /dev/null << 'EOF'
-# Allow users in video group to control keyboard backlight
+    sysmod_tee_file /etc/udev/rules.d/90-asus-kbd-backlight.rules '# Allow users in video group to control keyboard backlight
 ACTION=="add", SUBSYSTEM=="leds", KERNEL=="asus::kbd_backlight", RUN+="/bin/chgrp video /sys/class/leds/%k/brightness"
 ACTION=="add", SUBSYSTEM=="leds", KERNEL=="asus::kbd_backlight", RUN+="/bin/chmod g+w /sys/class/leds/%k/brightness"
-EOF
-    
+' 644
+
     # Add user to video group for backlight control
-    sudo usermod -aG video "$USER"
+    _sysmod_sudo usermod -aG video "$USER"
     
     # Create keyboard backlight control script
     mkdir -p "$HOME/.local/bin"
@@ -761,13 +752,14 @@ rebuild_initramfs() {
     if grep -q "amd.ucode\|amd_ucode" /etc/mkinitcpio.conf 2>/dev/null; then
         log_warning "Found incorrect amd_ucode module reference in mkinitcpio.conf"
         log_info "Cleaning up mkinitcpio.conf..."
-        sudo sed -i 's/amd.ucode//g; s/amd_ucode//g' /etc/mkinitcpio.conf
-        sudo sed -i 's/  \+/ /g' /etc/mkinitcpio.conf  # Clean up double spaces
+        _sysmod_backup /etc/mkinitcpio.conf
+        _sysmod_sudo sed -i 's/amd.ucode//g; s/amd_ucode//g' /etc/mkinitcpio.conf
+        _sysmod_sudo sed -i 's/  \+/ /g' /etc/mkinitcpio.conf  # Clean up double spaces
     fi
     
     # Rebuild initramfs for all installed kernels
     log_info "Rebuilding initramfs for all kernels..."
-    if sudo mkinitcpio -P; then
+    if _sysmod_sudo mkinitcpio -P; then
         log_success "Initramfs rebuilt successfully"
     else
         log_warning "Initramfs rebuild had warnings - this is usually okay"

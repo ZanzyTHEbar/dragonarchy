@@ -24,6 +24,8 @@ BOOT_LIB="${PROJECT_ROOT}/scripts/lib/bootloader.sh"
 source "$LOG_LIB"
 # shellcheck disable=SC1091
 source "$STATE_LIB"
+# shellcheck disable=SC1091
+source "${PROJECT_ROOT}/scripts/lib/system-mods.sh"
 if [[ -f "$BOOT_LIB" ]]; then
   # shellcheck disable=SC1091
   source "$BOOT_LIB"
@@ -80,12 +82,7 @@ fingerprint_sensor_hint() {
 backup_root_pam_file() {
   local pam_file="$1"
   [[ -f "$pam_file" ]] || return 0
-  local ts
-  ts="$(date +%Y%m%d_%H%M%S)"
-  local backup_dir="/etc/pam.d/.dragonarchy-backups/fingerprint/${ts}"
-  sudo mkdir -p "$backup_dir"
-  sudo cp -a "$pam_file" "${backup_dir}/$(basename "$pam_file")"
-  log_info "Backed up $(basename "$pam_file") -> ${backup_dir}/$(basename "$pam_file")"
+  _sysmod_backup "$pam_file"
 }
 
 ensure_pam_fprintd_enabled() {
@@ -100,7 +97,7 @@ ensure_pam_fprintd_enabled() {
     return 0
   fi
 
-  if sudo grep -qE '^\s*auth\s+.*pam_fprintd\.so' "$pam_file"; then
+  if _sysmod_sudo grep -qE '^\s*auth\s+.*pam_fprintd\.so' "$pam_file"; then
     log_info "PAM already has pam_fprintd enabled: $pam_file"
     return 0
   fi
@@ -108,7 +105,7 @@ ensure_pam_fprintd_enabled() {
   backup_root_pam_file "$pam_file"
 
   # Insert right before the first 'auth' line. If no auth line exists, insert after '#%PAM-1.0' header.
-  sudo awk -v ins="$line" '
+  _sysmod_sudo awk -v ins="$line" '
     BEGIN { done=0 }
     /^[[:space:]]*auth[[:space:]]+/ && done==0 { print ins; done=1 }
     { print }
@@ -118,20 +115,20 @@ ensure_pam_fprintd_enabled() {
         # (This is rare; we still ensure the rule exists rather than silently doing nothing.)
       }
     }
-  ' "$pam_file" | sudo tee "${pam_file}.dragonarchy.tmp" >/dev/null
+  ' "$pam_file" | _sysmod_sudo tee "${pam_file}.dragonarchy.tmp" >/dev/null
 
-  if ! sudo grep -qE '^\s*auth\s+.*pam_fprintd\.so' "${pam_file}.dragonarchy.tmp"; then
+  if ! _sysmod_sudo grep -qE '^\s*auth\s+.*pam_fprintd\.so' "${pam_file}.dragonarchy.tmp"; then
     # Fallback insertion (header-aware) if awk didn't place it (no auth lines)
-    sudo awk -v ins="$line" '
+    _sysmod_sudo awk -v ins="$line" '
       BEGIN { done=0 }
       /^#%PAM-1\.0/ { print; if(done==0){ print ins; done=1 }; next }
       { print }
       END { if(done==0) print ins }
-    ' "$pam_file" | sudo tee "${pam_file}.dragonarchy.tmp" >/dev/null
+    ' "$pam_file" | _sysmod_sudo tee "${pam_file}.dragonarchy.tmp" >/dev/null
   fi
 
-  sudo mv "${pam_file}.dragonarchy.tmp" "$pam_file"
-  sudo chmod 644 "$pam_file" 2>/dev/null || true
+  _sysmod_sudo mv "${pam_file}.dragonarchy.tmp" "$pam_file"
+  _sysmod_sudo chmod 644 "$pam_file" 2>/dev/null || true
 
   log_success "Enabled fingerprint auth (with password fallback) in: $pam_file"
 }
@@ -159,7 +156,7 @@ setup_fingerprint_auth() {
   # fprintd is typically DBus-activated (UnitFileState=static), so it may show as "inactive" until used.
   # We'll start it once (best-effort) but we do NOT try to enable it.
   if systemctl list-unit-files 2>/dev/null | grep -q '^fprintd\.service'; then
-    sudo systemctl start fprintd.service >/dev/null 2>&1 || true
+    _sysmod_sudo systemctl start fprintd.service >/dev/null 2>&1 || true
   else
     log_warning "fprintd.service not found (package install may have failed)"
   fi
@@ -184,18 +181,19 @@ setup_fingerprint_auth() {
     log_info "Detected fingerprint reader: ${fingerprint_usb_id}"
     
     # Create udev rule to disable autosuspend
-    sudo tee /etc/udev/rules.d/99-fingerprint-no-autosuspend.rules >/dev/null <<EOF
-# Disable USB autosuspend for fingerprint reader (${fingerprint_usb_id})
+    local udev_content
+    udev_content="# Disable USB autosuspend for fingerprint reader (${fingerprint_usb_id})
 # This prevents the 30-40 second wakeup delay at login/lock screens.
 
-ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="${vendor_id}", ATTR{idProduct}=="${product_id}", TEST=="power/control", ATTR{power/control}="on"
-EOF
+ACTION==\"add\", SUBSYSTEM==\"usb\", ATTR{idVendor}==\"${vendor_id}\", ATTR{idProduct}==\"${product_id}\", TEST==\"power/control\", ATTR{power/control}=\"on\"
+"
+    sysmod_tee_file /etc/udev/rules.d/99-fingerprint-no-autosuspend.rules "$udev_content" 644 || true
     
     log_success "Created udev rule: /etc/udev/rules.d/99-fingerprint-no-autosuspend.rules"
     
     # Reload udev rules
-    sudo udevadm control --reload-rules 2>/dev/null || true
-    sudo udevadm trigger --subsystem-match=usb 2>/dev/null || true
+    _sysmod_sudo udevadm control --reload-rules 2>/dev/null || true
+    _sysmod_sudo udevadm trigger --subsystem-match=usb 2>/dev/null || true
   else
     log_warning "Could not detect fingerprint USB ID for autosuspend exclusion"
   fi
@@ -234,9 +232,9 @@ setup_goldendragon_packages() {
   # TLP conflicts with power-profiles-daemon on many systems.
   if pacman -Qi power-profiles-daemon &>/dev/null; then
     log_info "Removing conflicting power-profiles-daemon (TLP conflict)..."
-    sudo systemctl stop power-profiles-daemon.service 2>/dev/null || true
-    sudo systemctl disable power-profiles-daemon.service 2>/dev/null || true
-    sudo pacman -Rdd --noconfirm power-profiles-daemon || log_warning "Failed to remove power-profiles-daemon"
+    _sysmod_sudo systemctl stop power-profiles-daemon.service 2>/dev/null || true
+    _sysmod_sudo systemctl disable power-profiles-daemon.service 2>/dev/null || true
+    _sysmod_sudo pacman -Rdd --noconfirm power-profiles-daemon || log_warning "Failed to remove power-profiles-daemon"
   fi
 
   local base_pkgs=(
@@ -298,7 +296,7 @@ setup_openfortivpn_access() {
   fi
 
   if ! getent group "$group" >/dev/null 2>&1; then
-    if sudo groupadd -r "$group"; then
+    if _sysmod_sudo groupadd -r "$group"; then
       log_success "Created group: $group"
     else
       log_warning "Failed to create group: $group"
@@ -308,9 +306,8 @@ setup_openfortivpn_access() {
   fi
 
   if [[ ! -f "$config" ]]; then
-    sudo install -d -m 755 /etc/openfortivpn
-    sudo tee "$config" >/dev/null <<'EOF'
-### configuration file for openfortivpn, see man openfortivpn(1) ###
+    _sysmod_sudo install -d -m 755 /etc/openfortivpn
+    local vpn_config_content='### configuration file for openfortivpn, see man openfortivpn(1) ###
 
 host = vpn.avular.com
 port = 443
@@ -322,7 +319,8 @@ saml-login = 8020              # or any free port; triggers browser SAML flow
 # set-dns = 1                  # auto-set DNS if possible
 # set-routes = 1
 # pppd-use-peerdns = 1
-EOF
+'
+    sysmod_tee_file "$config" "$vpn_config_content" 644
     log_success "Seeded OpenFortiVPN config at $config"
   else
     log_info "OpenFortiVPN config already present: $config"
@@ -334,7 +332,7 @@ EOF
     if id -nG "$target_user" 2>/dev/null | grep -qw "$group"; then
       log_info "User already in $group: $target_user"
     else
-      if sudo usermod -aG "$group" "$target_user"; then
+      if _sysmod_sudo usermod -aG "$group" "$target_user"; then
         log_success "Added user to group: $target_user -> $group"
         log_warning "Logout/login required to pick up group membership"
       else
@@ -344,15 +342,15 @@ EOF
   fi
 
   if [[ -f "$config" ]]; then
-    sudo chgrp "$group" "$config" || log_warning "Failed to chgrp $config"
-    sudo chmod 640 "$config" || log_warning "Failed to chmod 640 $config"
+    _sysmod_sudo chgrp "$group" "$config" || log_warning "Failed to chgrp $config"
+    _sysmod_sudo chmod 640 "$config" || log_warning "Failed to chmod 640 $config"
     log_success "Adjusted permissions on $config"
   else
     log_warning "OpenFortiVPN config not found: $config"
   fi
 
   if [[ -f "$config" ]]; then
-    sudo python - <<'PY'
+    _sysmod_sudo python - <<'PY'
 from pathlib import Path
 
 src = Path("/etc/openfortivpn/config")
@@ -371,13 +369,13 @@ for line in lines:
 
 dst.write_text("\n".join(filtered) + "\n")
 PY
-    sudo chgrp "$group" "$service_config" || log_warning "Failed to chgrp $service_config"
-    sudo chmod 640 "$service_config" || log_warning "Failed to chmod 640 $service_config"
+    _sysmod_sudo chgrp "$group" "$service_config" || log_warning "Failed to chgrp $service_config"
+    _sysmod_sudo chmod 640 "$service_config" || log_warning "Failed to chmod 640 $service_config"
     log_success "Generated service config: $service_config"
   fi
 
   if [[ -f /etc/systemd/system/openfortivpn.service || -f /etc/systemd/system/openfortivpn-cleanup.service ]]; then
-    sudo systemctl daemon-reload >/dev/null 2>&1 || log_warning "systemctl daemon-reload failed"
+    _sysmod_sudo systemctl daemon-reload >/dev/null 2>&1 || log_warning "systemctl daemon-reload failed"
   fi
 
   if [[ -f "$marker_src" ]]; then
@@ -392,7 +390,7 @@ PY
       fi
     fi
     if [[ "$target_user" != "$USER" ]]; then
-      sudo -u "$target_user" ln -snf "$marker_link" "$marker_path"
+      _sysmod_sudo -u "$target_user" ln -snf "$marker_link" "$marker_path"
     else
       ln -snf "$marker_link" "$marker_path"
     fi
@@ -445,7 +443,7 @@ apply_host_system_configs() {
     return 0
   fi
 
-  if copy_dir_if_changed "$src" /etc/; then
+  if sysmod_install_dir "$src" /etc/; then
     log_success "System configs updated from $src"
     reset_step "goldendragon-restart-resolved"
   else
@@ -462,10 +460,10 @@ restart_resolved_if_needed() {
     log_step "Restarting systemd-resolved to apply DNS changes (if running)..."
     if command -v systemctl >/dev/null 2>&1; then
       if systemctl list-unit-files 2>/dev/null | grep -q '^systemd-resolved\.service'; then
-        sudo systemctl enable --now systemd-resolved.service >/dev/null 2>&1 || true
+        sysmod_ensure_service "systemd-resolved.service" || true
       fi
     fi
-    if restart_if_running systemd-resolved; then
+    if sysmod_restart_if_running systemd-resolved; then
       log_success "systemd-resolved restarted"
     else
       log_info "systemd-resolved not running (skipped)"
@@ -480,20 +478,19 @@ setup_power_management_services() {
   log_step "Enabling power management services..."
 
   if command_exists tlp; then
-    # Avoid rfkill save/restore races with TLP
-    sudo systemctl mask systemd-rfkill.service 2>/dev/null || true
-    sudo systemctl mask systemd-rfkill.socket 2>/dev/null || true
+    sysmod_mask_service "systemd-rfkill.service" || true
+    sysmod_mask_service "systemd-rfkill.socket" || true
 
-    sudo systemctl enable tlp.service 2>/dev/null || true
-    sudo systemctl enable tlp-sleep.service 2>/dev/null || true
+    _sysmod_sudo systemctl enable tlp.service 2>/dev/null || true
+    _sysmod_sudo systemctl enable tlp-sleep.service 2>/dev/null || true
   fi
 
   if systemctl list-unit-files 2>/dev/null | grep -q '^thermald\.service'; then
-    sudo systemctl enable thermald.service 2>/dev/null || true
+    _sysmod_sudo systemctl enable thermald.service 2>/dev/null || true
   fi
 
   if systemctl list-unit-files 2>/dev/null | grep -q '^acpid\.service'; then
-    sudo systemctl enable acpid.service 2>/dev/null || true
+    _sysmod_sudo systemctl enable acpid.service 2>/dev/null || true
   fi
 
   log_success "Power management services configured"
