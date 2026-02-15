@@ -31,18 +31,35 @@ cd ~/dotfiles
 
 ```bash
 dragonarchy/
-├── packages/      # Stow packages (dotfiles)
-│   ├── zsh/       # Zsh configuration
-│   ├── git/       # Git configuration
-│   ├── kitty/     # Kitty terminal
-│   ├── nvim/      # Neovim configuration
-│   ├── ssh/       # SSH configuration
+├── packages/           # Stow packages (dotfiles)
+│   ├── zsh/            # Zsh configuration
+│   ├── git/            # Git configuration
+│   ├── kitty/          # Kitty terminal
+│   ├── nvim/           # Neovim configuration
+│   ├── ssh/            # SSH configuration
 │   └── ...
-├── scripts/       # Installation and setup scripts
-├── hosts/         # Host-specific configurations
-├── secrets/       # Encrypted secrets management
-├── install.sh     # Main setup script
-└── README.md      # This file
+├── scripts/
+│   ├── lib/            # Shared libraries
+│   │   ├── logging.sh          # Color-coded logging
+│   │   ├── install-state.sh    # Idempotency markers
+│   │   ├── system-mods.sh      # Safe /etc modifications with backups
+│   │   ├── stow-helpers.sh     # Stow conflict resolution
+│   │   ├── icons.sh            # Icon deployment
+│   │   ├── fresh-mode.sh       # Fresh machine detection
+│   │   ├── hosts.sh            # Host/trait detection
+│   │   └── manifest-toml.sh    # TOML manifest parser
+│   ├── install/        # Installation scripts
+│   │   ├── install-deps.sh     # Package installer (supports --bundle)
+│   │   ├── validate.sh         # System validation (supports --json)
+│   │   └── first-run.sh        # First-run setup (firewall, timezone, themes)
+│   ├── theme-manager/  # Theme management scripts
+│   ├── utilities/      # Utility scripts
+│   └── hardware/       # Hardware-specific scripts
+├── hosts/              # Host-specific configurations (with .traits files)
+├── secrets/            # Encrypted secrets management
+├── .github/workflows/  # CI pipeline (shellcheck, validation)
+├── install.sh          # Main setup script
+└── README.md           # This file
 ```
 
 ## Script Entry Points
@@ -71,9 +88,13 @@ This keeps every PATH-visible command sourced from a single canonical script whi
 
 - **Declarative Configuration**: All dotfiles managed via Stow
 - **Multi-Platform**: Linux (CachyOS/Arch) and Debian support
-- **Host-Specific**: Different configs per machine
+- **Host-Specific**: Different configs per machine with trait-based capabilities
 - **Secrets Management**: Encrypted secrets with age/sops
-- **Package Management**: Platform-appropriate package installation
+- **Package Bundles**: Composable package profiles (desktop, minimal, creative)
+- **Safe System Modifications**: All `/etc` changes go through `system-mods.sh` with automatic backups and idempotency
+- **System Validation**: Host-aware validation with JSON output for CI
+- **First-Run Orchestrator**: Firewall, timezone, theme verification for fresh installs
+- **CI Pipeline**: Shellcheck, syntax checking, and validation via GitHub Actions
 - **Networking**: Optional NetBird integration for secure networking
 - **Modular**: Enable/disable components as needed
 
@@ -89,6 +110,10 @@ This keeps every PATH-visible command sourced from a single canonical script whi
 ./scripts/utilities/secrets.sh --help     # Secrets management
 ./scripts/install/update.sh             # Update packages and configs
 ./scripts/install/validate.sh           # Validate setup
+./scripts/install/validate.sh --json    # JSON output (for CI/TUI)
+./scripts/install/validate.sh --host firedragon  # Validate specific host
+./scripts/install/install-deps.sh --bundle minimal  # Install a package bundle
+./scripts/install/first-run.sh --dry-run  # Preview first-run tasks
 ```
 
 ### Feature Toggles
@@ -106,6 +131,7 @@ Fine-grained control over what gets installed and configured:
 # Step toggles
 ./install.sh --no-theme         # Skip Plymouth theme setup
 ./install.sh --no-shell         # Skip shell configuration (zsh)
+./install.sh --no-first-run     # Skip first-run tasks (firewall, timezone, themes)
 ./install.sh --no-post-setup    # Skip post-setup tasks
 ./install.sh --no-system-config # Skip system-level configuration (PAM, services)
 
@@ -121,6 +147,29 @@ Fine-grained control over what gets installed and configured:
 
 > [!NOTE]
 > Cursor is installed by default on Hyprland-configured hosts. Use `--cursor` to force installation on non-Hyprland hosts, or `--no-cursor` to skip it entirely.
+
+## Package Bundles
+
+Packages are defined in `scripts/install/deps.manifest.toml`. Bundles compose package groups into named profiles:
+
+```bash
+# Install only packages in a bundle
+./scripts/install/install-deps.sh --bundle desktop   # Full Hyprland desktop
+./scripts/install/install-deps.sh --bundle minimal   # CLI-only (server/container)
+./scripts/install/install-deps.sh --bundle creative  # Desktop + multimedia tools
+```
+
+## System Validation
+
+The validation script checks system health, dotfile integrity, and host-specific requirements:
+
+```bash
+./scripts/install/validate.sh              # Interactive output
+./scripts/install/validate.sh --json       # Structured JSON (for CI/TUI)
+./scripts/install/validate.sh --host dragon  # Validate a specific host
+```
+
+Validation is trait-driven: each host declares capabilities via `hosts/<hostname>/.traits` (e.g., `hyprland`, `tlp`, `aio-cooler`). The validator checks services, tools, and config drift based on those traits.
 
 ## Migration System
 

@@ -6,11 +6,11 @@ This directory contains host-specific configurations for different machines in t
 
 ```bash
 hosts/
-├── dragon/          # Desktop workstation
-├── firedragon/      # AMD laptop
-├── goldendragon/    # Lenovo ThinkPad P16s Gen 4 (Intel) laptop (Type 21QV/21QW)
-├── spacedragon/     # Asus Zenbook G14
-└── microdragon/     # Raspberry pi
+├── dragon/          # AMD desktop workstation (AIO cooler, LED control)
+├── firedragon/      # ASUS VivoBook AMD laptop
+├── goldendragon/    # Lenovo ThinkPad P16s (Intel/NVIDIA)
+├── microdragon/     # Raspberry Pi
+└── shared/          # Shared host resources
 ```
 
 ## Creating a New Host Configuration
@@ -34,6 +34,57 @@ hosts/
    EOF
    chmod +x hosts/$(hostname)/setup.sh
    ```
+
+### Trait Files (Recommended)
+
+Each host can declare its capabilities via a `.traits` file. This drives validation, detection, and future automation:
+
+```bash
+cat > hosts/$(hostname)/.traits <<'EOF'
+# One trait per line. Lines starting with # are comments.
+desktop
+hyprland
+laptop
+tlp
+EOF
+```
+
+Available traits and what they control:
+
+| Trait | Effect |
+|-------|--------|
+| `desktop` | Validates systemd-resolved |
+| `hyprland` | Detects Hyprland host, validates Hyprland components |
+| `laptop` | Checks brightnessctl |
+| `tlp` | Checks TLP + masks systemd-rfkill |
+| `aio-cooler` | Validates liquidctl + cooler/LED services |
+| `asus` | Checks asusd service |
+| `nvidia` | (Future) NVIDIA-specific checks |
+| `amd-gpu` | (Future) AMD GPU checks |
+| `fingerprint` | Checks fprintd |
+| `netbird` | (Future) NetBird VPN checks |
+
+### System Modifications Safety Layer
+
+All host setup scripts use `system-mods.sh` for privileged operations. **Never use raw `sudo` in host scripts.** Instead:
+
+```bash
+source "${SCRIPTS_DIR}/lib/system-mods.sh"
+
+# Install a config file (with automatic backup + idempotency)
+sysmod_install_file "./my.conf" /etc/myapp/my.conf 644
+
+# Write content to a system file
+sysmod_tee_file /etc/sysctl.d/99-custom.conf "vm.swappiness = 10"
+
+# Enable and start a systemd service
+sysmod_ensure_service "my-daemon.service" "./my-daemon.service"
+
+# Run any command with sudo
+_sysmod_sudo systemctl daemon-reload
+```
+
+All modifications create timestamped backups under `/etc/.dragonarchy-backups/` and skip operations when content hasn't changed. Set `SYSMOD_DRY_RUN=1` to preview changes.
 
 ### Hyprland Configuration
 
@@ -92,10 +143,11 @@ When a host is detected as a Hyprland host, it receives:
 
 ### Optional Files
 
-- `.hyprland` - Marker file for Hyprland support (recommended for Hyprland hosts)
-- `HYPRLAND` - Alternative marker file name
+- `.traits` - Host capability declarations (recommended; drives validation and detection)
+- `.hyprland` - Legacy marker file for Hyprland support (prefer `.traits` with `hyprland` trait)
+- `HYPRLAND` - Alternative legacy marker file name
 - `docs/` - Documentation directory
-- `etc/` - System configuration files (will be copied to `/etc/`)
+- `etc/` - System configuration files (deployed to `/etc/` via `sysmod_install_dir`)
 
 ## Examples
 
@@ -103,11 +155,13 @@ When a host is detected as a Hyprland host, it receives:
 
 ```bash
 hosts/dragon/
-├── .hyprland              # Marker file
-├── setup.sh               # Host setup script
-├── dynamic_led.py         # Custom scripts
+├── .traits                # amd-gpu, aio-cooler, hyprland, desktop, netbird
+├── .hyprland              # Legacy marker file
+├── setup.sh               # Host setup script (uses sysmod_* helpers)
+├── dynamic_led.py         # Custom LED control script
 ├── dynamic_led.service    # Systemd services
-└── etc/                   # System configs
+├── liquidctl-dragon.service
+└── etc/                   # System configs (deployed via sysmod_install_dir)
     └── systemd/
         └── resolved.conf.d/
             └── dns.conf
@@ -117,8 +171,9 @@ hosts/dragon/
 
 ```bash
 hosts/firedragon/
-├── .hyprland              # Marker file
-├── setup.sh               # Extensive laptop setup
+├── .traits                # laptop, amd-gpu, tlp, hyprland, desktop, asus, netbird
+├── .hyprland              # Legacy marker file
+├── setup.sh               # Extensive laptop setup (uses sysmod_* helpers)
 ├── docs/                  # Documentation
 │   ├── GESTURES_QUICKSTART.md
 │   ├── ADVANCED_GESTURES.md
@@ -138,29 +193,47 @@ hosts/microdragon/
 
 ## Verification
 
-To check which hosts will be detected as Hyprland hosts:
+To check host traits and Hyprland detection:
 
 ```bash
 cd ~/dotfiles
 for host in hosts/*/; do
     hostname=$(basename "$host")
-    if [[ -f "$host/.hyprland" ]] || [[ -f "$host/HYPRLAND" ]]; then
-        echo "✓ $hostname - Hyprland (marker file)"
+    [[ "$hostname" == "shared" ]] && continue
+
+    traits=""
+    if [[ -f "$host/.traits" ]]; then
+        traits=$(grep -v '^#' "$host/.traits" | grep -v '^$' | paste -sd, -)
+    fi
+
+    if [[ -f "$host/.traits" ]] && grep -q "^hyprland$" "$host/.traits"; then
+        echo "✓ $hostname - Hyprland (trait) [$traits]"
+    elif [[ -f "$host/.hyprland" ]] || [[ -f "$host/HYPRLAND" ]]; then
+        echo "✓ $hostname - Hyprland (marker file) [$traits]"
     elif [[ -f "$host/setup.sh" ]] && grep -qi "hyprland\|waybar" "$host/setup.sh"; then
-        echo "✓ $hostname - Hyprland (auto-detected from setup.sh)"
+        echo "✓ $hostname - Hyprland (auto-detected) [$traits]"
     else
-        echo "✗ $hostname - No Hyprland"
+        echo "✗ $hostname - No Hyprland [$traits]"
     fi
 done
 ```
 
+Or use the validation script for a thorough check:
+
+```bash
+./scripts/install/validate.sh --host dragon       # Check specific host
+./scripts/install/validate.sh --json | jq .status  # Quick CI check
+```
+
 ## Best Practices
 
-1. **Always create a marker file** - Use `.hyprland` for Hyprland hosts to make it explicit
-2. **Document your setup** - Add a README or docs explaining host-specific configurations
-3. **Keep setup.sh idempotent** - Scripts should be safe to run multiple times
-4. **Test on a fresh install** - Verify your setup works on a clean system
-5. **Separate concerns** - Use `etc/` for system configs, keep scripts in the root
+1. **Always create a `.traits` file** - Declare host capabilities for validation and detection
+2. **Use `sysmod_*` helpers** - Never use raw `sudo` in setup scripts; always go through `system-mods.sh`
+3. **Gate with `install-state`** - Wrap every non-trivial operation in `is_step_completed`/`mark_step_completed`
+4. **Document your setup** - Add a README or docs explaining host-specific configurations
+5. **Keep setup.sh idempotent** - Scripts should be safe to run multiple times
+6. **Test on a fresh install** - Verify your setup works on a clean system
+7. **Separate concerns** - Use `etc/` for system configs, keep scripts in the root
 
 ## Migration Guide
 
