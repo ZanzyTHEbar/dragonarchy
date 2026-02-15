@@ -35,6 +35,7 @@ FORCE_CURSOR_INSTALL=false
 SKIP_CURSOR_INSTALL=false
 KEEP_GIT_HYPRLAND=false
 RUN_SETUP_SCRIPTS=true
+BUNDLE_NAME=""
 
 # Internal state
 APT_UPDATED=false
@@ -68,6 +69,19 @@ feature_csv_for_host() {
     echo "$joined"
 }
 
+# Check if a group should be installed given the active bundle filter.
+# Returns 0 (install) if no bundle is active OR the group is in the bundle.
+_bundle_allows_group() {
+    local group="$1"
+    [[ -z "$BUNDLE_NAME" ]] && return 0
+
+    local bundle_group
+    while IFS= read -r bundle_group; do
+        [[ "$bundle_group" == "$group" ]] && return 0
+    done < <(manifest_bundle_groups "$MANIFEST_FILE" "$BUNDLE_NAME")
+    return 1
+}
+
 install_manifest_group() {
     local platform="$1"
     local manager="$2"
@@ -75,6 +89,12 @@ install_manifest_group() {
     local installer_fn="$4"
     local host="${5:-}"
     local feature_csv="${6:-}"
+
+    # Skip groups not in the active bundle (if one is specified)
+    if ! _bundle_allows_group "$group"; then
+        log_info "Bundle '${BUNDLE_NAME}' excludes group ${group} (skipping)"
+        return 0
+    fi
 
     local pkgs=()
     mapfile -t pkgs < <(manifest_group_packages "$MANIFEST_FILE" "$platform" "$manager" "$group" "$host" "$feature_csv")
@@ -878,9 +898,21 @@ main() {
                 RUN_SETUP_SCRIPTS=false
                 shift
             ;;
+            --bundle)
+                if [[ $# -gt 1 && -n "${2:-}" && ! "${2:-}" =~ ^-- ]]; then
+                    BUNDLE_NAME="$2"
+                    shift 2
+                else
+                    log_error "Missing bundle name for --bundle"
+                    log_info "Available bundles (from manifest):"
+                    manifest_validate && manifest_ensure_yq "$(canonical_platform_key "$(detect_platform)")" && \
+                        manifest_list_bundles "$MANIFEST_FILE" | while read -r b; do echo "  $b"; done
+                    exit 1
+                fi
+            ;;
             *)
                 log_error "Unknown argument: $1"
-                log_info "Usage: $0 [--host <host>] [--cursor|--no-cursor] [--keep-git-hyprland] [--no-setup]"
+                log_info "Usage: $0 [--host <host>] [--cursor|--no-cursor] [--keep-git-hyprland] [--no-setup] [--bundle NAME]"
                 exit 1
             ;;
         esac
@@ -906,6 +938,19 @@ main() {
     yq_version=$($yq_bin --version 2>/dev/null || true)
     log_info "Manifest parser: ${yq_bin} (${yq_version})"
     
+    # Validate bundle if specified
+    if [[ -n "$BUNDLE_NAME" ]]; then
+        local bundle_exists
+        bundle_exists=$(manifest_yq_query "$MANIFEST_FILE" ".bundles.${BUNDLE_NAME} | type")
+        if [[ -z "$bundle_exists" || "$bundle_exists" == "null" ]]; then
+            log_error "Unknown bundle: $BUNDLE_NAME"
+            log_info "Available bundles:"
+            manifest_list_bundles "$MANIFEST_FILE" | while read -r b; do echo "  $b"; done
+            exit 1
+        fi
+        log_info "Bundle mode: installing groups from bundle '$BUNDLE_NAME'"
+    fi
+
     log_info "Starting package installation on $platform (Host: ${host:-generic})..."
     
     case "$platform" in
