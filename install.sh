@@ -14,6 +14,12 @@ source "${SCRIPT_DIR}/scripts/lib/logging.sh"
 source "${SCRIPT_DIR}/scripts/lib/install-state.sh"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/scripts/lib/hosts.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/scripts/lib/stow-helpers.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/scripts/lib/icons.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/scripts/lib/fresh-mode.sh"
 
 CONFIG_DIR="$SCRIPT_DIR"
 PACKAGES_DIR="$CONFIG_DIR/packages"
@@ -34,6 +40,7 @@ NO_SYSTEM_CONFIG=false
 RUN_THEME=true
 RUN_SHELL_CONFIG=true
 RUN_POST_SETUP=true
+RUN_FIRST_RUN=true
 SETUP_UTILITIES=false
 RESET_STATE=false
 # Force re-run of package installation step (clears cached package markers for this host)
@@ -69,6 +76,7 @@ OPTIONS:
     --no-theme              Skip theme refresh (plymouth)
     --sddm-theme THEME      Set SDDM theme during installation (e.g., catppuccin-mocha-sky-sddm)
     --no-shell              Skip shell configuration
+    --no-first-run          Skip first-run tasks (firewall, timezone, themes, welcome)
     --no-post-setup         Skip post-setup tasks
     --utilities             Symlink selected utilities to ~/.local/bin
     --no-utilities          Do not symlink utilities
@@ -163,6 +171,10 @@ parse_args() {
                 RUN_SHELL_CONFIG=false
                 shift
             ;;
+            --no-first-run)
+                RUN_FIRST_RUN=false
+                shift
+            ;;
             --no-post-setup)
                 RUN_POST_SETUP=false
                 shift
@@ -235,340 +247,10 @@ check_prerequisites() {
     log_success "Prerequisites check completed"
 }
 
-# Detect whether this appears to be a "fresh machine" for dotfiles:
-# i.e. we don't see any existing stow-managed symlinks pointing into our `packages/`.
-is_fresh_machine() {
-    local packages_real
-    packages_real=$(readlink -f "$PACKAGES_DIR" 2>/dev/null || true)
-    [[ -z "$packages_real" ]] && packages_real="$PACKAGES_DIR"
 
-    # If we can find ANY symlink in common dotfile locations that resolves into our packages dir,
-    # we consider this machine already managed (not fresh).
-    local search_roots=(
-        "$HOME"
-        "$HOME/.config"
-        "$HOME/.local"
-        "$HOME/.ssh"
-        "$HOME/.gnupg"
-    )
-
-    local root maxdepth
-    for root in "${search_roots[@]}"; do
-        if [[ ! -e "$root" ]]; then
-            continue
-        fi
-
-        maxdepth=1
-        if [[ "$root" == "$HOME/.config" || "$root" == "$HOME/.local" || "$root" == "$HOME/.ssh" || "$root" == "$HOME/.gnupg" ]]; then
-            maxdepth=5
-        fi
-
-        local link
-        while IFS= read -r -d '' link; do
-            local resolved=""
-            resolved=$(readlink -f "$link" 2>/dev/null || true)
-            if [[ -n "$resolved" && "$resolved" == "$packages_real/"* ]]; then
-                return 1  # Not fresh
-            fi
-        done < <(find "$root" -maxdepth "$maxdepth" -type l -print0 2>/dev/null)
-    done
-
-    return 0  # Fresh
-}
-
-maybe_enable_fresh_mode() {
-    # Explicit --fresh/-f always wins
-    if [[ "$FRESH_MODE" == "true" ]]; then
-        return 0
-    fi
-
-    # Only relevant when we're going to stow dotfiles
-    if [[ "$INSTALL_DOTFILES" != "true" ]]; then
-        return 0
-    fi
-
-    if is_fresh_machine; then
-        FRESH_MODE=true
-        log_warning "Fresh machine detected (no existing stow-managed dotfile symlinks found). Enabling fresh mode automatically."
-    fi
-}
-
-# Purge stow conflicts based on a captured stow output log (from a real stow/restow run).
-# This is more reliable than parsing LINK lines because stow can abort before applying anything.
-purge_stow_conflicts_from_output() {
-    local package="$1"
-    local backup_root="$2"
-    local output_file="$3"
-
-    if [[ -z "${package:-}" || -z "${backup_root:-}" || -z "${output_file:-}" ]]; then
-        log_error "purge_stow_conflicts_from_output: missing args"
-        return 1
-    fi
-    if [[ ! -f "$output_file" ]]; then
-        log_error "purge_stow_conflicts_from_output: output file not found: $output_file"
-        return 1
-    fi
-
-    declare -A targets=()
-    local line
-    local re_cannot='\\*[[:space:]]+cannot[[:space:]]+stow[[:space:]]+.+[[:space:]]+over[[:space:]]+existing[[:space:]]+target[[:space:]]+([^[:space:]]+)[[:space:]]+since[[:space:]]+'
-    local re_not_owned='\\*[[:space:]]+existing[[:space:]]+target[[:space:]]+is[[:space:]]+not[[:space:]]+owned[[:space:]]+by[[:space:]]+stow:[[:space:]]+(.+)$'
-    local re_diff_pkg='\\*[[:space:]]+existing[[:space:]]+target[[:space:]]+is[[:space:]]+stowed[[:space:]]+to[[:space:]]+a[[:space:]]+different[[:space:]]+package:[[:space:]]+([^[:space:]]+)[[:space:]]+=>[[:space:]]+'
-
-    while IFS= read -r line; do
-        # Example:
-        # * cannot stow ... over existing target .config/foo/bar since ...
-        if [[ "$line" =~ $re_cannot ]]; then
-            targets["${BASH_REMATCH[1]}"]=1
-            continue
-        fi
-
-        # Example:
-        # * existing target is not owned by stow: .config/foo
-        if [[ "$line" =~ $re_not_owned ]]; then
-            local t="${BASH_REMATCH[1]}"
-            t=$(printf '%s' "$t" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
-            [[ -n "$t" ]] && targets["$t"]=1
-            continue
-        fi
-
-        # Example:
-        # * existing target is stowed to a different package: .package => dotfiles/packages/hyprland/.package
-        if [[ "$line" =~ $re_diff_pkg ]]; then
-            targets["${BASH_REMATCH[1]}"]=1
-            continue
-        fi
-    done < "$output_file"
-
-    local removed_count=0
-    local t
-    for t in "${!targets[@]}"; do
-        # Basic safety: stow targets are relative to $HOME
-        if [[ "$t" == /* || "$t" == *".."* ]]; then
-            log_warning "Conflict purge skipping unsafe target: $t"
-            continue
-        fi
-
-        local dst="$HOME/$t"
-        if [[ -e "$dst" || -L "$dst" ]]; then
-            fresh_backup_and_remove "$dst" "$backup_root" "$package" || return 1
-            removed_count=$((removed_count + 1))
-        fi
-    done
-
-    if [[ $removed_count -gt 0 ]]; then
-        log_warning "Purged $removed_count conflict target(s) for package '$package' (backups: ${backup_root}/${package})"
-    fi
-}
-
-# Fresh-machine helper: backup and remove a path under $HOME (files, symlinks, or directories)
-fresh_backup_and_remove() {
-    local abs_path="$1"
-    local backup_root="$2"
-    local package="$3"
-
-    if [[ -z "${abs_path:-}" || -z "${backup_root:-}" || -z "${package:-}" ]]; then
-        log_error "fresh_backup_and_remove: missing args"
-        return 1
-    fi
-
-    # Safety checks (never operate outside of $HOME)
-    if [[ "$abs_path" == "$HOME" || "$abs_path" == "/" || "$abs_path" != "$HOME/"* ]]; then
-        log_error "Fresh mode refusing to remove unsafe path: $abs_path"
-        return 1
-    fi
-
-    # Determine backup destination path relative to $HOME
-    local rel_from_home="${abs_path#${HOME}/}"
-    if [[ -z "$rel_from_home" || "$rel_from_home" == "$abs_path" ]]; then
-        log_error "Fresh mode refusing to remove (could not derive rel path): $abs_path"
-        return 1
-    fi
-
-    local backup_path="${backup_root}/${package}/${rel_from_home}"
-    mkdir -p "$(dirname "$backup_path")"
-
-    # Backup first, then remove
-    if cp -a "$abs_path" "$backup_path" 2>/dev/null; then
-        :
-    elif cp -aL "$abs_path" "$backup_path" 2>/dev/null; then
-        :
-    else
-        log_error "Fresh mode backup failed; refusing to delete: $abs_path"
-        log_error "Intended backup destination: $backup_path"
-        return 1
-    fi
-
-    rm -rf "$abs_path"
-}
-
-# Fresh-machine purge: remove conflicting targets that would block stow for a given package.
-# Uses `stow -n -v` to discover intended links (respects stow ignore rules).
-fresh_purge_stow_conflicts_for_package() {
-    local package="$1"
-    local backup_root="$2"
-
-    if [[ -z "${package:-}" || -z "${backup_root:-}" ]]; then
-        log_error "fresh_purge_stow_conflicts_for_package: missing args"
-        return 1
-    fi
-
-    if ! command -v stow >/dev/null 2>&1; then
-        log_error "Fresh mode requires GNU Stow to be installed"
-        return 1
-    fi
-
-    local dry_run
-    dry_run=$(stow -n -v -t "$HOME" "$package" 2>&1 || true)
-
-    # Track removed paths to avoid double-work (esp. parent dirs)
-    declare -A removed_paths=()
-    local removed_count=0
-
-    # Prefer parsing LINK lines: `LINK: <target> => <source>`
-    local link_re='^[[:space:]]*LINK:[[:space:]]+([^[:space:]]+)[[:space:]]+=>[[:space:]]+(.+)$'
-    local had_link_lines=false
-    local line
-    while IFS= read -r line; do
-        if [[ "$line" =~ $link_re ]]; then
-            had_link_lines=true
-
-            local target_rel="${BASH_REMATCH[1]}"
-            local source_rel="${BASH_REMATCH[2]}"
-
-            # Trim whitespace (stow output can sometimes include trailing spaces)
-            target_rel=$(printf '%s' "$target_rel" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
-            source_rel=$(printf '%s' "$source_rel" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
-
-            # Guard against weird targets
-            if [[ "$target_rel" == /* || "$target_rel" == *".."* ]]; then
-                log_warning "Fresh mode skipping unexpected stow target: $target_rel"
-                continue
-            fi
-
-            local dst="$HOME/$target_rel"
-            local src_abs=""
-            # stow prints the link source as it will appear at the destination (usually relative to $HOME)
-            if [[ "$source_rel" == /* ]]; then
-                src_abs=$(readlink -f "$source_rel" 2>/dev/null || true)
-            else
-                src_abs=$(readlink -f "$HOME/$source_rel" 2>/dev/null || true)
-            fi
-
-            # Ensure directory prefixes exist as directories (remove any file/symlink that blocks mkdir)
-            local target_dir
-            target_dir=$(dirname "$target_rel")
-            if [[ "$target_dir" != "." && -n "$target_dir" ]]; then
-                local cur="$HOME"
-                local IFS='/'
-                read -ra parts <<< "$target_dir"
-                unset IFS
-                local part
-                for part in "${parts[@]}"; do
-                    [[ -z "$part" ]] && continue
-                    cur="$cur/$part"
-                    if [[ -n "${removed_paths[$cur]:-}" ]]; then
-                        continue
-                    fi
-                    if [[ ( -e "$cur" || -L "$cur" ) && ! -d "$cur" ]]; then
-                        fresh_backup_and_remove "$cur" "$backup_root" "$package"
-                        removed_paths["$cur"]=1
-                        removed_count=$((removed_count + 1))
-                    fi
-                done
-            fi
-
-            # If destination exists but isn't already the exact intended link, back it up and remove it
-            if [[ -n "${removed_paths[$dst]:-}" ]]; then
-                continue
-            fi
-
-            if [[ -L "$dst" ]]; then
-                local dst_abs=""
-                dst_abs=$(readlink -f "$dst" 2>/dev/null || true)
-                if [[ -n "$src_abs" && -n "$dst_abs" && "$src_abs" == "$dst_abs" ]]; then
-                    continue
-                fi
-            fi
-
-            if [[ -e "$dst" || -L "$dst" ]]; then
-                fresh_backup_and_remove "$dst" "$backup_root" "$package"
-                removed_paths["$dst"]=1
-                removed_count=$((removed_count + 1))
-            fi
-        fi
-    done < <(printf '%s\n' "$dry_run")
-
-    # Fallback: if no LINK lines were found (older stow / different output), purge based on package tree
-    if [[ "$had_link_lines" != "true" ]]; then
-        while IFS= read -r -d '' src; do
-            local rel="${src#${package}/}"
-            [[ -z "$rel" || "$rel" == "$src" ]] && continue
-
-            # Mirror stow global ignores for marker/docs files
-            case "$(basename "$rel")" in
-                .package|README|README.md|README.txt)
-                    continue
-                ;;
-            esac
-
-            # Guard against weird rel paths
-            if [[ "$rel" == /* || "$rel" == *".."* ]]; then
-                log_warning "Fresh mode skipping unexpected package entry: $rel"
-                continue
-            fi
-
-            local dst="$HOME/$rel"
-
-            # Ensure parent directories are directories
-            local rel_dir
-            rel_dir=$(dirname "$rel")
-            if [[ "$rel_dir" != "." && -n "$rel_dir" ]]; then
-                local cur="$HOME"
-                local IFS='/'
-                read -ra parts <<< "$rel_dir"
-                unset IFS
-                local part
-                for part in "${parts[@]}"; do
-                    [[ -z "$part" ]] && continue
-                    cur="$cur/$part"
-                    if [[ -n "${removed_paths[$cur]:-}" ]]; then
-                        continue
-                    fi
-                    if [[ ( -e "$cur" || -L "$cur" ) && ! -d "$cur" ]]; then
-                        fresh_backup_and_remove "$cur" "$backup_root" "$package"
-                        removed_paths["$cur"]=1
-                        removed_count=$((removed_count + 1))
-                    fi
-                done
-            fi
-
-            if [[ -n "${removed_paths[$dst]:-}" ]]; then
-                continue
-            fi
-
-            # If destination exists but isn't already linked to this exact source, purge it
-            if [[ -L "$dst" ]]; then
-                local dst_abs src_abs
-                dst_abs=$(readlink -f "$dst" 2>/dev/null || true)
-                src_abs=$(readlink -f "$src" 2>/dev/null || true)
-                if [[ -n "$dst_abs" && -n "$src_abs" && "$dst_abs" == "$src_abs" ]]; then
-                    continue
-                fi
-            fi
-
-            if [[ -e "$dst" || -L "$dst" ]]; then
-                fresh_backup_and_remove "$dst" "$backup_root" "$package"
-                removed_paths["$dst"]=1
-                removed_count=$((removed_count + 1))
-            fi
-        done < <(find "$package" -mindepth 1 \( -type f -o -type l \) -print0 2>/dev/null)
-    fi
-
-    if [[ $removed_count -gt 0 ]]; then
-        log_warning "Fresh mode purged $removed_count existing target(s) for package '$package' (backups: ${backup_root}/${package})"
-    fi
-}
+# Functions is_fresh_machine, maybe_enable_fresh_mode sourced from scripts/lib/fresh-mode.sh
+# Functions fresh_backup_and_remove, purge_stow_conflicts_from_output,
+#   fresh_purge_stow_conflicts_for_package sourced from scripts/lib/stow-helpers.sh
 
 # Install packages
 install_packages() {
@@ -812,23 +494,25 @@ setup_dotfiles() {
                 stow -D -t "$HOME" "$package" >/dev/null 2>&1 || true
             fi
             local stow_ec=0
+            local stow_tmpfile stow_retry_tmpfile
+            stow_tmpfile=$(mktemp /tmp/stow_output.XXXXXX)
             set +e
-            stow "${stow_args[@]}" "$package" 2>&1 | tee /tmp/stow_output.txt
+            stow "${stow_args[@]}" "$package" 2>&1 | tee "$stow_tmpfile"
             stow_ec=${PIPESTATUS[0]}
             set -e
 
             local has_conflict="false"
-            if grep -qi "conflict\\|would cause conflicts" /tmp/stow_output.txt; then
+            if grep -qi "conflict\\|would cause conflicts" "$stow_tmpfile"; then
                 has_conflict="true"
             fi
 
             if [[ "$has_conflict" == "true" ]]; then
                 log_warning "$package has conflicts:"
-                grep -i "conflict\\|would cause" /tmp/stow_output.txt | sed 's/^/  /' || true
+                grep -i "conflict\\|would cause" "$stow_tmpfile" | sed 's/^/  /' || true
 
                 if [[ "$FRESH_MODE" == "true" ]]; then
                     log_info "Fresh mode: backing up+removing conflicting targets and retrying stow..."
-                    purge_stow_conflicts_from_output "$package" "$fresh_backup_root" /tmp/stow_output.txt
+                    purge_stow_conflicts_from_output "$package" "$fresh_backup_root" "$stow_tmpfile"
                 else
                     # Even on non-fresh machines, resolve stow conflicts by backing up and removing only the
                     # targets that this package would manage. This makes installs idempotent and avoids
@@ -840,16 +524,17 @@ setup_dotfiles() {
                     fi
                     log_warning "Auto-resolving stow conflicts for '$package' (backup+remove conflicting targets, then retry)"
                     log_warning "Conflict backups will be stored under: $conflict_backup_root"
-                    purge_stow_conflicts_from_output "$package" "$conflict_backup_root" /tmp/stow_output.txt
+                    purge_stow_conflicts_from_output "$package" "$conflict_backup_root" "$stow_tmpfile"
                 fi
 
+                stow_retry_tmpfile=$(mktemp /tmp/stow_output_retry.XXXXXX)
                 set +e
-                stow "${stow_args[@]}" "$package" 2>&1 | tee /tmp/stow_output_retry.txt
+                stow "${stow_args[@]}" "$package" 2>&1 | tee "$stow_retry_tmpfile"
                 stow_ec=${PIPESTATUS[0]}
                 set -e
 
                 has_conflict="false"
-                if grep -qi "conflict\\|would cause conflicts" /tmp/stow_output_retry.txt; then
+                if grep -qi "conflict\\|would cause conflicts" "$stow_retry_tmpfile"; then
                     has_conflict="true"
                 fi
 
@@ -861,13 +546,13 @@ setup_dotfiles() {
                     fi
                 else
                     # Check if it's an absolute symlink issue that we can't resolve
-                    if grep -qi "absolute symlink" /tmp/stow_output_retry.txt; then
+                    if grep -qi "absolute symlink" "$stow_retry_tmpfile"; then
                         log_warning "Package '$package' has absolute symlinks that cannot be resolved automatically"
                         log_info "You may need to manually fix symlinks in packages/$package/"
                         log_info "Backups (if any): ${fresh_backup_root:-${conflict_backup_root}}/${package}"
                     else
                         log_error "Failed to install $package even after conflict auto-resolve"
-                        grep -i "conflict\\|would cause" /tmp/stow_output_retry.txt | sed 's/^/  /' || true
+                        grep -i "conflict\\|would cause" "$stow_retry_tmpfile" | sed 's/^/  /' || true
                         if [[ "$FRESH_MODE" == "true" ]]; then
                             log_info "Backups (if any): ${fresh_backup_root}/${package}"
                         else
@@ -876,10 +561,10 @@ setup_dotfiles() {
                     fi
                 fi
 
-                rm -f /tmp/stow_output_retry.txt
+                rm -f "$stow_retry_tmpfile"
             elif [[ $stow_ec -ne 0 ]]; then
                 log_error "Stow failed for package '$package' (exit $stow_ec)"
-                sed 's/^/  /' /tmp/stow_output.txt || true
+                sed 's/^/  /' "$stow_tmpfile" || true
             else
                 log_success "Installed $package dotfiles"
             fi
@@ -894,7 +579,7 @@ setup_dotfiles() {
             done
             
             # Cleanup temp file
-            rm -f /tmp/stow_output.txt
+            rm -f "$stow_tmpfile"
         else
             log_warning "Package directory $package not found, skipping"
         fi
@@ -1054,217 +739,8 @@ setup_host_config() {
     fi
 }
 
-refresh_icon_cache() {
-    local cache_root="/usr/share/icons/hicolor"
-
-    if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-        log_info "Refreshing GTK icon cache..."
-        local cmd=(gtk-update-icon-cache -f "$cache_root")
-        if [[ $EUID -eq 0 ]]; then
-            "${cmd[@]}"
-        else
-            sudo "${cmd[@]}"
-        fi
-        return 0
-    fi
-
-    if command -v xdg-icon-resource >/dev/null 2>&1; then
-        log_info "Refreshing icon resources via xdg-icon-resource..."
-        local cmd=(xdg-icon-resource forceupdate --theme hicolor)
-        if [[ $EUID -eq 0 ]]; then
-            "${cmd[@]}"
-        else
-            sudo "${cmd[@]}"
-        fi
-        return 0
-    fi
-
-    log_warning "No icon cache refresh command available (gtk-update-icon-cache or xdg-icon-resource)"
-    return 0
-}
-
-deploy_dragon_icons() {
-    log_step "Deploying Dragon Control icons..."
-
-    local generator="$SCRIPTS_DIR/theme-manager/dragon-icons.sh"
-    if [[ ! -x "$generator" ]]; then
-        log_error "Dragon icon generator not found at $generator"
-        return 1
-    fi
-
-    # Asset generation is intentionally idempotent:
-    # - We only (re)generate icon variants if any are missing from the repo assets folder.
-    # - We track completion in install-state so subsequent installer runs don't redo work.
-    local assets_step_id="assets:dragon-icons"
-    local assets_root="$CONFIG_DIR/assets/dragon/icons/hicolor"
-    local expected_sizes=(16 24 32 48 64 96 128 192 256 512)
-
-    local missing_any="false"
-    local size icon_path
-    for size in "${expected_sizes[@]}"; do
-        icon_path="${assets_root}/${size}x${size}/apps/dragon-control.png"
-        if [[ ! -f "$icon_path" ]]; then
-            missing_any="true"
-            break
-        fi
-    done
-
-    if [[ "$missing_any" != "true" ]]; then
-        if is_step_completed "$assets_step_id"; then
-            log_info "Dragon icon assets already generated; skipping generation ($assets_step_id)"
-        else
-            log_info "Dragon icon assets already present; marking generation step completed ($assets_step_id)"
-            mark_step_completed "$assets_step_id"
-        fi
-    else
-        # If assets are missing, re-run generation even if a previous run marked the step complete.
-        log_info "Dragon icon assets missing; generating icon variants..."
-        "$generator"
-
-        # Verify generation succeeded (fail fast if the generator didn't actually produce outputs)
-        for size in "${expected_sizes[@]}"; do
-            icon_path="${assets_root}/${size}x${size}/apps/dragon-control.png"
-            if [[ ! -f "$icon_path" ]]; then
-                log_error "Dragon icon generation incomplete; missing expected asset: $icon_path"
-                return 1
-            fi
-        done
-        mark_step_completed "$assets_step_id"
-    fi
-
-    local src_root="$CONFIG_DIR/assets/dragon/icons/hicolor"
-    local dst_root="/usr/share/icons/hicolor"
-
-    if [[ ! -d "$src_root" ]]; then
-        log_error "Icon assets directory missing at $src_root"
-        return 1
-    fi
-
-    local copied=false
-    while IFS= read -r -d '' src; do
-        local rel="${src#$src_root/}"
-        if [[ -z "$rel" || "$rel" == "$src" ]]; then
-            continue
-        fi
-        local dst="$dst_root/$rel"
-        if [[ $EUID -eq 0 ]]; then
-            install -Dm644 "$src" "$dst"
-        else
-            sudo install -Dm644 "$src" "$dst"
-        fi
-        copied=true
-    done < <(find "$src_root" -type f -name "dragon-control.png" -print0)
-
-    if [[ "$copied" != "true" ]]; then
-        log_error "No Dragon icon variants were staged for installation"
-        return 1
-    fi
-
-    refresh_icon_cache
-    log_success "Dragon Control icons deployed"
-}
-
-deploy_icon_aliases() {
-    # Some apps (notably on CachyOS) ship .desktop files referencing icon names that may not exist
-    # in the active icon theme. When the icon name doesn't exist, Waybar tray + Walker show a blank square.
-    #
-    # We create safe aliases in hicolor so any icon theme can resolve them.
-    log_step "Deploying icon aliases..."
-
-    local dst_dir="/usr/share/icons/hicolor/scalable/apps"
-    local aliases=(
-        # cachy-update ships color-variant icons, but some tray clients request the base name
-        "cachy-update.svg:cachy-update-blue.svg"
-        "cachy-update_updates-available.svg:cachy-update_updates-available-blue.svg"
-
-        # arch-update references these names but does not ship the icons; alias to cachy-update equivalents
-        "arch-update-blue.svg:cachy-update-blue.svg"
-        "arch-update_updates-available-blue.svg:cachy-update_updates-available-blue.svg"
-    )
-
-    local did_any=false
-    local pair dst_name src_name src_path dst_path
-    for pair in "${aliases[@]}"; do
-        dst_name="${pair%%:*}"
-        src_name="${pair##*:}"
-        src_path="$dst_dir/$src_name"
-        dst_path="$dst_dir/$dst_name"
-
-        # Only create alias if destination is missing and source exists
-        if [[ ! -e "$dst_path" && -e "$src_path" ]]; then
-            if [[ $EUID -eq 0 ]]; then
-                ln -s "$src_name" "$dst_path"
-            else
-                sudo ln -s "$src_name" "$dst_path"
-            fi
-            did_any=true
-            log_success "Aliased icon: $dst_name -> $src_name"
-        fi
-    done
-
-    if [[ "$did_any" == "true" ]]; then
-        refresh_icon_cache
-        log_success "Icon aliases deployed"
-    else
-        log_info "No icon aliases needed"
-    fi
-}
-
-deploy_icon_png_fallbacks() {
-    # Some environments still fail to render SVG icons in certain tray clients.
-    # Generate small PNG fallbacks for the common update icons so Waybar's tray can always display them.
-    log_step "Deploying icon PNG fallbacks..."
-
-    if ! command -v rsvg-convert >/dev/null 2>&1; then
-        log_warning "rsvg-convert not available; skipping PNG fallback generation"
-        return 0
-    fi
-
-    local src_dir="/usr/share/icons/hicolor/scalable/apps"
-    local dst_root="/usr/share/icons/hicolor"
-
-    # name:source_svg
-    local icons=(
-        "cachy-update:${src_dir}/cachy-update-blue.svg"
-        "cachy-update_updates-available:${src_dir}/cachy-update_updates-available-blue.svg"
-    )
-    local sizes=(16 22 24 32)
-
-    local did_any=false
-    local entry name src size outdir outfile tmp
-    for entry in "${icons[@]}"; do
-        name="${entry%%:*}"
-        src="${entry##*:}"
-        [[ -f "$src" ]] || continue
-
-        for size in "${sizes[@]}"; do
-            outdir="${dst_root}/${size}x${size}/apps"
-            outfile="${outdir}/${name}.png"
-            if [[ -e "$outfile" ]]; then
-                continue
-            fi
-
-            tmp="$(mktemp --suffix=.png /tmp/${name}-${size}.XXXXXX 2>/dev/null || mktemp /tmp/${name}-${size}.XXXXXX)"
-            if rsvg-convert -w "$size" -h "$size" "$src" -o "$tmp" >/dev/null 2>&1; then
-                if [[ $EUID -eq 0 ]]; then
-                    install -Dm644 "$tmp" "$outfile"
-                else
-                    sudo install -Dm644 "$tmp" "$outfile"
-                fi
-                did_any=true
-                log_success "Generated PNG: ${size}x${size} ${name}.png"
-            fi
-            rm -f "$tmp" 2>/dev/null || true
-        done
-    done
-
-    if [[ "$did_any" == "true" ]]; then
-        refresh_icon_cache
-        log_success "Icon PNG fallbacks deployed"
-    else
-        log_info "No icon PNG fallbacks needed"
-    fi
-}
+# Functions refresh_icon_cache, deploy_dragon_icons, deploy_icon_aliases,
+#   deploy_icon_png_fallbacks sourced from scripts/lib/icons.sh
 
 # Setup secrets management
 setup_secrets() {
@@ -1550,6 +1026,17 @@ main() {
             log_info "To install PAM configuration for hyprlock manually, run:"
             log_info "  sudo $SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"
         fi
+    fi
+    
+    # First-run tasks (firewall, timezone, themes, welcome)
+    # Auto-triggers on fresh machines; can be skipped with --no-first-run
+    if [[ "$RUN_FIRST_RUN" == "true" && "$PACKAGES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
+        if [[ "$FRESH_MODE" == "true" ]] || ! is_step_completed "first-run:welcome"; then
+            log_info "Running first-run setup tasks..."
+            bash "$SCRIPTS_DIR/install/first-run.sh" || log_warning "First-run setup encountered issues"
+        fi
+    elif [[ "$RUN_FIRST_RUN" != "true" ]]; then
+        log_info "Skipping first-run tasks (--no-first-run)"
     fi
     
     show_completion
