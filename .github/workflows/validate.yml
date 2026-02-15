@@ -1,0 +1,150 @@
+name: Validate Dotfiles
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  shellcheck:
+    name: Shellcheck Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Lint library scripts
+        run: |
+          shellcheck -x -s bash \
+            scripts/lib/logging.sh \
+            scripts/lib/install-state.sh \
+            scripts/lib/system-mods.sh \
+            scripts/lib/stow-helpers.sh \
+            scripts/lib/icons.sh \
+            scripts/lib/fresh-mode.sh \
+            scripts/lib/hosts.sh \
+            scripts/lib/manifest-toml.sh
+
+      - name: Lint installer scripts
+        run: |
+          shellcheck -x -s bash \
+            scripts/install/validate.sh \
+            scripts/install/first-run.sh \
+            scripts/install/install-deps.sh
+
+      - name: Lint host setup scripts
+        run: |
+          shellcheck -x -s bash \
+            hosts/dragon/setup.sh \
+            hosts/goldendragon/setup.sh \
+            hosts/firedragon/setup.sh
+
+  syntax-check:
+    name: Bash Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax check all shell scripts
+        run: |
+          exit_code=0
+          while IFS= read -r -d '' script; do
+            if ! bash -n "$script" 2>&1; then
+              echo "FAIL: $script"
+              exit_code=1
+            fi
+          done < <(find . -name '*.sh' -type f -print0)
+          exit "$exit_code"
+
+  validate:
+    name: Validate System (JSON)
+    runs-on: ubuntu-latest
+    needs: [syntax-check]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq jq stow zsh git
+
+      - name: Run validation in JSON mode
+        id: validate
+        run: |
+          # Source logging so validate.sh can find its dependencies
+          chmod +x scripts/install/validate.sh
+
+          # Run validation — allow non-zero exit (some checks will fail in CI)
+          set +e
+          output=$(bash scripts/install/validate.sh --json 2>/dev/null)
+          rc=$?
+          set -e
+
+          echo "$output" | jq . || {
+            echo "::warning::validate.sh did not produce valid JSON"
+            echo '{"status":"error","passed":0,"failed":0,"warnings":0,"results":[]}' > /tmp/validate.json
+            exit 0
+          }
+
+          echo "$output" > /tmp/validate.json
+
+          # Extract counts
+          passed=$(echo "$output" | jq '.passed')
+          failed=$(echo "$output" | jq '.failed')
+          warnings=$(echo "$output" | jq '.warnings')
+          status=$(echo "$output" | jq -r '.status')
+
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "passed=$passed" >> "$GITHUB_OUTPUT"
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+          echo "warnings=$warnings" >> "$GITHUB_OUTPUT"
+
+          echo "### Validation Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Count |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Passed | $passed |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Failed | $failed |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Warnings | $warnings |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Status | $status |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload validation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-results
+          path: /tmp/validate.json
+
+  manifest-check:
+    name: Validate TOML Manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Validate manifest TOML syntax
+        run: yq eval '.' scripts/install/deps.manifest.toml > /dev/null
+
+      - name: Check bundle references resolve to valid groups
+        run: |
+          manifest="scripts/install/deps.manifest.toml"
+          exit_code=0
+
+          for bundle in $(yq '.bundles | keys | .[]' "$manifest"); do
+            for group in $(yq ".bundles.${bundle}.groups[]" "$manifest"); do
+              # Check if group exists under any platform/manager
+              found=$(yq ".. | select(has(\"${group}\")) | path | .[0]" "$manifest" 2>/dev/null | head -1)
+              if [[ -z "$found" ]]; then
+                echo "ERROR: Bundle '$bundle' references unknown group '$group'"
+                exit_code=1
+              fi
+            done
+          done
+
+          exit "$exit_code"
