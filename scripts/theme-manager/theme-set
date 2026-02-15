@@ -304,9 +304,26 @@ fi
 
 # Best-effort: align SDDM theme family with current theme name if matching exists
 SDDM_THEMES_DIR="$(cd "$SCRIPT_DIR/../../packages/sddm/usr/share/sddm/themes" 2>/dev/null && pwd || echo '')"
-if [[ -n "$SDDM_THEMES_DIR" && -d "$SDDM_THEMES_DIR/$THEME_NAME" ]]; then
-    echo "Found matching SDDM theme '$THEME_NAME'. Applying..."
-    "$SCRIPT_DIR/sddm-set" "$THEME_NAME" || true
+if [[ -n "$SDDM_THEMES_DIR" ]] && command -v sddm >/dev/null 2>&1; then
+    if [[ -d "$SDDM_THEMES_DIR/$THEME_NAME" ]]; then
+        echo "Found matching SDDM theme '$THEME_NAME'. Applying..."
+        "$SCRIPT_DIR/sddm-set" "$THEME_NAME" || true
+    else
+        # Try fuzzy match: look for an SDDM theme whose name contains the base theme slug
+        # e.g. theme "catppuccin-mocha-sky" might match "catppuccin-mocha-sky-sddm"
+        sddm_match=""
+        while IFS= read -r candidate; do
+            candidate_name="$(basename "$candidate")"
+            if [[ "$candidate_name" == *"$THEME_NAME"* || "$THEME_NAME" == *"$candidate_name"* ]]; then
+                sddm_match="$candidate_name"
+                break
+            fi
+        done < <(find "$SDDM_THEMES_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+        if [[ -n "$sddm_match" ]]; then
+            echo "Found fuzzy-matching SDDM theme '$sddm_match' for theme '$THEME_NAME'. Applying..."
+            "$SCRIPT_DIR/sddm-set" "$sddm_match" || true
+        fi
+    fi
 fi
 
 # Always update background link; skip compositor reload when --no-gui is set

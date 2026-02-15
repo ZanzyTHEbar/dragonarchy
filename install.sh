@@ -40,6 +40,8 @@ RESET_STATE=false
 RESET_PACKAGES=false
 # Fresh-machine mode: purge conflicting dotfile targets before stowing
 FRESH_MODE=false
+# SDDM theme to set during installation (empty = use default/interactive)
+SDDM_THEME=""
 # Pass-through flags for install-deps.sh (e.g., --cursor/--no-cursor)
 INSTALL_DEPS_FLAGS=()
 
@@ -65,6 +67,7 @@ OPTIONS:
     --no-secrets            Skip secrets setup
     --no-system-config      Skip system-level configuration (PAM, services, etc.)
     --no-theme              Skip theme refresh (plymouth)
+    --sddm-theme THEME      Set SDDM theme during installation (e.g., catppuccin-mocha-sky-sddm)
     --no-shell              Skip shell configuration
     --no-post-setup         Skip post-setup tasks
     --utilities             Symlink selected utilities to ~/.local/bin
@@ -79,6 +82,7 @@ EXAMPLES:
     $0 --packages-only      # Only install packages
     $0 --dotfiles-only      # Only setup dotfiles
     $0 --no-secrets         # Skip secrets setup
+    $0 --sddm-theme sugar-dark  # Set a specific SDDM theme
     $0 --reset              # Clear state and force full re-run
 
 EOF
@@ -150,6 +154,10 @@ parse_args() {
             --no-theme)
                 RUN_THEME=false
                 shift
+            ;;
+            --sddm-theme)
+                SDDM_THEME="$2"
+                shift 2
             ;;
             --no-shell)
                 RUN_SHELL_CONFIG=false
@@ -1421,6 +1429,14 @@ main() {
     fi
 
     setup_host_config
+
+    # Run pending migrations (one-time setup tasks)
+    if [[ "$PACKAGES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
+        if [[ -x "$SCRIPTS_DIR/install/run-migrations.sh" ]]; then
+            log_step "Running pending migrations..."
+            bash "$SCRIPTS_DIR/install/run-migrations.sh" || log_warning "Some migrations failed (continuing)"
+        fi
+    fi
     
     if [[ "$RUN_THEME" == "true" ]]; then
         log_info "Setting plymouth theme..."
@@ -1432,12 +1448,47 @@ main() {
             if [[ -x "$SCRIPTS_DIR/theme-manager/refresh-sddm" ]]; then
                 bash "$SCRIPTS_DIR/theme-manager/refresh-sddm" -y
                 
-                # Set a default theme if not already configured
                 if [[ -x "$SCRIPTS_DIR/theme-manager/sddm-set" ]]; then
-                    # Check if SDDM theme is already configured
-                    if [[ ! -f /etc/sddm.conf.d/10-theme.conf ]]; then
-                        log_info "Setting default SDDM theme to catppuccin-mocha-sky-sddm..."
-                        bash "$SCRIPTS_DIR/theme-manager/sddm-set" "catppuccin-mocha-sky-sddm"
+                    local sddm_theme_to_set="$SDDM_THEME"
+                    local sddm_themes_dir="$PACKAGES_DIR/sddm/usr/share/sddm/themes"
+
+                    # If --sddm-theme was given, validate it
+                    if [[ -n "$sddm_theme_to_set" ]]; then
+                        if [[ ! -d "$sddm_themes_dir/$sddm_theme_to_set" ]]; then
+                            log_error "SDDM theme '$sddm_theme_to_set' not found in $sddm_themes_dir"
+                            log_info "Available themes:"
+                            find "$sddm_themes_dir" -mindepth 1 -maxdepth 1 -type d -printf "  %f\n" 2>/dev/null | sort
+                            log_warning "Falling back to default SDDM theme: catppuccin-mocha-sky-sddm"
+                            sddm_theme_to_set="catppuccin-mocha-sky-sddm"
+                        fi
+                    fi
+
+                    # Interactive selection if no theme specified and gum is available
+                    if [[ -z "$sddm_theme_to_set" ]] && [[ -t 0 ]] && command -v gum >/dev/null 2>&1; then
+                        local -a available_themes=()
+                        while IFS= read -r d; do
+                            available_themes+=("$(basename "$d")")
+                        done < <(find "$sddm_themes_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+
+                        if [[ ${#available_themes[@]} -gt 0 ]]; then
+                            log_info "Select an SDDM theme (or press Ctrl-C to keep current):"
+                            local chosen
+                            chosen=$(printf '%s\n' "${available_themes[@]}" | gum choose --header="Select SDDM theme") || true
+                            if [[ -n "$chosen" ]]; then
+                                sddm_theme_to_set="$chosen"
+                            fi
+                        fi
+                    fi
+
+                    # Fall back to default if still unset and no theme configured
+                    if [[ -z "$sddm_theme_to_set" ]] && [[ ! -f /etc/sddm.conf.d/10-theme.conf ]]; then
+                        sddm_theme_to_set="catppuccin-mocha-sky-sddm"
+                        log_info "No SDDM theme specified; using default: $sddm_theme_to_set"
+                    fi
+
+                    if [[ -n "$sddm_theme_to_set" ]]; then
+                        log_info "Setting SDDM theme to $sddm_theme_to_set..."
+                        bash "$SCRIPTS_DIR/theme-manager/sddm-set" "$sddm_theme_to_set"
                     else
                         log_info "SDDM theme already configured, skipping..."
                     fi
