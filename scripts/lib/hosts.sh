@@ -67,9 +67,62 @@ is_hyprland_host() {
     local hosts_dir="$1"
     local hostname="$2"
 
+    # Prefer trait-based detection
+    if host_has_trait "$hosts_dir" "$hostname" "hyprland"; then
+        __hosts_log_info "Host '$hostname' detected as Hyprland (trait)" >&2
+        return 0
+    fi
+
+    # Fallback to heuristic detection
     local method
     method=$(hyprland_detection_method "$hosts_dir" "$hostname") || return 1
-    # Log to stderr to avoid being captured in command substitution
     __hosts_log_info "Host '$hostname' detected as Hyprland ($method)" >&2
     return 0
+}
+
+# ─── Trait system ───────────────────────────────────────────────
+
+# Read all traits for a host, one per line.
+# Strips comments and blank lines.
+# Args: hosts_dir hostname
+# Prints: trait names, one per line
+host_traits() {
+    local hosts_dir="$1"
+    local hostname="$2"
+    local traits_file="${hosts_dir}/${hostname}/.traits"
+
+    [[ -f "$traits_file" ]] || return 0
+
+    while IFS= read -r line; do
+        # Strip comments and whitespace
+        line="${line%%#*}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -n "$line" ]] && echo "$line"
+    done < "$traits_file"
+}
+
+# Check if a host has a specific trait.
+# Args: hosts_dir hostname trait
+# Returns: 0 if trait present, 1 otherwise
+host_has_trait() {
+    local hosts_dir="$1"
+    local hostname="$2"
+    local trait="$3"
+
+    local t
+    while IFS= read -r t; do
+        [[ "$t" == "$trait" ]] && return 0
+    done < <(host_traits "$hosts_dir" "$hostname")
+
+    return 1
+}
+
+# List all traits for a host as a comma-separated string.
+# Args: hosts_dir hostname
+host_traits_summary() {
+    local hosts_dir="$1"
+    local hostname="$2"
+
+    host_traits "$hosts_dir" "$hostname" | paste -sd, -
 }
