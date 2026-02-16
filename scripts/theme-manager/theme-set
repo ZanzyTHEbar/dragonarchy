@@ -58,13 +58,18 @@ schedule_ui_refresh() {
         if command -v hyprctl >/dev/null 2>&1; then
             hyprctl reload >/dev/null 2>&1 || true
         fi
-        # Restart swaync: GTK CSS provider caches resolved @import paths,
-        # so swaync-client -rs does not re-resolve symlink targets.
-        # swaync ignores SIGTERM/SIGINT; SIGKILL is required.
+        # Reload swaync CSS. theme-set now writes a merged style.css directly
+        # (no @import chain), so swaync-client -rs re-reads the changed file.
+        # Fallback: SIGKILL + restart (swaync ignores SIGTERM).
         if command pgrep -x swaync >/dev/null 2>&1; then
-            command pkill --signal KILL -x swaync >/dev/null 2>&1 || true
-            sleep 0.5
-            setsid uwsm app -- swaync >/dev/null 2>&1 &
+            if command -v swaync-client >/dev/null 2>&1; then
+                swaync-client -rs >/dev/null 2>&1 || true
+                swaync-client -R  >/dev/null 2>&1 || true
+            else
+                command pkill --signal KILL -x swaync >/dev/null 2>&1 || true
+                sleep 0.5
+                setsid uwsm app -- swaync >/dev/null 2>&1 &
+            fi
         fi
 
         # Force GTK4/libadwaita live reload: toggle color-scheme so portal
@@ -269,6 +274,21 @@ fi
 "$SCRIPT_DIR/generate-walker-themes" >/dev/null 2>&1 || true
 "$SCRIPT_DIR/generate-swaync-themes" >/dev/null 2>&1 || true
 "$SCRIPT_DIR/generate-clipse-themes" >/dev/null 2>&1 || true
+
+# Merge swaync theme colors + base structural CSS into a single file.
+# This avoids CSS @import through stow-symlinked paths, which GTK's
+# CSS provider caches and never re-resolves on swaync-client -rs.
+SWAYNC_DIR="$HOME/.config/swaync"
+SWAYNC_COLORS="$CURRENT_THEME_DIR/swaync.css"
+SWAYNC_BASE="$SWAYNC_DIR/style-base.css"
+if [[ -f "$SWAYNC_COLORS" && -f "$SWAYNC_BASE" ]]; then
+    mkdir -p "$SWAYNC_DIR"
+    {
+        cat "$SWAYNC_COLORS"
+        printf '\n'
+        cat "$SWAYNC_BASE"
+    } >"$SWAYNC_DIR/style.css"
+fi
 
 mkdir -p "$HOME/.config/kitty"
 ln -snf "$CURRENT_THEME_DIR/kitty.conf" "$HOME/.config/kitty/colors.conf"

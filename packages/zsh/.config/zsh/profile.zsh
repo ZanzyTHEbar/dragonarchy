@@ -163,7 +163,7 @@ if [ -d "$FNM_PATH" ] && command -v fnm >/dev/null 2>&1; then
     eval "`fnm env`"
 fi
 
-. "$HOME/.local/share/../bin/env"
+[ -f "$HOME/.local/share/../bin/env" ] && . "$HOME/.local/share/../bin/env"
 
 [ "$TERM" = "xterm-kitty" ] && alias ssh="kitty +kitten ssh"
 export GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
