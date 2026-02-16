@@ -1,0 +1,35 @@
+/* SwayNC layout/structural overrides (base template).
+ * Theme colors are prepended by theme-set at runtime.
+ * Do NOT add @import here -- theme-set merges colors + this file
+ * and writes the result to ~/.config/swaync/style.css directly. */
+
+.control-center {
+  background: var(--cc-bg);
+  color: var(--text-color);
+  border: var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+.control-center .control-center-list {
+  background: transparent;
+  padding: 12px;
+}
+
+.control-center .notification-row {
+  margin: 12px 0;
+}
+
+.control-center .notification-row .notification-background {
+  background: transparent;
+  padding: 12px;
+}
+
+.control-center .notification-row .notification-background .notification {
+  background: rgba(var(--noti-bg), var(--noti-bg-alpha));
+  border: var(--border);
+  border-radius: 8px;
+  color: var(--text-color);
+}
