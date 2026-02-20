@@ -1,6 +1,5 @@
 [Unit]
 Description=Check fprintd device claims every 30 minutes
-After=graphical-session.target
 
 [Timer]
 OnBootSec=5min
