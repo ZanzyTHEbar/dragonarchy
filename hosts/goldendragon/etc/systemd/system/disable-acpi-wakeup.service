@@ -1,0 +1,13 @@
+[Unit]
+Description=Disable ACPI wakeup sources (goldendragon)
+# Run after sysinit so /proc/acpi/wakeup is reliably populated.
+After=sysinit.target
+Before=display-manager.service network.target
+
+[Service]
+Type=oneshot
+ExecStart=/etc/acpi/disable-wakeup.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

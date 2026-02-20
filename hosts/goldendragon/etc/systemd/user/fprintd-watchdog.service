@@ -1,6 +1,5 @@
 [Unit]
 Description=Fprintd Watchdog - Restart if device claims are stuck
-After=graphical-session.target
 
 [Service]
 Type=oneshot
