@@ -85,7 +85,7 @@ check_modern_tools() {
         "bat"
         "lsd"
         "fzf"
-        "ripgrep"
+        "rg"
         "fd"
         "zoxide"
         "direnv"
@@ -557,7 +557,11 @@ show_summary() {
         [[ "$CHECKS_FAILED" -gt 0 ]] && status="fail"
 
         local results_json
-        results_json=$(printf '%s\n' "${JSON_RESULTS[@]}" | jq -s '.')
+        if [[ ${#JSON_RESULTS[@]} -eq 0 ]]; then
+            results_json="[]"
+        else
+            results_json=$(printf '%s\n' "${JSON_RESULTS[@]}" | jq -s '.')
+        fi
 
         jq -n \
             --arg status "$status" \
@@ -623,6 +627,11 @@ main() {
                 ;;
         esac
     done
+
+    if [[ "$JSON_OUTPUT" == "true" ]] && ! command -v jq >/dev/null 2>&1; then
+        echo '{"status":"error","passed":0,"failed":1,"warnings":0,"results":[{"status":"fail","message":"jq is required for --json mode but is not installed"}]}' >&2
+        return 1
+    fi
 
     if [[ "$JSON_OUTPUT" != "true" ]]; then
         echo
