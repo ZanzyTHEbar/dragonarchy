@@ -62,12 +62,12 @@ sysmod_install_file() {
 
     if [[ ! -f "$src" ]]; then
         log_error "sysmod_install_file: source not found: $src"
-        return 1
+        return 2
     fi
 
     if _sysmod_files_same "$src" "$dest"; then
         log_info "sysmod: $dest already up to date (skipped)"
-        return 1  # signal: no change
+        return 0
     fi
 
     if [[ "${SYSMOD_DRY_RUN:-0}" == "1" ]]; then
@@ -75,21 +75,33 @@ sysmod_install_file() {
         return 0
     fi
 
-    _sysmod_backup "$dest"
+    if ! _sysmod_backup "$dest"; then
+        log_error "sysmod: failed to backup $dest"
+        return 2
+    fi
     _sysmod_sudo mkdir -p "$(dirname "$dest")"
 
     if [[ -n "$mode" ]]; then
-        _sysmod_sudo install -m "$mode" "$src" "$dest"
+        if ! _sysmod_sudo install -m "$mode" "$src" "$dest"; then
+            log_error "sysmod: failed to install $src -> $dest"
+            return 2
+        fi
     else
-        _sysmod_sudo cp "$src" "$dest"
+        if ! _sysmod_sudo cp "$src" "$dest"; then
+            log_error "sysmod: failed to copy $src -> $dest"
+            return 2
+        fi
     fi
 
     if [[ -n "$owner" ]]; then
-        _sysmod_sudo chown "$owner" "$dest"
+        if ! _sysmod_sudo chown "$owner" "$dest"; then
+            log_warning "sysmod: chown failed for $dest (owner: $owner)"
+            return 2
+        fi
     fi
 
     log_success "sysmod: installed $dest"
-    return 0
+    return 1
 }
 
 # ────────────────────────────────────────────────────────────────
@@ -102,14 +114,14 @@ sysmod_install_dir() {
 
     if [[ ! -d "$src" ]]; then
         log_error "sysmod_install_dir: source directory not found: $src"
-        return 1
+        return 2
     fi
 
     # Check for differences using rsync dry-run
     if [[ -d "$dest" ]]; then
         if ! rsync -rcn --out-format="%n" "${src}/" "${dest}/" 2>/dev/null | grep -q .; then
             log_info "sysmod: $dest already up to date (skipped)"
-            return 1  # no change
+            return 0
         fi
     fi
 
@@ -124,18 +136,29 @@ sysmod_install_dir() {
         while IFS= read -r changed_file; do
             [[ -z "$changed_file" ]] && continue
             local full="${dest}/${changed_file}"
-            [[ -f "$full" ]] && _sysmod_backup "$full"
+            if [[ -f "$full" ]]; then
+                if ! _sysmod_backup "$full"; then
+                    log_error "sysmod: failed to backup $full"
+                    return 2
+                fi
+            fi
         done < <(rsync -rcn --out-format="%n" "${src}/" "${dest}/" 2>/dev/null)
     fi
 
-    _sysmod_sudo cp -rT "$src" "$dest"
+    if ! _sysmod_sudo cp -rT "$src" "$dest"; then
+        log_error "sysmod: failed to install directory $src -> $dest"
+        return 2
+    fi
 
     if [[ -n "$owner" ]]; then
-        _sysmod_sudo chown -R "$owner" "$dest"
+        if ! _sysmod_sudo chown -R "$owner" "$dest"; then
+            log_warning "sysmod: failed to chown $dest to $owner"
+            return 2
+        fi
     fi
 
     log_success "sysmod: installed directory $dest"
-    return 0
+    return 1
 }
 
 # ────────────────────────────────────────────────────────────────
@@ -152,7 +175,7 @@ sysmod_tee_file() {
         existing=$(_sysmod_sudo cat "$dest" 2>/dev/null || true)
         if [[ "$existing" == "$content" ]]; then
             log_info "sysmod: $dest already has desired content (skipped)"
-            return 1  # no change
+            return 0
         fi
     fi
 
@@ -161,13 +184,22 @@ sysmod_tee_file() {
         return 0
     fi
 
-    _sysmod_backup "$dest"
+    if ! _sysmod_backup "$dest"; then
+        log_error "sysmod: failed to backup $dest"
+        return 2
+    fi
     _sysmod_sudo mkdir -p "$(dirname "$dest")"
-    printf '%s' "$content" | _sysmod_sudo tee "$dest" >/dev/null
-    _sysmod_sudo chmod "$mode" "$dest"
+    if ! printf '%s' "$content" | _sysmod_sudo tee "$dest" >/dev/null; then
+        log_error "sysmod: failed to write content to $dest"
+        return 2
+    fi
+    if ! _sysmod_sudo chmod "$mode" "$dest"; then
+        log_error "sysmod: failed to chmod $mode on $dest"
+        return 2
+    fi
 
     log_success "sysmod: wrote $dest"
-    return 0
+    return 1
 }
 
 # ────────────────────────────────────────────────────────────────
@@ -180,7 +212,7 @@ sysmod_append_if_missing() {
 
     if [[ -f "$file" ]] && _sysmod_sudo grep -qFx "$line" "$file" 2>/dev/null; then
         log_info "sysmod: $file already contains line (skipped)"
-        return 1  # no change
+        return 0
     fi
 
     if [[ "${SYSMOD_DRY_RUN:-0}" == "1" ]]; then
@@ -188,12 +220,18 @@ sysmod_append_if_missing() {
         return 0
     fi
 
-    _sysmod_backup "$file"
+    if ! _sysmod_backup "$file"; then
+        log_error "sysmod: failed to backup $file"
+        return 2
+    fi
     _sysmod_sudo mkdir -p "$(dirname "$file")"
-    printf '%s\n' "$line" | _sysmod_sudo tee -a "$file" >/dev/null
+    if ! printf '%s\n' "$line" | _sysmod_sudo tee -a "$file" >/dev/null; then
+        log_error "sysmod: failed to append line to $file"
+        return 2
+    fi
 
     log_success "sysmod: appended to $file"
-    return 0
+    return 1
 }
 
 # ────────────────────────────────────────────────────────────────
@@ -205,6 +243,8 @@ sysmod_append_if_missing() {
 sysmod_ensure_service() {
     local name="$1" unit_file="${2:-}"
 
+    local rc=0
+
     if [[ "${SYSMOD_DRY_RUN:-0}" == "1" ]]; then
         log_info "[dry-run] sysmod_ensure_service: $name"
         [[ -n "$unit_file" ]] && log_info "[dry-run]   unit file: $unit_file"
@@ -212,32 +252,65 @@ sysmod_ensure_service() {
     fi
 
     local needs_reload=false
+    local unit_installed=0
+    local service_enabled=0
+    local service_started=0
 
     # Install unit file if provided
     if [[ -n "$unit_file" && -f "$unit_file" ]]; then
-        if sysmod_install_file "$unit_file" "/etc/systemd/system/${name}"; then
+        sysmod_install_file "$unit_file" "/etc/systemd/system/${name}"
+        rc=$?
+        case "$rc" in
+            1) needs_reload=true; unit_installed=1 ;;
+            2)
+                log_error "sysmod: failed to install unit file for $name"
+                return 2
+                ;;
+            0) ;;
+            *) return 2 ;;
+        esac
+        if [[ $unit_installed -eq 1 ]]; then
             needs_reload=true
         fi
     fi
 
     if [[ "$needs_reload" == "true" ]]; then
-        _sysmod_sudo systemctl daemon-reload
+        if ! _sysmod_sudo systemctl daemon-reload; then
+            log_error "sysmod: daemon-reload failed for $name"
+            return 2
+        fi
     fi
 
     # Enable if not already
     if ! systemctl is-enabled "$name" &>/dev/null; then
-        _sysmod_sudo systemctl enable "$name"
+        if ! _sysmod_sudo systemctl enable "$name"; then
+            log_error "sysmod: failed to enable $name"
+            return 2
+        fi
         needs_reload=true
+        service_enabled=1
     fi
 
     # Start or restart
     if ! systemctl is-active "$name" &>/dev/null; then
-        _sysmod_sudo systemctl start "$name"
+        if ! _sysmod_sudo systemctl start "$name"; then
+            log_error "sysmod: failed to start $name"
+            return 2
+        fi
+        service_started=1
     elif [[ "$needs_reload" == "true" ]]; then
-        _sysmod_sudo systemctl restart "$name"
+        if ! _sysmod_sudo systemctl restart "$name"; then
+            log_error "sysmod: failed to restart $name"
+            return 2
+        fi
+        service_started=1
     fi
 
     log_success "sysmod: service $name enabled and running"
+
+    if [[ "$needs_reload" == "true" || $unit_installed -eq 1 || $service_enabled -eq 1 || $service_started -eq 1 ]]; then
+        return 1
+    fi
     return 0
 }
 
@@ -254,7 +327,7 @@ sysmod_mask_service() {
     state=$(systemctl is-enabled "$name" 2>/dev/null || true)
     if [[ "$state" == "masked" ]]; then
         log_info "sysmod: service $name already masked (skipped)"
-        return 1
+        return 0
     fi
 
     if [[ "${SYSMOD_DRY_RUN:-0}" == "1" ]]; then
@@ -262,23 +335,26 @@ sysmod_mask_service() {
         return 0
     fi
 
-    _sysmod_sudo systemctl mask "$name" 2>/dev/null || true
+    if ! _sysmod_sudo systemctl mask "$name" 2>/dev/null; then
+        log_error "sysmod: failed to mask $name"
+        return 2
+    fi
     log_success "sysmod: masked service $name"
-    return 0
+    return 1
 }
 
 # ────────────────────────────────────────────────────────────────
 # sysmod_restart_if_running NAME
 #
 # Restart a systemd service only if it is currently active.
-# Returns 0 if restarted, 1 if not running.
+# Returns 0 if no restart needed, 1 if restart occurred.
 # ────────────────────────────────────────────────────────────────
 sysmod_restart_if_running() {
     local name="$1"
 
     if ! systemctl is-active "${name}.service" &>/dev/null && \
        ! systemctl is-active "${name}" &>/dev/null; then
-        return 1
+        return 0
     fi
 
     if [[ "${SYSMOD_DRY_RUN:-0}" == "1" ]]; then
@@ -286,7 +362,10 @@ sysmod_restart_if_running() {
         return 0
     fi
 
-    _sysmod_sudo systemctl restart "$name"
+    if ! _sysmod_sudo systemctl restart "$name"; then
+        log_error "sysmod: failed to restart $name"
+        return 2
+    fi
     log_info "sysmod: restarted $name"
-    return 0
+    return 1
 }

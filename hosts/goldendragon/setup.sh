@@ -135,6 +135,7 @@ ensure_pam_fprintd_enabled() {
 
 setup_fingerprint_auth() {
   log_step "Setting up fingerprint authentication (goldendragon)..."
+  local rc=0
 
   if ! is_arch_based; then
     log_warning "Non-Arch platform detected; skipping fingerprint setup."
@@ -187,7 +188,11 @@ setup_fingerprint_auth() {
 
 ACTION==\"add\", SUBSYSTEM==\"usb\", ATTR{idVendor}==\"${vendor_id}\", ATTR{idProduct}==\"${product_id}\", TEST==\"power/control\", ATTR{power/control}=\"on\"
 "
-    sysmod_tee_file /etc/udev/rules.d/99-fingerprint-no-autosuspend.rules "$udev_content" 644 || true
+    sysmod_tee_file /etc/udev/rules.d/99-fingerprint-no-autosuspend.rules "$udev_content" 644
+    rc=$?
+    if [[ $rc -eq 2 ]]; then
+        log_warning "Failed to write fingerprint udev rule"
+    fi
     
     log_success "Created udev rule: /etc/udev/rules.d/99-fingerprint-no-autosuspend.rules"
     
@@ -283,6 +288,10 @@ setup_openfortivpn_access() {
   [[ -z "$target_home" ]] && target_home="$HOME"
   local marker_path="${target_home}/.config/waybar-hosts/${host_short}/vpn-enabled"
   local marker_src="${SCRIPT_DIR}/dotfiles/.config/waybar-hosts/${host_short}/vpn-enabled"
+  local marker_owner=""
+  if [[ -n "$target_user" ]] && id -un "$target_user" &>/dev/null; then
+    marker_owner="$target_user"
+  fi
 
   if ! command -v sudo >/dev/null 2>&1; then
     log_warning "sudo not available; skipping OpenFortiVPN provisioning"
@@ -389,8 +398,11 @@ PY
         marker_link="$rel"
       fi
     fi
-    if [[ "$target_user" != "$USER" ]]; then
-      _sysmod_sudo -u "$target_user" ln -snf "$marker_link" "$marker_path"
+    if [[ -n "$marker_owner" && "$marker_owner" != "$USER" ]]; then
+      if ! _sysmod_sudo -u "$marker_owner" ln -snf "$marker_link" "$marker_path"; then
+        log_warning "Unable to create marker as user '$marker_owner'; retrying as current user"
+        ln -snf "$marker_link" "$marker_path"
+      fi
     else
       ln -snf "$marker_link" "$marker_path"
     fi
@@ -443,11 +455,15 @@ apply_host_system_configs() {
     return 0
   fi
 
-  if sysmod_install_dir "$src" /etc/; then
+  sysmod_install_dir "$src" /etc/
+  local rc=$?
+  if [[ $rc -eq 1 ]]; then
     log_success "System configs updated from $src"
     reset_step "goldendragon-restart-resolved"
-  else
+  elif [[ $rc -eq 0 ]]; then
     log_info "System configs unchanged"
+  else
+    log_warning "Failed to apply host system configs"
   fi
 
   # Important: do NOT restart systemd-logind during an active session.
@@ -455,19 +471,32 @@ apply_host_system_configs() {
 }
 
 restart_resolved_if_needed() {
+  local rc=0
   # Apply DNS changes (only if configs changed or first time)
   if ! is_step_completed "goldendragon-restart-resolved"; then
     log_step "Restarting systemd-resolved to apply DNS changes (if running)..."
     if command -v systemctl >/dev/null 2>&1; then
       if systemctl list-unit-files 2>/dev/null | grep -q '^systemd-resolved\.service'; then
-        sysmod_ensure_service "systemd-resolved.service" || true
+        sysmod_ensure_service "systemd-resolved.service"
+        rc=$?
+        if [[ $rc -eq 2 ]]; then
+          log_warning "Failed to ensure systemd-resolved service"
+        fi
       fi
     fi
-    if sysmod_restart_if_running systemd-resolved; then
-      log_success "systemd-resolved restarted"
-    else
-      log_info "systemd-resolved not running (skipped)"
-    fi
+    sysmod_restart_if_running systemd-resolved
+    rc=$?
+    case "$rc" in
+      0)
+        log_info "systemd-resolved not running (skipped)"
+        ;;
+      1)
+        log_success "systemd-resolved restarted"
+        ;;
+      2|*)
+        log_warning "Failed to restart systemd-resolved"
+        ;;
+    esac
     mark_step_completed "goldendragon-restart-resolved"
   else
     log_info "✓ DNS configuration already applied (skipped)"
@@ -475,11 +504,20 @@ restart_resolved_if_needed() {
 }
 
 setup_power_management_services() {
+  local rc=0
   log_step "Enabling power management services..."
 
   if command_exists tlp; then
-    sysmod_mask_service "systemd-rfkill.service" || true
-    sysmod_mask_service "systemd-rfkill.socket" || true
+    sysmod_mask_service "systemd-rfkill.service"
+    rc=$?
+    if [[ $rc -eq 2 ]]; then
+      log_warning "Failed to ensure systemd-rfkill.service masked"
+    fi
+    sysmod_mask_service "systemd-rfkill.socket"
+    rc=$?
+    if [[ $rc -eq 2 ]]; then
+      log_warning "Failed to ensure systemd-rfkill.socket masked"
+    fi
 
     _sysmod_sudo systemctl enable tlp.service 2>/dev/null || true
     _sysmod_sudo systemctl enable tlp-sleep.service 2>/dev/null || true
