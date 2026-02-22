@@ -8,28 +8,26 @@
 #
 # Requires: logging.sh, install-state.sh
 
+_icons_sudo() {
+    if [[ $EUID -eq 0 ]]; then
+        "$@"
+    else
+        sudo "$@"
+    fi
+}
+
 refresh_icon_cache() {
     local cache_root="/usr/share/icons/hicolor"
 
     if command -v gtk-update-icon-cache >/dev/null 2>&1; then
         log_info "Refreshing GTK icon cache..."
-        local cmd=(gtk-update-icon-cache -f "$cache_root")
-        if [[ $EUID -eq 0 ]]; then
-            "${cmd[@]}"
-        else
-            sudo "${cmd[@]}"
-        fi
+        _icons_sudo gtk-update-icon-cache -f "$cache_root"
         return 0
     fi
 
     if command -v xdg-icon-resource >/dev/null 2>&1; then
         log_info "Refreshing icon resources via xdg-icon-resource..."
-        local cmd=(xdg-icon-resource forceupdate --theme hicolor)
-        if [[ $EUID -eq 0 ]]; then
-            "${cmd[@]}"
-        else
-            sudo "${cmd[@]}"
-        fi
+        _icons_sudo xdg-icon-resource forceupdate --theme hicolor
         return 0
     fi
 
@@ -96,11 +94,7 @@ deploy_dragon_icons() {
             continue
         fi
         local dst="$dst_root/$rel"
-        if [[ $EUID -eq 0 ]]; then
-            install -Dm644 "$src" "$dst"
-        else
-            sudo install -Dm644 "$src" "$dst"
-        fi
+        _icons_sudo install -Dm644 "$src" "$dst"
         copied=true
     done < <(find "$src_root" -type f -name "dragon-control.png" -print0)
 
@@ -133,11 +127,7 @@ deploy_icon_aliases() {
         dst_path="$dst_dir/$dst_name"
 
         if [[ ! -e "$dst_path" && -e "$src_path" ]]; then
-            if [[ $EUID -eq 0 ]]; then
-                ln -s "$src_name" "$dst_path"
-            else
-                sudo ln -s "$src_name" "$dst_path"
-            fi
+            _icons_sudo ln -s "$src_name" "$dst_path"
             did_any=true
             log_success "Aliased icon: $dst_name -> $src_name"
         fi
@@ -184,11 +174,7 @@ deploy_icon_png_fallbacks() {
 
             tmp="$(mktemp --suffix=.png "/tmp/${name}-${size}.XXXXXX" 2>/dev/null || mktemp "/tmp/${name}-${size}.XXXXXX")"
             if rsvg-convert -w "$size" -h "$size" "$src" -o "$tmp" >/dev/null 2>&1; then
-                if [[ $EUID -eq 0 ]]; then
-                    install -Dm644 "$tmp" "$outfile"
-                else
-                    sudo install -Dm644 "$tmp" "$outfile"
-                fi
+                _icons_sudo install -Dm644 "$tmp" "$outfile"
                 did_any=true
                 log_success "Generated PNG: ${size}x${size} ${name}.png"
             fi

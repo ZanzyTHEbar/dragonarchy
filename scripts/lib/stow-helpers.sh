@@ -47,7 +47,10 @@ fresh_backup_and_remove() {
         return 1
     fi
 
-    rm -rf "$abs_path"
+    rm -rf "$abs_path" || {
+        log_error "Failed to remove $abs_path after backup"
+        return 1
+    }
 }
 
 # Purge stow conflicts based on a captured stow output log (from a real stow/restow run).
