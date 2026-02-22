@@ -17,6 +17,10 @@
 
 # State directory for tracking completed steps
 STATE_DIR="${HOME}/.local/state/dotfiles/install"
+if [[ -z "$STATE_DIR" ]]; then
+    echo "FATAL: STATE_DIR is empty" >&2
+    return 1 2>/dev/null || exit 1
+fi
 mkdir -p "$STATE_DIR"
 
 # Check if a step has been completed
@@ -182,8 +186,8 @@ is_package_installed() {
     
     if command -v pacman >/dev/null 2>&1; then
         pacman -Qi "$package" &>/dev/null
-        elif command -v dpkg >/dev/null 2>&1; then
-        dpkg -l "$package" &>/dev/null 2>&1
+        elif command -v dpkg-query >/dev/null 2>&1; then
+        dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q "install ok installed"
         elif command -v rpm >/dev/null 2>&1; then
         rpm -q "$package" &>/dev/null
     else
