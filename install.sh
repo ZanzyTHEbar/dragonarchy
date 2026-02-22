@@ -693,21 +693,24 @@ stow_host_dotfiles() {
     log_info "Installing host-specific dotfiles (stow) from: $dotfiles_dir"
     # Use --no-folding to avoid attempting to replace existing directories (e.g. ~/.config/zsh)
     # with a single directory symlink; instead, stow will link individual files under the dir.
+    local stow_host_output
+    stow_host_output="$(mktemp -t stow_host_output.XXXXXX)"
+
     set +e
-    (cd "$dotfiles_dir" && stow --no-folding -t "$HOME" -R . 2>&1 | tee /tmp/stow_host_output.txt)
+    (cd "$dotfiles_dir" && stow --no-folding -t "$HOME" -R . 2>&1 | tee "$stow_host_output")
     local stow_ec=${PIPESTATUS[0]}
     set -e
     
     if [[ $stow_ec -ne 0 ]]; then
-        if grep -qi "conflict\\|would cause conflicts" /tmp/stow_host_output.txt; then
+        if grep -qi "conflict\\|would cause conflicts" "$stow_host_output"; then
             log_warning "Host dotfiles stow had conflicts (see above). Some files may not be installed."
         else
             log_error "Host dotfiles stow failed with exit code $stow_ec"
         fi
-        rm -f /tmp/stow_host_output.txt
+        rm -f "$stow_host_output"
         return 1
     fi
-    rm -f /tmp/stow_host_output.txt
+    rm -f "$stow_host_output"
 }
 
 # Setup host-specific configuration
