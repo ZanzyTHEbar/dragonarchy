@@ -93,9 +93,14 @@ setup_firedragon_packages() {
 
 setup_asus_ec_tools() {
     log_info "Configuring ASUS EC integration..."
+    local rc=0
 
     if systemctl list-unit-files | grep -q '^asusd\.service'; then
-        sysmod_ensure_service "asusd.service" || true
+        sysmod_ensure_service "asusd.service"
+        rc=$?
+        if [[ $rc -eq 2 ]]; then
+            log_warning "Failed to ensure asusd.service"
+        fi
     fi
 
     if command_exists asusctl; then
@@ -112,6 +117,7 @@ setup_asus_ec_tools() {
 # Setup AMD-specific configurations
 setup_amd_graphics() {
     log_info "Configuring AMD Radeon graphics..."
+    local rc=0
     
     # Create AMD GPU configuration
     sysmod_tee_file /etc/X11/xorg.conf.d/20-amdgpu.conf 'Section "Device"
@@ -126,10 +132,14 @@ EndSection
     # Enable AMD GPU power management with suspend/resume fixes
     local amdgpu_conf_src="$PROJECT_ROOT/hosts/firedragon/etc/modprobe.d/amdgpu.conf"
     if [[ -f "$amdgpu_conf_src" ]]; then
-        if sysmod_install_file "$amdgpu_conf_src" /etc/modprobe.d/amdgpu.conf; then
+        sysmod_install_file "$amdgpu_conf_src" /etc/modprobe.d/amdgpu.conf
+        rc=$?
+        if [[ $rc -eq 1 ]]; then
             log_success "Installed /etc/modprobe.d/amdgpu.conf"
-        else
+        elif [[ $rc -eq 0 ]]; then
             log_info "/etc/modprobe.d/amdgpu.conf already up to date"
+        else
+            log_warning "Failed to install /etc/modprobe.d/amdgpu.conf"
         fi
     else
         log_warning "Missing $amdgpu_conf_src; skipping amdgpu.conf install"
@@ -145,12 +155,21 @@ EndSection
 # Setup power management with TLP
 setup_power_management() {
     log_info "Setting up TLP power management..."
+    local rc=0
     
     if command_exists tlp; then
         log_info "Configuring TLP services..."
         # Mask conflicting systemd services
-        sysmod_mask_service "systemd-rfkill.service" || true
-        sysmod_mask_service "systemd-rfkill.socket" || true
+        sysmod_mask_service "systemd-rfkill.service"
+        rc=$?
+        if [[ $rc -eq 2 ]]; then
+            log_warning "Failed to mask systemd-rfkill.service"
+        fi
+        sysmod_mask_service "systemd-rfkill.socket"
+        rc=$?
+        if [[ $rc -eq 2 ]]; then
+            log_warning "Failed to mask systemd-rfkill.socket"
+        fi
         
         # Enable TLP services
         _sysmod_sudo systemctl enable tlp.service 2>/dev/null || true
@@ -159,10 +178,14 @@ setup_power_management() {
         # Install canonical firedragon TLP configuration (kept in dotfiles)
         local tlp_conf_src="$PROJECT_ROOT/hosts/firedragon/etc/tlp.d/01-firedragon.conf"
         if [[ -f "$tlp_conf_src" ]]; then
-            if sysmod_install_file "$tlp_conf_src" /etc/tlp.d/01-firedragon.conf; then
+            sysmod_install_file "$tlp_conf_src" /etc/tlp.d/01-firedragon.conf
+            rc=$?
+            if [[ $rc -eq 1 ]]; then
                 log_success "Installed /etc/tlp.d/01-firedragon.conf"
-            else
+            elif [[ $rc -eq 0 ]]; then
                 log_info "/etc/tlp.d/01-firedragon.conf already up to date"
+            else
+                log_warning "Failed to install /etc/tlp.d/01-firedragon.conf"
             fi
         else
             log_warning "Missing $tlp_conf_src; skipping TLP config install"
@@ -187,6 +210,7 @@ setup_power_management() {
 # Setup wireless and networking
 setup_networking() {
     log_info "Setting up wireless and networking..."
+    local rc=0
     
     # Enable NetworkManager
     if command_exists nmcli; then
@@ -220,22 +244,31 @@ setup_networking() {
     # Copy host-specific system configs (DNS)
     if ! is_step_completed "firedragon-copy-system-configs"; then
         log_info "Copying host-specific system configs (DNS)..."
-        if sysmod_install_dir "$PROJECT_ROOT/hosts/firedragon/etc/" /etc/; then
+        sysmod_install_dir "$PROJECT_ROOT/hosts/firedragon/etc/" /etc/
+        rc=$?
+        if [[ $rc -eq 1 ]]; then
             log_success "System configs updated"
             mark_step_completed "firedragon-copy-system-configs"
             # Reset DNS restart step since configs changed
             reset_step "firedragon-restart-resolved"
-        else
+        elif [[ $rc -eq 0 ]]; then
             log_info "System configs unchanged"
+            mark_step_completed "firedragon-copy-system-configs"
+        else
+            log_warning "Failed to copy host system configs"
             mark_step_completed "firedragon-copy-system-configs"
         fi
     else
         # Check if configs need updating even if step was completed
-        if sysmod_install_dir "$PROJECT_ROOT/hosts/firedragon/etc/" /etc/; then
+        sysmod_install_dir "$PROJECT_ROOT/hosts/firedragon/etc/" /etc/
+        rc=$?
+        if [[ $rc -eq 1 ]]; then
             log_info "System configs updated (configs changed)"
             reset_step "firedragon-restart-resolved"
-        else
+        elif [[ $rc -eq 0 ]]; then
             log_info "System configs already applied"
+        else
+            log_warning "Failed to validate host system configs"
         fi
     fi
     
@@ -244,11 +277,21 @@ setup_networking() {
         log_info "Restarting systemd-resolved to apply DNS changes..."
         if command_exists systemctl; then
             if systemctl list-unit-files 2>/dev/null | grep -q '^systemd-resolved\.service'; then
-                sysmod_ensure_service "systemd-resolved.service" || true
+                sysmod_ensure_service "systemd-resolved.service"
+                rc=$?
+                if [[ $rc -eq 2 ]]; then
+                    log_warning "Failed to ensure systemd-resolved service"
+                fi
             fi
         fi
-        if sysmod_restart_if_running systemd-resolved; then
+        sysmod_restart_if_running systemd-resolved
+        rc=$?
+        if [[ $rc -eq 1 ]]; then
             log_success "systemd-resolved restarted"
+        elif [[ $rc -eq 0 ]]; then
+            log_info "systemd-resolved not running (skipped)"
+        else
+            log_warning "Failed to restart systemd-resolved"
         fi
         mark_step_completed "firedragon-restart-resolved"
     else
@@ -437,12 +480,21 @@ setup_corectrl() {
 # Setup suspend/resume fixes for AMD GPU and display
 setup_suspend_resume_fixes() {
     log_info "Setting up suspend/resume and lock screen fixes..."
+    local rc=0
     
     # 1. Configure systemd-logind for lid handling
     log_info "Configuring systemd-logind for lid switch handling..."
     local logind_src="$PROJECT_ROOT/hosts/firedragon/etc/systemd/logind.conf.d/10-firedragon-lid.conf"
     if [[ -f "$logind_src" ]]; then
-        sysmod_install_file "$logind_src" /etc/systemd/logind.conf.d/10-firedragon-lid.conf 644 || true
+        sysmod_install_file "$logind_src" /etc/systemd/logind.conf.d/10-firedragon-lid.conf 644
+        rc=$?
+        if [[ $rc -eq 1 ]]; then
+            log_success "Installed logind configuration from dotfiles"
+        elif [[ $rc -eq 0 ]]; then
+            log_info "logind configuration already up to date"
+        else
+            log_warning "Failed to install logind configuration from dotfiles"
+        fi
     else
         log_warning "Could not find logind config in dotfiles, creating directly..."
         sysmod_tee_file /etc/systemd/logind.conf.d/10-firedragon-lid.conf '# FireDragon Laptop - systemd-logind Configuration
@@ -467,7 +519,13 @@ RemoveIPC=yes
     local svc
     for svc in amdgpu-suspend.service amdgpu-resume.service amdgpu-console-restore.service; do
         if [[ -f "${amdgpu_svc_dir}/${svc}" ]]; then
-            sysmod_install_file "${amdgpu_svc_dir}/${svc}" "/etc/systemd/system/${svc}" || true
+            sysmod_install_file "${amdgpu_svc_dir}/${svc}" "/etc/systemd/system/${svc}"
+            rc=$?
+            case "$rc" in
+                1) log_success "Installed ${svc}" ;;
+                0) log_info "${svc} already present" ;;
+                2|*) log_warning "Failed to install ${svc}" ;;
+            esac
         else
             log_warning "${svc} not found in dotfiles, skipping..."
         fi
@@ -487,8 +545,15 @@ RemoveIPC=yes
         local limine_dropin_src="$PROJECT_ROOT/hosts/firedragon/etc/limine-entry-tool.d/10-amdgpu.conf"
         local limine_dropin_dest="/etc/limine-entry-tool.d/10-amdgpu.conf"
         if [[ -f "$limine_dropin_src" ]]; then
-            sysmod_install_file "$limine_dropin_src" "$limine_dropin_dest" || true
-            log_success "Copied Limine drop-in"
+            sysmod_install_file "$limine_dropin_src" "$limine_dropin_dest"
+            rc=$?
+            if [[ $rc -eq 1 ]]; then
+                log_success "Copied Limine drop-in"
+            elif [[ $rc -eq 0 ]]; then
+                log_info "Limine drop-in already present"
+            else
+                log_warning "Failed to copy Limine drop-in"
+            fi
         else
             log_warning "Limine drop-in not found at $limine_dropin_src"
         fi
@@ -529,13 +594,27 @@ RemoveIPC=yes
     log_warning "DO NOT restart systemd-logind manually - it will kill your session!"
 
     if [[ -f "$PROJECT_ROOT/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" ]]; then
-        sysmod_install_file "$PROJECT_ROOT/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" /etc/systemd/system-sleep/99-runtime-pm.sh 755 || true
-        log_info "Installed runtime PM override script"
+        sysmod_install_file "$PROJECT_ROOT/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" /etc/systemd/system-sleep/99-runtime-pm.sh 755
+        rc=$?
+        if [[ $rc -eq 1 ]]; then
+            log_info "Installed runtime PM override script"
+        elif [[ $rc -eq 0 ]]; then
+            log_info "runtime PM override script already present"
+        else
+            log_warning "Failed to install runtime PM override script"
+        fi
     fi
 
     if [[ -f "$PROJECT_ROOT/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" ]]; then
-        sysmod_install_file "$PROJECT_ROOT/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" /etc/systemd/system-sleep/98-ax210-bt-recover.sh 755 || true
-        log_info "Installed Intel AX210 Bluetooth recover script"
+        sysmod_install_file "$PROJECT_ROOT/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" /etc/systemd/system-sleep/98-ax210-bt-recover.sh 755
+        rc=$?
+        if [[ $rc -eq 1 ]]; then
+            log_info "Installed Intel AX210 Bluetooth recover script"
+        elif [[ $rc -eq 0 ]]; then
+            log_info "Intel AX210 Bluetooth recover script already present"
+        else
+            log_warning "Failed to install Intel AX210 Bluetooth recover script"
+        fi
     fi
     
     log_success "Suspend/resume fixes installed"
@@ -558,6 +637,7 @@ setup_hibernation() {
 # Setup Asus VivoBook-specific configurations
 setup_asus_vivobook() {
     log_info "Configuring Asus VivoBook-specific settings..."
+    local rc=0
     
     # Enable asus-nb-wmi module for keyboard backlight and special keys
     log_info "Enabling Asus notebook WMI driver..."
@@ -567,8 +647,20 @@ options asus_wmi enable_fs=1
 ' 644
 
     # Load asus-wmi and asus-nb-wmi modules
-    sysmod_append_if_missing /etc/modules-load.d/asus.conf "asus_wmi" || true
-    sysmod_append_if_missing /etc/modules-load.d/asus.conf "asus_nb_wmi" || true
+    sysmod_append_if_missing /etc/modules-load.d/asus.conf "asus_wmi"
+    rc=$?
+    if [[ $rc -eq 1 ]]; then
+        log_success "Enabled asus_wmi module load"
+    elif [[ $rc -eq 2 ]]; then
+        log_warning "Failed to ensure asus_wmi module load entry"
+    fi
+    sysmod_append_if_missing /etc/modules-load.d/asus.conf "asus_nb_wmi"
+    rc=$?
+    if [[ $rc -eq 1 ]]; then
+        log_success "Enabled asus_nb_wmi module load"
+    elif [[ $rc -eq 2 ]]; then
+        log_warning "Failed to ensure asus_nb_wmi module load entry"
+    fi
     
     # ACPI fixes for Asus VivoBook
     log_info "Applying ACPI fixes for Asus VivoBook..."
