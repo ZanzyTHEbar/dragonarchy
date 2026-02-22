@@ -146,12 +146,6 @@ packages = [
     "docker",
     "docker-buildx",
     "docker-compose",
-    "nemo",
-    "nemo-emblems",
-    "nemo-fileroller",
-    "nemo-preview",
-    "nemo-seahorse",
-    "nemo-share",
     "egl-wayland",
     "evince",
     "fcitx5",
@@ -220,6 +214,22 @@ packages = [
     "xdg-desktop-portal-gtk",
     "xdg-desktop-portal-hyprland",
 ]
+
+[platforms.arch.pacman.nemo_core]
+requires_features = ["hyprland"]
+packages = [
+    "nemo",
+    "cinnamon-desktop",
+    "nemo-emblems",
+    "nemo-fileroller",
+    "nemo-preview",
+    "nemo-seahorse",
+    "gdk-pixbuf2",
+]
+
+[platforms.arch.pacman.nemo_share]
+requires_features = ["hyprland"]
+packages = ["nemo-share", "samba"]
 
 [platforms.arch.pacman.hyprland_core]
 requires_features = ["hyprland"]
@@ -326,17 +336,28 @@ packages = ["poetry", "black", "flake8", "mypy"]
 # Bundles compose existing groups into named profiles.
 # Usage: install-deps.sh --bundle <name>
 
-[bundles.desktop]
-description = "Full desktop experience (Hyprland + GUI apps + themes)"
+[bundles.desktop_base]
+description = "Shared Hyprland desktop foundation (SMB/fileshare excluded)"
 groups = [
     "core_cli",
     "dev",
     "fonts",
     "gui",
     "hyprland_base",
+    "nemo_core",
     "hyprland_core",
     "hyprland_aur",
 ]
+
+[bundles.desktop]
+description = "Full desktop experience (Hyprland + GUI apps + themes)"
+extends = ["desktop_base"]
+groups = []
+
+[bundles.desktop_smb]
+description = "Full desktop experience with Nemo SMB usershare enabled"
+extends = ["desktop_base"]
+groups = ["nemo_share"]
 
 [bundles.minimal]
 description = "CLI-only server/container setup"
@@ -344,14 +365,5 @@ groups = ["core_cli", "dev"]
 
 [bundles.creative]
 description = "Desktop + creative/multimedia tools (GIMP, Blender, OBS, Kdenlive, Ardour, etc.)"
-groups = [
-    "core_cli",
-    "dev",
-    "fonts",
-    "gui",
-    "hyprland_base",
-    "hyprland_core",
-    "hyprland_aur",
-    "creative",
-    "creative_aur",
-]
+extends = ["desktop_base"]
+groups = ["creative", "creative_aur"]

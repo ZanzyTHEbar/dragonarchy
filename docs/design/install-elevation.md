@@ -61,9 +61,14 @@ All functions support `SYSMOD_DRY_RUN=1` for preview mode.
 Extended the existing `deps.manifest.toml` with a `[bundles]` section:
 
 ```toml
+[bundles.desktop_base]
+description = "Shared Hyprland desktop foundation (SMB/fileshare excluded)"
+groups = ["core_cli", "dev", "fonts", "gui", "hyprland_base", "nemo_core", "hyprland_core", "hyprland_aur"]
+
 [bundles.desktop]
 description = "Full desktop experience (Hyprland + GUI apps + themes)"
-groups = ["core_cli", "dev", "fonts", "gui", "hyprland_base", "hyprland_core", "hyprland_aur"]
+extends = ["desktop_base"]
+groups = []
 
 [bundles.minimal]
 description = "CLI-only server/container setup"
@@ -71,7 +76,13 @@ groups = ["core_cli", "dev"]
 
 [bundles.creative]
 description = "Desktop + creative/multimedia tools"
-groups = ["core_cli", "dev", "fonts", "gui", "hyprland_base", "hyprland_core", "hyprland_aur"]
+extends = ["desktop_base"]
+groups = ["creative", "creative_aur"]
+
+[bundles.desktop_smb]
+description = "Desktop with optional Nemo SMB usershare"
+extends = ["desktop_base"]
+groups = ["nemo_share"]
 ```
 
 Added to `scripts/lib/manifest-toml.sh`:
@@ -81,6 +92,21 @@ Added to `scripts/lib/manifest-toml.sh`:
 Added `--bundle NAME` flag to `scripts/install/install-deps.sh`:
 - When set, only groups belonging to the named bundle are installed.
 - Default behavior (install all groups) is unchanged.
+- Added `install_platform_manager_batches()` to run manager-specific composition in a
+  single data-driven pass:
+  - Resolve inheritance exactly once via `manifest_bundle_groups` (via `_bundle_allows_group`).
+  - Install groups through adapter-backed manager dispatch for all configured package managers.
+  - No per-group hardcoded conditionals are required for bundle mode.
+- Introduced package-manager adapter registry (`PACKAGE_MANAGER_INSTALLER` + 
+  `PACKAGE_MANAGER_SELECTOR`) and `install_platform_manager_batches` to compose
+  package manager execution from manifest data:
+  - Adapters are map-driven (e.g. `pacman`, `paru`, `apt`).
+  - Selection policy is defined per manager (`core_cli,dev,fonts,host_,hyprland_`
+    for `pacman`, etc.).
+  - In bundle mode the adapter resolves all available manager groups and lets
+    `_bundle_allows_group` act as the single inclusion gate.
+- Added startup validation (`validate_manifest_managers_for_platform`) to ensure each
+  manifest-defined manager has a configured adapter and fail fast when none are usable.
 
 **Design decision:** Bundles live inside the existing TOML manifest rather than in separate
 `packages/bundles/*.yaml` files. This avoids a second configuration format and keeps `yq` as
