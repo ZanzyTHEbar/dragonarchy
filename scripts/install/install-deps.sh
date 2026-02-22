@@ -40,6 +40,22 @@ BUNDLE_NAME=""
 # Internal state
 APT_UPDATED=false
 
+# Cached resolved bundle metadata for fast, central membership checks.
+declare -A BUNDLE_GROUP_SET=()
+
+# Package manager adapter registry.
+declare -A PACKAGE_MANAGER_INSTALLER=(
+    [pacman]="install_pacman"
+    [paru]="install_paru"
+    [apt]="install_apt"
+)
+
+declare -A PACKAGE_MANAGER_SELECTOR=(
+    [pacman]="core_cli,dev,fonts,host_,hyprland_"
+    [paru]="gui,fonts,host_,hyprland_"
+    [apt]="*"
+)
+
 manifest_validate() {
     if [[ ! -f "$MANIFEST_FILE" ]]; then
         log_error "Deps manifest not found: $MANIFEST_FILE"
@@ -74,12 +90,30 @@ feature_csv_for_host() {
 _bundle_allows_group() {
     local group="$1"
     [[ -z "$BUNDLE_NAME" ]] && return 0
-
-    local bundle_group
-    while IFS= read -r bundle_group; do
-        [[ "$bundle_group" == "$group" ]] && return 0
-    done < <(manifest_bundle_groups "$MANIFEST_FILE" "$BUNDLE_NAME")
+    if [[ ${#BUNDLE_GROUP_SET[@]} -eq 0 ]]; then
+        load_bundle_group_set "$BUNDLE_NAME"
+    fi
+    [[ -n "${BUNDLE_GROUP_SET[$group]:-}" ]] && return 0
     return 1
+}
+
+# Build an in-memory set of groups for the active bundle.
+# Empty bundle name => all groups are enabled (legacy default behavior).
+load_bundle_group_set() {
+    local bundle="$1"
+
+    BUNDLE_GROUP_SET=()
+    if [[ -z "$bundle" ]]; then
+        return 0
+    fi
+
+    local groups=()
+    mapfile -t groups < <(manifest_bundle_groups "$MANIFEST_FILE" "$bundle")
+    local group
+    for group in "${groups[@]}"; do
+        [[ -z "$group" ]] && continue
+        BUNDLE_GROUP_SET["$group"]=1
+    done
 }
 
 install_manifest_group() {
@@ -118,6 +152,27 @@ install_manifest_group() {
         pkgs=("${normalized[@]}")
     fi
 
+    # Group-specific policy hooks for deterministic composition behavior.
+    case "$group" in
+        hyprland_base)
+            local filtered_pkgs=()
+            local package_name
+            for package_name in "${pkgs[@]}"; do
+                if [[ "$package_name" == "power-profiles-daemon" ]] && command -v tlp &>/dev/null; then
+                    log_info "Skipping power-profiles-daemon (TLP is installed)"
+                    continue
+                fi
+                filtered_pkgs+=("$package_name")
+            done
+            pkgs=("${filtered_pkgs[@]}")
+            ;;
+    esac
+
+    if [[ ${#pkgs[@]} -eq 0 ]]; then
+        log_info "No packages after policy filtering for ${platform}/${manager}/${group} (skipping)"
+        return 0
+    fi
+
     "$installer_fn" "${pkgs[@]}"
     return 0
 }
@@ -142,6 +197,113 @@ install_manifest_groups_by_prefix() {
     done
 }
 
+install_manager_group_batches() {
+    # Args: platform manager host feature_csv
+    local platform="$1"
+    local manager="$2"
+    local host="${3:-}"
+    local feature_csv="${4:-}"
+
+    local installer_fn="${PACKAGE_MANAGER_INSTALLER[$manager]:-}"
+    if [[ -z "$installer_fn" ]]; then
+        log_warning "No package manager adapter configured for '$manager', skipping"
+        return 0
+    fi
+
+    local selector="${PACKAGE_MANAGER_SELECTOR[$manager]:-*}"
+    if [[ -n "$BUNDLE_NAME" ]]; then
+        selector="*"
+    fi
+    if [[ -z "$selector" || "$selector" == "*" ]]; then
+        local groups=()
+        mapfile -t groups < <(manifest_yq_query "$MANIFEST_FILE" ".platforms.${platform}.${manager} | keys | .[]" | sort)
+
+        local group
+        for group in "${groups[@]}"; do
+            [[ -z "$group" || "$group" == "null" ]] && continue
+            install_manifest_group "$platform" "$manager" "$group" "$installer_fn" "$host" "$feature_csv"
+        done
+        return 0
+    fi
+
+    local selectors=()
+    local IFS=','
+    read -r -a selectors <<< "$selector"
+
+    local selected_prefix
+    for selected_prefix in "${selectors[@]}"; do
+        [[ -z "$selected_prefix" ]] && continue
+        install_manifest_groups_by_prefix "$platform" "$manager" "$selected_prefix" "$installer_fn" "$host" "$feature_csv"
+    done
+}
+
+install_platform_manager_batches() {
+    # Args: platform host feature_csv [manager...]
+    # If manager list omitted, auto-discover manifest managers for platform and filter to configured adapters.
+    local platform="$1"
+    local host="${2:-}"
+    local feature_csv="${3:-}"
+    shift 3
+
+    local manager_args=("$@")
+
+    if [[ "${#manager_args[@]}" -eq 0 ]]; then
+        local discovered_managers=()
+        mapfile -t discovered_managers < <(manifest_yq_query "$MANIFEST_FILE" ".platforms.${platform} | keys | .[]" | sort)
+        manager_args=()
+        local discovered_manager
+        for discovered_manager in "${discovered_managers[@]}"; do
+            [[ -z "$discovered_manager" || "$discovered_manager" == "null" ]] && continue
+            if [[ -n "${PACKAGE_MANAGER_INSTALLER[$discovered_manager]:-}" ]]; then
+                manager_args+=("$discovered_manager")
+            fi
+        done
+
+        if [[ "${#manager_args[@]}" -eq 0 ]]; then
+            log_warning "No package manager adapters configured for platform '$platform'"
+            return 0
+        fi
+    fi
+
+    local manager
+    for manager in "${manager_args[@]}"; do
+        install_manager_group_batches "$platform" "$manager" "$host" "$feature_csv"
+    done
+}
+
+validate_manifest_managers_for_platform() {
+    # Args: platform
+    local platform="$1"
+
+    local manifest_managers=()
+    mapfile -t manifest_managers < <(manifest_yq_query "$MANIFEST_FILE" ".platforms.${platform} | keys | .[]" | sort)
+
+    local configured_count=0
+    local missing_adapter=0
+    local manager
+
+    for manager in "${manifest_managers[@]}"; do
+        [[ -z "$manager" || "$manager" == "null" ]] && continue
+
+        if [[ -z "${PACKAGE_MANAGER_INSTALLER[$manager]:-}" ]]; then
+            log_warning "No adapter registered for manager '$manager' on platform '$platform'; skipping."
+            missing_adapter=1
+            continue
+        fi
+        configured_count=$((configured_count + 1))
+    done
+
+    if [[ "$configured_count" -eq 0 ]]; then
+        log_error "No supported package manager adapters found for platform '$platform'."
+        return 1
+    fi
+
+    if [[ "$missing_adapter" -eq 1 ]]; then
+        log_warning "One or more managers in '$platform' manifest do not have adapters yet."
+    fi
+    return 0
+}
+
 # Detect if system has -git versions of Hyprland packages installed
 # Returns 0 if -git versions are found, 1 otherwise
 has_hyprland_git_packages() {
@@ -155,25 +317,6 @@ has_hyprland_git_packages() {
     done
     
     return 1
-}
-
-# Get list of all Hyprland hosts by scanning host directories
-get_hyprland_hosts() {
-    local hyprland_hosts=()
-    
-    if [[ ! -d "$HOSTS_DIR" ]]; then
-        echo "${hyprland_hosts[@]}"
-        return
-    fi
-    
-    # Scan all host directories
-    while IFS= read -r host; do
-        if is_hyprland_host "$HOSTS_DIR" "$host"; then
-            hyprland_hosts+=("$host")
-        fi
-    done < <(get_available_hosts "$HOSTS_DIR")
-    
-    echo "${hyprland_hosts[@]}"
 }
 
 # --- Package Installation Helpers ---
@@ -303,8 +446,8 @@ EOF
         "${build_env[@]}" paru -S --noconfirm --needed --removemake --sudoloop --skipreview --batchinstall --mflags "${mflags[*]}" "${pkgs_to_install[@]}"
 
         # Clean up temporary makepkg config if created
-        if [[ -n "${MAKEPKG_GNOME_STACK_CONF:-}" && -f "${MAKEPKG_GNOME_STACK_CONF:-}" ]]; then
-            rm -f "${MAKEPKG_GNOME_STACK_CONF}" 2>/dev/null || true
+        if [[ -n "${makepkg_conf:-}" && -f "${makepkg_conf:-}" ]]; then
+            rm -f "${makepkg_conf}" 2>/dev/null || true
         fi
 
         # Hard-required: verify they installed.
@@ -332,23 +475,6 @@ add_chaotic_aur() {
         sudo pacman -Sy
         log_success "Chaotic-AUR repository added."
     }
-}
-
-install_brew() {
-    command_exists brew || {
-        log_info "Installing Homebrew..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >>~/.zprofile
-        eval "$(/opt/homebrew/bin/brew shellenv)"
-    }
-    log_info "Updating Homebrew..." && brew update
-    log_info "Installing formulas: $*"
-    brew install "$@"
-}
-
-install_brew_cask() {
-    log_info "Installing casks: $*"
-    brew install --cask "$@"
 }
 
 install_apt() {
@@ -548,18 +674,33 @@ install_additional_tools() {
     # Binaries
     command_exists age || {
         log_info "Installing age binary..."
-        local tmp_dir
-        tmp_dir=$(mktemp -d)
-        curl -L "https://github.com/FiloSottile/age/releases/latest/download/age-v1.1.1-linux-amd64.tar.gz" | tar -xz -C "$tmp_dir" --strip-components=1
-        sudo mv "$tmp_dir/age" /usr/local/bin/
-        sudo mv "$tmp_dir/age-keygen" /usr/local/bin/
-        rm -rf "$tmp_dir"
+        local age_tmp
+        age_tmp=$(mktemp -d)
+        local age_version
+        age_version=$(curl -fsSL "https://api.github.com/repos/FiloSottile/age/releases/latest" | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+        age_version="${age_version:-v1.2.0}"
+        if curl -fsSL "https://github.com/FiloSottile/age/releases/download/${age_version}/age-${age_version}-linux-amd64.tar.gz" | tar -xz -C "$age_tmp" --strip-components=1; then
+            sudo mv "$age_tmp/age" /usr/local/bin/
+            sudo mv "$age_tmp/age-keygen" /usr/local/bin/
+        else
+            log_warning "Failed to download age ${age_version}"
+        fi
+        rm -rf "$age_tmp"
     }
     command_exists sops || {
         log_info "Installing sops binary..."
-        curl -L "https://github.com/getsops/sops/releases/latest/download/sops-v3.8.1.linux.amd64" -o /tmp/sops
-        sudo mv /tmp/sops /usr/local/bin/sops
-        sudo chmod +x /usr/local/bin/sops
+        local sops_tmp
+        sops_tmp=$(mktemp)
+        local sops_version
+        sops_version=$(curl -fsSL "https://api.github.com/repos/getsops/sops/releases/latest" | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+        sops_version="${sops_version:-v3.9.4}"
+        if curl -fsSL "https://github.com/getsops/sops/releases/download/${sops_version}/sops-${sops_version}.linux.amd64" -o "$sops_tmp"; then
+            sudo mv "$sops_tmp" /usr/local/bin/sops
+            sudo chmod +x /usr/local/bin/sops
+        else
+            log_warning "Failed to download sops ${sops_version}"
+            rm -f "$sops_tmp"
+        fi
     }
 }
 
@@ -589,21 +730,12 @@ install_for_arch() {
     
     log_info "Updating pacman repositories..." && sudo pacman -Sy
 
-    install_manifest_group "$platform_key" "pacman" "core_cli" install_pacman "$host" "$feature_csv"
-    install_manifest_group "$platform_key" "pacman" "dev" install_pacman "$host" "$feature_csv"
-    install_manifest_group "$platform_key" "pacman" "fonts" install_pacman "$host" "$feature_csv"
-
-    install_manifest_group "$platform_key" "paru" "gui" install_paru "$host" "$feature_csv"
-    install_manifest_group "$platform_key" "paru" "fonts" install_paru "$host" "$feature_csv"
-
-    # Host-scoped packages (opt-in per host via requires_hosts)
-    install_manifest_groups_by_prefix "$platform_key" "pacman" "host_" install_pacman "$host" "$feature_csv"
-    install_manifest_groups_by_prefix "$platform_key" "paru" "host_" install_paru "$host" "$feature_csv"
+    # Run package manager adapters with platform policy for non-bundle installs.
+    install_platform_manager_batches "$platform_key" "$host" "$feature_csv"
     
     # Install Go from source (latest version; function is idempotent)
     if ! install_go_from_source "arch"; then
-        log_error "Failed to install Go from source, skipping Go installation"
-        return 1
+        log_warning "Failed to install Go from source; continuing without Go"
     fi
     
     # Automatically detect if this host needs Hyprland packages
@@ -668,26 +800,6 @@ install_for_arch() {
         fi
 
         if [[ "$skip_hyprland_installs" != "true" ]]; then
-            # Filter packages based on conflicts
-            local hyprland_base=()
-            mapfile -t hyprland_base < <(manifest_group_packages "$MANIFEST_FILE" "$platform_key" "pacman" "hyprland_base" "$host" "$feature_csv")
-
-            local filtered_hyprland_base=()
-            local pkg
-            for pkg in "${hyprland_base[@]}"; do
-                if [[ "$pkg" == "power-profiles-daemon" ]] && command -v tlp &>/dev/null; then
-                    log_info "Skipping power-profiles-daemon (TLP is installed)"
-                    continue
-                fi
-                filtered_hyprland_base+=("$pkg")
-            done
-
-            if [[ ${#filtered_hyprland_base[@]} -gt 0 ]]; then
-                install_pacman "${filtered_hyprland_base[@]}"
-            fi
-
-            install_manifest_group "$platform_key" "pacman" "hyprland_core" install_pacman "$host" "$feature_csv"
-
             # Configure rustup BEFORE building AUR packages (some require Rust)
             if command_exists rustup; then
                 log_info "Configuring Rust toolchain..."
@@ -700,8 +812,6 @@ install_for_arch() {
                 log_info "Removing legacy walker-bin package in favour of walker"
                 paru -Rns --noconfirm walker-bin || true
             fi
-
-            install_manifest_group "$platform_key" "paru" "hyprland_aur" install_paru "$host" "$feature_csv"
 
             # Install Elephant (meta package bundles providers)
             log_info "Installing Elephant stack..."
@@ -733,8 +843,6 @@ install_for_arch() {
                 log_info "Removing legacy Elephant bin packages: ${to_remove[*]}"
                 paru -Rns --noconfirm "${to_remove[@]}" || true
             fi
-
-            install_manifest_group "$platform_key" "paru" "hyprland_aur_elephant" install_paru "$host" "$feature_csv"
 
             log_info "Installing Rust tools..."
             install_rust_tools || log_warning "Rust tools installation had issues (continuing)"
@@ -776,14 +884,12 @@ install_for_debian() {
     local feature_csv
     feature_csv=$(feature_csv_for_host "$host")
 
-    install_manifest_group "$platform_key" "apt" "core_cli" install_apt "$host" "$feature_csv"
-    install_manifest_group "$platform_key" "apt" "dev" install_apt "$host" "$feature_csv"
-    install_manifest_group "$platform_key" "apt" "fonts" install_apt "$host" "$feature_csv"
-    
+    # Use the same bundle-aware adapter flow as other platforms.
+    install_platform_manager_batches "$platform_key" "$host" "$feature_csv"
+
     # Install Go from source (latest version; function is idempotent)
     if ! install_go_from_source "debian"; then
-        log_error "Failed to install Go from source, skipping Go installation"
-        return 1
+        log_warning "Failed to install Go from source; continuing without Go"
     fi
 
     install_additional_tools
@@ -950,6 +1056,12 @@ main() {
         fi
         log_info "Bundle mode: installing groups from bundle '$BUNDLE_NAME'"
     fi
+    load_bundle_group_set "$BUNDLE_NAME"
+
+    validate_manifest_managers_for_platform "$platform_key" || {
+        log_error "Manifest manager configuration invalid for platform '$platform_key'"
+        exit 1
+    }
 
     log_info "Starting package installation on $platform (Host: ${host:-generic})..."
     

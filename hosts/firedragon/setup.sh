@@ -5,7 +5,7 @@
 # This script configures the FireDragon laptop with AMD chipset and Radeon graphics.
 # Optimized for mobile performance, battery life, and thermal management.
 
-set -e
+set -euo pipefail
 
 # Resolve paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
@@ -18,21 +18,17 @@ STATE_LIB="${PROJECT_ROOT}/scripts/lib/install-state.sh"
 # shellcheck disable=SC1091
 source "$LOG_LIB"
 # shellcheck disable=SC1091
-source "$BOOT_LIB"
+if [[ -f "$BOOT_LIB" ]]; then
+    source "$BOOT_LIB"
+else
+    log_warning "Bootloader library not found at $BOOT_LIB; bootloader operations will be unavailable"
+fi
 # shellcheck disable=SC1091
 source "$STATE_LIB"
 # shellcheck disable=SC1091
 source "${PROJECT_ROOT}/scripts/lib/system-mods.sh"
 
-log_info "Running setup for FireDragon laptop..."
-
-# Handle --reset flag to force re-run all steps
-if [[ "${1:-}" == "--reset" ]]; then
-    reset_all_steps
-    log_info "Installation state reset. All steps will be re-run."
-    echo
-fi
-echo
+# Top-level code moved into main() for sourcing safety
 
 # Install laptop-specific packages
 setup_firedragon_packages() {
@@ -128,7 +124,7 @@ EndSection
 ' 644
     
     # Enable AMD GPU power management with suspend/resume fixes
-    local amdgpu_conf_src="$HOME/dotfiles/hosts/firedragon/etc/modprobe.d/amdgpu.conf"
+    local amdgpu_conf_src="$PROJECT_ROOT/hosts/firedragon/etc/modprobe.d/amdgpu.conf"
     if [[ -f "$amdgpu_conf_src" ]]; then
         if sysmod_install_file "$amdgpu_conf_src" /etc/modprobe.d/amdgpu.conf; then
             log_success "Installed /etc/modprobe.d/amdgpu.conf"
@@ -161,7 +157,7 @@ setup_power_management() {
         _sysmod_sudo systemctl enable tlp-sleep.service 2>/dev/null || true
         
         # Install canonical firedragon TLP configuration (kept in dotfiles)
-        local tlp_conf_src="$HOME/dotfiles/hosts/firedragon/etc/tlp.d/01-firedragon.conf"
+        local tlp_conf_src="$PROJECT_ROOT/hosts/firedragon/etc/tlp.d/01-firedragon.conf"
         if [[ -f "$tlp_conf_src" ]]; then
             if sysmod_install_file "$tlp_conf_src" /etc/tlp.d/01-firedragon.conf; then
                 log_success "Installed /etc/tlp.d/01-firedragon.conf"
@@ -215,7 +211,7 @@ setup_networking() {
     # Install NetBird for secure networking
     if ! is_step_completed "firedragon-install-netbird"; then
         log_info "Installing NetBird VPN..."
-        bash "$HOME/dotfiles/scripts/utilities/netbird-install.sh"
+        bash "$PROJECT_ROOT/scripts/utilities/netbird-install.sh"
         mark_step_completed "firedragon-install-netbird"
     else
         log_info "NetBird already installed"
@@ -224,7 +220,7 @@ setup_networking() {
     # Copy host-specific system configs (DNS)
     if ! is_step_completed "firedragon-copy-system-configs"; then
         log_info "Copying host-specific system configs (DNS)..."
-        if sysmod_install_dir "$HOME/dotfiles/hosts/firedragon/etc/" /etc/; then
+        if sysmod_install_dir "$PROJECT_ROOT/hosts/firedragon/etc/" /etc/; then
             log_success "System configs updated"
             mark_step_completed "firedragon-copy-system-configs"
             # Reset DNS restart step since configs changed
@@ -235,7 +231,7 @@ setup_networking() {
         fi
     else
         # Check if configs need updating even if step was completed
-        if sysmod_install_dir "$HOME/dotfiles/hosts/firedragon/etc/" /etc/; then
+        if sysmod_install_dir "$PROJECT_ROOT/hosts/firedragon/etc/" /etc/; then
             log_info "System configs updated (configs changed)"
             reset_step "firedragon-restart-resolved"
         else
@@ -444,7 +440,7 @@ setup_suspend_resume_fixes() {
     
     # 1. Configure systemd-logind for lid handling
     log_info "Configuring systemd-logind for lid switch handling..."
-    local logind_src="$HOME/dotfiles/hosts/firedragon/etc/systemd/logind.conf.d/10-firedragon-lid.conf"
+    local logind_src="$PROJECT_ROOT/hosts/firedragon/etc/systemd/logind.conf.d/10-firedragon-lid.conf"
     if [[ -f "$logind_src" ]]; then
         sysmod_install_file "$logind_src" /etc/systemd/logind.conf.d/10-firedragon-lid.conf 644 || true
     else
@@ -467,7 +463,7 @@ RemoveIPC=yes
     
     # 2. Install AMD GPU suspend/resume systemd services
     log_info "Installing AMD GPU suspend/resume hooks..."
-    local amdgpu_svc_dir="$HOME/dotfiles/hosts/firedragon/etc/systemd/system"
+    local amdgpu_svc_dir="$PROJECT_ROOT/hosts/firedragon/etc/systemd/system"
     local svc
     for svc in amdgpu-suspend.service amdgpu-resume.service amdgpu-console-restore.service; do
         if [[ -f "${amdgpu_svc_dir}/${svc}" ]]; then
@@ -488,7 +484,7 @@ RemoveIPC=yes
         log_success "Kernel parameter amdgpu.modeset=1 already active in current boot"
     else
         log_info "Installing Limine kernel parameter drop-in for amdgpu.modeset=1..."
-        local limine_dropin_src="$HOME/dotfiles/hosts/firedragon/etc/limine-entry-tool.d/10-amdgpu.conf"
+        local limine_dropin_src="$PROJECT_ROOT/hosts/firedragon/etc/limine-entry-tool.d/10-amdgpu.conf"
         local limine_dropin_dest="/etc/limine-entry-tool.d/10-amdgpu.conf"
         if [[ -f "$limine_dropin_src" ]]; then
             sysmod_install_file "$limine_dropin_src" "$limine_dropin_dest" || true
@@ -532,13 +528,13 @@ RemoveIPC=yes
     log_warning "systemd-logind changes require REBOOT to take effect"
     log_warning "DO NOT restart systemd-logind manually - it will kill your session!"
 
-    if [[ -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" ]]; then
-        sysmod_install_file "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" /etc/systemd/system-sleep/99-runtime-pm.sh 755 || true
+    if [[ -f "$PROJECT_ROOT/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" ]]; then
+        sysmod_install_file "$PROJECT_ROOT/hosts/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh" /etc/systemd/system-sleep/99-runtime-pm.sh 755 || true
         log_info "Installed runtime PM override script"
     fi
 
-    if [[ -f "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" ]]; then
-        sysmod_install_file "$HOME/dotfiles/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" /etc/systemd/system-sleep/98-ax210-bt-recover.sh 755 || true
+    if [[ -f "$PROJECT_ROOT/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" ]]; then
+        sysmod_install_file "$PROJECT_ROOT/hosts/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh" /etc/systemd/system-sleep/98-ax210-bt-recover.sh 755 || true
         log_info "Installed Intel AX210 Bluetooth recover script"
     fi
     
@@ -625,7 +621,7 @@ ACTION=="add", SUBSYSTEM=="leds", KERNEL=="asus::kbd_backlight", RUN+="/bin/chmo
 ' 644
 
     # Add user to video group for backlight control
-    _sysmod_sudo usermod -aG video "$USER"
+    _sysmod_sudo usermod -aG video "${SUDO_USER:-$USER}"
     
     # Create keyboard backlight control script
     mkdir -p "$HOME/.local/bin"
@@ -694,40 +690,34 @@ setup_gesture_plugins() {
     
     # Install hyprgrass for advanced touchpad/touchscreen gestures
     if [[ ! -d "$plugin_dir/hyprgrass" ]]; then
-        cd "$plugin_dir"
-        if git clone https://github.com/horriblename/hyprgrass.git; then
-            cd hyprgrass
-            log_info "Building hyprgrass with cmake support..."
-            if meson setup build && ninja -C build; then
-                log_success "✓ Hyprgrass plugin built successfully!"
-                
-                # Create autostart script to load plugin
-                mkdir -p "$HOME/.config/hypr/scripts"
-                cat > "$HOME/.config/hypr/scripts/load-gesture-plugins.sh" << 'EOF'
+        (
+            cd "$plugin_dir"
+            if git clone https://github.com/horriblename/hyprgrass.git; then
+                cd hyprgrass
+                log_info "Building hyprgrass with cmake support..."
+                if meson setup build && ninja -C build; then
+                    log_success "Hyprgrass plugin built successfully!"
+                    
+                    mkdir -p "$HOME/.config/hypr/scripts"
+                    cat > "$HOME/.config/hypr/scripts/load-gesture-plugins.sh" << 'INNEREOF'
 #!/bin/bash
-# Load Hyprland gesture plugins
-
 PLUGIN_DIR="$HOME/.local/share/hyprland-plugins"
-
-# Load hyprgrass plugin
 if [[ -f "$PLUGIN_DIR/hyprgrass/build/hyprgrass.so" ]]; then
     hyprctl plugin load "$PLUGIN_DIR/hyprgrass/build/hyprgrass.so"
 fi
-EOF
-                chmod +x "$HOME/.config/hypr/scripts/load-gesture-plugins.sh"
-                log_success "Hyprgrass plugin installed and ready to load"
-                log_info "Plugin location: $plugin_dir/hyprgrass/build/hyprgrass.so"
+INNEREOF
+                    chmod +x "$HOME/.config/hypr/scripts/load-gesture-plugins.sh"
+                    log_success "Hyprgrass plugin installed and ready to load"
+                    log_info "Plugin location: $plugin_dir/hyprgrass/build/hyprgrass.so"
+                else
+                    log_error "Hyprgrass build failed"
+                    log_info "Touchpad gestures will still work via Hyprland's built-in support"
+                    rm -rf "$plugin_dir/hyprgrass" 2>/dev/null
+                fi
             else
-                log_error "⚠ Hyprgrass build failed"
-                log_info "Check build output above for errors"
-                log_info "Touchpad gestures will still work via Hyprland's built-in support"
-                # Clean up failed build
-                cd "$HOME"
-                rm -rf "$plugin_dir/hyprgrass" 2>/dev/null
+                log_info "Could not clone hyprgrass (optional feature)"
             fi
-        else
-            log_info "Could not clone hyprgrass (optional feature)"
-        fi
+        )
     else
         log_info "hyprgrass directory exists - skipping rebuild"
         if [[ -f "$plugin_dir/hyprgrass/build/hyprgrass.so" ]]; then
@@ -737,10 +727,7 @@ EOF
         fi
     fi
     
-    # Note: hyprexpo is built into Hyprland 0.40+
     log_info "Note: hyprexpo gesture support is built into Hyprland 0.40+"
-    
-    cd "$HOME"
     log_success "Gesture configuration completed"
 }
 
@@ -777,7 +764,7 @@ setup_sddm_theme() {
         return 0
     fi
     
-    local theme_scripts_dir="$HOME/dotfiles/scripts/theme-manager"
+    local theme_scripts_dir="$PROJECT_ROOT/scripts/theme-manager"
     
     # Refresh SDDM themes (copies from packages/sddm to /usr/share/sddm/themes)
     if [[ -x "$theme_scripts_dir/refresh-sddm" ]]; then
@@ -799,7 +786,16 @@ setup_sddm_theme() {
 
 # Main setup function
 main() {
-    log_info "🚀 Setting up FireDragon AMD Laptop..."
+    log_info "Running setup for FireDragon laptop..."
+
+    # Handle --reset flag to force re-run all steps
+    if [[ "${1:-}" == "--reset" ]]; then
+        reset_all_steps
+        log_info "Installation state reset. All steps will be re-run."
+        echo
+    fi
+
+    log_info "Setting up FireDragon AMD Laptop..."
     echo
     
     # Run each setup function with idempotency tracking

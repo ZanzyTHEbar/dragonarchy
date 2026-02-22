@@ -121,6 +121,10 @@ parse_args() {
                 shift
             ;;
             --host)
+                if [[ $# -lt 2 || "$2" == --* ]]; then
+                    log_error "--host requires a hostname argument"
+                    exit 1
+                fi
                 HOST="$2"
                 shift 2
             ;;
@@ -164,6 +168,10 @@ parse_args() {
                 shift
             ;;
             --sddm-theme)
+                if [[ $# -lt 2 || "$2" == --* ]]; then
+                    log_error "--sddm-theme requires a theme name argument"
+                    exit 1
+                fi
                 SDDM_THEME="$2"
                 shift 2
             ;;

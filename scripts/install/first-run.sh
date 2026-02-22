@@ -98,7 +98,7 @@ setup_timezone() {
     # Attempt geo-IP based timezone detection
     local detected_tz=""
     if command -v curl >/dev/null 2>&1; then
-        detected_tz=$(curl -sf --max-time 5 "http://ip-api.com/line/?fields=timezone" 2>/dev/null || true)
+        detected_tz=$(curl -sf --max-time 5 "https://ipapi.co/timezone" 2>/dev/null || true)
     fi
 
     if [[ -z "$detected_tz" ]]; then
