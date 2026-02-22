@@ -35,14 +35,31 @@ source "${SCRIPT_DIR}/../../lib/logging.sh"
 install_additional_tools() {
     log_step "Installing additional tools..."
     
-    # Add installation commands for tools not covered in the main installation
-    # Example:
-    # if command -v yay >/dev/null 2>&1; then
-    #     log_info "Installing additional AUR packages..."
-    #     yay -S --noconfirm --needed package-name
-    # fi
+    local missing=()
+    local optional_tools=(
+        "fzf"
+        "bat"
+        "eza"
+        "btop"
+        "fd"
+        "ripgrep"
+        "zoxide"
+    )
+
+    for tool in "${optional_tools[@]}"; do
+        if command -v "$tool" >/dev/null 2>&1; then
+            log_info "Optional tool present: $tool"
+        else
+            missing+=("$tool")
+        fi
+    done
     
-    log_info "No additional tools to install (placeholder)"
+    if ((${#missing[@]} == 0)); then
+        log_success "All optional tools are already available"
+    else
+        log_warning "Optional tools missing: ${missing[*]}"
+        log_info "Install them manually for the full workflow: ${missing[*]}"
+    fi
 }
 
 # Configure user-specific settings
@@ -64,14 +81,25 @@ configure_user_settings() {
 # Perform cleanup tasks
 cleanup_tasks() {
     log_step "Running cleanup tasks..."
-    
-    # Add cleanup tasks here
-    # Example:
-    # - Removing temporary files
-    # - Cleaning package cache
-    # - Removing unnecessary backup files
-    
-    log_info "No cleanup tasks to run (placeholder)"
+
+    local cleanup_targets=(
+        "$HOME/.cache/dotfiles"
+        "$HOME/.cache/dotfiles-install"
+        "$HOME/.local/share/dotfiles"
+    )
+
+    for target in "${cleanup_targets[@]}"; do
+        if [[ -d "$target" ]]; then
+            local before after
+            before=$(find "$target" -type f 2>/dev/null | wc -l)
+            find "$target" -type f -name "*.tmp" -delete 2>/dev/null || true
+            find "$target" -type d -empty -delete 2>/dev/null || true
+            after=$(find "$target" -type f 2>/dev/null | wc -l)
+            log_info "Cleanup '$target': removed $((before - after)) temporary files"
+        else
+            log_info "Cleanup target not present, skipping: $target"
+        fi
+    done
 }
 
 # Display post-installation instructions
@@ -96,10 +124,9 @@ main() {
     log_info "Starting post-installation tasks..."
     echo
     
-    # Uncomment and run the functions you need
-    # install_additional_tools
+    install_additional_tools
     configure_user_settings
-    # cleanup_tasks
+    cleanup_tasks
     show_post_install_info
     
     log_success "Post-installation tasks completed"

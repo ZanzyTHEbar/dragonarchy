@@ -10,7 +10,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../../lib/logging.sh"
 
 # --- List of services to enable ---
-# "docker.service" - TODO - need to add docker installation to setup BEFORE setting up the service
 services=(
   "bluetooth.service"
   "cups.service"
@@ -34,6 +33,16 @@ else
     # TLP not installed - add power-profiles-daemon to services list
     services+=("power-profiles-daemon.service")
     log_info "TLP not detected - adding power-profiles-daemon.service"
+fi
+
+# Enable docker service entries when docker packages are already installed.
+if systemctl list-unit-files 2>/dev/null | grep -q "^docker.service"; then
+    services+=("docker.service")
+    log_info "Detected docker.service, adding to service enable list"
+fi
+if systemctl list-unit-files 2>/dev/null | grep -q "^docker.socket"; then
+    services+=("docker.socket")
+    log_info "Detected docker.socket, adding to service enable list"
 fi
 
 for service in "${services[@]}"; do
