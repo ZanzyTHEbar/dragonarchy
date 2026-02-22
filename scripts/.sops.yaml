@@ -1,5 +1,5 @@
 keys:
-  - &main_key age15tycxxawwpn6qln2wgpv00lzypzyvhts25eeajd003gemhn5hawqnj27aa
+  - &main_key age1uahdpm0gczrjg0ynp6f20np0dlx40tqjrqzwcnx67sg3dxuxyq6q5mqt4t
 
 creation_rules:
   - path_regex: .*\.yaml$
