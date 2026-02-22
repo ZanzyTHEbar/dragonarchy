@@ -21,11 +21,17 @@ get_available_hosts() {
 detect_host() {
     local _hosts_dir="$1"
     local hostname
-    hostname=$(hostname | cut -d. -f1)
+    hostname=$(hostname 2>/dev/null | cut -d. -f1)
+
+    if [[ -z "$hostname" ]]; then
+        __hosts_log_info "Warning: hostname command returned empty" >&2
+        hostname="unknown"
+    fi
 
     if [[ -d "${_hosts_dir}/${hostname}" ]]; then
         echo "$hostname"
     else
+        __hosts_log_info "No host directory found for '${hostname}' in ${_hosts_dir}" >&2
         echo "$hostname"
     fi
 }
@@ -53,7 +59,8 @@ hyprland_detection_method() {
     fi
 
     if [[ -d "$host_dir/docs" ]]; then
-        if find "$host_dir/docs" -type f -name "*.md" -exec grep -qi "hyprland" {} \; 2>/dev/null; then
+        if find "$host_dir/docs" -type f -name "*.md" -print0 2>/dev/null \
+           | xargs -0 grep -qil "hyprland" 2>/dev/null; then
             echo "docs"
             return 0
         fi

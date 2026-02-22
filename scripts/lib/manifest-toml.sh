@@ -24,7 +24,10 @@ manifest_yq_query() {
     local query="$2"
 
     local yq_bin
-    yq_bin=$(manifest_yq_resolve_bin) || return 0
+    yq_bin=$(manifest_yq_resolve_bin) || {
+        __manifest_log_warning "yq v4 not available; cannot query manifest"
+        return 1
+    }
 
     "$yq_bin" -p=toml -r "$query" "$manifest_file" 2>/dev/null || true
 }
@@ -103,9 +106,17 @@ manifest_ensure_yq() {
     tmp=$(mktemp)
 
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$url" -o "$tmp"
+        if ! curl -fsSL "$url" -o "$tmp"; then
+            __manifest_log_error "Failed to download yq from $url"
+            rm -f "$tmp" 2>/dev/null || true
+            return 1
+        fi
     elif command -v wget >/dev/null 2>&1; then
-        wget -qO "$tmp" "$url"
+        if ! wget -qO "$tmp" "$url"; then
+            __manifest_log_error "Failed to download yq from $url"
+            rm -f "$tmp" 2>/dev/null || true
+            return 1
+        fi
     else
         __manifest_log_error "Neither curl nor wget available to download yq"
         rm -f "$tmp" 2>/dev/null || true
@@ -218,13 +229,47 @@ manifest_list_bundles() {
 manifest_bundle_groups() {
     local manifest_file="$1"
     local bundle_name="$2"
+    # Use associative arrays for dedupe and cycle avoidance.
+    local -A bundle_seen=()
+    local -A group_seen=()
+    local -a group_output=()
 
-    local exists
-    exists=$(manifest_yq_query "$manifest_file" ".bundles.${bundle_name} | type")
-    if [[ -z "$exists" || "$exists" == "null" ]]; then
-        __manifest_log_error "Bundle not found: $bundle_name"
-        return 1
-    fi
+    __manifest_bundle_groups_resolve() {
+        local node="$1"
+        [[ -z "$node" ]] && return 0
+        if [[ -n "${bundle_seen[$node]:-}" ]]; then
+            return 0
+        fi
+        bundle_seen["$node"]=1
 
-    manifest_yq_query "$manifest_file" ".bundles.${bundle_name}.groups[]"
+        local exists
+        exists=$(manifest_yq_query "$manifest_file" ".bundles.${node} | type")
+        if [[ -z "$exists" || "$exists" == "null" ]]; then
+            __manifest_log_error "Bundle not found: $node"
+            return 1
+        fi
+
+        local extended=()
+        mapfile -t extended < <(manifest_yq_query "$manifest_file" ".bundles.${node}.extends[]")
+
+        local ext
+        for ext in "${extended[@]}"; do
+            __manifest_bundle_groups_resolve "$ext" || return 1
+        done
+
+        local groups=()
+        mapfile -t groups < <(manifest_yq_query "$manifest_file" ".bundles.${node}.groups[]")
+
+        local g
+        for g in "${groups[@]}"; do
+            [[ -z "$g" ]] && continue
+            if [[ -z "${group_seen[$g]:-}" ]]; then
+                group_seen["$g"]=1
+                group_output+=("$g")
+            fi
+        done
+    }
+
+    __manifest_bundle_groups_resolve "$bundle_name" || return 1
+    printf '%s\n' "${group_output[@]}"
 }

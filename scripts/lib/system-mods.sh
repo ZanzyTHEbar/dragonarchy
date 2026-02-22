@@ -47,7 +47,7 @@ _sysmod_files_same() {
     local sum_a sum_b
     sum_a=$(sha256sum "$a" 2>/dev/null | cut -d' ' -f1)
     sum_b=$(sha256sum "$b" 2>/dev/null | cut -d' ' -f1)
-    [[ "$sum_a" == "$sum_b" ]]
+    [[ -n "$sum_a" && -n "$sum_b" && "$sum_a" == "$sum_b" ]]
 }
 
 # ────────────────────────────────────────────────────────────────
