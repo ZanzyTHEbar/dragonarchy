@@ -157,7 +157,22 @@ Packages are defined in `scripts/install/deps.manifest.toml`. Bundles compose pa
 ./scripts/install/install-deps.sh --bundle desktop   # Full Hyprland desktop
 ./scripts/install/install-deps.sh --bundle minimal   # CLI-only (server/container)
 ./scripts/install/install-deps.sh --bundle creative  # Desktop + multimedia tools
+./scripts/install/install-deps.sh --bundle desktop_smb # Desktop + optional Nemo SMB/usershare support
 ```
+
+Bundles are composable:
+- `desktop_base` defines the shared Hyprland desktop foundation.
+- `desktop` is now the base profile without SMB/usershare.
+- `desktop_smb` extends `desktop_base` and adds only SMB/usershare pieces (`nemo_share`).
+- `creative` extends `desktop_base` and adds creative payload groups.
+- The installer resolves bundle inheritance in one pass and installs composed groups through
+  the shared adapter composer (`install_platform_manager_batches`), so adding new
+  bundle variants should be manifest-only.
+- Package manager handling is adapter-driven in the installer: adding a new manager means
+  registering an adapter and selector strategy, then wiring groups in the manifest,
+  not adding new branch-specific install loops.
+- The installer validates manifest managers at startup and refuses to proceed when no
+  supported manager adapter is configured for the detected platform.
 
 ## System Validation
 
