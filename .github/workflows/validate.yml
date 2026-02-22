@@ -16,31 +16,11 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get install -y shellcheck
 
-      - name: Lint library scripts
+      - name: Lint all shell scripts
         run: |
-          shellcheck -x -s bash \
-            scripts/lib/logging.sh \
-            scripts/lib/install-state.sh \
-            scripts/lib/system-mods.sh \
-            scripts/lib/stow-helpers.sh \
-            scripts/lib/icons.sh \
-            scripts/lib/fresh-mode.sh \
-            scripts/lib/hosts.sh \
-            scripts/lib/manifest-toml.sh
-
-      - name: Lint installer scripts
-        run: |
-          shellcheck -x -s bash \
-            scripts/install/validate.sh \
-            scripts/install/first-run.sh \
-            scripts/install/install-deps.sh
-
-      - name: Lint host setup scripts
-        run: |
-          shellcheck -x -s bash \
-            hosts/dragon/setup.sh \
-            hosts/goldendragon/setup.sh \
-            hosts/firedragon/setup.sh
+          find scripts/lib/ scripts/install/ hosts/*/setup.sh install.sh \
+            -name '*.sh' -type f -print0 \
+            | xargs -0 shellcheck -x -s bash
 
   syntax-check:
     name: Bash Syntax Check
@@ -79,12 +59,14 @@ jobs:
 
           # Run validation — allow non-zero exit (some checks will fail in CI)
           set +e
-          output=$(bash scripts/install/validate.sh --json 2>/dev/null)
+          output=$(bash scripts/install/validate.sh --json 2>/tmp/validate-stderr.log)
           rc=$?
           set -e
 
           echo "$output" | jq . || {
             echo "::warning::validate.sh did not produce valid JSON"
+            echo "::warning::stderr output:"
+            cat /tmp/validate-stderr.log 2>/dev/null || true
             echo '{"status":"error","passed":0,"failed":0,"warnings":0,"results":[]}' > /tmp/validate.json
             exit 0
           }
@@ -125,7 +107,8 @@ jobs:
 
       - name: Install yq
         run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          YQ_VERSION="v4.44.6"
+          sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
           sudo chmod +x /usr/local/bin/yq
 
       - name: Validate manifest TOML syntax
