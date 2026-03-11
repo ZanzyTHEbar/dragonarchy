@@ -263,6 +263,7 @@ packages = [
     "tzupdate",
     "clipse",
     "img2pdf",
+    "udiskie",
 ]
 
 [platforms.arch.paru.hyprland_aur_elephant]
