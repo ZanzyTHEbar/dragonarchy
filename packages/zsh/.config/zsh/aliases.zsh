@@ -1,34 +1,6 @@
 # Comprehensive ZSH Aliases Configuration
 
-# Archive extractor function
-ex() {
-    if [ -f $1 ] ; then
-        case $1 in
-            *.tar.bz2)   tar xjf $1   ;;
-            *.tar.gz)    tar xzf $1   ;;
-            *.tar.xz)    tar xJf $1   ;;
-            *.bz2)       bunzip2 $1   ;;
-            *.rar)       unrar x $1     ;;
-            *.gz)        gunzip $1    ;;
-            *.tar)       tar xf $1    ;;
-            *.tbz2)      tar xjf $1   ;;
-            *.tgz)       tar xzf $1   ;;
-            *.zip)       unzip $1     ;;
-            *.Z)         uncompress $1;;
-            *.7z)        7z x $1      ;;
-            *)           echo "'$1' cannot be extracted via ex()" ;;
-        esac
-    else
-        echo "'$1' is not a valid file"
-    fi
-}
 
-# Find function for new files
-findFcn() {
-    find . -cnewer "${1}" | ag -v '.config|.cache|.mozilla|.local/share|.git' | cat -n | less
-}
-
-alias findnew='findFcn'
 
 #######################################################
 # Basic Commands
@@ -36,7 +8,7 @@ alias findnew='findFcn'
 
 alias c='clear'
 alias q='exit'
-alias ..='cd ..'
+alias ..='z ..'
 alias mkdir='mkdir -pv'
 alias cp='cp -iv'
 alias mv='mv -iv'
@@ -45,6 +17,7 @@ alias rmdir='rmdir -v'
 alias grep='grep --color=auto'
 alias fgrep='fgrep --color=auto'
 alias egrep='egrep --color=auto'
+alias findnew='findFcn'
 
 #######################################################
 # Editor Aliases
@@ -83,16 +56,26 @@ if [[ -x "$(command -v lsd)" ]]; then
     alias lr='lsd -tRFh'   # sorted by date, recursive, show type, human readable
     
     # Tree function with depth control
+    # Usage: lst <depth> [max_lines] [path]
+    #   lst 2              -> depth 2, cwd, max 99 lines
+    #   lst 2 ~/.cursor    -> depth 2, ~/.cursor, max 99 lines
+    #   lst 2 50           -> depth 2, cwd, max 50 lines
+    #   lst 2 50 ~/.cursor -> depth 2, ~/.cursor, max 50 lines
     lst() {
-        if [[ $1 =~ ^[0-9]+$ ]]; then
-            local depth=$1
-        else
+        if [[ ! $1 =~ ^[0-9]+$ ]]; then
             echo "Error: Please provide a valid positive number for the depth."
             return 1
         fi
-        
-        local max_lines=${2:-99}
-        lsd --color always --icon always --tree --ignore-glob node_modules --depth "$depth" | sed "${max_lines}q" | cat -n; echo; echo truncated at "$max_lines" lines - see alias lst for details. &
+        local depth=$1
+        local max_lines path
+        if [[ ${2:-} =~ ^[0-9]+$ ]]; then
+            max_lines=$2
+            path=${3:-.}
+        else
+            path=${2:-.}
+            max_lines=${3:-99}
+        fi
+        lsd --color always --icon always --tree --ignore-glob node_modules --depth "$depth" -- "$path" | sed "${max_lines}q" | cat -n; echo; echo truncated at "$max_lines" lines - see alias lst for details. &
     }
 fi
 
@@ -169,20 +152,6 @@ alias prisma-go="go run github.com/steebchen/prisma-client-go"
 # LBRY
 alias lbrynet='/opt/LBRY/resources/static/daemon/lbrynet'
 
-# Git
-gitpush() {
-    git add .
-    git commit -m "$*"
-    git pull
-    git push
-}
-gitupdate() {
-    eval "$(ssh-agent -s)"
-    ssh-add ~/.ssh/github
-    ssh -T git@github.com
-}
-alias gp=gitpush
-alias gu=gitupdate
 alias update-grub='sudo grub-mkconfig -o /boot/grub/grub.cfg'
 alias gh-work='GH_CONFIG_DIR=~/.config/gh-work gh'
 alias gh-personal='GH_CONFIG_DIR=~/.config/gh-personal gh'
@@ -219,31 +188,3 @@ alias help='man'
 alias p='ps -f'
 alias sortnr='sort -n -r'
 alias unexport='unset'
-
-#######################################################
-# Calendar Functions (Example for specific months)
-#######################################################
-
-showcalendarjd() {
-    local YEAR=$(date +%Y)
-    for monthly in "Jul" "Aug" "Sep" "Oct"; do
-        gcal -j -s Mon -K --iso-week-number=yes ${monthly} ${YEAR}
-        echo
-    done
-}
-
-showcalendarjdb() {
-    local YEAR=$(date +%Y)
-    for monthly in "Jul" "Aug" "Sep" "Oct"; do
-        gcal -jb -s Mon -K --iso-week-number=yes ${monthly} ${YEAR}
-        echo
-    done
-}
-
-showcalendarcw() {
-    local YEAR=$(date +%Y)
-    for monthly in "Jul" "Aug" "Sep" "Oct"; do
-        gcal -s Mon -K --iso-week-number=yes ${monthly} ${YEAR}
-        echo
-    done
-} 
