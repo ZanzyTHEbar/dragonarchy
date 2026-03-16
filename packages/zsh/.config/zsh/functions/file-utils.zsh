@@ -291,3 +291,60 @@ function mvg() {
 function mkdirg() {
 	mkdir -p "$@" && cd "$@"
 }
+
+# Archive extractor function
+ex() {
+    if [ -f $1 ] ; then
+        case $1 in
+            *.tar.bz2)   tar xjf $1   ;;
+            *.tar.gz)    tar xzf $1   ;;
+            *.tar.xz)    tar xJf $1   ;;
+            *.bz2)       bunzip2 $1   ;;
+            *.rar)       unrar x $1     ;;
+            *.gz)        gunzip $1    ;;
+            *.tar)       tar xf $1    ;;
+            *.tbz2)      tar xjf $1   ;;
+            *.tgz)       tar xzf $1   ;;
+            *.zip)       unzip $1     ;;
+            *.Z)         uncompress $1;;
+            *.7z)        7z x $1      ;;
+            *)           echo "'$1' cannot be extracted via ex()" ;;
+        esac
+    else
+        echo "'$1' is not a valid file"
+    fi
+}
+
+# Find function for new files
+findFcn() {
+    find . -cnewer "${1}" | ag -v '.config|.cache|.mozilla|.local/share|.git' | cat -n | less
+}
+
+#######################################################
+# Tree function with depth control
+#######################################################
+
+if [[ -x "$(command -v lsd)" ]]; then
+    # Tree function with depth control
+    # Usage: lst <depth> [max_lines] [path]
+    #   lst 2              -> depth 2, cwd, max 99 lines
+    #   lst 2 ~/.cursor    -> depth 2, ~/.cursor, max 99 lines
+    #   lst 2 50           -> depth 2, cwd, max 50 lines
+    #   lst 2 50 ~/.cursor -> depth 2, ~/.cursor, max 50 lines
+    lst() {
+        if [[ ! $1 =~ ^[0-9]+$ ]]; then
+            echo "Error: Please provide a valid positive number for the depth."
+            return 1
+        fi
+        local depth=$1
+        local max_lines path
+        if [[ ${2:-} =~ ^[0-9]+$ ]]; then
+            max_lines=$2
+            path=${3:-.}
+        else
+            path=${2:-.}
+            max_lines=${3:-99}
+        fi
+        lsd --color always --icon always --tree --ignore-glob node_modules --depth "$depth" -- "$path" | sed "${max_lines}q" | cat -n; echo; echo truncated at "$max_lines" lines - see alias lst for details. &
+    }
+fi
