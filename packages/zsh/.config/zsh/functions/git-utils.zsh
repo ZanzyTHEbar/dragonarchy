@@ -58,6 +58,19 @@ gitupdate() {
     fi
 }
 
+#gitpush() {
+#    git add .
+#    git commit -m "$*"
+#    git pull
+#    git push
+#}
+
+#gitupdate() {
+#    eval "$(ssh-agent -s)"
+#    ssh-add ~/.ssh/github
+#    ssh -T git@github.com
+#}
+
 # Quick commit with message
 gitquick() {
     if [[ $# -eq 0 ]]; then
