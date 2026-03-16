@@ -34,3 +34,31 @@ function random_bars() {
     done
     printf "\n"
 }
+
+#######################################################
+# Calendar Functions (Example for specific months)
+#######################################################
+
+showcalendarjd() {
+    local YEAR=$(date +%Y)
+    for monthly in "Jul" "Aug" "Sep" "Oct"; do
+        gcal -j -s Mon -K --iso-week-number=yes ${monthly} ${YEAR}
+        echo
+    done
+}
+
+showcalendarjdb() {
+    local YEAR=$(date +%Y)
+    for monthly in "Jul" "Aug" "Sep" "Oct"; do
+        gcal -jb -s Mon -K --iso-week-number=yes ${monthly} ${YEAR}
+        echo
+    done
+}
+
+showcalendarcw() {
+    local YEAR=$(date +%Y)
+    for monthly in "Jul" "Aug" "Sep" "Oct"; do
+        gcal -s Mon -K --iso-week-number=yes ${monthly} ${YEAR}
+        echo
+    done
+} 
