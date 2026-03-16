@@ -337,17 +337,17 @@ if [[ -x "$(command -v lsd)" ]]; then
             return 1
         fi
         local depth=$1
-        local max_lines path
+        local max_lines dir
         if [[ ${2:-} =~ ^[0-9]+$ ]]; then
             max_lines=$2
-            path=${3:-.}
+            dir=${3:-.}
         else
-            path=${2:-.}
+            dir=${2:-.}
             max_lines=${3:-99}
         fi
         (
             export PATH="/usr/bin:/bin:/usr/local/bin${HOME:+/:$HOME/.cargo/bin}${PATH:+:$PATH}"
-            lsd --color always --icon always --tree --ignore-glob node_modules --depth "$depth" -- "$path" | sed "${max_lines}q" | cat -n
+            lsd --color always --icon always --tree --ignore-glob node_modules --depth "$depth" -- "$dir" | sed "${max_lines}q" | cat -n
         )
         echo
         echo truncated at "$max_lines" lines - see alias lst for details.
