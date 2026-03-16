@@ -54,29 +54,6 @@ if [[ -x "$(command -v lsd)" ]]; then
     alias l='lsd -lFh'     # size, show type, human readable
     alias la='lsd -lAFh'   # long list, show almost all, show type, human readable
     alias lr='lsd -tRFh'   # sorted by date, recursive, show type, human readable
-    
-    # Tree function with depth control
-    # Usage: lst <depth> [max_lines] [path]
-    #   lst 2              -> depth 2, cwd, max 99 lines
-    #   lst 2 ~/.cursor    -> depth 2, ~/.cursor, max 99 lines
-    #   lst 2 50           -> depth 2, cwd, max 50 lines
-    #   lst 2 50 ~/.cursor -> depth 2, ~/.cursor, max 50 lines
-    lst() {
-        if [[ ! $1 =~ ^[0-9]+$ ]]; then
-            echo "Error: Please provide a valid positive number for the depth."
-            return 1
-        fi
-        local depth=$1
-        local max_lines path
-        if [[ ${2:-} =~ ^[0-9]+$ ]]; then
-            max_lines=$2
-            path=${3:-.}
-        else
-            path=${2:-.}
-            max_lines=${3:-99}
-        fi
-        lsd --color always --icon always --tree --ignore-glob node_modules --depth "$depth" -- "$path" | sed "${max_lines}q" | cat -n; echo; echo truncated at "$max_lines" lines - see alias lst for details. &
-    }
 fi
 
 #######################################################

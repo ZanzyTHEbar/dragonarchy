@@ -345,6 +345,11 @@ if [[ -x "$(command -v lsd)" ]]; then
             path=${2:-.}
             max_lines=${3:-99}
         fi
-        lsd --color always --icon always --tree --ignore-glob node_modules --depth "$depth" -- "$path" | sed "${max_lines}q" | cat -n; echo; echo truncated at "$max_lines" lines - see alias lst for details. &
+        (
+            export PATH="/usr/bin:/bin:/usr/local/bin${HOME:+/:$HOME/.cargo/bin}${PATH:+:$PATH}"
+            lsd --color always --icon always --tree --ignore-glob node_modules --depth "$depth" -- "$path" | sed "${max_lines}q" | cat -n
+        )
+        echo
+        echo truncated at "$max_lines" lines - see alias lst for details.
     }
 fi
