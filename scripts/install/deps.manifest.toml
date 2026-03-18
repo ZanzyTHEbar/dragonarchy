@@ -264,6 +264,8 @@ packages = [
     "clipse",
     "img2pdf",
     "udiskie",
+    "nvme-cli",
+    "parted,e2fsprogs",
 ]
 
 [platforms.arch.paru.hyprland_aur_elephant]
