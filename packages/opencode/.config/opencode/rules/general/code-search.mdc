@@ -1,0 +1,167 @@
+---
+alwaysApply: true
+description: Rules on how to properly search a codebase use the `sg` command instead of plain-text grep.
+---
+
+
+You run in an environment where ast-grep is available; whenever a search requires syntax-aware or structural matching, default to ast-grep.
+-lang go -p'<pattern>' (or set --lang appropriately) and avoid falling back to text-only tools like 'g' or 'grep unless I explicitly request a plain-text search.
+
+You must, at all time, consider the usage of ast-grep and avoid plain-text grep unless absolutely required by the task.
+
+# 📘 Instruction Set: Using **ast-grep**
+
+## 1. Core Principles
+
+1. **Syntax-aware, not text-based:** Always match code structure, not raw strings.
+2. **Two modes of use:**
+
+   * **Ad-hoc (`ast-grep run`)** → one-time queries/replacements.
+   * **Rule-driven (`ast-grep scan`)** → reusable lint/refactor rules.
+3. **Metavariables (`$X`)** capture arbitrary syntax nodes.
+   Example: `$A == $B` matches any binary comparison.
+
+---
+
+## 2. Workflow
+
+### Step 1 — Identify the Goal
+
+* Clarify: Is the user asking to **search**, **rewrite/refactor**, or **create lint rules**?
+* Extract: The **language**, the **pattern to find**, and the **replacement (if any)**.
+
+### Step 2 — Choose Mode
+
+* Use **`ast-grep run`** for one-off commands.
+* Use **`ast-grep scan`** with YAML rules if the user wants:
+
+  * Persistent linting
+  * Multiple patterns
+  * CI/CD integration
+
+### Step 3 — Construct Pattern
+
+* Use **literal code snippet** if exact.
+
+  ```bash
+  ast-grep run --lang js --pattern 'console.log($MSG)'
+  ```
+* Use **metavariables** for generalization.
+
+  * `$VAR` → identifier
+  * `$EXPR` → expression
+  * `$FUNC` → function calls
+
+Example: Match any `if` comparing with `None`:
+
+```bash
+ast-grep run --lang python --pattern 'if $X == None:'
+```
+
+### Step 4 — Add Rewrite (if needed)
+
+* Provide replacement template with the same metavariables.
+
+  ```bash
+  ast-grep run --lang python \
+    --pattern 'if $X == None:' \
+    --rewrite 'if $X is None:'
+  ```
+* Always **test with preview** first (omit `--update`).
+* Apply with:
+
+  ```bash
+  ast-grep run ... --update
+  ```
+
+### Step 5 — YAML Rule (for `ast-grep scan`)
+
+When persistent, generate a YAML block:
+
+```yaml
+id: no-print
+message: "Use logger instead of print"
+severity: warning
+language: Python
+rule:
+  pattern: print($ARG)
+fix: logger.info($ARG)
+```
+
+Save in `sgconfig.yml`, then run:
+
+```bash
+ast-grep scan
+```
+
+### Step 6 — Verify & Iterate
+
+* Suggest the user run `ast-grep run` first on a test file.
+* If satisfied, apply globally with `--update` or commit `sgconfig.yml`.
+
+---
+
+## 3. Best Practices for LLM Usage
+
+* ✅ **Always use `ast-grep`**, never `sg` (avoid system conflict).
+* ✅ **Be explicit about language (`--lang`)** → avoids ambiguity.
+* ✅ **Always preview diffs** before suggesting `--update`.
+* ✅ **Explain metavariables** used in the command.
+* ✅ **Wrap outputs in code fences** for clarity.
+* ✅ **Provide minimal reproducible test files** when showing examples.
+* ❌ Don’t recommend raw text search (`grep`) as a substitute.
+* ❌ Don’t omit `--lang`, unless the user already specified in config.
+
+---
+
+## 4. Example Scenarios
+
+**Case A — Quick Search**
+User: “Find all JS `console.log` calls.”
+LLM:
+
+```bash
+ast-grep run --lang js --pattern 'console.log($MSG)'
+```
+
+**Case B — Refactor**
+User: “Replace Python `print()` with `logger.info()`.”
+LLM:
+
+```bash
+ast-grep run --lang python \
+  --pattern 'print($ARG)' \
+  --rewrite 'logger.info($ARG)'
+```
+
+**Case C — Lint Rule**
+User: “Enforce `===` instead of `==` in JS.”
+LLM:
+
+```yaml
+id: strict-equality
+message: "Use === instead of =="
+severity: error
+language: JavaScript
+rule:
+  pattern: $A == $B
+fix: $A === $B
+```
+
+Run:
+
+```bash
+ast-grep scan
+```
+
+---
+
+## 5. Safety Checks
+
+Before finalizing, the LLM should:
+
+1. Confirm **language** is supported (Python, JS, TS, Rust, Go, etc.).
+2. Ensure **pattern + rewrite placeholders align** (`$A` in pattern must appear in rewrite).
+3. Default to **preview mode** (omit `--update`) unless explicitly asked.
+4. Recommend **YAML config** if the user implies reusability.
+
