@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+#
+# Prefer the home DNS server on networks that already advertise it via DHCP,
+# but drop back to NetworkManager's normal DNS handling everywhere else.
+
+set -u
+
+HOME_DNS="192.168.0.218"
+PREFERRED_DNS=("$HOME_DNS" "1.1.1.1" "8.8.8.8")
+IFACE="${1:-}"
+ACTION="${2:-}"
+
+log_dispatcher() {
+    if command -v logger >/dev/null 2>&1; then
+        logger -t nm-home-dns -- "$*"
+    fi
+}
+
+link_has_home_dns() {
+    local dns_server
+
+    for dns_server in ${DHCP4_DOMAIN_NAME_SERVERS:-} ${IP4_NAMESERVERS:-}; do
+        if [[ "$dns_server" == "$HOME_DNS" ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+apply_home_dns() {
+    if ! command -v resolvectl >/dev/null 2>&1; then
+        return 0
+    fi
+
+    resolvectl dns "$IFACE" "${PREFERRED_DNS[@]}"
+    log_dispatcher "Applied home-first DNS on ${IFACE}: ${PREFERRED_DNS[*]}"
+}
+
+revert_home_dns() {
+    if ! command -v resolvectl >/dev/null 2>&1; then
+        return 0
+    fi
+
+    resolvectl revert "$IFACE" >/dev/null 2>&1 || true
+    log_dispatcher "Reverted dispatcher DNS override on ${IFACE}"
+}
+
+if [[ "$IFACE" != "wlan0" ]]; then
+    exit 0
+fi
+
+case "$ACTION" in
+    up|dhcp4-change|dhcp6-change|reapply|connectivity-change)
+        if link_has_home_dns; then
+            apply_home_dns
+        else
+            revert_home_dns
+        fi
+        ;;
+    down|pre-down)
+        revert_home_dns
+        ;;
+esac

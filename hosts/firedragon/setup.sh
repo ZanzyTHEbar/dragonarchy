@@ -211,6 +211,9 @@ setup_power_management() {
 setup_networking() {
     log_info "Setting up wireless and networking..."
     local rc=0
+    local networkmanager_dns_changed=false
+    local networkmanager_dispatcher_src="$PROJECT_ROOT/hosts/firedragon/etc/NetworkManager/dispatcher.d/50-home-dns"
+    local networkmanager_dispatcher_dest="/etc/NetworkManager/dispatcher.d/50-home-dns"
     
     # Enable NetworkManager
     if command_exists nmcli; then
@@ -271,6 +274,32 @@ setup_networking() {
             log_warning "Failed to validate host system configs"
         fi
     fi
+
+    # Ensure the NetworkManager dispatcher ships with executable permissions.
+    if [[ -f "$networkmanager_dispatcher_src" ]]; then
+        sysmod_install_file "$networkmanager_dispatcher_src" "$networkmanager_dispatcher_dest"
+        rc=$?
+        if [[ $rc -eq 1 ]]; then
+            log_success "NetworkManager home DNS dispatcher updated"
+            networkmanager_dns_changed=true
+            reset_step "firedragon-restart-resolved"
+        elif [[ $rc -eq 0 ]]; then
+            log_info "NetworkManager home DNS dispatcher already up to date"
+        else
+            log_warning "Failed to install NetworkManager home DNS dispatcher"
+        fi
+
+        if [[ -e "$networkmanager_dispatcher_dest" ]] && [[ ! -x "$networkmanager_dispatcher_dest" ]]; then
+            if _sysmod_sudo chmod 755 "$networkmanager_dispatcher_dest"; then
+                log_success "Made NetworkManager home DNS dispatcher executable"
+                networkmanager_dns_changed=true
+            else
+                log_warning "Failed to mark NetworkManager home DNS dispatcher executable"
+            fi
+        fi
+    else
+        log_warning "Missing $networkmanager_dispatcher_src; skipping dispatcher install"
+    fi
     
     # Apply DNS changes (only if configs changed or first time)
     if ! is_step_completed "firedragon-restart-resolved"; then
@@ -296,6 +325,31 @@ setup_networking() {
         mark_step_completed "firedragon-restart-resolved"
     else
         log_info "DNS configuration already applied"
+    fi
+
+    if [[ "$networkmanager_dns_changed" == "true" ]] && command_exists nmcli; then
+        log_info "Reloading NetworkManager connections to apply DNS policy..."
+        if systemctl is-active --quiet NetworkManager.service; then
+            if nmcli connection reload >/dev/null 2>&1; then
+                log_success "NetworkManager connection profiles reloaded"
+            else
+                log_warning "Failed to reload NetworkManager connection profiles"
+            fi
+
+            local wlan0_state=""
+            wlan0_state="$(nmcli -g GENERAL.STATE dev show wlan0 2>/dev/null || true)"
+            if [[ "$wlan0_state" == "100 (connected)" ]]; then
+                if nmcli device reapply wlan0 >/dev/null 2>&1; then
+                    log_success "Reapplied wlan0 so the DNS dispatcher takes effect immediately"
+                else
+                    log_warning "Failed to reapply wlan0; dispatcher will run on the next reconnect"
+                fi
+            else
+                log_info "wlan0 is not currently connected; dispatcher will run on the next reconnect"
+            fi
+        else
+            log_warning "NetworkManager is not active; dispatcher will apply on the next NetworkManager start"
+        fi
     fi
     
     log_success "Networking configured (NetBird VPN + Custom DNS)"
