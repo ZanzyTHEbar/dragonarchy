@@ -118,7 +118,7 @@ Comprehensive power profiles optimized for AMD hardware:
 - **WiFi**: NetworkManager with power saving
 - **Bluetooth**: Enabled with power management
 - **VPN**: NetBird for secure mesh networking
-- **DNS**: Custom DNS server (192.168.0.218) with domain routing
+- **DNS**: Home resolver first (`192.168.0.218`) with public fallback and a NetworkManager dispatcher that strips router DNS when the home resolver is present
 - **Commands**:
   - `netbird-status` or `nb` - Check VPN connection
   - `netbird-up` / `netbird-down` - Connect/disconnect VPN
@@ -292,6 +292,7 @@ VDPAU_DRIVER=radeonsi          # VDPAU driver
 - `/etc/udev/rules.d/50-powersave.rules` - Device power management
 - `/etc/polkit-1/rules.d/90-corectrl.rules` - CoreCtrl permissions
 - `/etc/systemd/resolved.conf.d/dns.conf` - DNS configuration
+- `/etc/NetworkManager/dispatcher.d/50-home-dns` - Home Wi-Fi DNS override for Pi-hole-first resolution
 
 ### User Configuration
 
@@ -299,6 +300,35 @@ VDPAU_DRIVER=radeonsi          # VDPAU driver
 - `~/.local/bin/battery-status` - Battery status script
 
 ## Troubleshooting
+
+### DNS Resolution Flaps / `pi.hole` Not Found / Vivaldi Login Stalls
+
+If local names work intermittently, verify that `wlan0` is preferring the home resolver instead of racing the router DNS:
+
+```bash
+# Check the active resolver view
+resolvectl status
+
+# Confirm what NetworkManager handed wlan0
+nmcli device show wlan0
+
+# Verify local names resolve through resolved
+resolvectl query pi.hole
+
+# Verify the home DNS server answers directly
+dig @192.168.0.218 pi.hole
+```
+
+Expected behavior on home Wi-Fi:
+- `wlan0` should show `192.168.0.218` ahead of public DNS.
+- `pi.hole` should resolve consistently.
+- The dispatcher at `/etc/NetworkManager/dispatcher.d/50-home-dns` should remove router DNS from the active link when DHCP already advertises `192.168.0.218`.
+
+If DNS looks healthy but Vivaldi Sync still fails, open:
+- `vivaldi://sync-internals`
+- `vivaldi://settings/sync/`
+
+Repeated `HTTP error (500)` entries there usually point to a Vivaldi service-side sync problem rather than a local resolver failure.
 
 ### ⚠️ Lid Close Causes System Freeze on Resume
 

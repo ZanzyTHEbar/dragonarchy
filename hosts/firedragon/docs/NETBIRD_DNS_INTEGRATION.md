@@ -32,16 +32,29 @@ log_success "Networking configured (NetBird VPN + Custom DNS)"
 
 ```ini
 [Resolve]
-DNS=192.168.0.218
-Domains=~.            # Added this line to match dragon
+DNS=192.168.0.218 1.1.1.1 8.8.8.8
 ```
 
-**What `Domains=~.` does:**
-- Routes ALL DNS queries through the custom DNS server
-- The `~.` (tilde-dot) means "use this DNS for all domains"
-- Ensures consistent DNS resolution across the network
+**What this does:**
+- Prefers the home DNS server first
+- Keeps public resolvers available in the same ordered list
+- Avoids hard-pinning all lookups to the home network when the laptop is away
 
-### 3. Added NetBird Aliases
+### 3. Added a NetworkManager DNS Dispatcher on FireDragon
+
+**`firedragon/etc/NetworkManager/dispatcher.d/50-home-dns`**
+
+- Watches `wlan0` for DHCP updates
+- If DHCP already advertises `192.168.0.218`, it rewrites the active link DNS to:
+
+```text
+192.168.0.218 1.1.1.1 8.8.8.8
+```
+
+- Drops router DNS from the active link so local names like `pi.hole` stop flapping between the home resolver and the router
+- Reverts cleanly on other networks so off-network behavior stays portable
+
+### 4. Added NetBird Aliases
 
 **Both `firedragon.zsh` and `dragon.zsh` now have:**
 
@@ -58,12 +71,13 @@ alias nb='netbird status'  # Quick status check
 
 ### Custom DNS Server
 
-Both hosts now use the same DNS configuration:
+Both hosts now prefer the same DNS order:
 
 ```ini
-DNS=192.168.0.218    # Your custom DNS server
-Domains=~.           # Route all DNS queries through it
+DNS=192.168.0.218 1.1.1.1 8.8.8.8
 ```
+
+FireDragon additionally uses a NetworkManager dispatcher to strip router DNS from `wlan0` when the home resolver is already being advertised by DHCP.
 
 ### NetBird VPN
 
@@ -110,7 +124,10 @@ If you've already run the firedragon setup:
 ```bash
 # Just apply the DNS change
 sudo cp ~/dotfiles/hosts/firedragon/etc/systemd/resolved.conf.d/dns.conf /etc/systemd/resolved.conf.d/
+sudo install -m 755 ~/dotfiles/hosts/firedragon/etc/NetworkManager/dispatcher.d/50-home-dns /etc/NetworkManager/dispatcher.d/50-home-dns
 sudo systemctl restart systemd-resolved
+nmcli connection reload
+nmcli device reapply wlan0
 
 # Source updated zsh config
 source ~/.config/zsh/functions/firedragon.zsh
@@ -142,9 +159,14 @@ bash hosts/dragon/setup.sh
 # Check resolved status
 resolvectl status
 
-# Should show:
-# Current DNS Server: 192.168.0.218
-# DNS Domain: ~.
+# Confirm wlan0 did not keep the router DNS
+nmcli device show wlan0
+
+# Verify local names resolve through resolved
+resolvectl query pi.hole
+
+# Verify the home DNS server answers directly
+dig @192.168.0.218 pi.hole
 ```
 
 ### Verify NetBird is Connected
@@ -168,6 +190,17 @@ ping dragon.netbird  # Or use NetBird IP
 # Check DNS resolution
 dig @192.168.0.218 google.com
 ```
+
+### Vivaldi Sync Triage After DNS Is Stable
+
+If websites and `pi.hole` resolve correctly but Vivaldi still refuses to sign in or Sync shows retries, inspect:
+
+```text
+vivaldi://sync-internals
+vivaldi://settings/sync/
+```
+
+Repeated `HTTP error (500)` entries there usually indicate a Vivaldi sync backend issue rather than a local DNS failure.
 
 ## Benefits
 
@@ -241,11 +274,21 @@ systemctl status systemd-resolved
 # Check DNS config
 cat /etc/systemd/resolved.conf.d/dns.conf
 
+# Check what NetworkManager handed wlan0
+nmcli device show wlan0
+
+# Check resolved path for a local name
+resolvectl query pi.hole
+
 # Restart resolved
 sudo systemctl restart systemd-resolved
 
+# Reload NetworkManager connections and reapply the active Wi-Fi profile
+nmcli connection reload
+nmcli device reapply wlan0
+
 # Test DNS
-dig @192.168.0.218 google.com
+dig @192.168.0.218 pi.hole
 ```
 
 ### NetBird Not Connecting
@@ -278,12 +321,13 @@ ip route
 
 ✅ **FireDragon now has:**
 - NetBird VPN (already had, clarified in setup)
-- Custom DNS with `Domains=~.` (updated)
+- Home-first DNS with public fallback
+- A NetworkManager dispatcher that strips router DNS on home Wi-Fi
 - NetBird command aliases (added)
 
 ✅ **Dragon now has:**
 - NetBird command aliases (added)
-- Custom DNS (already had)
+- Home-first DNS with public fallback
 
 Both hosts now have **consistent networking configuration** for secure communication and custom DNS resolution! 🌐
 
