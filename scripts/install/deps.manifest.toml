@@ -266,6 +266,9 @@ packages = [
     "udiskie",
     "nvme-cli",
     "parted,e2fsprogs",
+    "yazi",
+    "resvg",
+    "chafa",
 ]
 
 [platforms.arch.paru.hyprland_aur_elephant]
