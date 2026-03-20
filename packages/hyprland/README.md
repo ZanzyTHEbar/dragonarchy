@@ -81,6 +81,12 @@ sudo chmod 644 /etc/pam.d/hyprlock
    - Verify logind configuration: `cat /etc/systemd/logind.conf`
    - Test manual suspend: `systemctl suspend`
 
+4. **Notifications (SwayNC) not working after reboot/update**:
+   - Run the fix script (it kills competing daemons mako/dunst then starts SwayNC): `bash -lc '$HOME/dotfiles/scripts/utilities/fix-notifications.sh'`
+   - If you see "Could not acquire notification name", another daemon (mako, dunst, etc.) is holding it. Find and remove competitors: `$HOME/dotfiles/scripts/utilities/notification-daemon-cleanup.sh` (report only), then `.../notification-daemon-cleanup.sh --remove` to uninstall packages and disable their services/autostart. See `docs/NOTIFICATION_DAEMON_CLEANUP.md`.
+   - Or restart all autostart services: `bash -lc '$HOME/dotfiles/scripts/theme-manager/restart-autostart'`
+   - To see what claims the name: `busctl --user list | grep -i notif`. Reinstall SwayNC if needed: `paru -S swaync`
+
 ### Debug Tools
 
 Run the debug script to diagnose issues:
