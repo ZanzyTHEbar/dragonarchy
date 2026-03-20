@@ -1,0 +1,8 @@
+# Cursor Rules Manager configuration
+# Generated on 2025-11-13T21:56:46Z
+
+packageDir: /mnt/dragonnet/.memory/custom_instructions
+watch: false
+autoApply: false
+enableStow: false
+presets: ["README.md"]
