@@ -1,0 +1,33 @@
+---
+alwaysApply: true
+description: Slash command index and routing rules
+---
+
+# Slash Commands
+
+This file is the command router.
+Keep each detailed command behavior in `general/commands/*.command.mdc`.
+
+## Dispatch
+
+- `/start` -> `general/commands/start.command.mdc`
+- `/save` -> `general/commands/save.command.mdc`
+- `/reason` -> `general/commands/reason.command.mdc`
+- `/concise` -> `general/commands/concise.command.mdc`
+- `/refine` -> `general/commands/refine.command.mdc`
+- `/wua` -> `general/commands/wua.command.mdc`
+- `/ts` -> `general/commands/ts.command.mdc`
+- `/actions` -> `general/commands/actions.command.mdc`
+
+## Composition Rules
+
+- Apply the most explicit user command first.
+- `/wua` is a modifier that removes unnecessary permission pauses for safe next steps.
+- `/refine` may use the `/reason` pattern internally.
+- Reuse shared behavior from existing rules instead of duplicating it in every command file.
+
+## Guardrails
+
+- Keep command handling concise, operational, and easy to scan.
+- Do not expose raw hidden chain-of-thought; provide structured reasoning summaries instead.
+- When commands conflict, prefer the user's latest explicit instruction while preserving safety rules.
