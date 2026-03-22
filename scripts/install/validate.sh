@@ -109,6 +109,31 @@ validation_tier_is_desktop_base() {
     [[ "$VALIDATION_TIER" == "desktop_base" ]]
 }
 
+validation_is_ci() {
+    [[ -n "${CI:-}" ]]
+}
+
+hyprland_component_available() {
+    local component="$1"
+
+    case "$component" in
+        xdg-desktop-portal-hyprland)
+            command_exists "$component" \
+                || [[ -x "/usr/libexec/xdg-desktop-portal-hyprland" ]] \
+                || [[ -x "/usr/lib/xdg-desktop-portal-hyprland" ]] \
+                || [[ -f "/usr/lib/systemd/user/xdg-desktop-portal-hyprland.service" ]]
+            ;;
+        hyprpolkitagent)
+            command_exists "$component" \
+                || [[ -x "/usr/libexec/hyprpolkitagent" ]] \
+                || [[ -f "/usr/lib/systemd/user/hyprpolkitagent.service" ]]
+            ;;
+        *)
+            command_exists "$component"
+            ;;
+    esac
+}
+
 run_in_user_zsh() {
     env TERM="${TERM:-xterm-256color}" zsh -ic "$1"
 }
@@ -326,8 +351,12 @@ check_ssh_config() {
         else
             check_pass "SSH config appears to be properly configured"
         fi
-    elif validation_tier_is_minimal; then
+    elif validation_tier_is_minimal || validation_is_ci; then
+        if validation_is_ci; then
+            check_pass "SSH config file is optional in CI"
+        else
         check_pass "SSH config file is optional for headless profile"
+        fi
     else
         check_warn "SSH config file not found"
     fi
@@ -356,8 +385,12 @@ check_secrets() {
         # Check age keys
         if [[ -f "$HOME/.config/sops/age/keys.txt" ]]; then
             check_pass "Age keys are configured"
-        elif validation_tier_is_minimal; then
+        elif validation_tier_is_minimal || validation_is_ci; then
+            if validation_is_ci; then
+                check_pass "Age keys are optional in CI"
+            else
             check_pass "Age keys are optional for headless profile"
+            fi
         else
             check_warn "Age keys not found"
         fi
@@ -365,8 +398,12 @@ check_secrets() {
         # Check SOPS config
         if [[ -f ".sops.yaml" ]]; then
             check_pass "SOPS configuration exists"
-        elif validation_tier_is_minimal; then
+        elif validation_tier_is_minimal || validation_is_ci; then
+            if validation_is_ci; then
+                check_pass "SOPS configuration is optional in CI"
+            else
             check_pass "SOPS configuration is optional for headless profile"
+            fi
         else
             check_warn "SOPS configuration not found"
         fi
@@ -749,7 +786,7 @@ check_host_config() {
             local hyprland_tool
             while IFS= read -r hyprland_tool; do
                 [[ -z "$hyprland_tool" ]] && continue
-                if command_exists "$hyprland_tool"; then
+                if hyprland_component_available "$hyprland_tool"; then
                     check_pass "Hyprland component: $hyprland_tool available"
                 else
                     check_fail "Hyprland component: $hyprland_tool missing on supported track ${provider_track}"
@@ -758,7 +795,7 @@ check_host_config() {
 
             while IFS= read -r hyprland_tool; do
                 [[ -z "$hyprland_tool" ]] && continue
-                if command_exists "$hyprland_tool"; then
+                if hyprland_component_available "$hyprland_tool"; then
                     check_pass "Hyprland optional component: $hyprland_tool available"
                 else
                     check_warn "Hyprland optional component: $hyprland_tool not found on ${provider_track}"
@@ -768,7 +805,7 @@ check_host_config() {
             local deferred_hyprland_tools=("Hyprland" "hyprctl" "hyprlock" "hypridle" "hyprpaper" "xdg-desktop-portal-hyprland")
             local hyprland_tool
             for hyprland_tool in "${deferred_hyprland_tools[@]}"; do
-                if command_exists "$hyprland_tool"; then
+                if hyprland_component_available "$hyprland_tool"; then
                     check_pass "Deferred-track Hyprland component present: $hyprland_tool"
                 else
                     check_warn "Hyprland component: $hyprland_tool is deferred on track ${provider_track}"
