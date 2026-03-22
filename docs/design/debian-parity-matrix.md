@@ -24,10 +24,10 @@ When exact Debian packages do not exist, parity should prefer:
 
 | Distro family | Release track | Installer track | Hyprland strategy |
 |---|---|---|---|
-| Debian | `bookworm` and older stable lines | `debian_legacy_no_hyprland` | keep desktop-base parity, defer Hyprland core |
-| Debian | `trixie`, `forky`, `testing`, `sid` | `debian_hyprland_archive` | install Hyprland ecosystem from official archive packages |
-| Ubuntu family | `oracular`, `plucky`, `questing`, `resolute` | `ubuntu_hyprland_archive` | enable `universe` and use official archive packages documented by Hyprland upstream |
-| Ubuntu family | `noble`, `jammy`, older LTS-derived systems | `ubuntu_legacy_no_hyprland` | keep desktop-base parity, defer Hyprland core |
+| Debian | `trixie`, `bookworm`, and older stable lines | `debian_legacy_no_hyprland` | keep desktop-base parity, defer Hyprland core until Debian 14+ |
+| Debian | `forky`, `testing`, `sid` | `debian_hyprland_archive` | install Hyprland ecosystem from official archive packages |
+| Ubuntu family | `resolute` and newer 26.x lines | `ubuntu_hyprland_archive` | enable `universe` and use the coherent official archive stack |
+| Ubuntu family | `oracular`, `plucky`, `questing`, `noble`, `jammy`, older LTS-derived systems | `ubuntu_legacy_no_hyprland` | keep desktop-base parity, defer Hyprland core until the archive catches up |
 | Other Debian-family derivatives | fallback based on `ID_LIKE` and release age | `debian_family_fallback_no_hyprland` | do not fake unsupported Hyprland core |
 
 ## Bundle Coverage
@@ -35,7 +35,7 @@ When exact Debian packages do not exist, parity should prefer:
 | Bundle | Current Debian status | Notes |
 |---|---|---|
 | `minimal` | Implemented and validated | Clean Debian VM run with `0 failures / 0 warnings` achieved |
-| `desktop_base` | Implemented with track-aware behavior | Debian/Ubuntu archive tracks install Hyprland core from official packages; legacy tracks stay explicit and deferred |
+| `desktop_base` | Implemented with track-aware behavior | `forky`/`sid` and `resolute+` archive tracks install Hyprland core from official packages; legacy tracks stay explicit and deferred |
 | `desktop` | Implemented via `desktop_base` | Inherits the same provider-track behavior |
 | `desktop_smb` | Implemented functionally | Adds repo-backed Nemo/Samba packages plus usershare setup |
 | `creative` | Implemented with repo + vendor split | Repo-backed apps install by default; vendor extras stay opt-in/manual where appropriate |
@@ -92,9 +92,9 @@ When exact Debian packages do not exist, parity should prefer:
 - Highest-risk desktop parity area on Debian stable.
 - Some packages may require upstream installation or newer Debian releases.
 - Current strategy:
-  - use official Debian archive packages on `debian_hyprland_archive`
-  - use official Ubuntu `universe` packages on `ubuntu_hyprland_archive`
-  - keep legacy and fallback tracks explicit and deferred
+  - use official Debian archive packages on `debian_hyprland_archive`, starting at Debian 14 / `forky`
+  - use official Ubuntu `universe` packages on `ubuntu_hyprland_archive`, starting with `resolute`
+  - keep `trixie`, `plucky`, and other incomplete archive lines explicit and deferred
   - keep validation failures for supported archive tracks and expected warnings for deferred tracks
 
 ### `hyprland_aur`
@@ -177,6 +177,38 @@ Current batch result:
 - Debian-family Hyprland bundles install from official archive packages when the release actually ships a coherent stack.
 - `desktop_smb` now configures functional Samba usershare prerequisites instead of only installing packages.
 - `creative` now cleanly separates repo-backed apps from vendor-backed/manual applications.
+
+### Batch 4
+
+- validate supported provider tracks in VM lanes
+- correct release gates when real archive metadata disproves an optimistic assumption
+
+Current batch result:
+
+- Debian 12 `minimal` VM lane passed with `0 failures / 0 warnings`.
+- A Debian 13 `desktop_base` VM lane proved the old matrix was wrong: `trixie` does not ship the required Hyprland archive stack.
+- Provider-track gating is now aligned to the actual package sets:
+  - Debian archive Hyprland starts at `forky`
+  - Ubuntu archive Hyprland starts at `resolute`
+- The Debian plugin meta-package assumption was removed from the default desktop bundle because Debian ships individually versioned Hyprland plugin packages instead.
+
+### Batch 5
+
+- close the supported-track VM matrix with clean `desktop_base` runs
+- harden Debian-family Hyprland runtime validation against libexec-only packaging
+
+Current batch result:
+
+- Debian `forky` `desktop_base` VM lane passed with `0 failures / 0 warnings`.
+- Ubuntu `resolute` `desktop_base` VM lane passed with `0 failures / 0 warnings`.
+- Validation now recognizes archive-packaged Hyprland components that install under `/usr/libexec`, including:
+  - `xdg-desktop-portal-hyprland`
+  - `hyprpolkitagent`
+- Desktop autostart now launches the first available PolicyKit agent in this order:
+  - `hyprpolkitagent`
+  - `mate-polkit`
+  - `polkit-gnome`
+- CI validation now treats missing per-user SSH/secrets state as optional when the install intentionally skips secrets, avoiding false-negative VM lane failures.
 
 ## Known High-Risk Areas
 
