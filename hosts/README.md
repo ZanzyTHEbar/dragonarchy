@@ -6,6 +6,7 @@ This directory contains host-specific configurations for different machines in t
 
 ```bash
 hosts/
+├── desktop/         # Generic desktop / Hyprland validation profile
 ├── dragon/          # AMD desktop workstation (AIO cooler, LED control)
 ├── firedragon/      # ASUS VivoBook AMD laptop
 ├── goldendragon/    # Lenovo ThinkPad P16s (Intel/NVIDIA)
@@ -199,6 +200,14 @@ hosts/microdragon/
 hosts/headless/
 ├── .traits                # headless
 └── setup.sh               # No-op host setup for terminal-only installs
+```
+
+### Generic Desktop Profile
+
+```bash
+hosts/desktop/
+├── .traits                # desktop, hyprland
+└── setup.sh               # No-op host setup for generic desktop parity runs
 ```
 
 ## Verification
