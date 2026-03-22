@@ -302,6 +302,7 @@ packages = [
     "coreutils",
     "fd-find",
     "fzf",
+    "lsd",
     "ripgrep",
     "stow",
     "unzip",
@@ -312,7 +313,9 @@ packages = [
     "iperf3",
     "wakeonlan",
     "ffmpeg",
-    "bat-cat",
+    "bat",
+    "zoxide",
+    "direnv",
     "zsh",
     "htop",
     "tmux",
@@ -325,7 +328,7 @@ packages = [
 ]
 
 [platforms.debian.apt.dev]
-packages = ["git", "diff-so-fancy", "ansible", "gh", "terraform", "pipx"]
+packages = ["git", "ansible", "gh", "pipx"]
 
 [platforms.debian.apt.fonts]
 packages = [

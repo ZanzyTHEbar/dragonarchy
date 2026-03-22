@@ -32,6 +32,7 @@ source "${SCRIPTS_DIR}/lib/install-state.sh"
 source "${SCRIPTS_DIR}/lib/system-mods.sh"
 
 DRY_RUN=false
+HEADLESS_MODE=false
 
 # ────────────────────────────────────────────────────────────────
 # Task 1: Firewall Setup
@@ -131,6 +132,11 @@ setup_timezone() {
 # ────────────────────────────────────────────────────────────────
 verify_themes() {
     local step_id="first-run:themes"
+
+    if [[ "$HEADLESS_MODE" == "true" ]]; then
+        log_info "Skipping theme verification in headless mode"
+        return 0
+    fi
 
     if is_step_completed "$step_id"; then
         log_info "Theme verification already completed (skipped)"
@@ -259,9 +265,14 @@ main() {
                 export SYSMOD_DRY_RUN=1
                 shift
                 ;;
+            --headless)
+                HEADLESS_MODE=true
+                shift
+                ;;
             -h|--help)
-                echo "Usage: first-run.sh [--dry-run] [--help]"
+                echo "Usage: first-run.sh [--dry-run] [--headless] [--help]"
                 echo "  --dry-run   Preview changes without executing them"
+                echo "  --headless  Skip desktop-specific first-run checks"
                 echo "  --help      Show this help message"
                 return 0
                 ;;

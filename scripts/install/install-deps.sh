@@ -479,16 +479,29 @@ add_chaotic_aur() {
 
 install_apt() {
     if [[ "$APT_UPDATED" != "true" ]]; then
-        log_info "Updating apt repositories..." && sudo apt-get update
+        log_info "Updating apt repositories..."
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get update
         APT_UPDATED=true
     fi
     log_info "Installing with apt: $*"
     local pkgs_to_install=()
+    local pkgs_unavailable=()
     for pkg in "$@"; do
-        dpkg -l | grep -q "^ii  $pkg " || pkgs_to_install+=("$pkg")
+        if dpkg -l | grep -q "^ii  $pkg "; then
+            continue
+        fi
+        if ! apt-cache show "$pkg" >/dev/null 2>&1; then
+            pkgs_unavailable+=("$pkg")
+            continue
+        fi
+        pkgs_to_install+=("$pkg")
     done
+    if [[ ${#pkgs_unavailable[@]} -gt 0 ]]; then
+        log_error "APT packages not found in configured repositories: ${pkgs_unavailable[*]}"
+        return 1
+    fi
     if [[ ${#pkgs_to_install[@]} -gt 0 ]]; then
-        sudo apt-get install -y "${pkgs_to_install[@]}"
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs_to_install[@]}"
     else
         log_info "All apt packages already installed."
     fi
@@ -907,11 +920,20 @@ setup_development_environments() {
     # Node.js via fnm
     command_exists node || {
         log_info "Installing Node.js via fnm..."
-        command_exists fnm || curl -fsSL https://fnm.vercel.app/install | bash
+        if ! command_exists fnm; then
+            if ! curl -fsSL https://fnm.vercel.app/install | bash; then
+                log_warning "fnm installation failed; skipping Node.js bootstrap"
+                return 0
+            fi
+        fi
         export PATH="$HOME/.local/share/fnm:$PATH"
+        if ! command_exists fnm; then
+            log_warning "fnm is unavailable after installation attempt; skipping Node.js bootstrap"
+            return 0
+        fi
         eval "$(fnm env)"
-        fnm install --lts
-        fnm use lts-latest
+        fnm install --lts || log_warning "fnm failed to install the latest LTS Node.js"
+        fnm use lts-latest || log_warning "fnm failed to activate the latest LTS Node.js"
     }
     
     # Python tools via pipx
@@ -942,6 +964,8 @@ setup_development_environments() {
 finalize_setup() {
     local platform
     platform=$(detect_platform)
+    local current_user
+    current_user="${USER:-$(id -un)}"
     log_info "Finalizing setup..."
     
     # Refresh font cache on Linux
@@ -953,7 +977,7 @@ finalize_setup() {
     # Change default shell to zsh
     if [[ "$SHELL" != */zsh ]] && command_exists zsh; then
         log_info "Changing default shell to zsh..."
-        if sudo chsh -s "$(which zsh)" "$USER"; then
+        if sudo chsh -s "$(which zsh)" "$current_user"; then
             log_success "Default shell changed to zsh. Please log out and back in."
         else
             log_error "Failed to change default shell."

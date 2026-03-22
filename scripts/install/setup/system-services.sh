@@ -18,6 +18,11 @@ services=(
 
 log_info "Enabling essential system services..."
 
+if ! command -v systemctl >/dev/null 2>&1; then
+  log_warning "systemctl not available; skipping system service enablement"
+  exit 0
+fi
+
 # Handle power-profiles-daemon vs TLP conflict at runtime
 # Check if TLP is installed - if so, skip power-profiles-daemon and mask it
 if command -v tlp &>/dev/null; then

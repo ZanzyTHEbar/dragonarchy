@@ -41,6 +41,10 @@ fi
 # Enhanced File Listing (LSD)
 #######################################################
 
+if [[ ! -x "$(command -v fd)" && -x "$(command -v fdfind)" ]]; then
+    alias fd='fdfind'
+fi
+
 if [[ -x "$(command -v lsd)" ]]; then
     alias ls='lsd -F --group-dirs first'
     alias ll='lsd --all --header --long --group-dirs first'
@@ -63,6 +67,9 @@ fi
 # Bat (better cat)
 if [[ -x "$(command -v bat)" ]]; then
     alias cat='bat --paging=never'
+elif [[ -x "$(command -v batcat)" ]]; then
+    alias bat='batcat'
+    alias cat='batcat --paging=never'
 fi
 
 # Lazygit

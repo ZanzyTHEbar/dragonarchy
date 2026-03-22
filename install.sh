@@ -43,6 +43,8 @@ RUN_POST_SETUP=true
 RUN_FIRST_RUN=true
 SETUP_UTILITIES=false
 RESET_STATE=false
+BUNDLE_NAME=""
+HEADLESS_MODE=false
 # Force re-run of package installation step (clears cached package markers for this host)
 RESET_PACKAGES=false
 # Fresh-machine mode: purge conflicting dotfile targets before stowing
@@ -80,6 +82,8 @@ OPTIONS:
     --no-post-setup         Skip post-setup tasks
     --utilities             Symlink selected utilities to ~/.local/bin
     --no-utilities          Do not symlink utilities
+    --bundle NAME           Install only package groups in a named bundle
+    --headless              Terminal-only install mode (defaults bundle to minimal)
     --cursor                Force install Cursor editor (pass-through to deps installer)
     --no-cursor             Skip installing Cursor editor (pass-through to deps installer)
 
@@ -90,6 +94,8 @@ EXAMPLES:
     $0 --packages-only      # Only install packages
     $0 --dotfiles-only      # Only setup dotfiles
     $0 --no-secrets         # Skip secrets setup
+    $0 --headless           # Terminal-only install (defaults to minimal bundle)
+    $0 --bundle minimal     # CLI-only package bundle
     $0 --sddm-theme sugar-dark  # Set a specific SDDM theme
     $0 --reset              # Clear state and force full re-run
 
@@ -187,6 +193,20 @@ parse_args() {
                 RUN_POST_SETUP=false
                 shift
             ;;
+            --bundle)
+                if [[ $# -lt 2 || "$2" == --* ]]; then
+                    log_error "--bundle requires a bundle name"
+                    exit 1
+                fi
+                BUNDLE_NAME="$2"
+                shift 2
+            ;;
+            --headless)
+                HEADLESS_MODE=true
+                RUN_THEME=false
+                RUN_POST_SETUP=false
+                shift
+            ;;
             --utilities)
                 SETUP_UTILITIES=true
                 shift
@@ -223,6 +243,13 @@ reset_host_package_steps() {
 
 packages_sanity_ok() {
     local host="$1"
+    if [[ "$HEADLESS_MODE" == "true" && -n "${BUNDLE_NAME:-}" && "${BUNDLE_NAME}" == "minimal" ]]; then
+        command -v zsh >/dev/null 2>&1 || return 1
+        command -v git >/dev/null 2>&1 || return 1
+        command -v stow >/dev/null 2>&1 || return 1
+        return 0
+    fi
+
     # On Hyprland hosts, waybar is a hard requirement for this setup.
     if [[ -n "${host:-}" ]] && is_hyprland_host "$HOSTS_DIR" "$host" >/dev/null 2>&1; then
         command -v waybar >/dev/null 2>&1 || return 1
@@ -235,10 +262,13 @@ packages_sanity_ok() {
 check_prerequisites() {
     log_step "Checking prerequisites..."
     
-    # Check if git is available
     if ! command -v git >/dev/null 2>&1; then
-        log_error "Git is required but not installed"
-        exit 1
+        if [[ "$INSTALL_PACKAGES" == "true" ]]; then
+            log_warning "Git not found, will be installed during package installation"
+        else
+            log_error "Git is required when package installation is disabled"
+            exit 1
+        fi
     fi
     
     # Check if stow is available or can be installed
@@ -297,7 +327,13 @@ install_packages() {
         feature_fingerprint="nohypr"
     fi
 
-    local step_id="install:${HOST:-generic}:packages:${feature_fingerprint}:${manifest_fingerprint}:${installer_fingerprint}"
+    local bundle_fingerprint="${BUNDLE_NAME:-all}"
+    local mode_fingerprint="desktop"
+    if [[ "$HEADLESS_MODE" == "true" ]]; then
+        mode_fingerprint="headless"
+    fi
+
+    local step_id="install:${HOST:-generic}:packages:${feature_fingerprint}:${bundle_fingerprint}:${mode_fingerprint}:${manifest_fingerprint}:${installer_fingerprint}"
     if [[ "$RESET_PACKAGES" == "true" ]]; then
         reset_host_package_steps "${HOST:-generic}"
         reset_step "$step_id" 2>/dev/null || true
@@ -322,6 +358,9 @@ install_packages() {
         local deps_flags=("${INSTALL_DEPS_FLAGS[@]}")
         if [[ "$INSTALL_DOTFILES" == "true" ]]; then
             deps_flags+=("--no-setup")
+        fi
+        if [[ -n "$BUNDLE_NAME" ]]; then
+            deps_flags+=("--bundle" "$BUNDLE_NAME")
         fi
         
         # Pass the host argument if it's set
@@ -773,12 +812,14 @@ setup_secrets() {
 # Configure shell
 configure_shell() {
     log_step "Configuring shell..."
+    local current_user
+    current_user="${USER:-$(id -un)}"
     
     # Set zsh as default shell if not already
     if [[ "$SHELL" != */zsh ]]; then
         if command -v zsh >/dev/null 2>&1; then
             log_info "Setting zsh as default shell..."
-            sudo chsh -s "$(which zsh)" "$USER"
+            sudo chsh -s "$(which zsh)" "$current_user"
             log_success "Default shell changed to zsh"
         else
             log_warning "zsh not found, cannot change default shell"
@@ -897,6 +938,11 @@ main() {
         HOST=$(detect_host "$HOSTS_DIR")
         log_info "No host specified, detected host: $HOST"
     fi
+
+    if [[ "$HEADLESS_MODE" == "true" && -z "$BUNDLE_NAME" ]]; then
+        BUNDLE_NAME="minimal"
+        log_info "Headless mode enabled: defaulting package bundle to '$BUNDLE_NAME'"
+    fi
     
     # Run setup steps
     check_prerequisites
@@ -909,7 +955,11 @@ main() {
     if [[ "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
         if [[ -x "$SCRIPTS_DIR/install/setup.sh" ]]; then
             log_info "Running setup orchestration (post-stow)..."
-            bash "$SCRIPTS_DIR/install/setup.sh" || log_warning "Setup orchestration failed"
+            local setup_args=()
+            if [[ "$HEADLESS_MODE" == "true" ]]; then
+                setup_args+=("--headless")
+            fi
+            bash "$SCRIPTS_DIR/install/setup.sh" "${setup_args[@]}" || log_warning "Setup orchestration failed"
         else
             log_warning "Setup orchestration script not found at: $SCRIPTS_DIR/install/setup.sh"
         fi
@@ -1044,7 +1094,11 @@ main() {
     if [[ "$RUN_FIRST_RUN" == "true" && "$PACKAGES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
         if [[ "$FRESH_MODE" == "true" ]] || ! is_step_completed "first-run:welcome"; then
             log_info "Running first-run setup tasks..."
-            bash "$SCRIPTS_DIR/install/first-run.sh" || log_warning "First-run setup encountered issues"
+            local first_run_args=()
+            if [[ "$HEADLESS_MODE" == "true" ]]; then
+                first_run_args+=("--headless")
+            fi
+            bash "$SCRIPTS_DIR/install/first-run.sh" "${first_run_args[@]}" || log_warning "First-run setup encountered issues"
         fi
     elif [[ "$RUN_FIRST_RUN" != "true" ]]; then
         log_info "Skipping first-run tasks (--no-first-run)"
