@@ -15,6 +15,8 @@ source "${SCRIPT_DIR}/scripts/lib/install-state.sh"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/scripts/lib/hosts.sh"
 # shellcheck disable=SC1091
+source "${SCRIPT_DIR}/scripts/lib/platform.sh"
+# shellcheck disable=SC1091
 source "${SCRIPT_DIR}/scripts/lib/stow-helpers.sh"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/scripts/lib/icons.sh"
@@ -84,8 +86,10 @@ OPTIONS:
     --no-utilities          Do not symlink utilities
     --bundle NAME           Install only package groups in a named bundle
     --headless              Terminal-only install mode (defaults bundle to minimal)
+    --best-effort           Allow pkgsolve to install the satisfiable Debian subset
     --cursor                Force install Cursor editor (pass-through to deps installer)
     --no-cursor             Skip installing Cursor editor (pass-through to deps installer)
+    --vendor-creative       Enable official vendor installers for opt-in creative apps
 
 EXAMPLES:
     $0                      # Complete setup for current machine
@@ -207,6 +211,10 @@ parse_args() {
                 RUN_POST_SETUP=false
                 shift
             ;;
+            --best-effort)
+                INSTALL_DEPS_FLAGS+=("--best-effort")
+                shift
+            ;;
             --utilities)
                 SETUP_UTILITIES=true
                 shift
@@ -221,6 +229,10 @@ parse_args() {
             ;;
             --no-cursor)
                 INSTALL_DEPS_FLAGS+=("--no-cursor")
+                shift
+            ;;
+            --vendor-creative)
+                INSTALL_DEPS_FLAGS+=("--vendor-creative")
                 shift
             ;;
             *)
@@ -253,7 +265,11 @@ packages_sanity_ok() {
     # On Hyprland hosts, waybar is a hard requirement for this setup.
     if [[ -n "${host:-}" ]] && is_hyprland_host "$HOSTS_DIR" "$host" >/dev/null 2>&1; then
         command -v waybar >/dev/null 2>&1 || return 1
-        command -v hyprland >/dev/null 2>&1 || return 1
+        local provider_track
+        provider_track="$(platform_provider_track "$(detect_platform)")"
+        if platform_track_supports_hyprland_archive "$provider_track"; then
+            command -v hyprland >/dev/null 2>&1 || return 1
+        fi
     fi
     return 0
 }
@@ -320,11 +336,18 @@ install_packages() {
         fi
     fi
 
+    local provider_track
+    provider_track="$(platform_provider_track "$(detect_platform)")"
+
     local feature_fingerprint=""
     if [[ -n "${HOST:-}" ]] && is_hyprland_host "$HOSTS_DIR" "$HOST"; then
-        feature_fingerprint="hyprland"
+        feature_fingerprint="hyprland-${provider_track}"
     else
-        feature_fingerprint="nohypr"
+        feature_fingerprint="nohypr-${provider_track}"
+    fi
+
+    if [[ " ${INSTALL_DEPS_FLAGS[*]} " == *" --vendor-creative "* ]]; then
+        feature_fingerprint+="-vendorcreative"
     fi
 
     local bundle_fingerprint="${BUNDLE_NAME:-all}"
@@ -485,6 +508,17 @@ setup_dotfiles() {
 
             if [[ "$FRESH_MODE" == "true" ]]; then
                 fresh_purge_stow_conflicts_for_package "$package" "$fresh_backup_root"
+            fi
+
+            # Some package bootstrap steps can create ~/.zshrc before the zsh package
+            # is stowed (for example fnm shell setup). Remove that conflict so stow can
+            # lay down the managed zsh tree on the first full install.
+            if [[ "$package" == "zsh" && ! -L "$HOME/.zshrc" && -f "$HOME/.zshrc" ]]; then
+                local zsh_conflict_backup_root="${fresh_backup_root:-$HOME/.local/state/dotfiles/backups/$(date +%Y%m%d-%H%M%S)/stow-zsh-conflict}"
+                mkdir -p "$zsh_conflict_backup_root"
+                cp -a "$HOME/.zshrc" "$zsh_conflict_backup_root/.zshrc"
+                rm -f "$HOME/.zshrc"
+                log_info "Backed up conflicting ~/.zshrc to $zsh_conflict_backup_root/.zshrc before stowing zsh"
             fi
             
             # Handle absolute symlinks in package source (stow can't handle them)
