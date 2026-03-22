@@ -29,6 +29,12 @@ restart_proc() {
   run_exec "$cmd"
 }
 
+polkit_agent_running() {
+  pgrep -x hyprpolkitagent >/dev/null 2>&1 \
+    || pgrep -x polkit-mate-authentication-agent-1 >/dev/null 2>&1 \
+    || pgrep -x polkit-gnome-authentication-agent-1 >/dev/null 2>&1
+}
+
 # Background (swww/swaybg)
 run_exec "uwsm app -- ~/.local/bin/theme-bg-apply"
 
@@ -66,7 +72,9 @@ if command -v systemctl >/dev/null 2>&1 && systemctl --user list-unit-files --ty
 fi
 
 # Polkit agent
-start_if_missing polkit-gnome-authentication-agent-1 "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+if ! polkit_agent_running; then
+  run_exec "$HOME/.local/bin/start-polkit-agent"
+fi
 
 # Gnome keyring
 start_if_missing gnome-keyring-daemon "/usr/bin/gnome-keyring-daemon --start --components=pkcs11,secrets,ssh"

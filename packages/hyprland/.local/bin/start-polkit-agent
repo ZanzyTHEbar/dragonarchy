@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Debian-family Hyprland packages install their auth agents in libexec paths
+# instead of PATH-visible commands. Prefer the Hyprland-native agent when
+# present, then fall back to MATE or polkit-gnome for older tracks.
+candidates=(
+  "/usr/libexec/hyprpolkitagent"
+  "/usr/libexec/polkit-mate-authentication-agent-1"
+  "/usr/lib/mate-polkit/polkit-mate-authentication-agent-1"
+  "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+)
+
+for candidate in "${candidates[@]}"; do
+  if [[ -x "$candidate" ]]; then
+    exec "$candidate"
+  fi
+done
+
+printf '%s\n' "No supported polkit agent binary found" >&2
+exit 1
