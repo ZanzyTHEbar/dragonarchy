@@ -843,6 +843,65 @@ install_difftastic_binary() {
         "difft"
 }
 
+install_github_cli_app() {
+    if command_exists gh; then
+        log_info "GitHub CLI is already installed."
+        return 0
+    fi
+
+    local keyring="/etc/apt/keyrings/githubcli-archive-keyring.gpg"
+    local repo_file="/etc/apt/sources.list.d/github-cli.list"
+    local repo_url="https://cli.github.com/packages"
+    local key_url="${repo_url}/githubcli-archive-keyring.gpg"
+    local arch repo_line tmp_key
+    arch="$(dpkg --print-architecture)"
+    repo_line="deb [arch=${arch} signed-by=${keyring}] ${repo_url} stable main"
+    tmp_key="$(mktemp)"
+
+    if ! download_to_file "$key_url" "$tmp_key"; then
+        log_error "Failed to download GitHub CLI apt keyring"
+        rm -f "$tmp_key"
+        return 1
+    fi
+
+    if ! sudo mkdir -p -m 755 /etc/apt/keyrings /etc/apt/sources.list.d; then
+        log_error "Failed to prepare apt keyring/repository directories for GitHub CLI"
+        rm -f "$tmp_key"
+        return 1
+    fi
+
+    if ! sudo install -m 0644 "$tmp_key" "$keyring"; then
+        log_error "Failed to install GitHub CLI apt keyring"
+        rm -f "$tmp_key"
+        return 1
+    fi
+
+    rm -f "$tmp_key"
+
+    if ! sudo chmod go+r "$keyring"; then
+        log_error "Failed to set GitHub CLI apt keyring permissions"
+        return 1
+    fi
+
+    if ! printf '%s\n' "$repo_line" | sudo tee "$repo_file" >/dev/null; then
+        log_error "Failed to configure GitHub CLI apt repository"
+        return 1
+    fi
+
+    if ! sudo env DEBIAN_FRONTEND=noninteractive apt-get update; then
+        log_error "Failed to refresh apt metadata after adding GitHub CLI repository"
+        return 1
+    fi
+
+    if ! sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y gh; then
+        log_error "Failed to install GitHub CLI from the official apt repository"
+        return 1
+    fi
+
+    log_success "GitHub CLI installed successfully"
+    return 0
+}
+
 install_mise_tool() {
     if command_exists mise || [[ -x "$HOME/.local/bin/mise" ]]; then
         log_info "mise is already installed."
@@ -1019,6 +1078,7 @@ script_package_installed() {
 
     case "$package_name" in
         gum) command_exists gum ;;
+        gh) command_exists gh ;;
         lazygit) command_exists lazygit ;;
         difftastic) command_exists difft ;;
         mise) command_exists mise || [[ -x "$HOME/.local/bin/mise" ]] ;;
@@ -1039,6 +1099,7 @@ install_script_package() {
 
     case "$package_name" in
         gum) install_gum_binary ;;
+        gh) install_github_cli_app ;;
         lazygit) install_lazygit_binary ;;
         difftastic) install_difftastic_binary ;;
         mise) install_mise_tool ;;

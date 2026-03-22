@@ -328,7 +328,7 @@ packages = [
 ]
 
 [platforms.debian.apt.dev]
-packages = ["git", "ansible", "gh", "pipx"]
+packages = ["git", "ansible", "pipx"]
 
 [platforms.debian.apt.fonts]
 packages = [
@@ -351,7 +351,6 @@ packages = [
     "cups-filters",
     "printer-driver-cups-pdf",
     "docker.io",
-    "docker-compose",
     "evince",
     "fcitx5",
     "fcitx5-config-qt",
@@ -396,6 +395,14 @@ packages = [
     "xdg-desktop-portal-gtk",
 ]
 
+[platforms.debian.apt.hyprland_base_variant_debian]
+requires_features = ["hyprland", "variant_debian"]
+packages = ["docker-compose"]
+
+[platforms.debian.apt.hyprland_base_variant_ubuntu]
+requires_features = ["hyprland", "variant_ubuntu_family"]
+packages = ["docker-compose-v2"]
+
 [platforms.debian.apt.hyprland_base_debian_archive]
 requires_features = ["hyprland", "track_debian_hyprland_archive"]
 packages = [
@@ -429,7 +436,7 @@ packages = ["hypridle", "hyprland", "hyprlock", "hyprpicker"]
 
 [platforms.debian.apt.hyprland_core_ubuntu_archive]
 requires_features = ["hyprland", "track_ubuntu_hyprland_archive"]
-packages = ["hypridle", "hyprland"]
+packages = ["hypridle", "hyprland", "hyprlock", "hyprpicker"]
 
 [platforms.debian.apt.hyprland_aur]
 requires_features = ["hyprland"]
@@ -452,7 +459,10 @@ packages = [
 
 [platforms.debian.apt.hyprland_aur_debian_archive]
 requires_features = ["hyprland", "track_debian_hyprland_archive"]
-packages = ["hyprland-plugins"]
+# Debian ships Hyprland plugins as individually versioned packages rather than an
+# Arch-style meta package. Keep the default desktop bundle plugin-free until we
+# intentionally curate a supported Debian plugin subset.
+packages = []
 
 [platforms.debian.apt.hyprland_aur_ubuntu_archive]
 requires_features = ["hyprland", "track_ubuntu_hyprland_archive"]
@@ -472,6 +482,9 @@ packages = [
     "handbrake",
     "mpv",
 ]
+
+[platforms.debian.script.dev]
+packages = ["gh"]
 
 [platforms.debian.script.core_cli]
 packages = ["gum"]
