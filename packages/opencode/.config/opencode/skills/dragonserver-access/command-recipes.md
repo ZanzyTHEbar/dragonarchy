@@ -64,7 +64,7 @@ import json
 import urllib.request
 from pathlib import Path
 
-cfg = json.loads(Path("/home/daofficialwizard/.config/coolify/config.json").read_text())
+cfg = json.loads((Path.home() / ".config/coolify/config.json").read_text())
 ctx = next(i for i in cfg["instances"] if i.get("name") == "dragonnest")
 base = ctx["fqdn"].rstrip("/")
 token = ctx["token"]
