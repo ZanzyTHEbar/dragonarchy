@@ -1,0 +1,42 @@
+name: Debian VM E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+
+jobs:
+  debian-vm-headless:
+    name: Debian VM Headless E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install VM dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cloud-image-utils \
+            curl \
+            jq \
+            openssh-client \
+            qemu-system-x86 \
+            qemu-utils
+
+      - name: Prepare artifact directory
+        run: mkdir -p "$RUNNER_TEMP/debian-vm-e2e-artifacts"
+
+      - name: Run Debian VM E2E
+        run: |
+          bash ./scripts/ci/debian-vm-e2e.sh \
+            --artifact-dir "$RUNNER_TEMP/debian-vm-e2e-artifacts"
+
+      - name: Upload VM E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-vm-e2e-artifacts
+          path: ${{ runner.temp }}/debian-vm-e2e-artifacts
+          if-no-files-found: warn

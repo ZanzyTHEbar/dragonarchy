@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/logging.sh"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/../lib/hosts.sh"
+HOSTS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)/hosts"
 
 # Counters
 CHECKS_PASSED=0
@@ -23,6 +24,38 @@ JSON_OUTPUT=false
 VALIDATE_HOST=""
 # Structured results (for JSON mode)
 declare -a JSON_RESULTS=()
+
+resolve_validate_host() {
+    if [[ -n "$VALIDATE_HOST" ]]; then
+        printf '%s\n' "$VALIDATE_HOST"
+        return
+    fi
+
+    detect_host "$HOSTS_DIR"
+}
+
+host_is_headless() {
+    local host="$1"
+    [[ -d "$HOSTS_DIR/$host" ]] && host_has_trait "$HOSTS_DIR" "$host" "headless"
+}
+
+run_in_user_zsh() {
+    env TERM="${TERM:-xterm-256color}" zsh -ic "$1"
+}
+
+shell_has_command() {
+    run_in_user_zsh "command -v $1" >/dev/null 2>&1
+}
+
+shell_get_var() {
+    run_in_user_zsh "printf '%s' \"\${$1:-}\"" 2>/dev/null
+}
+
+section_info() {
+    if [[ "$JSON_OUTPUT" != "true" ]]; then
+        log_info "$@"
+    fi
+}
 
 # Wrapper functions that log AND increment counters
 check_pass() {
@@ -54,7 +87,7 @@ check_warn() {
 
 # Check essential commands
 check_essential_commands() {
-    log_info "Checking essential commands..."
+    section_info "Checking essential commands..."
     
     local essential_commands=(
         "zsh"
@@ -78,8 +111,10 @@ check_essential_commands() {
 
 # Check modern CLI tools
 check_modern_tools() {
-    log_info "Checking modern CLI tools..."
-    
+    section_info "Checking modern CLI tools..."
+
+    local host
+    host="$(resolve_validate_host)"
     local modern_tools=(
         "nvim"
         "bat"
@@ -92,10 +127,12 @@ check_modern_tools() {
         "age"
         "sops"
     )
-    
+
     for tool in "${modern_tools[@]}"; do
-        if command_exists "$tool"; then
+        if shell_has_command "$tool"; then
             check_pass "$tool is available"
+        elif host_is_headless "$host" && [[ "$tool" =~ ^(lsd|zoxide|direnv)$ ]]; then
+            check_fail "$tool is missing for headless profile"
         else
             check_warn "$tool is missing (optional but recommended)"
         fi
@@ -104,16 +141,25 @@ check_modern_tools() {
 
 # Check dotfiles installation
 check_dotfiles() {
-    log_info "Checking dotfiles installation..."
-    
+    section_info "Checking dotfiles installation..."
+
+    local host
+    host="$(resolve_validate_host)"
+    local is_headless=false
+    if host_is_headless "$host"; then
+        is_headless=true
+    fi
+
     local dotfiles=(
         "$HOME/.zshrc"
-        "$HOME/.gitconfig" 
-        "$HOME/.config/kitty/kitty.conf"
+        "$HOME/.gitconfig"
         "$HOME/.config/zsh/aliases.zsh"
-        "$HOME/.config/functions/git-utils.zsh"
-        "$HOME/.ssh/config"
+        "$HOME/.config/zsh/functions/git-utils.zsh"
     )
+
+    if [[ "$is_headless" != "true" ]]; then
+        dotfiles+=("$HOME/.config/kitty/kitty.conf")
+    fi
     
     for file in "${dotfiles[@]}"; do
         if [[ -f "$file" ]]; then
@@ -132,17 +178,22 @@ check_dotfiles() {
 
 # Check shell configuration
 check_shell_config() {
-    log_info "Checking shell configuration..."
+    section_info "Checking shell configuration..."
     
     # Check default shell
-    if [[ "$SHELL" == */zsh ]]; then
+    local login_shell
+    login_shell=$(getent passwd "$(id -un)" | cut -d: -f7 2>/dev/null || true)
+    if [[ -z "$login_shell" ]]; then
+        login_shell="${SHELL:-}"
+    fi
+    if [[ "$login_shell" == */zsh ]]; then
         check_pass "Default shell is zsh"
     else
-        check_warn "Default shell is not zsh: $SHELL"
+        check_warn "Default shell is not zsh: ${login_shell:-unknown}"
     fi
     
     # Check if zsh configuration loads without errors
-    if zsh -c 'source ~/.zshrc' 2>/dev/null; then
+    if env TERM="${TERM:-xterm-256color}" zsh -c 'source ~/.zshrc' >/dev/null 2>&1; then
         check_pass "Zsh configuration loads without errors"
     else
         check_fail "Zsh configuration has errors"
@@ -156,8 +207,10 @@ check_shell_config() {
     )
     
     for var in "${important_vars[@]}"; do
-        if [[ -n "${!var:-}" ]]; then
-            check_pass "$var is set: ${!var}"
+        local value
+        value="$(shell_get_var "$var")"
+        if [[ -n "$value" ]]; then
+            check_pass "$var is set: $value"
         else
             check_warn "$var is not set"
         fi
@@ -166,7 +219,7 @@ check_shell_config() {
 
 # Check Git configuration
 check_git_config() {
-    log_info "Checking Git configuration..."
+    section_info "Checking Git configuration..."
     
     # Check Git user configuration
     local git_user_name git_user_email
@@ -186,7 +239,7 @@ check_git_config() {
     fi
     
     # Check Git aliases
-    if git config --global alias.st >/dev/null 2>&1; then
+    if git config alias.st >/dev/null 2>&1; then
         check_pass "Git aliases are configured"
     else
         check_warn "Git aliases may not be configured"
@@ -195,8 +248,10 @@ check_git_config() {
 
 # Check SSH configuration
 check_ssh_config() {
-    log_info "Checking SSH configuration..."
-    
+    section_info "Checking SSH configuration..."
+
+    local host
+    host="$(resolve_validate_host)"
     # Check SSH config file
     if [[ -f "$HOME/.ssh/config" ]]; then
         check_pass "SSH config file exists"
@@ -207,6 +262,8 @@ check_ssh_config() {
         else
             check_pass "SSH config appears to be properly configured"
         fi
+    elif host_is_headless "$host"; then
+        check_pass "SSH config file is optional for headless profile"
     else
         check_warn "SSH config file not found"
     fi
@@ -225,8 +282,10 @@ check_ssh_config() {
 
 # Check secrets management
 check_secrets() {
-    log_info "Checking secrets management..."
-    
+    section_info "Checking secrets management..."
+
+    local host
+    host="$(resolve_validate_host)"
     # Check if age and sops are available
     if command_exists age && command_exists sops; then
         check_pass "Secrets management tools are available"
@@ -234,6 +293,8 @@ check_secrets() {
         # Check age keys
         if [[ -f "$HOME/.config/sops/age/keys.txt" ]]; then
             check_pass "Age keys are configured"
+        elif host_is_headless "$host"; then
+            check_pass "Age keys are optional for headless profile"
         else
             check_warn "Age keys not found"
         fi
@@ -241,6 +302,8 @@ check_secrets() {
         # Check SOPS config
         if [[ -f ".sops.yaml" ]]; then
             check_pass "SOPS configuration exists"
+        elif host_is_headless "$host"; then
+            check_pass "SOPS configuration is optional for headless profile"
         else
             check_warn "SOPS configuration not found"
         fi
@@ -251,21 +314,32 @@ check_secrets() {
 
 # Check development environment
 check_dev_environment() {
-    log_info "Checking development environment..."
-    
+    section_info "Checking development environment..."
+
+    local host
+    host="$(resolve_validate_host)"
     # Check programming languages
-    local languages=(
-        "go:go version"
-        "node:node --version"
-        "python3:python3 --version"
-        "ruby:ruby --version"
-    )
-    
+    local languages
+    if host_is_headless "$host"; then
+        languages=(
+            "go:go version"
+            "node:node --version"
+            "python3:python3 --version"
+        )
+    else
+        languages=(
+            "go:go version"
+            "node:node --version"
+            "python3:python3 --version"
+            "ruby:ruby --version"
+        )
+    fi
+
     for lang_info in "${languages[@]}"; do
         IFS=':' read -r lang_cmd version_cmd <<< "$lang_info"
-        if command_exists "$lang_cmd"; then
+        if shell_has_command "$lang_cmd"; then
             local version
-            version=$($version_cmd 2>/dev/null | head -1)
+            version=$(run_in_user_zsh "$version_cmd" 2>/dev/null | head -1)
             check_pass "$lang_cmd is available: $version"
         else
             check_warn "$lang_cmd is not installed"
@@ -273,16 +347,24 @@ check_dev_environment() {
     done
     
     # Check package managers
-    local package_managers=(
-        "npm"
-        "yarn"
-        "pip3"
-        "gem"
-        "cargo"
-    )
-    
+    local package_managers
+    if host_is_headless "$host"; then
+        package_managers=(
+            "npm"
+            "pipx"
+        )
+    else
+        package_managers=(
+            "npm"
+            "yarn"
+            "pip3"
+            "gem"
+            "cargo"
+        )
+    fi
+
     for pm in "${package_managers[@]}"; do
-        if command_exists "$pm"; then
+        if shell_has_command "$pm"; then
             check_pass "$pm is available"
         else
             check_warn "$pm is not installed"
@@ -292,7 +374,7 @@ check_dev_environment() {
 
 # Check system health
 check_system_health() {
-    log_info "Checking system health..."
+    section_info "Checking system health..."
     
     # Check disk space
     local disk_usage
@@ -338,7 +420,7 @@ check_system_health() {
 
 # Check for common issues
 check_common_issues() {
-    log_info "Checking for common issues..."
+    section_info "Checking for common issues..."
     
     # Check for conflicting dotfiles
     local backup_files=(
@@ -388,7 +470,7 @@ check_host_config() {
         host=$(detect_host "$hosts_dir")
     fi
 
-    log_info "Checking host-specific configuration (host: ${host})..."
+    section_info "Checking host-specific configuration (host: ${host})..."
 
     # Verify host directory exists
     if [[ ! -d "${hosts_dir}/${host}" ]]; then

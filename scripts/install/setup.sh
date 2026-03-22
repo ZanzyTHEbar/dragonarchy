@@ -10,7 +10,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source centralized logging utilities
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../lib/logging.sh"
+source "${SCRIPT_DIR}/../lib/platform.sh"
 SETUP_SCRIPT_DIR="$SCRIPT_DIR/setup"
+HEADLESS_MODE=false
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --headless)
+                HEADLESS_MODE=true
+                shift
+                ;;
+            *)
+                log_warning "Unknown setup orchestration argument '$1' ignored"
+                shift
+                ;;
+        esac
+    done
+}
 
 # --- Script Execution ---
 run_script() {
@@ -28,15 +45,47 @@ run_script() {
     fi
 }
 
+should_run_script() {
+    local script_name="$1"
+    local platform
+    platform=$(detect_platform)
+    local platform_key
+    platform_key=$(canonical_platform_key "$platform")
+
+    case "$script_name" in
+        pacman-tweaks.sh|steam.sh)
+            [[ "$platform_key" == "arch" ]]
+            return
+            ;;
+        default-apps.sh|user-services.sh|applications.sh)
+            [[ "$HEADLESS_MODE" != "true" ]]
+            return
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+parse_args "$@"
 log_info "Starting setup orchestration..."
 
-run_script "default-apps.sh"
-run_script "pacman-tweaks.sh"
-run_script "power-management.sh"
-run_script "steam.sh"
-run_script "system-services.sh"
-#run_script "user-config.sh"
-run_script "user-services.sh"
-run_script "applications.sh"  # Application-specific fixes (Zoom, etc.)
+setup_scripts=(
+    "default-apps.sh"
+    "pacman-tweaks.sh"
+    "power-management.sh"
+    "steam.sh"
+    "system-services.sh"
+    "user-services.sh"
+    "applications.sh"
+)
+
+for script_name in "${setup_scripts[@]}"; do
+    if should_run_script "$script_name"; then
+        run_script "$script_name"
+    else
+        log_info "Skipping $script_name for current install mode/platform"
+    fi
+done
 
 log_info "Setup orchestration complete."

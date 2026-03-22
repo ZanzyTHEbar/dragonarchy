@@ -131,3 +131,26 @@ jobs:
           done
 
           exit "$exit_code"
+
+  debian-headless-smoke:
+    name: Debian Headless Smoke (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    needs: [syntax-check, manifest-check]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: debian-bookworm
+            base_image: debian:bookworm-slim
+          - name: ubuntu-24-04
+            base_image: ubuntu:24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build headless smoke container
+        run: |
+          docker build \
+            --progress=plain \
+            --build-arg BASE_IMAGE="${{ matrix.base_image }}" \
+            -f tests/docker/debian-headless/Dockerfile \
+            .

@@ -21,6 +21,9 @@ cd ~/dotfiles
 
 # Or specific host setup
 ./install.sh --host dragon
+
+# Or a terminal-only/headless install
+./install.sh --host headless --headless
 ```
 
 > [!IMPORTANT]
@@ -134,6 +137,8 @@ Fine-grained control over what gets installed and configured:
 ./install.sh --no-first-run     # Skip first-run tasks (firewall, timezone, themes)
 ./install.sh --no-post-setup    # Skip post-setup tasks
 ./install.sh --no-system-config # Skip system-level configuration (PAM, services)
+./install.sh --bundle minimal   # Install only a named package bundle
+./install.sh --headless         # Terminal-only install mode (defaults bundle to minimal)
 
 # Application-specific toggles
 ./install.sh --cursor           # Force Cursor installation (default: Hyprland hosts only)
@@ -141,6 +146,7 @@ Fine-grained control over what gets installed and configured:
 
 # Combined examples
 ./install.sh --host dragon --cursor --no-theme --no-system-config
+./install.sh --host headless --headless --no-secrets
 ./install.sh --packages-only --utilities --no-secrets
 ./install.sh --dotfiles-only --no-shell --no-post-setup
 ```
@@ -158,6 +164,9 @@ Packages are defined in `scripts/install/deps.manifest.toml`. Bundles compose pa
 ./scripts/install/install-deps.sh --bundle minimal   # CLI-only (server/container)
 ./scripts/install/install-deps.sh --bundle creative  # Desktop + multimedia tools
 ./scripts/install/install-deps.sh --bundle desktop_smb # Desktop + optional Nemo SMB/usershare support
+
+# Top-level installer using the generic headless host
+./install.sh --host headless --headless
 ```
 
 Bundles are composable:
@@ -241,6 +250,32 @@ To connect to your network, you will need to run the `netbird` command and follo
 - **Linux**: CachyOS, Arch Linux, Debian (Ubuntu, etc.), other Arch & Debian-based distros
 - **Debian**: via APT
 - **Other Linux**: Partial support via common package managers (AUR, etc.)
+
+## Debian Smoke Loop
+
+Use the container smoke loop to verify the terminal-only Debian install path locally:
+
+```bash
+bash ./scripts/ci/debian-headless-smoke.sh
+bash ./scripts/ci/debian-headless-smoke.sh ubuntu:24.04
+```
+
+This loop exercises `./install.sh --host headless --headless --bundle minimal` in a Debian-family container.
+Desktop/login-manager flows still require a VM or real machine because Docker does not model a full graphical session or systemd boot environment accurately enough for this repo.
+
+For a real machine using the generic headless host profile, validate with:
+
+```bash
+./scripts/install/validate.sh --host headless
+```
+
+For the slower systemd-aware VM smoke lane:
+
+```bash
+bash ./scripts/ci/debian-vm-e2e.sh
+```
+
+That boots a Debian cloud image under QEMU, provisions the repo over SSH, runs the headless install twice for idempotency, then validates inside the guest.
 
 ## Docs
 

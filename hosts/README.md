@@ -9,6 +9,7 @@ hosts/
 ├── dragon/          # AMD desktop workstation (AIO cooler, LED control)
 ├── firedragon/      # ASUS VivoBook AMD laptop
 ├── goldendragon/    # Lenovo ThinkPad P16s (Intel/NVIDIA)
+├── headless/        # Generic terminal-only/headless profile
 ├── microdragon/     # Raspberry Pi
 └── shared/          # Shared host resources
 ```
@@ -54,6 +55,7 @@ Available traits and what they control:
 | Trait | Effect |
 |-------|--------|
 | `desktop` | Validates systemd-resolved |
+| `headless` | Documents that the host is terminal-only / non-desktop |
 | `hyprland` | Detects Hyprland host, validates Hyprland components |
 | `laptop` | Checks brightnessctl |
 | `tlp` | Checks TLP + masks systemd-rfkill |
@@ -189,6 +191,14 @@ hosts/firedragon/
 ```bash
 hosts/microdragon/
 └── setup.sh               # Basic setup only
+```
+
+### Generic Headless Profile
+
+```bash
+hosts/headless/
+├── .traits                # headless
+└── setup.sh               # No-op host setup for terminal-only installs
 ```
 
 ## Verification
