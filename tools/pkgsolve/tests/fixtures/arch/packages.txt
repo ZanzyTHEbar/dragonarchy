@@ -1,0 +1,3 @@
+fd 9.0
+joplin-desktop
+walker-bin

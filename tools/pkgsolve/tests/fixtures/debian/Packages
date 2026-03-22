@@ -1,0 +1,17 @@
+Package: alpha
+Version: 1.0-1
+Architecture: amd64
+Depends: beta (>= 1.0)
+Provides: alpha-virtual
+
+Package: beta
+Version: 1.0-1
+Architecture: amd64
+
+Package: fd-find
+Version: 9.0-1
+Architecture: amd64
+
+Package: gh
+Version: 2.0.0-1
+Architecture: amd64
