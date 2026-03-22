@@ -6,11 +6,10 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStart=/usr/bin/openfortivpn --config /etc/openfortivpn/waybar.conf --saml-login=8020
-# Apply Avular split-DNS once the VPN link appears (host-scoped helper).
-# Use $$HOME so systemd passes $HOME through to bash (quoted -lc script expands at runtime).
-ExecStartPost=/usr/bin/bash -lc "[ -x $$HOME/.local/bin/avular-vpn-dns ] && $$HOME/.local/bin/avular-vpn-dns || true"
+# Apply Avular split-DNS once the VPN link appears via the system-installed helper.
+ExecStartPost=/usr/bin/bash -lc "[ -x /usr/local/bin/avular-vpn-dns ] && /usr/local/bin/avular-vpn-dns || true"
 # Clean up split-DNS on disconnect.
-ExecStopPost=/usr/bin/bash -lc "[ -x $$HOME/.local/bin/avular-vpn-dns ] && $$HOME/.local/bin/avular-vpn-dns --reset || true"
+ExecStopPost=/usr/bin/bash -lc "[ -x /usr/local/bin/avular-vpn-dns ] && /usr/local/bin/avular-vpn-dns --reset || true"
 # Do not restart automatically; SAML flow is interactive and restarts can
 # invalidate the login session and change the redirect port.
 Restart=no

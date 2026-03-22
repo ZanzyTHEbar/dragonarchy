@@ -280,6 +280,8 @@ setup_openfortivpn_access() {
   local config="/etc/openfortivpn/config"
   local service_config="/etc/openfortivpn/waybar.conf"
   local group="openfortivpn"
+  local helper_src="${SCRIPT_DIR}/dotfiles/.local/bin/avular-vpn-dns"
+  local helper_path="/usr/local/bin/avular-vpn-dns"
   local target_user="${OPENFORTIVPN_USER:-${SUDO_USER:-$USER}}"
   local host_short
   host_short="$(hostname | cut -d. -f1)"
@@ -383,6 +385,17 @@ PY
     log_success "Generated service config: $service_config"
   fi
 
+  if [[ -f "$helper_src" ]]; then
+    _sysmod_sudo install -d -m 755 "$(dirname "$helper_path")"
+    if _sysmod_sudo install -m 755 "$helper_src" "$helper_path"; then
+      log_success "Installed OpenFortiVPN DNS helper: $helper_path"
+    else
+      log_warning "Failed to install OpenFortiVPN DNS helper: $helper_path"
+    fi
+  else
+    log_warning "OpenFortiVPN DNS helper missing in dotfiles: $helper_src"
+  fi
+
   if [[ -f /etc/systemd/system/openfortivpn.service || -f /etc/systemd/system/openfortivpn-cleanup.service ]]; then
     _sysmod_sudo systemctl daemon-reload >/dev/null 2>&1 || log_warning "systemctl daemon-reload failed"
   fi
@@ -416,6 +429,7 @@ openfortivpn_is_provisioned() {
   local config="/etc/openfortivpn/config"
   local service_config="/etc/openfortivpn/waybar.conf"
   local group="openfortivpn"
+  local helper_path="/usr/local/bin/avular-vpn-dns"
   local target_user="${OPENFORTIVPN_USER:-${SUDO_USER:-$USER}}"
   local host_short
   host_short="$(hostname | cut -d. -f1)"
@@ -428,6 +442,7 @@ openfortivpn_is_provisioned() {
   getent group "$group" >/dev/null 2>&1 || return 1
   [[ -f "$config" ]] || return 1
   [[ -f "$service_config" ]] || return 1
+  [[ -x "$helper_path" ]] || return 1
   if command -v systemctl >/dev/null 2>&1; then
     systemctl list-unit-files --type=service 2>/dev/null | grep -q '^openfortivpn\.service' || return 1
     systemctl list-unit-files --type=service 2>/dev/null | grep -q '^openfortivpn-cleanup\.service' || return 1
