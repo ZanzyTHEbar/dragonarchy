@@ -20,15 +20,15 @@ jobs:
             bundle: minimal
             validate_bundle: minimal
             skip_first_run_command: false
-          - name: debian-trixie-desktop-base
-            image_url: https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2
+          - name: debian-forky-desktop-base
+            image_url: https://cloud.debian.org/images/cloud/forky/daily/latest/debian-14-genericcloud-amd64-daily.qcow2
             host: desktop
             bundle: desktop_base
             validate_bundle: desktop_base
             skip_first_run_command: true
             install_extra_flags: --no-cursor --no-post-setup --no-first-run
-          - name: ubuntu-plucky-desktop-base
-            image_url: https://cloud-images.ubuntu.com/plucky/current/plucky-server-cloudimg-amd64.img
+          - name: ubuntu-resolute-desktop-base
+            image_url: https://cloud-images.ubuntu.com/resolute/current/resolute-server-cloudimg-amd64.img
             host: desktop
             bundle: desktop_base
             validate_bundle: desktop_base
