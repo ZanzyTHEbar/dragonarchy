@@ -12,6 +12,8 @@ MEMORY_MB_DEFAULT="4096"
 CPUS_DEFAULT="2"
 VM_NAME_DEFAULT="dotfiles-debian-headless-e2e"
 BOOT_TIMEOUT_SEC_DEFAULT="900"
+HOST_NAME_DEFAULT="headless"
+BUNDLE_NAME_DEFAULT="minimal"
 
 IMAGE_URL="$IMAGE_URL_DEFAULT"
 WORKDIR="$WORKDIR_DEFAULT"
@@ -25,6 +27,13 @@ KEEP_VM=false
 WITH_SYSTEM_CONFIG=false
 VM_BOOTED=false
 ARTIFACTS_COLLECTED=false
+PKGSOLVE_HOST_BIN=""
+HOST_NAME="$HOST_NAME_DEFAULT"
+BUNDLE_NAME="$BUNDLE_NAME_DEFAULT"
+VALIDATE_BUNDLE=""
+RUN_FIRST_RUN_COMMAND=true
+INSTALL_EXTRA_FLAGS=()
+BASE_IMAGE_FORMAT="qcow2"
 
 usage() {
     cat <<EOF
@@ -42,6 +51,11 @@ Options:
   --cpus N                 Guest vCPU count (default: ${CPUS_DEFAULT})
   --vm-name NAME           Guest hostname / instance ID
   --boot-timeout-sec SEC   Seconds to wait for guest SSH/systemd (default: ${BOOT_TIMEOUT_SEC_DEFAULT})
+  --host NAME              Host profile to pass to install.sh / validate.sh (default: ${HOST_NAME_DEFAULT})
+  --bundle NAME            Bundle to pass to install.sh (default: ${BUNDLE_NAME_DEFAULT})
+  --validate-bundle NAME   Bundle context for validate.sh (default: same as --bundle)
+  --install-extra-flag X   Extra flag to pass through to install.sh (repeatable)
+  --skip-first-run-command Do not execute scripts/install/first-run.sh after install
   --with-system-config     Include install.sh system configuration step
   --keep-vm                Do not clean up the VM process and working files on exit
   -h, --help               Show this help
@@ -82,6 +96,26 @@ parse_args() {
             --boot-timeout-sec)
                 BOOT_TIMEOUT_SEC="$2"
                 shift 2
+                ;;
+            --host)
+                HOST_NAME="$2"
+                shift 2
+                ;;
+            --bundle)
+                BUNDLE_NAME="$2"
+                shift 2
+                ;;
+            --validate-bundle)
+                VALIDATE_BUNDLE="$2"
+                shift 2
+                ;;
+            --install-extra-flag)
+                INSTALL_EXTRA_FLAGS+=("$2")
+                shift 2
+                ;;
+            --skip-first-run-command)
+                RUN_FIRST_RUN_COMMAND=false
+                shift
                 ;;
             --with-system-config)
                 WITH_SYSTEM_CONFIG=true
@@ -150,9 +184,29 @@ prepare_dirs() {
     META_DATA="$WORKDIR/meta-data"
 }
 
+build_pkgsolve_binary() {
+    if [[ -n "${PKGSOLVE_HOST_BIN:-}" && -x "${PKGSOLVE_HOST_BIN:-}" ]]; then
+        return 0
+    fi
+
+    PKGSOLVE_HOST_BIN="$(bash "${PROJECT_ROOT}/scripts/tools/build-pkgsolve.sh")"
+    if [[ ! -x "$PKGSOLVE_HOST_BIN" ]]; then
+        echo "pkgsolve binary not found after build: ${PKGSOLVE_HOST_BIN}" >&2
+        exit 1
+    fi
+}
+
 download_image() {
     if [[ ! -f "$BASE_IMAGE" ]]; then
         curl -fL --retry 3 --retry-delay 2 "$IMAGE_URL" -o "$BASE_IMAGE"
+    fi
+}
+
+detect_base_image_format() {
+    local detected_format
+    detected_format="$(qemu-img info --output=json "$BASE_IMAGE" | jq -r '.format // empty')"
+    if [[ -n "$detected_format" ]]; then
+        BASE_IMAGE_FORMAT="$detected_format"
     fi
 }
 
@@ -194,7 +248,7 @@ EOF
 }
 
 start_vm() {
-    qemu-img create -f qcow2 -F qcow2 -b "$BASE_IMAGE" "$OVERLAY_IMAGE" >/dev/null
+    qemu-img create -f qcow2 -F "$BASE_IMAGE_FORMAT" -b "$BASE_IMAGE" "$OVERLAY_IMAGE" >/dev/null
 
     qemu-system-x86_64 \
         -name "$VM_NAME" \
@@ -256,6 +310,7 @@ copy_repo() {
     tar \
         --exclude=.git \
         --exclude=.cursor \
+        --exclude=tools/pkgsolve/target \
         -C "$PROJECT_ROOT" \
         -cf - . \
         | ssh \
@@ -268,28 +323,70 @@ copy_repo() {
             "rm -rf ~/dotfiles && mkdir -p ~/dotfiles && tar -xf - -C ~/dotfiles"
 }
 
+copy_pkgsolve() {
+    scp \
+        -i "$SSH_KEY" \
+        -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        -o BatchMode=yes \
+        -P "$SSH_PORT" \
+        "$PKGSOLVE_HOST_BIN" \
+        dragon@127.0.0.1:~/pkgsolve >/dev/null
+
+    ssh_base "bash -lc '
+        sudo install -m 0755 ~/pkgsolve /usr/local/bin/pkgsolve
+        rm -f ~/pkgsolve
+    '"
+}
+
 run_guest_smoke() {
-    local install_flags="--host headless --headless --bundle minimal --no-secrets"
-    if [[ "$WITH_SYSTEM_CONFIG" != "true" ]]; then
-        install_flags+=" --no-system-config"
+    local validate_bundle="${VALIDATE_BUNDLE:-$BUNDLE_NAME}"
+    local install_flags=(--host "$HOST_NAME" --bundle "$BUNDLE_NAME" --no-secrets)
+    if [[ "$HOST_NAME" == "headless" && "$BUNDLE_NAME" == "minimal" ]]; then
+        install_flags+=(--headless)
     fi
+    if [[ "$WITH_SYSTEM_CONFIG" != "true" ]]; then
+        install_flags+=(--no-system-config)
+    fi
+    if [[ ${#INSTALL_EXTRA_FLAGS[@]} -gt 0 ]]; then
+        install_flags+=("${INSTALL_EXTRA_FLAGS[@]}")
+    fi
+
+    local validate_flags=(--host "$HOST_NAME" --json)
+    if [[ -n "$validate_bundle" ]]; then
+        validate_flags+=(--bundle "$validate_bundle")
+    fi
+
+    local install_flags_quoted validate_flags_quoted
+    printf -v install_flags_quoted "%q " "${install_flags[@]}"
+    printf -v validate_flags_quoted "%q " "${validate_flags[@]}"
 
     ssh_base "bash -lc '
         set -euo pipefail
         export TERM=xterm-256color
         export CI=1
         cd ~/dotfiles
-        ./install.sh ${install_flags}
-        ./install.sh ${install_flags}
+        ./install.sh ${install_flags_quoted}
+        ./install.sh ${install_flags_quoted}
+        test -f .artifacts/pkgsolve/debian/${HOST_NAME}-${BUNDLE_NAME}/resolve/plan.lock.json
+        test -f .artifacts/pkgsolve/debian/${HOST_NAME}-${BUNDLE_NAME}/verify/plan.lock.json
+        jq -e \".status == \\\"satisfiable\\\" or .status == \\\"partially_satisfiable\\\"\" \
+            .artifacts/pkgsolve/debian/${HOST_NAME}-${BUNDLE_NAME}/verify/plan.lock.json >/dev/null
         git config --global user.name \"CI VM Smoke\"
         git config --global user.email \"ci-vm@example.com\"
-        ./scripts/install/first-run.sh --headless
+        if ${RUN_FIRST_RUN_COMMAND}; then
+            if [[ ${HOST_NAME@Q} == \"headless\" ]]; then
+                ./scripts/install/first-run.sh --headless
+            else
+                ./scripts/install/first-run.sh
+            fi
+        fi
         state=\$(systemctl is-system-running || true)
         case \"\$state\" in
             running|degraded) ;;
             *) echo \"Unexpected systemd state: \$state\" >&2; exit 1 ;;
         esac
-        ./scripts/install/validate.sh --host headless --json | tee ~/validate.json
+        ./scripts/install/validate.sh ${validate_flags_quoted} | tee ~/validate.json
         jq -e \".failed == 0\" ~/validate.json >/dev/null
     '"
 }
@@ -298,6 +395,7 @@ collect_artifacts() {
     ssh_base "bash -lc '
         mkdir -p ~/e2e-artifacts
         cp -f ~/validate.json ~/e2e-artifacts/validate.json 2>/dev/null || true
+        cp -R ~/dotfiles/.artifacts/pkgsolve ~/e2e-artifacts/pkgsolve 2>/dev/null || true
         systemctl is-system-running > ~/e2e-artifacts/systemd-state.txt 2>/dev/null || true
         journalctl -b --no-pager > ~/e2e-artifacts/journalctl-boot.log 2>/dev/null || true
     '" >/dev/null 2>&1 || true
@@ -320,6 +418,7 @@ main() {
 
     require_cmd curl
     require_cmd cloud-localds
+    require_cmd jq
     require_cmd qemu-img
     require_cmd qemu-system-x86_64
     require_cmd ssh
@@ -330,12 +429,15 @@ main() {
     trap cleanup EXIT
 
     prepare_dirs
+    build_pkgsolve_binary
     download_image
+    detect_base_image_format
     generate_ssh_key
     render_cloud_init
     start_vm
     wait_for_ssh
     copy_repo
+    copy_pkgsolve
     run_guest_smoke
     collect_artifacts
 }

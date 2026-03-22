@@ -1,4 +1,4 @@
-name: Debian VM E2E
+name: Debian-Family VM E2E
 
 on:
   workflow_dispatch:
@@ -6,13 +6,40 @@ on:
     - cron: "0 6 * * *"
 
 jobs:
-  debian-vm-headless:
-    name: Debian VM Headless E2E
+  debian-family-vm:
+    name: Debian-Family VM E2E (${{ matrix.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: debian-bookworm-headless
+            image_url: https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2
+            host: headless
+            bundle: minimal
+            validate_bundle: minimal
+            skip_first_run_command: false
+          - name: debian-trixie-desktop-base
+            image_url: https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2
+            host: desktop
+            bundle: desktop_base
+            validate_bundle: desktop_base
+            skip_first_run_command: true
+            install_extra_flags: --no-cursor --no-post-setup --no-first-run
+          - name: ubuntu-plucky-desktop-base
+            image_url: https://cloud-images.ubuntu.com/plucky/current/plucky-server-cloudimg-amd64.img
+            host: desktop
+            bundle: desktop_base
+            validate_bundle: desktop_base
+            skip_first_run_command: true
+            install_extra_flags: --no-cursor --no-post-setup --no-first-run
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install VM dependencies
         run: |
@@ -30,13 +57,27 @@ jobs:
 
       - name: Run Debian VM E2E
         run: |
+          EXTRA_ARGS=()
+          for flag in ${{ matrix.install_extra_flags || '' }}; do
+            EXTRA_ARGS+=(--install-extra-flag "$flag")
+          done
+
+          if [[ "${{ matrix.skip_first_run_command }}" == "true" ]]; then
+            EXTRA_ARGS+=(--skip-first-run-command)
+          fi
+
           bash ./scripts/ci/debian-vm-e2e.sh \
-            --artifact-dir "$RUNNER_TEMP/debian-vm-e2e-artifacts"
+            --artifact-dir "$RUNNER_TEMP/debian-vm-e2e-artifacts/${{ matrix.name }}" \
+            --image-url "${{ matrix.image_url }}" \
+            --host "${{ matrix.host }}" \
+            --bundle "${{ matrix.bundle }}" \
+            --validate-bundle "${{ matrix.validate_bundle }}" \
+            "${EXTRA_ARGS[@]}"
 
       - name: Upload VM E2E artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: debian-vm-e2e-artifacts
-          path: ${{ runner.temp }}/debian-vm-e2e-artifacts
+          name: debian-vm-e2e-artifacts-${{ matrix.name }}
+          path: ${{ runner.temp }}/debian-vm-e2e-artifacts/${{ matrix.name }}
           if-no-files-found: warn

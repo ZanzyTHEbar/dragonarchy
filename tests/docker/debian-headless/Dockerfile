@@ -1,4 +1,10 @@
 ARG BASE_IMAGE=debian:bookworm-slim
+
+FROM rust:1-bookworm AS pkgsolve-builder
+WORKDIR /work
+COPY tools/pkgsolve /work/tools/pkgsolve
+RUN cargo build --manifest-path /work/tools/pkgsolve/Cargo.toml --release
+
 FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -28,6 +34,7 @@ USER dragon
 WORKDIR /home/dragon/dotfiles
 
 COPY --chown=dragon:dragon . /home/dragon/dotfiles
+COPY --from=pkgsolve-builder /work/tools/pkgsolve/target/release/pkgsolve /usr/local/bin/pkgsolve
 
 RUN ./install.sh \
     --host headless \
@@ -49,6 +56,11 @@ RUN git config --global user.name "CI Smoke" \
     && git config --global user.email "ci@example.com"
 
 RUN ./scripts/install/first-run.sh --dry-run --headless
+
+RUN test -f .artifacts/pkgsolve/debian/headless-minimal/resolve/plan.lock.json \
+    && test -f .artifacts/pkgsolve/debian/headless-minimal/verify/plan.lock.json \
+    && jq -e '.status == "satisfiable" or .status == "partially_satisfiable"' \
+        .artifacts/pkgsolve/debian/headless-minimal/verify/plan.lock.json >/dev/null
 
 RUN bash -lc 'scripts/install/validate.sh --host headless --json | tee /tmp/validate.json' \
     && jq -e '.failed == 0' /tmp/validate.json >/dev/null
