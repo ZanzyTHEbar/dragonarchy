@@ -302,7 +302,10 @@ fn select_best_effort(
 
     let mut revisited = Vec::new();
     for entry in rejected {
-        let Some(goal) = goals.iter().find(|goal| Some(&goal.id) == entry.goal_id.as_ref()) else {
+        let Some(goal) = goals
+            .iter()
+            .find(|goal| Some(&goal.id) == entry.goal_id.as_ref())
+        else {
             revisited.push(entry);
             continue;
         };
