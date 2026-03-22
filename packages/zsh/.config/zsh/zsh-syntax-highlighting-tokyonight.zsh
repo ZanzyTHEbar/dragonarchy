@@ -1,3 +1,4 @@
+typeset -gA ZSH_HIGHLIGHT_STYLES
 
         ## Comments
         ZSH_HIGHLIGHT_STYLES[comment]='fg=#565f89'

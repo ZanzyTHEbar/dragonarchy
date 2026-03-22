@@ -6,10 +6,20 @@
 #
 
 # Get dotfiles root and source logging utilities
-# ${0:A:h} resolves symlinks to get the real script location in dotfiles repo
-DOTFILES_ROOT="${0:A:h:h:h:h:h:h}"  # Go up 6 levels from packages/zsh/.config/zsh/functions/ to repo root
+# ${(%):-%x} resolves to the current sourced file in zsh. Fall back to $0 for
+# linting or non-sourced execution contexts.
+SOURCE_PATH="${(%):-%x}"
+if [[ -z "$SOURCE_PATH" ]]; then
+    SOURCE_PATH="$0"
+fi
+if [[ -n "$SOURCE_PATH" && "$SOURCE_PATH" != -* ]]; then
+    DOTFILES_ROOT="${SOURCE_PATH:A:h:h:h:h:h:h}"  # Go up 6 levels from packages/zsh/.config/zsh/functions/ to repo root
+fi
+if [[ -z "${DOTFILES_ROOT:-}" || ! -f "${DOTFILES_ROOT}/scripts/lib/logging.sh" ]]; then
+    DOTFILES_ROOT="${HOME}/dotfiles"
+fi
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
-source "${DOTFILES_ROOT}/scripts/lib/logging.sh"
+source "${DOTFILES_ROOT:-${HOME}/dotfiles}/scripts/lib/logging.sh"
 
 # y shell wrapper that provides the ability to change the current working directory when exiting Yazi.
 y() {

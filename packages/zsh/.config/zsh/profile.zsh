@@ -116,7 +116,7 @@ if command -v rbenv &>/dev/null; then
 fi
 
 # Java environment
-if [[ -n "$JAVA_HOME" ]]; then
+if [[ -n "${JAVA_HOME:-}" ]]; then
     export PATH="$JAVA_HOME/bin:$PATH"
 fi
 

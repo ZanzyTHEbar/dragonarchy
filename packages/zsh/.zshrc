@@ -1,8 +1,17 @@
 # ZSH Configuration - Modular Setup
 # ===================================
 
+# Startup config intentionally avoids nounset because several third-party Zsh
+# plugins and prompt helpers are not nounset-safe during initialization.
+unsetopt nounset 2>/dev/null
+
+ZSH_TTY_UI=false
+if [[ -o interactive ]]; then
+    ZSH_TTY_UI=true
+fi
+
 # Powerlevel10k instant prompt initialization
-if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+if [[ "$ZSH_TTY_UI" == "true" && -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
     source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
@@ -22,12 +31,12 @@ if [ ! -d "$ZINIT_HOME" ]; then
 fi
 
 # Source/Load zinit
-if [[ -r "${ZINIT_HOME}/zinit.zsh" ]]; then
+if [[ "$ZSH_TTY_UI" == "true" && -r "${ZINIT_HOME}/zinit.zsh" ]]; then
     source "${ZINIT_HOME}/zinit.zsh"
 fi
 
 # Add in Powerlevel10k
-if command -v zinit >/dev/null 2>&1; then
+if [[ "$ZSH_TTY_UI" == "true" ]] && command -v zinit >/dev/null 2>&1; then
     zinit ice depth=1; zinit light romkatv/powerlevel10k
 
 # Add in zsh plugins
@@ -59,17 +68,25 @@ ZVM_OPPEND_MODE_CURSOR=$ZVM_CURSOR_BLINKING_UNDERLINE
     zinit cdreplay -q
 fi
 
-# Load function files
-for func_file in ~/.config/zsh/functions/*.zsh(N); do
-    [[ -r "$func_file" ]] && source "$func_file"
-done
+if [[ "$ZSH_TTY_UI" == "true" ]]; then
+    # Load function files
+    setopt localoptions nullglob
+    for func_file in "$HOME"/.config/zsh/functions/*.zsh; do
+        [[ -r "$func_file" ]] && source "$func_file"
+    done
 
-# Load aliases and remaining configuration
-for conf_file in ~/.config/zsh/*.zsh(N); do
-    [[ -r "$conf_file" ]] && source "$conf_file"
-done
+    # Load aliases and remaining configuration
+    for conf_file in "$HOME"/.config/zsh/*.zsh; do
+        case "${conf_file:t}" in
+            profile.zsh|init.zsh)
+                continue
+                ;;
+        esac
+        [[ -r "$conf_file" ]] && source "$conf_file"
+    done
+fi
 
-if [[ -f ~/.config/zsh/hosts/$HOSTNAME.zsh ]]; then
+if [[ "$ZSH_TTY_UI" == "true" && -f ~/.config/zsh/hosts/$HOSTNAME.zsh ]]; then
     source ~/.config/zsh/hosts/$HOSTNAME.zsh
 fi
 
@@ -84,16 +101,24 @@ COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
 [[ -f "$HOME/.config/icons-in-terminal/icons_bash.sh" ]] && source "$HOME/.config/icons-in-terminal/icons_bash.sh"
 
 # Load .p10k.zsh
-[[ -f "$HOME/.config/zsh/.p10k.zsh" ]] && source "$HOME/.config/zsh/.p10k.zsh"
+if [[ "$ZSH_TTY_UI" == "true" && -f "$HOME/.config/zsh/.p10k.zsh" ]]; then
+    source "$HOME/.config/zsh/.p10k.zsh"
+fi
 
 # Unalias zi from zinit to avoid conflicts with zoxide zi command
 unalias zi 2>/dev/null
 
 
 # pnpm
-export PNPM_HOME="/home/daofficialwizard/.local/share/pnpm"
+export PNPM_HOME="$HOME/.local/share/pnpm"
 case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
+
+# >>> cursor-installer path >>>
+if [ -f "$HOME/.local/share/cursor-installer/shell-path.sh" ]; then
+  . "$HOME/.local/share/cursor-installer/shell-path.sh"
+fi
+# <<< cursor-installer path <<<
