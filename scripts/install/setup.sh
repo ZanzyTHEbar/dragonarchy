@@ -57,7 +57,7 @@ should_run_script() {
             [[ "$platform_key" == "arch" ]]
             return
             ;;
-        default-apps.sh|user-services.sh|applications.sh)
+        default-apps.sh|user-services.sh|applications.sh|samba-usershare.sh)
             [[ "$HEADLESS_MODE" != "true" ]]
             return
             ;;
@@ -76,6 +76,7 @@ setup_scripts=(
     "power-management.sh"
     "steam.sh"
     "system-services.sh"
+    "samba-usershare.sh"
     "user-services.sh"
     "applications.sh"
 )
