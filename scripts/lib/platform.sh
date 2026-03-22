@@ -137,17 +137,17 @@ debian_family_provider_track() {
     case "$variant" in
         debian)
             case "$codename" in
-                sid|unstable|forky|testing|trixie)
+                sid|unstable|forky|testing)
                     echo "debian_hyprland_archive"
                     return 0
                     ;;
-                bookworm|bullseye|buster)
+                trixie|bookworm|bullseye|buster)
                     echo "debian_legacy_no_hyprland"
                     return 0
                     ;;
             esac
 
-            if [[ "$version_major" =~ ^[0-9]+$ ]] && (( version_major >= 13 )); then
+            if [[ "$version_major" =~ ^[0-9]+$ ]] && (( version_major >= 14 )); then
                 echo "debian_hyprland_archive"
             else
                 echo "debian_legacy_no_hyprland"
@@ -155,18 +155,18 @@ debian_family_provider_track() {
             ;;
         ubuntu)
             case "$codename" in
-                oracular|plucky|questing|resolute|devel)
+                resolute|devel)
                     echo "ubuntu_hyprland_archive"
                     return 0
                     ;;
-                noble|jammy|focal|mantic|lunar|kinetic)
+                oracular|plucky|questing|noble|jammy|focal|mantic|lunar|kinetic)
                     echo "ubuntu_legacy_no_hyprland"
                     return 0
                     ;;
             esac
 
             case "$version_id" in
-                24.10|25.*|26.*)
+                26.*)
                     echo "ubuntu_hyprland_archive"
                     ;;
                 *)
