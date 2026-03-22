@@ -338,6 +338,171 @@ packages = [
     "fonts-liberation2",
 ]
 
+[platforms.debian.apt.hyprland_base]
+requires_features = ["hyprland"]
+packages = [
+    "bash-completion",
+    "blueman",
+    "bluez",
+    "brightnessctl",
+    "cargo",
+    "clang",
+    "cups",
+    "cups-filters",
+    "printer-driver-cups-pdf",
+    "docker.io",
+    "docker-compose",
+    "evince",
+    "fcitx5",
+    "fcitx5-config-qt",
+    "fcitx5-frontend-gtk2",
+    "fcitx5-frontend-gtk3",
+    "fcitx5-frontend-gtk4",
+    "fcitx5-frontend-qt5",
+    "fcitx5-frontend-qt6",
+    "ffmpegthumbnailer",
+    "flatpak",
+    "gcc",
+    "gnome-themes-extra",
+    "adwaita-icon-theme",
+    "hicolor-icon-theme",
+    "imagemagick",
+    "imv",
+    "iwd",
+    "qt5-style-kvantum",
+    "less",
+    "libsecret-1-0",
+    "llvm",
+    "luarocks",
+    "man-db",
+    "mpv",
+    "pamixer",
+    "pipewire",
+    "pipewire-alsa",
+    "pipewire-pulse",
+    "plocate",
+    "playerctl",
+    "mate-polkit",
+    "power-profiles-daemon",
+    "rtkit",
+    "slurp",
+    "swaybg",
+    "system-config-printer",
+    "ufw",
+    "waybar",
+    "whois",
+    "wireplumber",
+    "wl-clipboard",
+    "xdg-desktop-portal-gtk",
+]
+
+[platforms.debian.apt.hyprland_base_debian_archive]
+requires_features = ["hyprland", "track_debian_hyprland_archive"]
+packages = [
+    "hyprland-qtutils",
+    "hyprpaper",
+    "hyprpolkitagent",
+    "uwsm",
+    "xdg-desktop-portal-hyprland",
+]
+
+[platforms.debian.apt.hyprland_base_ubuntu_archive]
+requires_features = ["hyprland", "track_ubuntu_hyprland_archive"]
+packages = [
+    "hyprland-backgrounds",
+    "hyprland-qtutils",
+    "hyprpaper",
+    "xdg-desktop-portal-hyprland",
+]
+
+[platforms.debian.apt.nemo_core]
+requires_features = ["hyprland"]
+packages = ["nemo", "nemo-fileroller"]
+
+[platforms.debian.apt.nemo_share]
+requires_features = ["hyprland"]
+packages = ["cifs-utils", "gvfs-backends", "nemo-share", "samba"]
+
+[platforms.debian.apt.hyprland_core_debian_archive]
+requires_features = ["hyprland", "track_debian_hyprland_archive"]
+packages = ["hypridle", "hyprland", "hyprlock", "hyprpicker"]
+
+[platforms.debian.apt.hyprland_core_ubuntu_archive]
+requires_features = ["hyprland", "track_ubuntu_hyprland_archive"]
+packages = ["hypridle", "hyprland"]
+
+[platforms.debian.apt.hyprland_aur]
+requires_features = ["hyprland"]
+packages = [
+    "netcat-openbsd",
+    "gnome-calculator",
+    "gnome-keyring",
+    "kdenlive",
+    "libreoffice",
+    "v4l2loopback-dkms",
+    "wl-clipboard",
+    "xournalpp",
+    "img2pdf",
+    "udiskie",
+    "nvme-cli",
+    "parted",
+    "e2fsprogs",
+    "chafa",
+]
+
+[platforms.debian.apt.hyprland_aur_debian_archive]
+requires_features = ["hyprland", "track_debian_hyprland_archive"]
+packages = ["hyprland-plugins"]
+
+[platforms.debian.apt.hyprland_aur_ubuntu_archive]
+requires_features = ["hyprland", "track_ubuntu_hyprland_archive"]
+packages = ["hyprland-backgrounds"]
+
+[platforms.debian.apt.creative]
+packages = [
+    "gimp",
+    "inkscape",
+    "blender",
+    "kdenlive",
+    "audacity",
+    "ardour",
+    "obs-studio",
+    "krita",
+    "darktable",
+    "handbrake",
+    "mpv",
+]
+
+[platforms.debian.script.core_cli]
+packages = ["gum"]
+
+[platforms.debian.script.gui]
+packages = [
+    "difftastic",
+    "joplin-desktop",
+    "localsend",
+    "vivaldi",
+    "visual-studio-code-bin",
+    "visual-studio-code-insiders-bin",
+]
+
+[platforms.debian.script.hyprland_base]
+requires_features = ["hyprland"]
+packages = ["lazygit", "mise"]
+
+[platforms.debian.script.hyprland_core]
+requires_features = ["hyprland"]
+# Deferred/default Debian-family Hyprland core group. Release/provider-specific
+# archive tracks add compositor/session packages through dedicated track groups.
+packages = []
+
+[platforms.debian.script.creative_aur]
+requires_features = ["creative_vendor_optin"]
+# Official vendor-backed creative extras. REAPER is automatable from the
+# published tarball; DaVinci Resolve remains manual because Blackmagic gates the
+# download and targets RHEL/CentOS-style environments.
+packages = ["reaper"]
+
 [tools.pipx]
 packages = ["poetry", "black", "flake8", "mypy"]
 
@@ -353,9 +518,15 @@ groups = [
     "fonts",
     "gui",
     "hyprland_base",
+    "hyprland_base_debian_archive",
+    "hyprland_base_ubuntu_archive",
     "nemo_core",
     "hyprland_core",
+    "hyprland_core_debian_archive",
+    "hyprland_core_ubuntu_archive",
     "hyprland_aur",
+    "hyprland_aur_debian_archive",
+    "hyprland_aur_ubuntu_archive",
 ]
 
 [bundles.desktop]

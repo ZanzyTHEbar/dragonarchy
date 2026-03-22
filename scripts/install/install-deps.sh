@@ -36,6 +36,8 @@ SKIP_CURSOR_INSTALL=false
 KEEP_GIT_HYPRLAND=false
 RUN_SETUP_SCRIPTS=true
 BUNDLE_NAME=""
+PKGSOLVE_MODE="strict"
+ENABLE_VENDOR_CREATIVE=false
 
 # Internal state
 APT_UPDATED=false
@@ -48,12 +50,14 @@ declare -A PACKAGE_MANAGER_INSTALLER=(
     [pacman]="install_pacman"
     [paru]="install_paru"
     [apt]="install_apt"
+    [script]="install_script"
 )
 
 declare -A PACKAGE_MANAGER_SELECTOR=(
     [pacman]="core_cli,dev,fonts,host_,hyprland_"
     [paru]="gui,fonts,host_,hyprland_"
     [apt]="*"
+    [script]="*"
 )
 
 manifest_validate() {
@@ -72,6 +76,22 @@ feature_csv_for_host() {
         features+=("hyprland")
     fi
 
+    if [[ "$ENABLE_VENDOR_CREATIVE" == "true" ]]; then
+        features+=("creative_vendor_optin")
+    fi
+
+    local platform_features=()
+    local platform_feature_csv
+    platform_feature_csv="$(platform_feature_csv)"
+    if [[ -n "$platform_feature_csv" ]]; then
+        local IFS=','
+        read -r -a platform_features <<< "$platform_feature_csv"
+        local platform_feature
+        for platform_feature in "${platform_features[@]}"; do
+            [[ -n "$platform_feature" ]] && features+=("$platform_feature")
+        done
+    fi
+
     local joined=""
     local f
     for f in "${features[@]}"; do
@@ -83,6 +103,172 @@ feature_csv_for_host() {
     done
 
     echo "$joined"
+}
+
+current_platform_provider_track() {
+    platform_provider_track "$(detect_platform)"
+}
+
+ensure_ubuntu_universe_enabled() {
+    local platform_id="${1:-$(detect_platform)}"
+    local track="${2:-$(platform_provider_track "$platform_id")}"
+
+    if [[ "$track" != "ubuntu_hyprland_archive" ]]; then
+        return 0
+    fi
+
+    if [[ "$platform_id" != "ubuntu" ]]; then
+        log_info "Ubuntu-family Hyprland archive track detected on derivative '${platform_id}'; assuming required archive components are already configured"
+        return 0
+    fi
+
+    log_info "Ensuring Ubuntu universe repository is enabled for Hyprland archive packages..."
+    if ! command_exists add-apt-repository; then
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get update
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
+    fi
+
+    sudo add-apt-repository -y universe >/dev/null
+    APT_UPDATED=false
+}
+
+pkgsolve_artifact_dir() {
+    local host_label="${1:-generic}"
+    local bundle_label="${BUNDLE_NAME:-all}"
+    if [[ -n "${PKGSOLVE_ARTIFACT_DIR:-}" ]]; then
+        printf '%s\n' "$PKGSOLVE_ARTIFACT_DIR"
+        return 0
+    fi
+    printf '%s\n' "${REPO_ROOT}/.artifacts/pkgsolve/debian/${host_label}-${bundle_label}"
+}
+
+resolve_pkgsolve_bin() {
+    local candidate="${PKGSOLVE_BIN:-}"
+    if [[ -n "$candidate" && -x "$candidate" ]]; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
+    if command_exists pkgsolve; then
+        command -v pkgsolve
+        return 0
+    fi
+
+    local repo_bin="${REPO_ROOT}/tools/pkgsolve/target/release/pkgsolve"
+    if [[ -x "$repo_bin" ]]; then
+        printf '%s\n' "$repo_bin"
+        return 0
+    fi
+
+    local build_script="${REPO_ROOT}/scripts/tools/build-pkgsolve.sh"
+    if [[ -f "$build_script" ]] && command_exists cargo; then
+        bash "$build_script"
+        return 0
+    fi
+
+    return 1
+}
+
+ensure_apt_repositories_updated() {
+    if [[ "$APT_UPDATED" == "true" ]]; then
+        return 0
+    fi
+
+    log_info "Updating apt repositories..."
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get update
+    APT_UPDATED=true
+}
+
+install_apt_from_plan() {
+    local plan_dir="$1"
+    local apt_plan_file="${plan_dir}/plan.apt.txt"
+    local preferences_file="${plan_dir}/plan.preferences"
+
+    if [[ ! -f "$apt_plan_file" ]]; then
+        log_error "APT plan file not found: $apt_plan_file"
+        return 1
+    fi
+
+    local plan_items=()
+    mapfile -t plan_items < <(awk 'NF { print $0 }' "$apt_plan_file")
+    if [[ ${#plan_items[@]} -eq 0 ]]; then
+        log_info "Verified APT plan is empty (nothing to install)"
+        return 0
+    fi
+
+    ensure_apt_repositories_updated
+
+    local apt_cmd=(
+        sudo env DEBIAN_FRONTEND=noninteractive
+        apt-get install -y --allow-downgrades
+    )
+    if [[ -s "$preferences_file" ]]; then
+        apt_cmd+=(
+            -o "Dir::Etc::preferences=${preferences_file}"
+            -o "Dir::Etc::preferencesparts=-"
+        )
+    fi
+
+    log_info "Installing verified APT plan from ${apt_plan_file}"
+    "${apt_cmd[@]}" "${plan_items[@]}"
+}
+
+pkgsolve_resolve_and_verify_debian_plan() {
+    local host="${1:-}"
+    local feature_csv="${2:-}"
+
+    local pkgsolve_bin
+    if ! pkgsolve_bin=$(resolve_pkgsolve_bin); then
+        log_error "pkgsolve binary not found"
+        log_error "Build it first with scripts/tools/build-pkgsolve.sh or set PKGSOLVE_BIN"
+        return 1
+    fi
+
+    local artifact_root resolve_dir verify_dir
+    artifact_root="$(pkgsolve_artifact_dir "${host:-generic}")"
+    resolve_dir="${artifact_root}/resolve"
+    verify_dir="${artifact_root}/verify"
+    mkdir -p "$resolve_dir" "$verify_dir"
+
+    ensure_apt_repositories_updated
+
+    local resolve_args=(
+        "$pkgsolve_bin" resolve
+        --manifest "$MANIFEST_FILE"
+        --platform debian
+        --manager apt
+        --out "$resolve_dir"
+    )
+    if [[ -n "$host" ]]; then
+        resolve_args+=(--host "$host")
+    fi
+    if [[ -n "$BUNDLE_NAME" ]]; then
+        resolve_args+=(--bundle "$BUNDLE_NAME")
+    fi
+    if [[ "$PKGSOLVE_MODE" == "best-effort" ]]; then
+        resolve_args+=(--best-effort)
+    fi
+
+    local feature
+    local IFS=','
+    read -r -a feature_list <<< "$feature_csv"
+    for feature in "${feature_list[@]}"; do
+        [[ -n "$feature" ]] && resolve_args+=(--feature "$feature")
+    done
+
+    log_info "Resolving Debian package plan with pkgsolve..."
+    if ! "${resolve_args[@]}"; then
+        log_error "pkgsolve resolve failed; inspect artifacts under $resolve_dir"
+        return 1
+    fi
+
+    log_info "Verifying Debian package plan with pkgsolve..."
+    if ! "$pkgsolve_bin" verify --plan "${resolve_dir}/plan.lock.json" --out "$verify_dir"; then
+        log_error "pkgsolve verify failed; inspect artifacts under $verify_dir"
+        return 1
+    fi
+
+    install_apt_from_plan "$verify_dir"
 }
 
 # Check if a group should be installed given the active bundle filter.
@@ -478,11 +664,7 @@ add_chaotic_aur() {
 }
 
 install_apt() {
-    if [[ "$APT_UPDATED" != "true" ]]; then
-        log_info "Updating apt repositories..."
-        sudo env DEBIAN_FRONTEND=noninteractive apt-get update
-        APT_UPDATED=true
-    fi
+    ensure_apt_repositories_updated
     log_info "Installing with apt: $*"
     local pkgs_to_install=()
     local pkgs_unavailable=()
@@ -504,6 +686,396 @@ install_apt() {
         sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs_to_install[@]}"
     else
         log_info "All apt packages already installed."
+    fi
+}
+
+download_to_file() {
+    local url="$1"
+    local output="$2"
+
+    if command_exists curl; then
+        curl -fsSL "$url" -o "$output"
+        return $?
+    fi
+
+    if command_exists wget; then
+        wget -qO "$output" "$url"
+        return $?
+    fi
+
+    log_error "Neither curl nor wget is available for downloading: $url"
+    return 1
+}
+
+github_latest_asset_url() {
+    local repo="$1"
+    local asset_regex="$2"
+
+    if ! command_exists jq; then
+        log_error "jq is required to resolve GitHub release assets"
+        return 1
+    fi
+
+    curl -fsSL "https://api.github.com/repos/${repo}/releases/latest" \
+        | jq -r --arg regex "$asset_regex" '.assets[]?.browser_download_url | select(test($regex))' \
+        | head -n1
+}
+
+install_deb_from_url() {
+    local label="$1"
+    local url="$2"
+    local deb_file
+    deb_file="$(mktemp --suffix=.deb)"
+
+    log_info "Downloading ${label} package from ${url}"
+    if ! download_to_file "$url" "$deb_file"; then
+        log_error "Failed to download ${label}"
+        rm -f "$deb_file"
+        return 1
+    fi
+
+    if ! sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "$deb_file"; then
+        log_error "Failed to install ${label}"
+        rm -f "$deb_file"
+        return 1
+    fi
+
+    rm -f "$deb_file"
+    log_success "${label} installed successfully"
+    return 0
+}
+
+install_deb_from_github_release() {
+    local label="$1"
+    local repo="$2"
+    local asset_regex="$3"
+    local url
+    url="$(github_latest_asset_url "$repo" "$asset_regex")"
+
+    if [[ -z "$url" ]]; then
+        log_error "Failed to resolve latest release asset for ${label} from ${repo}"
+        return 1
+    fi
+
+    install_deb_from_url "$label" "$url"
+}
+
+install_github_tarball_binary() {
+    local label="$1"
+    local repo="$2"
+    local asset_regex="$3"
+    local binary_name="$4"
+    local install_name="${5:-$binary_name}"
+    local url
+    url="$(github_latest_asset_url "$repo" "$asset_regex")"
+
+    if [[ -z "$url" ]]; then
+        log_error "Failed to resolve latest release asset for ${label} from ${repo}"
+        return 1
+    fi
+
+    local archive_file tmp_dir extracted_bin
+    archive_file="$(mktemp)"
+    tmp_dir="$(mktemp -d)"
+
+    if ! download_to_file "$url" "$archive_file"; then
+        log_error "Failed to download archive for ${label}"
+        rm -f "$archive_file"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    case "$url" in
+        *.tar.gz|*.tgz)
+            tar -xzf "$archive_file" -C "$tmp_dir"
+            ;;
+        *.tar.xz)
+            tar -xJf "$archive_file" -C "$tmp_dir"
+            ;;
+        *.zip)
+            unzip -q "$archive_file" -d "$tmp_dir"
+            ;;
+        *)
+            log_error "Unsupported archive format for ${label}: $url"
+            rm -f "$archive_file"
+            rm -rf "$tmp_dir"
+            return 1
+            ;;
+    esac
+
+    extracted_bin="$(find "$tmp_dir" -type f -name "$binary_name" | head -n1)"
+    if [[ -z "$extracted_bin" ]]; then
+        log_error "Failed to locate ${binary_name} in extracted archive for ${label}"
+        rm -f "$archive_file"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    sudo install -m 0755 "$extracted_bin" "/usr/local/bin/${install_name}"
+
+    rm -f "$archive_file"
+    rm -rf "$tmp_dir"
+    log_success "${label} installed successfully"
+    return 0
+}
+
+install_gum_binary() {
+    install_github_tarball_binary \
+        "gum" \
+        "charmbracelet/gum" \
+        "gum_.*_Linux_x86_64\\.tar\\.gz$" \
+        "gum"
+}
+
+install_lazygit_binary() {
+    install_github_tarball_binary \
+        "lazygit" \
+        "jesseduffield/lazygit" \
+        "lazygit_.*_linux_x86_64\\.tar\\.gz$" \
+        "lazygit"
+}
+
+install_difftastic_binary() {
+    install_github_tarball_binary \
+        "difftastic" \
+        "Wilfred/difftastic" \
+        "difft-x86_64-unknown-linux-gnu\\.tar\\.gz$" \
+        "difft"
+}
+
+install_mise_tool() {
+    if command_exists mise || [[ -x "$HOME/.local/bin/mise" ]]; then
+        log_info "mise is already installed."
+        return 0
+    fi
+
+    if ! command_exists curl; then
+        log_error "curl is required to install mise"
+        return 1
+    fi
+
+    log_info "Installing mise..."
+    if ! curl -fsSL https://mise.run | sh; then
+        log_error "Failed to install mise"
+        return 1
+    fi
+
+    log_success "mise installed successfully"
+    return 0
+}
+
+install_joplin_app() {
+    if [[ -x "$HOME/.joplin/Joplin.AppImage" ]]; then
+        log_info "Joplin is already installed."
+        return 0
+    fi
+
+    if ! command_exists wget && ! command_exists curl; then
+        log_error "wget or curl is required to install Joplin"
+        return 1
+    fi
+
+    log_info "Installing Joplin via upstream installer..."
+    if command_exists wget; then
+        if ! wget -qO- https://raw.githubusercontent.com/laurent22/joplin/dev/Joplin_install_and_update.sh | bash -s -- --silent; then
+            log_error "Failed to install Joplin"
+            return 1
+        fi
+    else
+        if ! curl -fsSL https://raw.githubusercontent.com/laurent22/joplin/dev/Joplin_install_and_update.sh | bash -s -- --silent; then
+            log_error "Failed to install Joplin"
+            return 1
+        fi
+    fi
+
+    log_success "Joplin installed successfully"
+    return 0
+}
+
+install_vivaldi_app() {
+    install_deb_from_url \
+        "Vivaldi" \
+        "https://downloads.vivaldi.com/stable/vivaldi-stable_amd64.deb"
+}
+
+install_vscode_app() {
+    local channel="$1"
+    local label
+    local url
+
+    case "$channel" in
+        stable)
+            label="Visual Studio Code"
+            url="https://update.code.visualstudio.com/latest/linux-deb-x64/stable"
+            ;;
+        insiders)
+            label="Visual Studio Code Insiders"
+            url="https://update.code.visualstudio.com/latest/linux-deb-x64/insider"
+            ;;
+        *)
+            log_error "Unknown VS Code channel: $channel"
+            return 1
+            ;;
+    esac
+
+    install_deb_from_url "$label" "$url"
+}
+
+install_localsend_app() {
+    install_deb_from_github_release \
+        "LocalSend" \
+        "localsend/localsend" \
+        ".*linux-x86-64\\.deb$"
+}
+
+resolve_reaper_download_url() {
+    local arch_suffix
+    case "$(uname -m)" in
+        x86_64)
+            arch_suffix="linux_x86_64"
+            ;;
+        aarch64|arm64)
+            arch_suffix="linux_aarch64"
+            ;;
+        *)
+            log_error "Unsupported architecture for REAPER: $(uname -m)"
+            return 1
+            ;;
+    esac
+
+    local downloads_page page_file
+    downloads_page="https://www.reaper.fm/download.php"
+    page_file="$(mktemp)"
+    if ! download_to_file "$downloads_page" "$page_file"; then
+        log_error "Failed to fetch REAPER download page"
+        rm -f "$page_file"
+        return 1
+    fi
+
+    local url
+    url="$(grep -oE "https?://[^\"'[:space:]]*reaper[0-9]+_${arch_suffix}\\.tar\\.xz" "$page_file" | head -n1)"
+    rm -f "$page_file"
+
+    if [[ -z "$url" ]]; then
+        log_error "Failed to resolve REAPER tarball URL from vendor download page"
+        return 1
+    fi
+
+    printf '%s\n' "$url"
+}
+
+install_reaper_app() {
+    if command_exists reaper || [[ -x "/opt/REAPER/reaper" ]]; then
+        log_info "REAPER is already installed."
+        return 0
+    fi
+
+    local url
+    if ! url="$(resolve_reaper_download_url)"; then
+        return 1
+    fi
+
+    local archive_file tmp_dir installer
+    archive_file="$(mktemp)"
+    tmp_dir="$(mktemp -d)"
+
+    if ! download_to_file "$url" "$archive_file"; then
+        log_error "Failed to download REAPER tarball"
+        rm -f "$archive_file"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    if ! tar -xJf "$archive_file" -C "$tmp_dir"; then
+        log_error "Failed to extract REAPER tarball"
+        rm -f "$archive_file"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    installer="$(find "$tmp_dir" -type f -name "install-reaper.sh" | head -n1)"
+    if [[ -z "$installer" ]]; then
+        log_error "REAPER installer script not found in vendor tarball"
+        rm -f "$archive_file"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    log_info "Installing REAPER from official vendor tarball..."
+    if ! printf 'Y\nY\nY\n1\nI\n' | sudo bash "$installer"; then
+        log_error "Official REAPER installer failed"
+        rm -f "$archive_file"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    rm -f "$archive_file"
+    rm -rf "$tmp_dir"
+    log_success "REAPER installed successfully"
+}
+
+script_package_installed() {
+    local package_name="$1"
+
+    case "$package_name" in
+        gum) command_exists gum ;;
+        lazygit) command_exists lazygit ;;
+        difftastic) command_exists difft ;;
+        mise) command_exists mise || [[ -x "$HOME/.local/bin/mise" ]] ;;
+        joplin-desktop) [[ -x "$HOME/.joplin/Joplin.AppImage" ]] ;;
+        localsend) command_exists localsend || command_exists localsend_app ;;
+        vivaldi) command_exists vivaldi || dpkg -s vivaldi-stable >/dev/null 2>&1 ;;
+        visual-studio-code-bin) command_exists code ;;
+        visual-studio-code-insiders-bin) command_exists code-insiders ;;
+        reaper) command_exists reaper || [[ -x "/opt/REAPER/reaper" ]] ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+install_script_package() {
+    local package_name="$1"
+
+    case "$package_name" in
+        gum) install_gum_binary ;;
+        lazygit) install_lazygit_binary ;;
+        difftastic) install_difftastic_binary ;;
+        mise) install_mise_tool ;;
+        joplin-desktop) install_joplin_app ;;
+        localsend) install_localsend_app ;;
+        vivaldi) install_vivaldi_app ;;
+        visual-studio-code-bin) install_vscode_app stable ;;
+        visual-studio-code-insiders-bin) install_vscode_app insiders ;;
+        reaper) install_reaper_app ;;
+        *)
+            log_error "No script installer is defined for package '${package_name}'"
+            return 1
+            ;;
+    esac
+}
+
+install_script() {
+    log_info "Installing with script adapter: $*"
+
+    local failed_packages=()
+    local package_name
+    for package_name in "$@"; do
+        [[ -z "$package_name" ]] && continue
+
+        if script_package_installed "$package_name"; then
+            log_info "${package_name} is already installed."
+            continue
+        fi
+
+        if ! install_script_package "$package_name"; then
+            failed_packages+=("$package_name")
+        fi
+    done
+
+    if [[ ${#failed_packages[@]} -gt 0 ]]; then
+        log_error "Script-installed packages failed: ${failed_packages[*]}"
+        return 1
     fi
 }
 
@@ -890,6 +1462,10 @@ install_for_arch() {
 install_for_debian() {
     local host="${1:-}"
     local platform_key="debian"
+    local platform_id
+    platform_id="$(detect_platform)"
+    local provider_track
+    provider_track="$(platform_provider_track "$platform_id")"
 
     manifest_validate
     manifest_ensure_yq "$platform_key"
@@ -897,8 +1473,19 @@ install_for_debian() {
     local feature_csv
     feature_csv=$(feature_csv_for_host "$host")
 
-    # Use the same bundle-aware adapter flow as other platforms.
-    install_platform_manager_batches "$platform_key" "$host" "$feature_csv"
+    log_info "Debian-family support track: ${provider_track}"
+    log_info "Platform context: $(platform_summary "$platform_id")"
+
+    ensure_ubuntu_universe_enabled "$platform_id" "$provider_track" || return 1
+    if [[ -n "$host" ]] && is_hyprland_host "$HOSTS_DIR" "$host" && ! platform_track_supports_hyprland_archive "$provider_track"; then
+        log_warning "Hyprland host '${host}' is on deferred track '${provider_track}'; installer will keep base desktop parity and leave unsupported core components explicit"
+    fi
+
+    # Resolve and verify the apt plan before mutating the host.
+    pkgsolve_resolve_and_verify_debian_plan "$host" "$feature_csv" || return 1
+
+    # Script-backed Debian groups still use the existing shell adapter flow.
+    install_platform_manager_batches "$platform_key" "$host" "$feature_csv" "script" || return 1
 
     # Install Go from source (latest version; function is idempotent)
     if ! install_go_from_source "debian"; then
@@ -906,6 +1493,21 @@ install_for_debian() {
     fi
 
     install_additional_tools
+
+    local should_install_cursor="false"
+    if [[ "$SKIP_CURSOR_INSTALL" == "true" ]]; then
+        should_install_cursor="false"
+    elif [[ "$FORCE_CURSOR_INSTALL" == "true" ]]; then
+        should_install_cursor="true"
+    elif is_hyprland_host "$HOSTS_DIR" "$host"; then
+        should_install_cursor="true"
+    fi
+
+    if [[ "$should_install_cursor" == "true" ]]; then
+        install_cursor_app || log_warning "Cursor installation failed (continuing)"
+    else
+        log_info "Skipping Cursor installation"
+    fi
 }
 
 # --- Post-Install Setup ---
@@ -1040,9 +1642,17 @@ main() {
                     exit 1
                 fi
             ;;
+            --best-effort)
+                PKGSOLVE_MODE="best-effort"
+                shift
+            ;;
+            --vendor-creative)
+                ENABLE_VENDOR_CREATIVE=true
+                shift
+            ;;
             *)
                 log_error "Unknown argument: $1"
-                log_info "Usage: $0 [--host <host>] [--cursor|--no-cursor] [--keep-git-hyprland] [--no-setup] [--bundle NAME]"
+                log_info "Usage: $0 [--host <host>] [--cursor|--no-cursor] [--keep-git-hyprland] [--no-setup] [--bundle NAME] [--best-effort] [--vendor-creative]"
                 exit 1
             ;;
         esac
@@ -1088,21 +1698,28 @@ main() {
     }
 
     log_info "Starting package installation on $platform (Host: ${host:-generic})..."
+    log_info "Platform summary: $(platform_summary "$platform")"
+    if [[ "$ENABLE_VENDOR_CREATIVE" == "true" ]]; then
+        log_info "Vendor creative installers are enabled for this run"
+    fi
     
-    case "$platform" in
-        "arch" | "cachyos" | "manjaro") 
+    case "$platform_key" in
+        "arch")
             install_for_arch "$host" || {
                 log_error "Failed to install packages for Arch platform"
                 exit 1
             }
             ;;
-        "ubuntu" | "debian") 
+        "debian")
             install_for_debian "$host" || {
                 log_error "Failed to install packages for Debian platform"
                 exit 1
             }
             ;;
-        *) log_error "Unsupported platform: $platform" && exit 1 ;;
+        *)
+            log_error "Unsupported platform: $platform"
+            exit 1
+            ;;
     esac
     
     log_info "Setting up development environments..."

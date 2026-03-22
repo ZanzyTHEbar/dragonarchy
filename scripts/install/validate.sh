@@ -11,6 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/logging.sh"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/../lib/hosts.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/platform.sh"
 HOSTS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)/hosts"
 
 # Counters
@@ -22,6 +24,12 @@ CHECKS_WARNING=0
 JSON_OUTPUT=false
 # Override host for validation (empty = auto-detect)
 VALIDATE_HOST=""
+# Optional bundle context to align validation expectations with install scope.
+VALIDATE_BUNDLE=""
+# Derived expectation tier for validation logic.
+VALIDATION_TIER=""
+# Derived Debian-family provider/release track.
+VALIDATION_PROVIDER_TRACK=""
 # Structured results (for JSON mode)
 declare -a JSON_RESULTS=()
 
@@ -37,6 +45,68 @@ resolve_validate_host() {
 host_is_headless() {
     local host="$1"
     [[ -d "$HOSTS_DIR/$host" ]] && host_has_trait "$HOSTS_DIR" "$host" "headless"
+}
+
+validation_resolve_tier() {
+    local host="$1"
+
+    if host_is_headless "$host"; then
+        printf '%s\n' "minimal"
+        return
+    fi
+
+    case "${VALIDATE_BUNDLE:-}" in
+        minimal)
+            printf '%s\n' "minimal"
+            ;;
+        desktop_base|desktop_smb)
+            printf '%s\n' "desktop_base"
+            ;;
+        desktop|creative|"")
+            printf '%s\n' "full"
+            ;;
+        *)
+            printf '%s\n' "full"
+            ;;
+    esac
+}
+
+ensure_validation_tier() {
+    if [[ -n "$VALIDATION_TIER" ]]; then
+        return
+    fi
+
+    local host
+    host="$(resolve_validate_host)"
+    VALIDATION_TIER="$(validation_resolve_tier "$host")"
+}
+
+ensure_validation_provider_track() {
+    if [[ -n "$VALIDATION_PROVIDER_TRACK" ]]; then
+        return
+    fi
+
+    VALIDATION_PROVIDER_TRACK="$(platform_provider_track "$(detect_platform)")"
+}
+
+validation_provider_track() {
+    ensure_validation_provider_track
+    printf '%s\n' "$VALIDATION_PROVIDER_TRACK"
+}
+
+validation_bundle_is() {
+    local bundle_name="$1"
+    [[ "${VALIDATE_BUNDLE:-}" == "$bundle_name" ]]
+}
+
+validation_tier_is_minimal() {
+    ensure_validation_tier
+    [[ "$VALIDATION_TIER" == "minimal" ]]
+}
+
+validation_tier_is_desktop_base() {
+    ensure_validation_tier
+    [[ "$VALIDATION_TIER" == "desktop_base" ]]
 }
 
 run_in_user_zsh() {
@@ -131,7 +201,7 @@ check_modern_tools() {
     for tool in "${modern_tools[@]}"; do
         if shell_has_command "$tool"; then
             check_pass "$tool is available"
-        elif host_is_headless "$host" && [[ "$tool" =~ ^(lsd|zoxide|direnv)$ ]]; then
+        elif validation_tier_is_minimal && [[ "$tool" =~ ^(lsd|zoxide|direnv)$ ]]; then
             check_fail "$tool is missing for headless profile"
         else
             check_warn "$tool is missing (optional but recommended)"
@@ -143,12 +213,7 @@ check_modern_tools() {
 check_dotfiles() {
     section_info "Checking dotfiles installation..."
 
-    local host
-    host="$(resolve_validate_host)"
-    local is_headless=false
-    if host_is_headless "$host"; then
-        is_headless=true
-    fi
+    ensure_validation_tier
 
     local dotfiles=(
         "$HOME/.zshrc"
@@ -157,7 +222,7 @@ check_dotfiles() {
         "$HOME/.config/zsh/functions/git-utils.zsh"
     )
 
-    if [[ "$is_headless" != "true" ]]; then
+    if ! validation_tier_is_minimal; then
         dotfiles+=("$HOME/.config/kitty/kitty.conf")
     fi
     
@@ -250,8 +315,7 @@ check_git_config() {
 check_ssh_config() {
     section_info "Checking SSH configuration..."
 
-    local host
-    host="$(resolve_validate_host)"
+    ensure_validation_tier
     # Check SSH config file
     if [[ -f "$HOME/.ssh/config" ]]; then
         check_pass "SSH config file exists"
@@ -262,7 +326,7 @@ check_ssh_config() {
         else
             check_pass "SSH config appears to be properly configured"
         fi
-    elif host_is_headless "$host"; then
+    elif validation_tier_is_minimal; then
         check_pass "SSH config file is optional for headless profile"
     else
         check_warn "SSH config file not found"
@@ -284,8 +348,7 @@ check_ssh_config() {
 check_secrets() {
     section_info "Checking secrets management..."
 
-    local host
-    host="$(resolve_validate_host)"
+    ensure_validation_tier
     # Check if age and sops are available
     if command_exists age && command_exists sops; then
         check_pass "Secrets management tools are available"
@@ -293,7 +356,7 @@ check_secrets() {
         # Check age keys
         if [[ -f "$HOME/.config/sops/age/keys.txt" ]]; then
             check_pass "Age keys are configured"
-        elif host_is_headless "$host"; then
+        elif validation_tier_is_minimal; then
             check_pass "Age keys are optional for headless profile"
         else
             check_warn "Age keys not found"
@@ -302,7 +365,7 @@ check_secrets() {
         # Check SOPS config
         if [[ -f ".sops.yaml" ]]; then
             check_pass "SOPS configuration exists"
-        elif host_is_headless "$host"; then
+        elif validation_tier_is_minimal; then
             check_pass "SOPS configuration is optional for headless profile"
         else
             check_warn "SOPS configuration not found"
@@ -316,11 +379,10 @@ check_secrets() {
 check_dev_environment() {
     section_info "Checking development environment..."
 
-    local host
-    host="$(resolve_validate_host)"
+    ensure_validation_tier
     # Check programming languages
     local languages
-    if host_is_headless "$host"; then
+    if validation_tier_is_minimal || validation_tier_is_desktop_base; then
         languages=(
             "go:go version"
             "node:node --version"
@@ -348,10 +410,16 @@ check_dev_environment() {
     
     # Check package managers
     local package_managers
-    if host_is_headless "$host"; then
+    if validation_tier_is_minimal; then
         package_managers=(
             "npm"
             "pipx"
+        )
+    elif validation_tier_is_desktop_base; then
+        package_managers=(
+            "npm"
+            "pipx"
+            "cargo"
         )
     else
         package_managers=(
@@ -457,6 +525,175 @@ check_common_issues() {
     fi
 }
 
+validation_track_required_hyprland_tools() {
+    local track
+    track="$(validation_provider_track)"
+
+    case "$track" in
+        debian_hyprland_archive)
+            printf '%s\n' \
+                "Hyprland" \
+                "hyprctl" \
+                "waybar" \
+                "hyprlock" \
+                "hypridle" \
+                "hyprpaper" \
+                "xdg-desktop-portal-hyprland" \
+                "uwsm" \
+                "hyprpolkitagent"
+            ;;
+        ubuntu_hyprland_archive)
+            printf '%s\n' \
+                "Hyprland" \
+                "hyprctl" \
+                "waybar" \
+                "hypridle" \
+                "hyprpaper" \
+                "xdg-desktop-portal-hyprland"
+            ;;
+    esac
+}
+
+validation_track_optional_hyprland_tools() {
+    local track
+    track="$(validation_provider_track)"
+
+    case "$track" in
+        ubuntu_hyprland_archive)
+            printf '%s\n' "hyprlock" "hyprpicker"
+            ;;
+        *)
+            ;;
+    esac
+}
+
+check_desktop_smb_capability() {
+    if ! validation_bundle_is "desktop_smb"; then
+        return 0
+    fi
+
+    section_info "Checking desktop SMB capability..."
+
+    if command_exists net; then
+        if net usershare help >/dev/null 2>&1; then
+            check_pass "Samba usershare tooling is available"
+        else
+            check_fail "Samba usershare tooling is installed but not responding"
+        fi
+    else
+        check_fail "Samba usershare tooling is missing"
+    fi
+
+    if [[ -d "/var/lib/samba/usershares" ]]; then
+        check_pass "Samba usershare directory exists"
+    else
+        check_fail "Samba usershare directory is missing"
+    fi
+
+    local usershare_meta
+    usershare_meta="$(stat -c '%a:%G' /var/lib/samba/usershares 2>/dev/null || true)"
+    if [[ "$usershare_meta" == "1770:sambashare" ]]; then
+        check_pass "Samba usershare directory permissions are correct"
+    elif [[ -n "$usershare_meta" ]]; then
+        check_warn "Samba usershare directory permissions differ from expected 1770:sambashare (${usershare_meta})"
+    fi
+
+    local current_user
+    current_user="$(id -un)"
+    local group_members
+    group_members="$(getent group sambashare | awk -F: '{print $4}' 2>/dev/null || true)"
+    if [[ ",${group_members}," == *",${current_user},"* ]]; then
+        check_pass "User ${current_user} is enrolled in sambashare"
+    else
+        check_fail "User ${current_user} is not enrolled in sambashare"
+    fi
+
+    if [[ -f "/etc/samba/smb.conf" ]]; then
+        if grep -Eq '^[[:space:]]*usershare path[[:space:]]*=[[:space:]]*/var/lib/samba/usershares' /etc/samba/smb.conf; then
+            check_pass "smb.conf sets the Samba usershare path"
+        else
+            check_fail "smb.conf does not configure the Samba usershare path"
+        fi
+
+        if grep -Eq '^[[:space:]]*usershare max shares[[:space:]]*=[[:space:]]*100' /etc/samba/smb.conf; then
+            check_pass "smb.conf configures a Samba usershare limit"
+        else
+            check_warn "smb.conf does not set usershare max shares"
+        fi
+
+        if grep -Eq '^[[:space:]]*usershare allow guests[[:space:]]*=[[:space:]]*yes' /etc/samba/smb.conf; then
+            check_pass "smb.conf allows guest usershares"
+        else
+            check_warn "smb.conf does not explicitly allow guest usershares"
+        fi
+    else
+        check_fail "smb.conf is missing"
+    fi
+
+    if command_exists systemctl; then
+        local smbd_state
+        smbd_state="$(systemctl is-active smbd.service 2>/dev/null || true)"
+        case "$smbd_state" in
+            active)
+                check_pass "smbd service is running"
+                ;;
+            *)
+                check_warn "smbd service is not running (state: ${smbd_state:-unknown})"
+                ;;
+        esac
+    fi
+}
+
+check_creative_apps() {
+    if ! validation_bundle_is "creative"; then
+        return 0
+    fi
+
+    section_info "Checking creative bundle applications..."
+
+    local creative_tools=(
+        "gimp:gimp"
+        "inkscape:inkscape"
+        "blender:blender"
+        "kdenlive:kdenlive"
+        "audacity:audacity"
+        "ardour:ardour,ardour8,ardour9"
+        "obs-studio:obs"
+        "krita:krita"
+        "darktable:darktable"
+        "handbrake:ghb,HandBrakeCLI"
+        "mpv:mpv"
+    )
+
+    local tool_info tool_label tool_cmds tool_cmd found_tool
+    local -a tool_candidates=()
+    for tool_info in "${creative_tools[@]}"; do
+        IFS=':' read -r tool_label tool_cmds <<< "$tool_info"
+        found_tool=""
+        IFS=',' read -r -a tool_candidates <<< "$tool_cmds"
+        for tool_cmd in "${tool_candidates[@]}"; do
+            if command_exists "$tool_cmd"; then
+                found_tool="$tool_cmd"
+                break
+            fi
+        done
+
+        if [[ -n "$found_tool" ]]; then
+            check_pass "${tool_label} is available"
+        else
+            check_fail "${tool_label} is missing for creative bundle"
+        fi
+    done
+
+    if command_exists reaper || [[ -x "/opt/REAPER/reaper" ]]; then
+        check_pass "REAPER is available"
+    else
+        check_pass "REAPER vendor install remains opt-in"
+    fi
+
+    check_pass "DaVinci Resolve remains manual-only on Debian-family systems"
+}
+
 # Check host-specific configuration
 check_host_config() {
     local repo_root
@@ -506,14 +743,38 @@ check_host_config() {
     if host_has_trait "$hosts_dir" "$host" "hyprland"; then
         check_pass "Host '${host}' has Hyprland trait"
 
-        local hyprland_tools=("Hyprland" "hyprctl" "waybar" "hyprlock" "hypridle" "hyprpaper")
-        for tool in "${hyprland_tools[@]}"; do
-            if command_exists "$tool"; then
-                check_pass "Hyprland component: $tool available"
-            else
-                check_warn "Hyprland component: $tool not found"
-            fi
-        done
+        local provider_track
+        provider_track="$(validation_provider_track)"
+        if platform_track_supports_hyprland_archive "$provider_track"; then
+            local hyprland_tool
+            while IFS= read -r hyprland_tool; do
+                [[ -z "$hyprland_tool" ]] && continue
+                if command_exists "$hyprland_tool"; then
+                    check_pass "Hyprland component: $hyprland_tool available"
+                else
+                    check_fail "Hyprland component: $hyprland_tool missing on supported track ${provider_track}"
+                fi
+            done < <(validation_track_required_hyprland_tools)
+
+            while IFS= read -r hyprland_tool; do
+                [[ -z "$hyprland_tool" ]] && continue
+                if command_exists "$hyprland_tool"; then
+                    check_pass "Hyprland optional component: $hyprland_tool available"
+                else
+                    check_warn "Hyprland optional component: $hyprland_tool not found on ${provider_track}"
+                fi
+            done < <(validation_track_optional_hyprland_tools)
+        else
+            local deferred_hyprland_tools=("Hyprland" "hyprctl" "hyprlock" "hypridle" "hyprpaper" "xdg-desktop-portal-hyprland")
+            local hyprland_tool
+            for hyprland_tool in "${deferred_hyprland_tools[@]}"; do
+                if command_exists "$hyprland_tool"; then
+                    check_pass "Deferred-track Hyprland component present: $hyprland_tool"
+                else
+                    check_warn "Hyprland component: $hyprland_tool is deferred on track ${provider_track}"
+                fi
+            done
+        fi
     fi
 
     # ── Trait: tlp ──
@@ -634,6 +895,8 @@ _check_etc_config_matches() {
 # Show validation summary
 show_summary() {
     if [[ "$JSON_OUTPUT" == "true" ]]; then
+        ensure_validation_tier
+        ensure_validation_provider_track
         local status="pass"
         [[ "$CHECKS_WARNING" -gt 0 ]] && status="warn"
         [[ "$CHECKS_FAILED" -gt 0 ]] && status="fail"
@@ -647,11 +910,15 @@ show_summary() {
 
         jq -n \
             --arg status "$status" \
+            --arg host "$(resolve_validate_host)" \
+            --arg bundle "${VALIDATE_BUNDLE:-}" \
+            --arg expectation_tier "$VALIDATION_TIER" \
+            --arg provider_track "$VALIDATION_PROVIDER_TRACK" \
             --argjson passed "$CHECKS_PASSED" \
             --argjson failed "$CHECKS_FAILED" \
             --argjson warnings "$CHECKS_WARNING" \
             --argjson results "$results_json" \
-            '{status: $status, passed: $passed, failed: $failed, warnings: $warnings, results: $results}'
+            '{status: $status, host: $host, bundle: $bundle, expectation_tier: $expectation_tier, provider_track: $provider_track, passed: $passed, failed: $failed, warnings: $warnings, results: $results}'
         return
     fi
 
@@ -696,10 +963,19 @@ main() {
                 VALIDATE_HOST="$2"
                 shift 2
                 ;;
+            --bundle)
+                if [[ -z "${2:-}" ]]; then
+                    log_error "--bundle requires a bundle name"
+                    return 1
+                fi
+                VALIDATE_BUNDLE="$2"
+                shift 2
+                ;;
             -h|--help)
-                echo "Usage: validate.sh [--json] [--host NAME] [--help]"
+                echo "Usage: validate.sh [--json] [--host NAME] [--bundle NAME] [--help]"
                 echo "  --json        Emit structured JSON results (for CI/TUI)"
                 echo "  --host NAME   Validate for a specific host (default: auto-detect)"
+                echo "  --bundle NAME Align expectations with install bundle (minimal, desktop_base, desktop, desktop_smb, creative)"
                 echo "  --help        Show this help message"
                 return 0
                 ;;
@@ -716,8 +992,11 @@ main() {
     fi
 
     if [[ "$JSON_OUTPUT" != "true" ]]; then
+        ensure_validation_tier
+        ensure_validation_provider_track
         echo
         log_info "🔍 Starting system validation..."
+        log_info "Validation host: $(resolve_validate_host) | bundle: ${VALIDATE_BUNDLE:-auto} | tier: ${VALIDATION_TIER} | provider track: ${VALIDATION_PROVIDER_TRACK}"
         echo
     fi
     
@@ -742,6 +1021,10 @@ main() {
     check_common_issues
     [[ "$JSON_OUTPUT" != "true" ]] && echo
     check_host_config
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
+    check_desktop_smb_capability
+    [[ "$JSON_OUTPUT" != "true" ]] && echo
+    check_creative_apps
     
     show_summary
 }
