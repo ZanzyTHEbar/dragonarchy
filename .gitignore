@@ -46,3 +46,6 @@ packages/hyprland/.config/elephant/providers/*.so
 # Artifacts
 *.log
 .artifacts/
+
+# pkgsolve may be cloned as a nested working tree; never commit its .git metadata
+tools/pkgsolve/.git/
