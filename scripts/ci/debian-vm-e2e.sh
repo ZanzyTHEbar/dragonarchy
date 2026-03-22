@@ -27,7 +27,6 @@ KEEP_VM=false
 WITH_SYSTEM_CONFIG=false
 VM_BOOTED=false
 ARTIFACTS_COLLECTED=false
-PKGSOLVE_HOST_BIN=""
 HOST_NAME="$HOST_NAME_DEFAULT"
 BUNDLE_NAME="$BUNDLE_NAME_DEFAULT"
 VALIDATE_BUNDLE=""
@@ -184,18 +183,6 @@ prepare_dirs() {
     META_DATA="$WORKDIR/meta-data"
 }
 
-build_pkgsolve_binary() {
-    if [[ -n "${PKGSOLVE_HOST_BIN:-}" && -x "${PKGSOLVE_HOST_BIN:-}" ]]; then
-        return 0
-    fi
-
-    PKGSOLVE_HOST_BIN="$(bash "${PROJECT_ROOT}/scripts/tools/build-pkgsolve.sh")"
-    if [[ ! -x "$PKGSOLVE_HOST_BIN" ]]; then
-        echo "pkgsolve binary not found after build: ${PKGSOLVE_HOST_BIN}" >&2
-        exit 1
-    fi
-}
-
 download_image() {
     if [[ ! -f "$BASE_IMAGE" ]]; then
         curl -fL --retry 3 --retry-delay 2 "$IMAGE_URL" -o "$BASE_IMAGE"
@@ -323,27 +310,38 @@ copy_repo() {
             "rm -rf ~/dotfiles && mkdir -p ~/dotfiles && tar -xf - -C ~/dotfiles"
 }
 
-copy_pkgsolve() {
-    scp \
-        -i "$SSH_KEY" \
-        -o StrictHostKeyChecking=no \
-        -o UserKnownHostsFile=/dev/null \
-        -o BatchMode=yes \
-        -P "$SSH_PORT" \
-        "$PKGSOLVE_HOST_BIN" \
-        dragon@127.0.0.1:~/pkgsolve >/dev/null
-
+bootstrap_guest_pkgsolve() {
     ssh_base "bash -lc '
-        sudo install -m 0755 ~/pkgsolve /usr/local/bin/pkgsolve
-        rm -f ~/pkgsolve
+        set -euo pipefail
+        if command -v pkgsolve >/dev/null 2>&1; then
+            exit 0
+        fi
+
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get update
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential ca-certificates curl pkg-config
+
+        if [[ ! -x \"\$HOME/.cargo/bin/cargo\" ]]; then
+            curl --proto \"=https\" --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+        fi
+
+        export PATH=\"\$HOME/.cargo/bin:\$PATH\"
+
+        cd ~/dotfiles
+        pkgsolve_bin=\$(bash ./scripts/tools/build-pkgsolve.sh)
+        sudo install -m 0755 \"\$pkgsolve_bin\" /usr/local/bin/pkgsolve
+        pkgsolve --help >/dev/null
     '"
 }
 
 run_guest_smoke() {
     local validate_bundle="${VALIDATE_BUNDLE:-$BUNDLE_NAME}"
+    local first_run_headless=false
     local install_flags=(--host "$HOST_NAME" --bundle "$BUNDLE_NAME" --no-secrets)
     if [[ "$HOST_NAME" == "headless" && "$BUNDLE_NAME" == "minimal" ]]; then
         install_flags+=(--headless)
+    fi
+    if [[ "$HOST_NAME" == "headless" ]]; then
+        first_run_headless=true
     fi
     if [[ "$WITH_SYSTEM_CONFIG" != "true" ]]; then
         install_flags+=(--no-system-config)
@@ -375,7 +373,7 @@ run_guest_smoke() {
         git config --global user.name \"CI VM Smoke\"
         git config --global user.email \"ci-vm@example.com\"
         if ${RUN_FIRST_RUN_COMMAND}; then
-            if [[ ${HOST_NAME@Q} == \"headless\" ]]; then
+            if ${first_run_headless}; then
                 ./scripts/install/first-run.sh --headless
             else
                 ./scripts/install/first-run.sh
@@ -429,7 +427,6 @@ main() {
     trap cleanup EXIT
 
     prepare_dirs
-    build_pkgsolve_binary
     download_image
     detect_base_image_format
     generate_ssh_key
@@ -437,7 +434,7 @@ main() {
     start_vm
     wait_for_ssh
     copy_repo
-    copy_pkgsolve
+    bootstrap_guest_pkgsolve
     run_guest_smoke
     collect_artifacts
 }
