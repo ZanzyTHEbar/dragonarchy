@@ -482,7 +482,7 @@ fn requests_for_goals(goals: &[Goal], lock_versions: &HashMap<String, String>) -
 fn build_lock_entries(
     context: &DebianContext,
     goals: &[Goal],
-    lock_versions: &HashMap<String, String>,
+    _lock_versions: &HashMap<String, String>,
     simulation: &AptSimulation,
     snapshot: Option<&str>,
 ) -> Result<Vec<LockEntry>> {
@@ -509,33 +509,10 @@ fn build_lock_entries(
     }
 
     for goal in goals {
-        let requested_version = lock_versions
-            .get(&goal.package)
-            .map(String::as_str)
-            .or(goal.version.as_deref());
-
-        if !by_package.contains_key(&goal.package) {
-            if let Some(atom) = context.resolve_candidate(&goal.package, requested_version)? {
-                by_package.insert(
-                    goal.package.clone(),
-                    LockEntry {
-                        package: atom.package.clone(),
-                        version: atom.version.clone(),
-                        architecture: atom.architecture.clone(),
-                        origin: atom.origin.clone(),
-                        component: atom.component.clone(),
-                        snapshot: atom
-                            .snapshot
-                            .clone()
-                            .or_else(|| snapshot.map(str::to_string)),
-                        requested_by: Vec::new(),
-                        mapped_from: Vec::new(),
-                        local_deb: atom.local_deb.clone(),
-                    },
-                );
-            }
-        }
-
+        // Only pin packages that APT actually plans to install or upgrade in the current
+        // machine state. Bootstrap helpers may preinstall toolchain packages like curl/gcc,
+        // and re-resolving them here can lock versions that are no longer available for a
+        // fresh apt-get install simulation.
         if let Some(entry) = by_package.get_mut(&goal.package) {
             if !entry.requested_by.contains(&goal.id) {
                 entry.requested_by.push(goal.id.clone());
