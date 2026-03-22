@@ -137,17 +137,17 @@ debian_family_provider_track() {
     case "$variant" in
         debian)
             case "$codename" in
-                sid|unstable|forky)
+                sid|unstable|forky|testing|trixie)
                     echo "debian_hyprland_archive"
                     return 0
                     ;;
-                testing|trixie|bookworm|bullseye|buster)
+                bookworm|bullseye|buster)
                     echo "debian_legacy_no_hyprland"
                     return 0
                     ;;
             esac
 
-            if [[ "$version_major" =~ ^[0-9]+$ ]] && (( version_major >= 14 )); then
+            if [[ "$version_major" =~ ^[0-9]+$ ]] && (( version_major >= 13 )); then
                 echo "debian_hyprland_archive"
             else
                 echo "debian_legacy_no_hyprland"
