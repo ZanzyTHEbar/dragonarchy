@@ -28,9 +28,18 @@ backup_root="$HOME/.local/state/dotfiles/backups/${ts}/migration-stow-fixes"
 backup_and_remove_if_regular_file() {
   local path="$1"
   local label="$2"
+  local resolved=""
 
   # If it's already a symlink, great.
   if [[ -L "$path" ]]; then
+    return 0
+  fi
+
+  # If the file lives inside a stow-managed symlinked directory, do not treat it
+  # as a disposable regular file. Removing it would delete the real repo file.
+  resolved="$(readlink -f "$path" 2>/dev/null || true)"
+  if [[ -n "$resolved" && "$resolved" == "$REPO_ROOT/"* ]]; then
+    log_info "$label: $path resolves inside the repo; leaving stow-managed file intact"
     return 0
   fi
 
