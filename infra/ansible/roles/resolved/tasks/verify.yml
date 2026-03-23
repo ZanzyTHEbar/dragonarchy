@@ -1,0 +1,20 @@
+---
+- name: Check installed resolved config
+  ansible.builtin.stat:
+    path: /etc/systemd/resolved.conf.d/dns.conf
+  register: resolved_installed_config
+
+- name: Assert installed resolved config exists
+  ansible.builtin.assert:
+    that:
+      - resolved_installed_config.stat.exists
+    fail_msg: "Expected /etc/systemd/resolved.conf.d/dns.conf to exist."
+
+- name: Gather service facts for resolved
+  ansible.builtin.service_facts:
+
+- name: Assert systemd-resolved service is present
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services['systemd-resolved.service'] is defined
+    fail_msg: "Expected systemd-resolved.service to be present."

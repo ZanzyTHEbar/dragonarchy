@@ -1,0 +1,5 @@
+---
+- name: Install OpenFortiVPN packages
+  ansible.builtin.package:
+    name: "{{ openfortivpn_packages_by_platform[host_platform_family] }}"
+    state: present
