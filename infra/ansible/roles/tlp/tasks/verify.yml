@@ -1,0 +1,21 @@
+---
+- name: Check installed TLP config
+  ansible.builtin.stat:
+    path: "/etc/tlp.d/01-{{ inventory_hostname }}.conf"
+  register: tlp_installed_config
+
+- name: Assert installed TLP config exists
+  ansible.builtin.assert:
+    that:
+      - tlp_installed_config.stat.exists
+    fail_msg: "Expected host-specific TLP config to exist."
+
+- name: Check TLP service state
+  ansible.builtin.service_facts:
+
+- name: Assert TLP services are enabled
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services['tlp.service'] is defined
+      - ansible_facts.services['tlp-sleep.service'] is defined
+    fail_msg: "Expected tlp.service and tlp-sleep.service to be present."

@@ -1,0 +1,14 @@
+---
+tlp_enabled: true
+
+tlp_packages_by_platform:
+  arch:
+    - tlp
+    - tlp-rdw
+
+tlp_conflict_services:
+  - power-profiles-daemon.service
+
+tlp_masked_services:
+  - systemd-rfkill.service
+  - systemd-rfkill.socket

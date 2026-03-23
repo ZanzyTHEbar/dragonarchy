@@ -1,0 +1,28 @@
+---
+- name: Check OpenFortiVPN config files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /etc/openfortivpn/config
+    - /etc/openfortivpn/waybar.conf
+    - /usr/local/bin/avular-vpn-dns
+    - /etc/systemd/system/openfortivpn.service
+    - /etc/systemd/system/openfortivpn-cleanup.service
+  register: openfortivpn_required_files
+
+- name: Assert OpenFortiVPN required files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Expected OpenFortiVPN-managed file {{ item.item }} to exist."
+  loop: "{{ openfortivpn_required_files.results }}"
+
+- name: Gather service facts for OpenFortiVPN
+  ansible.builtin.service_facts:
+
+- name: Assert OpenFortiVPN services are present
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services['openfortivpn.service'] is defined
+      - ansible_facts.services['openfortivpn-cleanup.service'] is defined
+    fail_msg: "Expected OpenFortiVPN services to be present."

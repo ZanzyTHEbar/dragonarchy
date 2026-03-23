@@ -1,0 +1,5 @@
+---
+- name: Install TLP packages
+  ansible.builtin.package:
+    name: "{{ tlp_packages_by_platform[host_platform_family] }}"
+    state: present

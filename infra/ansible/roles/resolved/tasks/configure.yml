@@ -1,0 +1,23 @@
+---
+- name: Ensure resolved config directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install host-specific resolved configuration
+  ansible.builtin.copy:
+    src: "{{ resolved_legacy_root }}/etc/systemd/resolved.conf.d/dns.conf"
+    dest: /etc/systemd/resolved.conf.d/dns.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart systemd-resolved
+
+- name: Ensure systemd-resolved is enabled and started
+  ansible.builtin.service:
+    name: systemd-resolved.service
+    enabled: true
+    state: started

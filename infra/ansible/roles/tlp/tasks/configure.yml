@@ -1,0 +1,40 @@
+---
+- name: Ensure TLP config directory exists
+  ansible.builtin.file:
+    path: /etc/tlp.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install host-specific TLP configuration
+  ansible.builtin.copy:
+    src: "{{ tlp_legacy_root }}/etc/tlp.d/01-{{ inventory_hostname }}.conf"
+    dest: "/etc/tlp.d/01-{{ inventory_hostname }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Stop conflicting power services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ tlp_conflict_services }}"
+  failed_when: false
+
+- name: Mask conflicting rfkill services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    masked: true
+    enabled: false
+  loop: "{{ tlp_masked_services }}"
+
+- name: Enable TLP services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - tlp.service
+    - tlp-sleep.service
