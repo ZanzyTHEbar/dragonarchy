@@ -1,0 +1,5 @@
+---
+- name: Install AMD GPU packages
+  ansible.builtin.package:
+    name: "{{ amd_gpu_packages_by_platform[host_platform_family][inventory_hostname] }}"
+    state: present

@@ -1,0 +1,12 @@
+---
+- name: Validate NVIDIA role inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Install NVIDIA packages
+  ansible.builtin.import_tasks: install.yml
+
+- name: Configure NVIDIA system state
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Validate NVIDIA state
+  ansible.builtin.import_tasks: verify.yml

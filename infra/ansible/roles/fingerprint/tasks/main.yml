@@ -1,0 +1,12 @@
+---
+- name: Validate fingerprint role inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Install fingerprint packages
+  ansible.builtin.import_tasks: install.yml
+
+- name: Configure fingerprint system state
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Validate fingerprint state
+  ansible.builtin.import_tasks: verify.yml

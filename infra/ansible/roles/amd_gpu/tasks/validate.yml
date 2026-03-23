@@ -1,0 +1,42 @@
+---
+- name: Assert AMD GPU tranche-4 metadata exists
+  ansible.builtin.assert:
+    that:
+      - amd_gpu_enabled | bool
+      - host_platform_family is defined
+      - host_platform_family in amd_gpu_packages_by_platform
+      - host_gpu_stack is defined
+      - "'amd-gpu' in host_gpu_stack"
+      - inventory_hostname in amd_gpu_packages_by_platform[host_platform_family]
+      - legacy_host_directory is defined
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the AMD GPU tranche-4 contract.
+
+- name: Set AMD GPU legacy root
+  ansible.builtin.set_fact:
+    amd_gpu_legacy_root: "{{ playbook_dir }}/../../../{{ legacy_host_directory }}"
+
+- name: Check host-specific AMD GPU modprobe sources
+  ansible.builtin.stat:
+    path: "{{ amd_gpu_legacy_root }}/etc/modprobe.d/{{ item }}"
+  loop:
+    - amdgpu.conf
+    - amdgpu-dragon.conf
+  register: amd_gpu_modprobe_source_candidates
+
+- name: Set AMD GPU modprobe sources
+  ansible.builtin.set_fact:
+    amd_gpu_modprobe_sources: >-
+      {{
+        amd_gpu_modprobe_source_candidates.results
+        | selectattr('stat.exists')
+        | map(attribute='stat.path')
+        | list
+      }}
+
+- name: Assert AMD GPU has at least one modprobe source
+  ansible.builtin.assert:
+    that:
+      - amd_gpu_modprobe_sources | length > 0
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing a managed AMD GPU modprobe source.

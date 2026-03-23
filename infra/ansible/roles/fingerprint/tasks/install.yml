@@ -1,0 +1,10 @@
+---
+- name: Install fingerprint packages
+  ansible.builtin.package:
+    name: "{{ fingerprint_packages_by_platform[host_platform_family] }}"
+    state: present
+
+- name: Start fprintd service
+  ansible.builtin.service:
+    name: fprintd.service
+    state: started
