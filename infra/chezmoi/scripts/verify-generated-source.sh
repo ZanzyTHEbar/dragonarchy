@@ -4,7 +4,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHEZMOI_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-REPO_ROOT="$(cd "${CHEZMOI_ROOT}/../.." && pwd)"
 
 HOST_NAME=""
 OUTPUT_PATH=""
@@ -51,61 +50,47 @@ if [[ ${#MANIFEST_PATHS[@]} -eq 0 ]]; then
   )
 fi
 
+if [[ ! -d "${OUTPUT_PATH}" ]]; then
+  echo "Generated source not found: ${OUTPUT_PATH}" >&2
+  exit 1
+fi
+
+failures=0
+
+check_entry() {
+  local mode="$1"
+  local dest_rel="$2"
+
+  dest_rel="${dest_rel//__HOST__/${HOST_NAME}}"
+  local dest_abs="${OUTPUT_PATH}/${dest_rel}"
+
+  if [[ -e "${dest_abs}" ]]; then
+    printf 'OK   %s\n' "${dest_rel}"
+    return 0
+  fi
+
+  if [[ "${mode}" == "optional" ]]; then
+    printf 'SKIP %s\n' "${dest_rel}"
+    return 0
+  fi
+
+  printf 'MISS %s\n' "${dest_rel}" >&2
+  failures=$((failures + 1))
+}
+
 for manifest_path in "${MANIFEST_PATHS[@]}"; do
   if [[ ! -f "${manifest_path}" ]]; then
     echo "Manifest not found: ${manifest_path}" >&2
     exit 1
   fi
-done
 
-if [[ -e "${OUTPUT_PATH}" ]]; then
-  rm -rf "${OUTPUT_PATH}"
-fi
-
-mkdir -p "${OUTPUT_PATH}"
-
-copy_entry() {
-  local mode="$1"
-  local source_rel="$2"
-  local dest_rel="$3"
-
-  source_rel="${source_rel//__HOST__/${HOST_NAME}}"
-  dest_rel="${dest_rel//__HOST__/${HOST_NAME}}"
-
-  local source_abs="${REPO_ROOT}/${source_rel}"
-  local dest_abs="${OUTPUT_PATH}/${dest_rel}"
-
-  if [[ ! -e "${source_abs}" ]]; then
-    if [[ "${mode}" == "optional" ]]; then
-      return 0
-    fi
-
-    echo "Required source missing: ${source_rel}" >&2
-    exit 1
-  fi
-
-  if [[ -d "${source_abs}" ]]; then
-    mkdir -p "${dest_abs}"
-    cp -a "${source_abs}/." "${dest_abs}/"
-    return 0
-  fi
-
-  mkdir -p "$(dirname "${dest_abs}")"
-  cp -a "${source_abs}" "${dest_abs}"
-}
-
-for manifest_path in "${MANIFEST_PATHS[@]}"; do
-  while IFS='|' read -r mode source_rel dest_rel; do
+  while IFS='|' read -r mode _source_rel dest_rel; do
     [[ -z "${mode}" ]] && continue
     [[ "${mode}" =~ ^# ]] && continue
-
-    if [[ "${mode}" != "required" && "${mode}" != "optional" ]]; then
-      echo "Unknown manifest mode in ${manifest_path}: ${mode}" >&2
-      exit 1
-    fi
-
-    copy_entry "${mode}" "${source_rel}" "${dest_rel}"
+    check_entry "${mode}" "${dest_rel}"
   done < "${manifest_path}"
 done
 
-echo "Generated chezmoi source: ${OUTPUT_PATH}"
+if [[ "${failures}" -ne 0 ]]; then
+  exit 1
+fi

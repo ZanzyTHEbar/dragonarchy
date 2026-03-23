@@ -702,3 +702,58 @@ Current review result:
 
 - no direct ownership violations found in tranche contracts
 - residual risk has shifted from Ansible role overlap to the future Stow-to-chezmoi cutover of `$HOME` content
+
+## Generated-source Expansion and Cutover Design
+
+The generated-source model now expands beyond the first session-core slice.
+
+New artifacts:
+
+- `infra/chezmoi/manifests/session-shell.manifest`
+- `infra/chezmoi/scripts/verify-generated-source.sh`
+- `docs/architecture/chezmoi-cutover-procedure.md`
+
+Updated artifacts:
+
+- `infra/chezmoi/scripts/build-source.sh`
+- `infra/chezmoi/README.md`
+- `docs/architecture/chezmoi-canonical-source-model.md`
+
+### Current generated slice set
+
+`session-core.manifest`
+- `dot_config/hypr`
+- `dot_config/waybar`
+- `dot_config/walker`
+- `dot_config/elephant`
+- optional `dot_config/waybar-hosts/<host>`
+
+`session-shell.manifest`
+- `dot_config/autostart`
+- `dot_config/clipse`
+- `dot_config/swaync`
+- `dot_config/swayosd`
+
+### Builder and verifier behavior
+
+- `build-source.sh` now composes multiple manifests in order
+- the default build includes both `session-core.manifest` and `session-shell.manifest`
+- `verify-generated-source.sh` checks that all required generated destinations exist for the selected manifests
+
+### Current cutover guidance
+
+The cutover procedure is now explicitly documented.
+
+The critical current exceptions before real chezmoi ownership are:
+
+- `~/.config/swaync/style.css` is merged runtime output from theme-manager
+- `~/.config/clipse/theme.toml` is generated runtime theme state
+- legacy setup scripts must stop rewriting migrated paths before Stow ownership is removed
+
+### Validation completed
+
+- `bash -n infra/chezmoi/scripts/build-source.sh` passed
+- `bash -n infra/chezmoi/scripts/verify-generated-source.sh` passed
+- `bash infra/chezmoi/scripts/build-source.sh --host goldendragon` passed with the default manifest set
+- `bash infra/chezmoi/scripts/verify-generated-source.sh --host goldendragon` confirmed all required generated paths exist
+- `ReadLints` reported no issues in the updated chezmoi control-plane files

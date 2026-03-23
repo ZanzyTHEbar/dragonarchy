@@ -1,0 +1,5 @@
+# mode|source|dest
+required|packages/hyprland/.config/autostart|dot_config/autostart
+required|packages/hyprland/.config/clipse|dot_config/clipse
+required|packages/hyprland/.config/swaync|dot_config/swaync
+required|packages/hyprland/.config/swayosd|dot_config/swayosd
