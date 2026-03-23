@@ -606,3 +606,99 @@ The clean next move after tranche 4 is to finish the remaining hot-path and then
 1. define `tlp`, `resolved`, and `openfortivpn` as the remaining explicit hot-path owners
 2. begin the first real chezmoi migration slice for rendered Hyprland and adjacent user-session files
 3. run the first ownership-overlap review across tranches 1 through 4 before starting edge-case work
+
+## Hot-Path Tranche 5 Progress
+
+Tranche 5 has now been defined and started.
+
+### Tranche 5 scope
+
+Included roles:
+
+- `tlp`
+- `resolved`
+- `openfortivpn`
+
+### New tranche 5 artifacts
+
+Created:
+
+- `infra/ansible/playbooks/hot-path-tranche-5.yml`
+- `infra/ansible/roles/tlp/...`
+- `infra/ansible/roles/resolved/...`
+- `infra/ansible/roles/openfortivpn/...`
+- `docs/architecture/hot-path-tranche-5.md`
+
+Updated:
+
+- `infra/ansible/inventory/hosts.yml`
+- `infra/ansible/playbooks/site.yml`
+
+### What tranche 5 currently does
+
+`tlp`
+- installs TLP packages for laptop hosts
+- installs host-specific `/etc/tlp.d` configuration
+- enables `tlp.service` and `tlp-sleep.service`
+- disables conflicting `power-profiles-daemon`
+- masks conflicting `systemd-rfkill` units
+
+`resolved`
+- installs host-specific `/etc/systemd/resolved.conf.d/dns.conf`
+- enables and restarts `systemd-resolved.service`
+
+`openfortivpn`
+- installs `openfortivpn`
+- ensures the `openfortivpn` system group and operator membership
+- seeds `/etc/openfortivpn/config` if absent
+- generates `/etc/openfortivpn/waybar.conf`
+- installs the Avular DNS helper
+- installs `openfortivpn.service` and `openfortivpn-cleanup.service`
+
+### Validation completed
+
+- `ReadLints` reported no issues on the tranche-5 additions
+- `ansible-playbook -i inventory/hosts.yml playbooks/hot-path-tranche-5.yml --syntax-check` passed
+- `ansible-playbook -i inventory/hosts.yml playbooks/site.yml --syntax-check` passed
+
+## First chezmoi Migration Slice
+
+The original mirrored `infra/chezmoi/dot_config/...` approach has been removed.
+
+Current chezmoi direction:
+
+- `packages/` remains the canonical shared user-state source
+- `hosts/<host>/dotfiles/` remains the canonical host-specific user-state source
+- `infra/chezmoi/` is now orchestration-only
+- generated chezmoi source is materialized under `infra/chezmoi/generated/<host>/`
+
+Migration rule documented in `infra/chezmoi/README.md`:
+
+- preserve imported file contents exactly whenever possible
+- keep source package contents untouched
+- treat generated chezmoi source as rebuildable output, not canonical content
+
+New artifacts for this redesign:
+
+- `docs/architecture/chezmoi-canonical-source-model.md`
+- `infra/chezmoi/manifests/session-core.manifest`
+- `infra/chezmoi/scripts/build-source.sh`
+- `infra/chezmoi/.gitignore`
+
+Validation completed:
+
+- `bash -n infra/chezmoi/scripts/build-source.sh` passed
+- `bash infra/chezmoi/scripts/build-source.sh --host goldendragon` generated a host-specific source tree successfully
+
+This is now a real generated-source model, but still not a full ownership cutover of all session files.
+
+## Ownership Review: Tranches 1-4
+
+The first ownership-overlap review across tranches 1 through 4 has been documented in:
+
+- `docs/architecture/ownership-review-tranches-1-4.md`
+
+Current review result:
+
+- no direct ownership violations found in tranche contracts
+- residual risk has shifted from Ansible role overlap to the future Stow-to-chezmoi cutover of `$HOME` content
