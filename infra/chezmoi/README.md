@@ -53,6 +53,7 @@ Expected invocation model:
 
 ```bash
 ./infra/chezmoi/scripts/build-source.sh --host goldendragon
+./infra/chezmoi/scripts/verify-generated-source.sh --host goldendragon
 chezmoi --source ~/dotfiles/infra/chezmoi/generated/goldendragon diff
 chezmoi --source ~/dotfiles/infra/chezmoi/generated/goldendragon apply
 ```
@@ -71,4 +72,16 @@ The first manifest targets:
 - Elephant shared config
 - host-specific Waybar session markers when present
 
+The next manifest slice expands the session shell with:
+
+- autostart
+- clipse
+- swaync
+- swayosd
+
 Generated or script-owned files still need explicit handling before final cutover.
+
+Notable current exceptions:
+
+- `swaync/style.css` is merged runtime output
+- `clipse/theme.toml` is theme-generated runtime state
