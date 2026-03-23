@@ -1,0 +1,12 @@
+---
+sddm_enabled: false
+sddm_theme: catppuccin-mocha-sky-sddm
+
+sddm_packages_by_platform:
+  arch:
+    - sddm
+    - qt6-svg
+  debian:
+    - sddm
+
+sddm_theme_source_dir: "{{ playbook_dir }}/../../../packages/sddm/usr/share/sddm/themes/"

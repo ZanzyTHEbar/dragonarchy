@@ -1,0 +1,25 @@
+---
+hyprland_enabled: true
+
+hyprland_session_packages_by_platform:
+  arch:
+    - hyprland
+    - hypridle
+    - hyprlock
+    - hyprpicker
+    - hyprshot
+    - uwsm
+    - xdg-desktop-portal-gtk
+    - xdg-desktop-portal-hyprland
+    - polkit-gnome
+
+hyprland_required_commands:
+  - uwsm
+  - hypridle
+  - hyprlock
+
+hyprland_required_paths:
+  - path: /usr/share/wayland-sessions/hyprland.desktop
+    description: Hyprland desktop entry
+  - path: /usr/lib/systemd/user/xdg-desktop-portal-hyprland.service
+    description: Hyprland portal user unit

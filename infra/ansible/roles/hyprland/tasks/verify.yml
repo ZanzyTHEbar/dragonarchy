@@ -1,0 +1,26 @@
+---
+- name: Check required Hyprland commands
+  ansible.builtin.shell: "command -v {{ item }}"
+  loop: "{{ hyprland_required_commands }}"
+  register: hyprland_command_checks
+  changed_when: false
+
+- name: Assert required Hyprland commands exist
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: "Expected command '{{ item.item }}' to be available."
+  loop: "{{ hyprland_command_checks.results }}"
+
+- name: Check required Hyprland session files
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop: "{{ hyprland_required_paths }}"
+  register: hyprland_path_checks
+
+- name: Assert required Hyprland session files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Expected {{ item.item.description }} at {{ item.item.path }}."
+  loop: "{{ hyprland_path_checks.results }}"

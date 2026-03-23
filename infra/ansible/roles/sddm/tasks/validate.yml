@@ -1,0 +1,13 @@
+---
+- name: Assert display-manager metadata exists
+  ansible.builtin.assert:
+    that:
+      - display_manager is defined
+      - display_manager == 'sddm'
+      - sddm_enabled | bool
+      - sddm_theme is defined
+      - host_desktop_stack is defined
+      - host_desktop_stack != 'none'
+      - host_platform_family in sddm_packages_by_platform
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the SDDM tranche-2 contract.

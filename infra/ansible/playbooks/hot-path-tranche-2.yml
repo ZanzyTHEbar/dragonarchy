@@ -1,0 +1,10 @@
+---
+- import_playbook: hot-path-tranche-1.yml
+
+- name: Hot-path tranche 2
+  hosts: desktop:laptop
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: sddm
