@@ -13,24 +13,26 @@ while [[ $# -gt 0 ]]; do
 done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../../scripts/lib/logging.sh"
+HOST_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+source "${PROJECT_ROOT}/scripts/lib/logging.sh"
 
 log_step "Installing fprintd watchdog system..."
 
 # 1. Install system-sleep hook (runs on suspend/resume)
 log_info "Installing system-sleep hook..."
-if [ -f "${SCRIPT_DIR}/etc/systemd/system-sleep/99-fprintd-reset.sh" ]; then
-  sudo cp "${SCRIPT_DIR}/etc/systemd/system-sleep/99-fprintd-reset.sh" /usr/lib/systemd/system-sleep/
+if [ -f "${HOST_ROOT}/etc/systemd/system-sleep/99-fprintd-reset.sh" ]; then
+  sudo cp "${HOST_ROOT}/etc/systemd/system-sleep/99-fprintd-reset.sh" /usr/lib/systemd/system-sleep/
   sudo chmod +x /usr/lib/systemd/system-sleep/99-fprintd-reset.sh
   log_success "Installed: /usr/lib/systemd/system-sleep/99-fprintd-reset.sh"
 else
-  log_error "Sleep hook not found: ${SCRIPT_DIR}/etc/systemd/system-sleep/99-fprintd-reset.sh"
+  log_error "Sleep hook not found: ${HOST_ROOT}/etc/systemd/system-sleep/99-fprintd-reset.sh"
   exit 1
 fi
 
 # 2. Install watchdog binary
 log_info "Installing fprintd-watchdog..."
-SOURCE_WATCHDOG="${SCRIPT_DIR}/.local/bin/fprintd-watchdog"
+SOURCE_WATCHDOG="${HOST_ROOT}/.local/bin/fprintd-watchdog"
 DEST_WATCHDOG="$HOME/.local/bin/fprintd-watchdog"
 
 if [ -f "$SOURCE_WATCHDOG" ]; then
@@ -63,17 +65,29 @@ fi
 log_info "Installing systemd user units..."
 mkdir -p ~/.config/systemd/user
 
-if [ -f "${SCRIPT_DIR}/etc/systemd/user/fprintd-watchdog.service" ]; then
-  cp "${SCRIPT_DIR}/etc/systemd/user/fprintd-watchdog.service" ~/.config/systemd/user/
-  log_success "Installed: ~/.config/systemd/user/fprintd-watchdog.service"
+if [ -f "${HOST_ROOT}/etc/systemd/user/fprintd-watchdog.service" ]; then
+  service_src_real="$(realpath "${HOST_ROOT}/etc/systemd/user/fprintd-watchdog.service" 2>/dev/null || echo "${HOST_ROOT}/etc/systemd/user/fprintd-watchdog.service")"
+  service_dest_real="$(realpath ~/.config/systemd/user/fprintd-watchdog.service 2>/dev/null || echo ~/.config/systemd/user/fprintd-watchdog.service)"
+  if [[ "$service_src_real" == "$service_dest_real" ]]; then
+    log_info "User service already installed via stow: ~/.config/systemd/user/fprintd-watchdog.service"
+  else
+    cp "${HOST_ROOT}/etc/systemd/user/fprintd-watchdog.service" ~/.config/systemd/user/
+    log_success "Installed: ~/.config/systemd/user/fprintd-watchdog.service"
+  fi
 else
   log_error "Service file not found"
   exit 1
 fi
 
-if [ -f "${SCRIPT_DIR}/etc/systemd/user/fprintd-watchdog.timer" ]; then
-  cp "${SCRIPT_DIR}/etc/systemd/user/fprintd-watchdog.timer" ~/.config/systemd/user/
-  log_success "Installed: ~/.config/systemd/user/fprintd-watchdog.timer"
+if [ -f "${HOST_ROOT}/etc/systemd/user/fprintd-watchdog.timer" ]; then
+  timer_src_real="$(realpath "${HOST_ROOT}/etc/systemd/user/fprintd-watchdog.timer" 2>/dev/null || echo "${HOST_ROOT}/etc/systemd/user/fprintd-watchdog.timer")"
+  timer_dest_real="$(realpath ~/.config/systemd/user/fprintd-watchdog.timer 2>/dev/null || echo ~/.config/systemd/user/fprintd-watchdog.timer)"
+  if [[ "$timer_src_real" == "$timer_dest_real" ]]; then
+    log_info "User timer already installed via stow: ~/.config/systemd/user/fprintd-watchdog.timer"
+  else
+    cp "${HOST_ROOT}/etc/systemd/user/fprintd-watchdog.timer" ~/.config/systemd/user/
+    log_success "Installed: ~/.config/systemd/user/fprintd-watchdog.timer"
+  fi
 else
   log_error "Timer file not found"
   exit 1
@@ -131,4 +145,4 @@ log_info "Check status:"
 log_info "  systemctl --user status fprintd-watchdog.timer"
 log_info ""
 log_info "Manual restart if needed:"
-log_info "  bash ~/dotfiles/hosts/goldendragon/restart-fprintd.sh"
+log_info "  bash ~/dotfiles/hosts/goldendragon/scripts/fingerprint/restart-fprintd.sh"

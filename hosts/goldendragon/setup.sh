@@ -209,11 +209,15 @@ ACTION==\"add\", SUBSYSTEM==\"usb\", ATTR{idVendor}==\"${vendor_id}\", ATTR{idPr
   # Install watchdog system to prevent recurring device claim issues
   log_info ""
   log_info "Installing fprintd watchdog system (prevents device claim issues)..."
-  if bash "${SCRIPT_DIR}/install-fprintd-watchdog.sh" --non-interactive >/dev/null 2>&1; then
+  local watchdog_installer="${SCRIPT_DIR}/scripts/fingerprint/install-fprintd-watchdog.sh"
+  if [[ ! -f "$watchdog_installer" ]]; then
+    log_warning "Fprintd watchdog installer not found: $watchdog_installer"
+    log_info "Skipping watchdog install; run it manually once the path is fixed."
+  elif bash "$watchdog_installer" --non-interactive; then
     log_success "Fprintd watchdog installed"
   else
     log_warning "Could not install fprintd watchdog (run manually if needed)"
-    log_info "Manual install: bash ${SCRIPT_DIR}/install-fprintd-watchdog.sh"
+    log_info "Manual install: bash $watchdog_installer"
   fi
   
   log_success "Fingerprint setup step completed (goldendragon)"
@@ -628,6 +632,34 @@ EOF
   log_success "Battery tooling configured"
 }
 
+setup_sddm_theme() {
+  log_step "Setting up SDDM theme..."
+
+  if ! command -v sddm >/dev/null 2>&1; then
+    log_info "SDDM not installed, skipping theme setup"
+    return 0
+  fi
+
+  local theme_scripts_dir="$PROJECT_ROOT/scripts/theme-manager"
+  local default_theme="catppuccin-mocha-sky-sddm"
+
+  if [[ -x "$theme_scripts_dir/refresh-sddm" ]]; then
+    log_info "Refreshing SDDM themes..."
+    bash "$theme_scripts_dir/refresh-sddm" -y
+  else
+    log_warning "refresh-sddm script not found: $theme_scripts_dir/refresh-sddm"
+    return 0
+  fi
+
+  if [[ -x "$theme_scripts_dir/sddm-set" ]]; then
+    log_info "Setting SDDM theme to $default_theme..."
+    bash "$theme_scripts_dir/sddm-set" "$default_theme"
+    log_success "SDDM theme configured"
+  else
+    log_warning "sddm-set script not found: $theme_scripts_dir/sddm-set"
+  fi
+}
+
 post_setup_instructions() {
   echo
   log_success "🎉 GoldenDragon setup completed!"
@@ -715,6 +747,13 @@ main() {
     setup_battery_tooling && mark_step_completed "goldendragon-battery"
   else
     log_info "✓ Battery tooling already configured (skipped)"
+  fi
+  echo
+
+  if ! is_step_completed "goldendragon-sddm-theme"; then
+    setup_sddm_theme && mark_step_completed "goldendragon-sddm-theme"
+  else
+    log_info "✓ SDDM theme already configured (skipped)"
   fi
   echo
 
