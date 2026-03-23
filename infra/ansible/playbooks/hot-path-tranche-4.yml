@@ -1,0 +1,26 @@
+---
+- import_playbook: hot-path-tranche-3.yml
+
+- name: Hot-path tranche 4 fingerprint
+  hosts: fingerprint
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: fingerprint
+
+- name: Hot-path tranche 4 NVIDIA
+  hosts: nvidia
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: nvidia
+
+- name: Hot-path tranche 4 AMD GPU
+  hosts: amd_gpu
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: amd_gpu

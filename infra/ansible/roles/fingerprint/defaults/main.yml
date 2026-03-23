@@ -1,0 +1,15 @@
+---
+fingerprint_enabled: true
+fingerprint_pam_line: "auth      sufficient pam_fprintd.so timeout=10"
+
+fingerprint_packages_by_platform:
+  arch:
+    - fprintd
+    - libfprint
+    - usbutils
+
+fingerprint_pam_targets:
+  - /etc/pam.d/sudo
+  - /etc/pam.d/polkit-1
+  - /etc/pam.d/system-local-login
+  - /etc/pam.d/sddm

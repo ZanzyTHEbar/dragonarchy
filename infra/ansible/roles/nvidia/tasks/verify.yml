@@ -1,0 +1,50 @@
+---
+- name: Check NVIDIA command availability
+  ansible.builtin.shell: "command -v nvidia-smi"
+  register: nvidia_smi_command
+  changed_when: false
+
+- name: Assert NVIDIA command exists
+  ansible.builtin.assert:
+    that:
+      - nvidia_smi_command.rc == 0
+    fail_msg: "Expected nvidia-smi to be available."
+
+- name: Check NVIDIA modules-load file
+  ansible.builtin.stat:
+    path: /etc/modules-load.d/nvidia.conf
+  register: nvidia_modules_load_file
+
+- name: Assert NVIDIA modules-load file exists
+  ansible.builtin.assert:
+    that:
+      - nvidia_modules_load_file.stat.exists
+    fail_msg: "Expected /etc/modules-load.d/nvidia.conf to exist."
+
+- name: Check NVIDIA modprobe files
+  ansible.builtin.stat:
+    path: "/etc/modprobe.d/{{ item }}"
+  loop:
+    - nvidia.conf
+    - nvidia-drm.conf
+  register: nvidia_modprobe_files
+
+- name: Assert NVIDIA modprobe files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Expected /etc/modprobe.d/{{ item.item }} to exist."
+  loop: "{{ nvidia_modprobe_files.results }}"
+
+- name: Check persisted NVIDIA kernel parameter
+  ansible.builtin.shell: |
+    grep -qw 'nvidia-drm.modeset=1' /proc/cmdline \
+      || grep -Rqs 'nvidia-drm.modeset=1' /etc/kernel/cmdline /etc/default/grub /etc/limine-entry-tool.d /boot/loader/entries /boot/limine.conf /boot/limine.cfg /boot/limine/limine.conf /boot/limine/limine.cfg
+  register: nvidia_kernel_param_check
+  changed_when: false
+
+- name: Assert persisted NVIDIA kernel parameter exists
+  ansible.builtin.assert:
+    that:
+      - nvidia_kernel_param_check.rc == 0
+    fail_msg: "Expected NVIDIA kernel parameter nvidia-drm.modeset=1 to be persisted."

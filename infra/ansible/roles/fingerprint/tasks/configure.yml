@@ -1,0 +1,53 @@
+---
+- name: Ensure fingerprint udev rules directory exists
+  ansible.builtin.file:
+    path: /etc/udev/rules.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install fingerprint autosuspend rule
+  ansible.builtin.copy:
+    dest: /etc/udev/rules.d/99-fingerprint-no-autosuspend.rules
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible fingerprint role.
+      ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="{{ fingerprint_usb_id.split(':')[0] | lower }}", ATTR{idProduct}=="{{ fingerprint_usb_id.split(':')[1] | lower }}", TEST=="power/control", ATTR{power/control}="on"
+      ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="{{ fingerprint_usb_id.split(':')[0] | lower }}", ATTR{idProduct}=="{{ fingerprint_usb_id.split(':')[1] | lower }}", TEST=="power/autosuspend", ATTR{power/autosuspend}="-1"
+  notify: Reload udev rules
+
+- name: Ensure system sleep hook directory exists
+  ansible.builtin.file:
+    path: /usr/lib/systemd/system-sleep
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install fingerprint sleep hook
+  ansible.builtin.copy:
+    src: "{{ fingerprint_legacy_root }}/etc/systemd/system-sleep/99-fprintd-reset.sh"
+    dest: /usr/lib/systemd/system-sleep/99-fprintd-reset.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure PAM fingerprint policy is present
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    line: "{{ fingerprint_pam_line }}"
+    insertbefore: '^\s*auth\b'
+    state: present
+  loop: "{{ fingerprint_pam_targets }}"
+
+- name: Install host-specific hyprlock PAM policy
+  ansible.builtin.copy:
+    src: "{{ fingerprint_legacy_root }}/etc/pam.d/hyprlock"
+    dest: /etc/pam.d/hyprlock
+    owner: root
+    group: root
+    mode: "0644"
+  when: host_desktop_stack == 'hyprland'

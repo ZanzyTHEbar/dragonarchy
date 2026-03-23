@@ -1,0 +1,121 @@
+---
+- name: Ensure AMD modules-load directory exists
+  ansible.builtin.file:
+    path: /etc/modules-load.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install AMD modules-load configuration
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/amd.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      amdgpu
+
+- name: Ensure AMD modprobe directory exists
+  ansible.builtin.file:
+    path: /etc/modprobe.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install AMD GPU modprobe configuration
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/modprobe.d/{{ item | basename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ amd_gpu_modprobe_sources }}"
+
+- name: Find host-specific AMD GPU systemd services
+  ansible.builtin.find:
+    paths: "{{ amd_gpu_legacy_root }}/etc/systemd/system"
+    patterns: "amdgpu*.service"
+    file_type: file
+  register: amd_gpu_service_files
+  failed_when: false
+
+- name: Install AMD GPU systemd services
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "/etc/systemd/system/{{ item.path | basename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ amd_gpu_service_files.files }}"
+  notify: Reload systemd
+
+- name: Enable AMD GPU systemd services
+  ansible.builtin.service:
+    name: "{{ item.path | basename }}"
+    enabled: true
+    state: started
+  loop: "{{ amd_gpu_service_files.files }}"
+
+- name: Find host-specific AMD GPU polkit rules
+  ansible.builtin.find:
+    paths: "{{ amd_gpu_legacy_root }}/etc/polkit-1/rules.d"
+    patterns: "*.rules"
+    file_type: file
+  register: amd_gpu_polkit_rules
+  failed_when: false
+
+- name: Ensure polkit rules directory exists
+  ansible.builtin.file:
+    path: /etc/polkit-1/rules.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: amd_gpu_polkit_rules.matched | default(0) | int > 0
+
+- name: Install AMD GPU polkit rules
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "/etc/polkit-1/rules.d/{{ item.path | basename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ amd_gpu_polkit_rules.files }}"
+
+- name: Find host-specific AMD GPU bootloader drop-ins
+  ansible.builtin.find:
+    paths: "{{ amd_gpu_legacy_root }}/etc/limine-entry-tool.d"
+    patterns: "*.conf"
+    file_type: file
+  register: amd_gpu_bootloader_dropins
+  failed_when: false
+
+- name: Ensure Limine drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/limine-entry-tool.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: amd_gpu_bootloader_dropins.matched | default(0) | int > 0
+
+- name: Install AMD GPU bootloader drop-ins
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "/etc/limine-entry-tool.d/{{ item.path | basename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ amd_gpu_bootloader_dropins.files }}"
+
+- name: Persist AMD GPU kernel parameters
+  ansible.builtin.shell: |
+    set -euo pipefail
+    source "{{ amd_gpu_bootloader_helper }}"
+    boot_append_kernel_params "{{ amd_gpu_kernel_params | join(' ') }}"
+    boot_rebuild_if_changed
+  args:
+    executable: /bin/bash
+  changed_when: false

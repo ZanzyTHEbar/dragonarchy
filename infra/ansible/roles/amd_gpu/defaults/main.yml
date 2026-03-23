@@ -1,0 +1,25 @@
+---
+amd_gpu_enabled: true
+amd_gpu_bootloader_helper: "{{ playbook_dir }}/../../../scripts/lib/bootloader.sh"
+
+amd_gpu_packages_by_platform:
+  arch:
+    dragon:
+      - mesa
+      - vulkan-radeon
+      - libva-mesa-driver
+      - mesa-vdpau
+      - xf86-video-amdgpu
+      - vulkan-tools
+      - mesa-utils
+      - radeontop
+      - corectrl
+    firedragon:
+      - mesa
+      - vulkan-radeon
+      - libva-mesa-driver
+      - mesa-vdpau
+      - xf86-video-amdgpu
+
+amd_gpu_kernel_params:
+  - amdgpu.modeset=1

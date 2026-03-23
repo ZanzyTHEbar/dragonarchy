@@ -1,0 +1,48 @@
+---
+- name: Check fingerprint enrollment command
+  ansible.builtin.shell: "command -v fprintd-enroll"
+  register: fingerprint_enroll_command
+  changed_when: false
+
+- name: Assert fingerprint enrollment command exists
+  ansible.builtin.assert:
+    that:
+      - fingerprint_enroll_command.rc == 0
+    fail_msg: "Expected fprintd-enroll to be available."
+
+- name: Check fingerprint sleep hook
+  ansible.builtin.stat:
+    path: /usr/lib/systemd/system-sleep/99-fprintd-reset.sh
+  register: fingerprint_sleep_hook
+
+- name: Assert fingerprint sleep hook exists
+  ansible.builtin.assert:
+    that:
+      - fingerprint_sleep_hook.stat.exists
+    fail_msg: "Expected /usr/lib/systemd/system-sleep/99-fprintd-reset.sh to exist."
+
+- name: Check managed PAM targets
+  ansible.builtin.shell: "grep -qF {{ fingerprint_pam_line | quote }} {{ item }}"
+  loop: "{{ fingerprint_pam_targets }}"
+  register: fingerprint_pam_checks
+  changed_when: false
+
+- name: Assert managed PAM targets contain fingerprint policy
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: "Expected fingerprint PAM policy in {{ item.item }}."
+  loop: "{{ fingerprint_pam_checks.results }}"
+
+- name: Check managed hyprlock PAM file
+  ansible.builtin.stat:
+    path: /etc/pam.d/hyprlock
+  register: fingerprint_hyprlock_pam
+  when: host_desktop_stack == 'hyprland'
+
+- name: Assert managed hyprlock PAM file exists
+  ansible.builtin.assert:
+    that:
+      - fingerprint_hyprlock_pam.stat.exists
+    fail_msg: "Expected /etc/pam.d/hyprlock to exist for fingerprint-backed Hyprland hosts."
+  when: host_desktop_stack == 'hyprland'
