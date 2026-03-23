@@ -1,0 +1,5 @@
+---
+- name: Install Hyprland system-session packages
+  ansible.builtin.package:
+    name: "{{ hyprland_session_packages_by_platform[host_platform_family] }}"
+    state: present

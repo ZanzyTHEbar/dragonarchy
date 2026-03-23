@@ -1,0 +1,12 @@
+---
+- name: Validate SDDM role inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Install SDDM packages
+  ansible.builtin.import_tasks: install.yml
+
+- name: Configure SDDM
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Validate SDDM state
+  ansible.builtin.import_tasks: verify.yml

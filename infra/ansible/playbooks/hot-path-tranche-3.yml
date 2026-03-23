@@ -1,0 +1,10 @@
+---
+- import_playbook: hot-path-tranche-2.yml
+
+- name: Hot-path tranche 3
+  hosts: hyprland
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: hyprland

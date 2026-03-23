@@ -1,0 +1,19 @@
+---
+- name: Assert Hyprland tranche-3 metadata exists
+  ansible.builtin.assert:
+    that:
+      - hyprland_enabled | bool
+      - host_desktop_stack is defined
+      - host_desktop_stack == 'hyprland'
+      - host_platform_family is defined
+      - host_platform_family in hyprland_session_packages_by_platform
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the Hyprland tranche-3 contract.
+
+- name: Assert Hyprland hosts keep display-manager ownership separate
+  ansible.builtin.assert:
+    that:
+      - display_manager is defined
+      - display_manager == 'sddm'
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' must keep display-manager ownership pinned to the SDDM role.
