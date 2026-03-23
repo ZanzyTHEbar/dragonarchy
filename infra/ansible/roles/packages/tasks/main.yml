@@ -1,0 +1,9 @@
+---
+- name: Validate package role inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Resolve package plan
+  ansible.builtin.import_tasks: resolve.yml
+
+- name: Install package plan
+  ansible.builtin.import_tasks: install.yml

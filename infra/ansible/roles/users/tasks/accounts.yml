@@ -1,0 +1,8 @@
+---
+- name: Ensure managed users exist with declared supplementary groups
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: "{{ item.groups | join(',') }}"
+    append: true
+    state: present
+  loop: "{{ managed_users }}"

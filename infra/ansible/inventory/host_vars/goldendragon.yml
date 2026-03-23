@@ -1,0 +1,19 @@
+---
+host_role: laptop
+host_platform_family: arch
+host_desktop_stack: hyprland
+host_gpu_stack:
+  - intel
+  - nvidia
+host_capabilities:
+  - tlp
+  - fingerprint
+  - fortinet_vpn
+
+managed_users:
+  - name: daofficialwizard
+    groups:
+      - wheel
+
+fingerprint_usb_id: "06cb:00f9"
+legacy_host_directory: hosts/goldendragon

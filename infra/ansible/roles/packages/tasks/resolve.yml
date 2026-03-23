@@ -1,0 +1,11 @@
+---
+- name: Build package plan for host
+  ansible.builtin.set_fact:
+    resolved_package_list: >-
+      {{
+        host_profile_packages
+        | map('extract', packages_by_platform[host_platform_family])
+        | list
+        | flatten
+        | unique
+      }}

@@ -1,0 +1,17 @@
+---
+- name: Install resolved packages on Debian-family systems
+  ansible.builtin.apt:
+    name: "{{ resolved_package_list }}"
+    state: present
+    update_cache: true
+  when:
+    - host_platform_family == 'debian'
+    - resolved_package_list | length > 0
+
+- name: Install resolved packages on Arch-family systems
+  ansible.builtin.package:
+    name: "{{ resolved_package_list }}"
+    state: present
+  when:
+    - host_platform_family == 'arch'
+    - resolved_package_list | length > 0
