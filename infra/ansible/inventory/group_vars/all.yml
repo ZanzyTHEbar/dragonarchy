@@ -1,0 +1,18 @@
+---
+dotfiles_architecture:
+  system_owner: ansible
+  user_owner: chezmoi
+  phase: foundation
+  no_fallbacks: true
+
+dotfiles_supported_os_families:
+  - Archlinux
+  - Debian
+
+dotfiles_supported_distribution_families:
+  arch:
+    - Archlinux
+    - CachyOS
+  debian:
+    - Debian
+    - Ubuntu

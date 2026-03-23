@@ -1,0 +1,11 @@
+# Ignore repository control-plane paths and non-user-state assets.
+../ansible/**
+../../hosts/**
+../../packages/**
+../../scripts/**
+../../secrets/**
+../../docs/**
+../../tests/**
+../../tools/**
+../../vendor/**
+../../.git/**

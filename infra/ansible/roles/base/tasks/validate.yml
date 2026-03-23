@@ -1,0 +1,7 @@
+---
+- name: Assert base timezone is defined
+  ansible.builtin.assert:
+    that:
+      - base_timezone is defined
+      - base_timezone | length > 0
+    fail_msg: "base_timezone must be defined for the base role."

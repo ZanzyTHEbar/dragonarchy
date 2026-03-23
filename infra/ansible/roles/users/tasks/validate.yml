@@ -1,0 +1,16 @@
+---
+- name: Assert managed_users is a list
+  ansible.builtin.assert:
+    that:
+      - managed_users is iterable
+    fail_msg: "managed_users must be a list for host '{{ inventory_hostname }}'."
+
+- name: Assert each managed user has required keys
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name | length > 0
+      - item.groups is defined
+    fail_msg: >-
+      Each managed user must define 'name' and 'groups'. Invalid entry on host '{{ inventory_hostname }}': {{ item }}
+  loop: "{{ managed_users }}"

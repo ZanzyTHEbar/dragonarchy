@@ -1,0 +1,13 @@
+---
+dotfiles_allowed_host_roles:
+  - desktop
+  - laptop
+  - server
+
+dotfiles_allowed_platform_families:
+  - arch
+  - debian
+
+dotfiles_allowed_desktop_stacks:
+  - none
+  - hyprland

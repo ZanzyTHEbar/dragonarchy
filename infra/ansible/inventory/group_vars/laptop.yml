@@ -1,0 +1,8 @@
+---
+host_profile_packages:
+  - core_cli
+  - dev
+
+display_manager: sddm
+sddm_enabled: true
+sddm_theme: catppuccin-mocha-sky-sddm
