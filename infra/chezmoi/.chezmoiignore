@@ -1,11 +1,10 @@
-# Ignore repository control-plane paths and non-user-state assets.
-../ansible/**
-../../hosts/**
-../../packages/**
-../../scripts/**
-../../secrets/**
-../../docs/**
-../../tests/**
-../../tools/**
-../../vendor/**
-../../.git/**
+# This root is orchestration-only.
+# The actual chezmoi source is generated under generated/<host>/ and passed
+# directly to chezmoi during apply.
+README.md
+.chezmoiignore
+.gitignore
+.chezmoitemplates/**
+manifests/**
+scripts/**
+generated/**

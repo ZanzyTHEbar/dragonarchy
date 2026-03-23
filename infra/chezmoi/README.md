@@ -1,42 +1,74 @@
-# chezmoi Source Root
+# chezmoi Control Plane
 
-This directory is the future user-state source root for the new architecture.
+This directory is the orchestration layer for future chezmoi-managed user state.
 
-## Ownership
+It is not the canonical home-directory content tree.
 
-chezmoi owns:
+## Canonical ownership
 
-- user dotfiles in `$HOME`
-- host-aware rendered user configuration
-- user secrets integration
-- machine-specific user-level differences
+Canonical shared user-state source remains in:
 
-chezmoi does not own:
+- `packages/`
+
+Canonical host-specific user-state source remains in:
+
+- `hosts/<host>/dotfiles/`
+
+This directory owns:
+
+- build manifests
+- build scripts
+- generated-source conventions
+- cutover documentation
+
+This directory does not own:
 
 - `/etc`
 - system packages
 - system services
 - hardware state
+- canonical shared package contents
+- canonical host dotfile contents
 
-## Foundation batch
+## Active migration rule
 
-This directory is intentionally minimal in the foundation phase.
+The chezmoi migration must preserve canonical source contents.
 
-The goal is to establish:
+Rules:
 
-- the control-plane location
-- ownership boundaries
-- a clean source root for future user-state migration
+- keep `packages/` untouched
+- keep `hosts/<host>/dotfiles/` untouched
+- prefer `cp -a` and overlay semantics over content rewrites
+- treat generated chezmoi source as rebuildable output, not canonical content
 
-The foundation phase does not yet migrate existing Stow packages into chezmoi.
+## Generated source model
 
-## Planned invocation model
+The build step materializes a host-specific chezmoi source tree under:
 
-The future control path should treat this directory as the explicit chezmoi source:
+- `infra/chezmoi/generated/<host>/`
+
+That generated tree is the path passed to chezmoi.
+
+Expected invocation model:
 
 ```bash
-chezmoi --source ~/dotfiles/infra/chezmoi diff
-chezmoi --source ~/dotfiles/infra/chezmoi apply
+./infra/chezmoi/scripts/build-source.sh --host goldendragon
+chezmoi --source ~/dotfiles/infra/chezmoi/generated/goldendragon diff
+chezmoi --source ~/dotfiles/infra/chezmoi/generated/goldendragon apply
 ```
 
-Those commands are documented here as the intended model, not as an already-supported migration path.
+The generated tree may use chezmoi naming such as `dot_config/`, but only inside `generated/<host>/`.
+
+Tracked files under `infra/chezmoi/` should remain orchestration files, not mirrored home-directory content.
+
+## First build slice
+
+The first manifest targets:
+
+- Hyprland shared config
+- Waybar shared config
+- Walker shared config
+- Elephant shared config
+- host-specific Waybar session markers when present
+
+Generated or script-owned files still need explicit handling before final cutover.
