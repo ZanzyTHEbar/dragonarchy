@@ -757,3 +757,188 @@ The critical current exceptions before real chezmoi ownership are:
 - `bash infra/chezmoi/scripts/build-source.sh --host goldendragon` passed with the default manifest set
 - `bash infra/chezmoi/scripts/verify-generated-source.sh --host goldendragon` confirmed all required generated paths exist
 - `ReadLints` reported no issues in the updated chezmoi control-plane files
+
+## Runtime-owned File Handling and Stow Carve-out Planning
+
+The next cutover blocker has now been turned into explicit control-plane behavior instead of a documentation-only warning.
+
+New artifact:
+
+- `infra/chezmoi/scripts/plan-stow-cutover.sh`
+
+Updated artifacts:
+
+- `infra/chezmoi/scripts/build-source.sh`
+- `infra/chezmoi/scripts/verify-generated-source.sh`
+- `infra/chezmoi/manifests/session-shell.manifest`
+- `infra/chezmoi/README.md`
+- `docs/architecture/chezmoi-canonical-source-model.md`
+- `docs/architecture/chezmoi-cutover-procedure.md`
+
+### What changed
+
+- generated-source manifests now support `exclude` entries
+- `session-shell.manifest` explicitly excludes runtime-owned files from generated output
+- `build-source.sh` removes excluded paths after directory copies
+- `verify-generated-source.sh` asserts that excluded paths are absent
+- `plan-stow-cutover.sh` derives the migrated `$HOME` path set and emits package/host Stow carve-out commands for the active manifest set
+
+### Current runtime-owned exceptions
+
+The current session-shell slice keeps these paths runtime-owned:
+
+- `dot_config/swaync/style.css`
+- `dot_config/clipse/theme.toml`
+
+Reason:
+
+- `swaync/style.css` is merged by `scripts/theme-manager/theme-set`
+- `clipse/theme.toml` is linked by `scripts/theme-manager/generate-clipse-themes`
+
+### Current cutover planning result for `goldendragon`
+
+Migrated paths derived from the active manifests:
+
+- `.config/hypr`
+- `.config/waybar`
+- `.config/walker`
+- `.config/elephant`
+- `.config/autostart`
+- `.config/clipse`
+- `.config/swaync`
+- `.config/swayosd`
+- `.config/waybar-hosts/goldendragon`
+
+Derived Stow carve-outs:
+
+- package carve-out for `hyprland` excluding the migrated `.config/*` session paths
+- host-dotfiles carve-out for `goldendragon` excluding `.config/waybar-hosts/goldendragon`
+
+This confirms the first real chezmoi cutover must carve paths out of Stow instead of disabling the whole `hyprland` package, because `packages/hyprland` still owns non-migrated paths such as `.local/bin/**` and `.config/theme-manager/**`.
+
+### Validation completed
+
+- `bash -n infra/chezmoi/scripts/build-source.sh` passed
+- `bash -n infra/chezmoi/scripts/verify-generated-source.sh` passed
+- `bash -n infra/chezmoi/scripts/plan-stow-cutover.sh` passed
+- `bash infra/chezmoi/scripts/build-source.sh --host goldendragon` passed
+- `bash infra/chezmoi/scripts/verify-generated-source.sh --host goldendragon` reported the excluded runtime files as absent
+- `bash infra/chezmoi/scripts/plan-stow-cutover.sh --host goldendragon` emitted concrete Stow carve-out commands
+- `ReadLints` reported no issues in the changed chezmoi control-plane files
+
+## First Executable Host Cutover Flow
+
+The first host cutover path now exists as an executable control-plane script.
+
+New artifact:
+
+- `infra/chezmoi/scripts/cutover-host.sh`
+
+Updated artifacts:
+
+- `infra/chezmoi/README.md`
+- `docs/architecture/chezmoi-canonical-source-model.md`
+- `docs/architecture/chezmoi-cutover-procedure.md`
+
+### What `cutover-host.sh` does
+
+For a selected host and manifest set, the script now:
+
+1. rebuilds the generated chezmoi source path
+2. verifies required and excluded generated paths
+3. checks each migrated `$HOME` path and only removes it if it is currently repo-managed
+4. re-runs package Stow with manifest-derived `--ignore=...` carve-outs
+5. re-runs host-dotfiles Stow with manifest-derived `--ignore=...` carve-outs
+6. runs `chezmoi diff` and `chezmoi apply`
+
+### Safety model
+
+- default mode is dry-run
+- `--execute` is required for any mutation
+- execute mode refuses to continue if `stow` or `chezmoi` is absent
+- execute mode refuses to remove migrated paths unless they are confirmed to be repo-managed
+- removed paths are backed up under `~/.local/state/dotfiles/backups/.../chezmoi-cutover/<host>/`
+
+### Current validation result on this machine
+
+Dry-run was executed for `goldendragon`.
+
+Result:
+
+- the script produced the full cutover sequence and the derived Stow carve-outs
+- two paths were reported as blocked on this machine:
+  - `/home/daofficialwizard/.config/autostart`
+  - `/home/daofficialwizard/.config/hypr`
+
+Meaning:
+
+- the script is correctly detecting host-state mismatches before mutation
+- the current machine state does not exactly match the expected repo-managed `goldendragon` starting point for those two paths
+
+### Validation completed
+
+- `bash -n infra/chezmoi/scripts/cutover-host.sh` passed
+- `bash infra/chezmoi/scripts/cutover-host.sh --host goldendragon` completed as dry-run
+- dry-run printed the full cutover sequence and reported blocked paths without mutating `$HOME`
+- `ReadLints` reported no issues in the updated chezmoi control-plane files
+
+## Isolated Arch Validation
+
+The cutover flow has now been validated in an isolated fresh Arch environment using Docker.
+
+### Validation target
+
+The validation used:
+
+- `archlinux:latest`
+- repo mounted read-only at `/repo`
+- disposable Docker volume mounted as `/home/arch`
+
+### Important harness note
+
+A single-package `stow hyprland` seed is not representative enough by itself.
+
+Reason:
+
+- with only `hyprland` stowed, GNU Stow folds top-level `.config` and `.local` into symlinks
+- that causes `hosts/goldendragon/dotfiles` restow to conflict at the top level
+
+For the successful validation run, the seed state used:
+
+- `stow --no-folding --restow -d /repo/packages -t /home/arch hyprland`
+- `stow --no-folding --restow -t /home/arch .` from `hosts/goldendragon/dotfiles`
+
+This better models a real multi-package home layout where `.config` and `.local` are directories rather than folded symlinks.
+
+### Bug found and fixed
+
+The first executable validation exposed a bug in `cutover-host.sh`:
+
+- `chezmoi` was being run with `--source` only
+- it therefore targeted the invoking user's default home instead of the selected target home
+
+Fix:
+
+- `cutover-host.sh` now passes `--destination "${TARGET_HOME}"` to `chezmoi diff` and `chezmoi apply`
+
+### Successful validation result
+
+After the fix, the isolated Arch execute run succeeded.
+
+Observed post-cutover state:
+
+- `.config/hypr` exists and is no longer a symlink
+- `.config/autostart` exists
+- `.config/waybar` exists
+- `.local/bin/theme-set` remains a Stow-managed symlink
+- `.config/swaync/style.css` is absent as intended
+- `.config/clipse/theme.toml` is absent as intended
+- `.config/waybar-hosts/goldendragon/vpn-enabled` exists after chezmoi apply
+
+This confirms the first cutover flow now works in isolation for the current session-core plus session-shell slice.
+
+### Validation completed
+
+- isolated Arch Docker validation completed successfully after the `chezmoi --destination` fix
+- `cutover-host.sh --execute` rebuilt generated source, removed migrated repo-managed paths, re-ran Stow carve-outs, and applied chezmoi state into `/home/arch`
+- post-cutover checks confirmed migrated config paths became materialized files/directories while non-migrated `.local/bin` paths remained Stow-managed

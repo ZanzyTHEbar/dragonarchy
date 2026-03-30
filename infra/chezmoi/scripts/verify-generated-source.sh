@@ -78,6 +78,21 @@ check_entry() {
   failures=$((failures + 1))
 }
 
+check_excluded_entry() {
+  local dest_rel="$1"
+
+  dest_rel="${dest_rel//__HOST__/${HOST_NAME}}"
+  local dest_abs="${OUTPUT_PATH}/${dest_rel}"
+
+  if [[ ! -e "${dest_abs}" ]]; then
+    printf 'EXCL %s\n' "${dest_rel}"
+    return 0
+  fi
+
+  printf 'PRES %s\n' "${dest_rel}" >&2
+  failures=$((failures + 1))
+}
+
 for manifest_path in "${MANIFEST_PATHS[@]}"; do
   if [[ ! -f "${manifest_path}" ]]; then
     echo "Manifest not found: ${manifest_path}" >&2
@@ -87,6 +102,10 @@ for manifest_path in "${MANIFEST_PATHS[@]}"; do
   while IFS='|' read -r mode _source_rel dest_rel; do
     [[ -z "${mode}" ]] && continue
     [[ "${mode}" =~ ^# ]] && continue
+    if [[ "${mode}" == "exclude" ]]; then
+      check_excluded_entry "${dest_rel}"
+      continue
+    fi
     check_entry "${mode}" "${dest_rel}"
   done < "${manifest_path}"
 done

@@ -54,8 +54,14 @@ Expected invocation model:
 ```bash
 ./infra/chezmoi/scripts/build-source.sh --host goldendragon
 ./infra/chezmoi/scripts/verify-generated-source.sh --host goldendragon
-chezmoi --source ~/dotfiles/infra/chezmoi/generated/goldendragon diff
-chezmoi --source ~/dotfiles/infra/chezmoi/generated/goldendragon apply
+./infra/chezmoi/scripts/plan-stow-cutover.sh --host goldendragon
+./infra/chezmoi/scripts/cutover-host.sh --host goldendragon
+```
+
+To execute the full cutover on the target host after dry-run review:
+
+```bash
+./infra/chezmoi/scripts/cutover-host.sh --host goldendragon --execute
 ```
 
 The generated tree may use chezmoi naming such as `dot_config/`, but only inside `generated/<host>/`.
@@ -85,3 +91,5 @@ Notable current exceptions:
 
 - `swaync/style.css` is merged runtime output
 - `clipse/theme.toml` is theme-generated runtime state
+
+These runtime-owned paths are excluded from generated source with manifest `exclude` entries.

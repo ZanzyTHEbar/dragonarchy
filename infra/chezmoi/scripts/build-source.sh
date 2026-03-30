@@ -94,14 +94,28 @@ copy_entry() {
   cp -a "${source_abs}" "${dest_abs}"
 }
 
+exclude_entry() {
+  local dest_rel="$1"
+
+  dest_rel="${dest_rel//__HOST__/${HOST_NAME}}"
+  local dest_abs="${OUTPUT_PATH}/${dest_rel}"
+
+  rm -rf "${dest_abs}"
+}
+
 for manifest_path in "${MANIFEST_PATHS[@]}"; do
   while IFS='|' read -r mode source_rel dest_rel; do
     [[ -z "${mode}" ]] && continue
     [[ "${mode}" =~ ^# ]] && continue
 
-    if [[ "${mode}" != "required" && "${mode}" != "optional" ]]; then
+    if [[ "${mode}" != "required" && "${mode}" != "optional" && "${mode}" != "exclude" ]]; then
       echo "Unknown manifest mode in ${manifest_path}: ${mode}" >&2
       exit 1
+    fi
+
+    if [[ "${mode}" == "exclude" ]]; then
+      exclude_entry "${dest_rel}"
+      continue
     fi
 
     copy_entry "${mode}" "${source_rel}" "${dest_rel}"

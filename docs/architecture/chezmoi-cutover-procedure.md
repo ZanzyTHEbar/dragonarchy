@@ -35,6 +35,22 @@ Verify the expected output exists:
 ./infra/chezmoi/scripts/verify-generated-source.sh --host <host> --manifest <manifest> ...
 ```
 
+### 3.5. Plan the Stow carve-out
+
+Before applying chezmoi, generate the Stow ignore plan for the same manifest set:
+
+```bash
+./infra/chezmoi/scripts/plan-stow-cutover.sh --host <host> --manifest <manifest> ...
+```
+
+This planner derives:
+
+- the migrated `$HOME` path set
+- package-level `stow --ignore=...` carve-outs
+- host-dotfiles `stow --ignore=...` carve-outs
+
+This is required because the current `hyprland` package still owns non-migrated paths such as `.local/bin/**` and `.config/theme-manager/**`.
+
 ### 4. Stop legacy rewrites
 
 Before cutover, remove or neutralize any script path that would overwrite the migrated files after apply.
@@ -57,10 +73,29 @@ The preferred rule is:
 
 ### 6. Apply chezmoi from generated source
 
+Use the executable host cutover entrypoint:
+
 ```bash
-chezmoi --source ~/dotfiles/infra/chezmoi/generated/<host> diff
-chezmoi --source ~/dotfiles/infra/chezmoi/generated/<host> apply
+./infra/chezmoi/scripts/cutover-host.sh --host <host>
 ```
+
+Dry-run behavior:
+
+- prints the build, verify, Stow carve-out, and chezmoi apply sequence
+- reports any migrated paths that are not currently repo-managed and would block a real cutover
+
+Execute only after reviewing the dry-run output:
+
+```bash
+./infra/chezmoi/scripts/cutover-host.sh --host <host> --execute
+```
+
+Execution behavior:
+
+- rebuilds and verifies the generated source
+- backs up and removes repo-managed migrated paths under `$HOME`
+- re-runs package and host Stow with manifest-derived `--ignore=...` carve-outs
+- runs `chezmoi diff` and `chezmoi apply` against the generated source
 
 ### 7. Validate post-cutover behavior
 
@@ -95,4 +130,9 @@ The safest first real cutover target is the current session-core plus session-sh
 - `dot_config/swaync`
 - `dot_config/swayosd`
 
-Only after generated or script-owned exceptions are resolved should this set move from Stow ownership to chezmoi ownership.
+Current runtime-managed exceptions inside that target are:
+
+- `dot_config/swaync/style.css`
+- `dot_config/clipse/theme.toml`
+
+These stay out of generated source through manifest `exclude` entries and continue to be runtime-owned until their owner changes.
