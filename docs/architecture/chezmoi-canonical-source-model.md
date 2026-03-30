@@ -55,6 +55,7 @@ flowchart LR
 2. Prefer `cp -a` overlay semantics.
 3. Do not rewrite package contents to satisfy chezmoi layout.
 4. Keep generated or script-owned files out of static cutover unless their owner changes.
+5. Use manifest `exclude` entries to remove runtime-owned paths from generated source after directory copies.
 
 ## First slice
 
@@ -87,6 +88,8 @@ Use the verifier after build to confirm required generated paths exist before an
 ```bash
 ./infra/chezmoi/scripts/build-source.sh --host goldendragon
 ./infra/chezmoi/scripts/verify-generated-source.sh --host goldendragon
+./infra/chezmoi/scripts/plan-stow-cutover.sh --host goldendragon
+./infra/chezmoi/scripts/cutover-host.sh --host goldendragon
 ```
 
 ## Known non-static files
