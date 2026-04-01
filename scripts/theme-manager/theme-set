@@ -278,16 +278,21 @@ fi
 # Merge swaync theme colors + base structural CSS into a single file.
 # This avoids CSS @import through stow-symlinked paths, which GTK's
 # CSS provider caches and never re-resolves on swaync-client -rs.
+# The destination may begin life as a stow symlink into the repo, so
+# replace it atomically with a user-local regular file before writing.
 SWAYNC_DIR="$HOME/.config/swaync"
 SWAYNC_COLORS="$CURRENT_THEME_DIR/swaync.css"
 SWAYNC_BASE="$SWAYNC_DIR/style-base.css"
 if [[ -f "$SWAYNC_COLORS" && -f "$SWAYNC_BASE" ]]; then
+    local_tmp="$(mktemp)"
     mkdir -p "$SWAYNC_DIR"
     {
         cat "$SWAYNC_COLORS"
         printf '\n'
         cat "$SWAYNC_BASE"
-    } >"$SWAYNC_DIR/style.css"
+    } >"$local_tmp"
+    cp --remove-destination "$local_tmp" "$SWAYNC_DIR/style.css"
+    rm -f "$local_tmp"
 fi
 
 mkdir -p "$HOME/.config/kitty"
