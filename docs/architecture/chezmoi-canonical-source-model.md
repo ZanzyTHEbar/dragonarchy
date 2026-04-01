@@ -57,6 +57,10 @@ flowchart LR
 4. Keep generated or script-owned files out of static cutover unless their owner changes.
 5. Use manifest `exclude` entries to remove runtime-owned paths from generated source after directory copies.
 
+Changes inside already-sliced canonical package paths flow into generated source automatically on the next build.
+
+That is a feature of the model, not drift.
+
 ## First slice
 
 The first generated-source slice stages:

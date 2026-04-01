@@ -68,6 +68,10 @@ The generated tree may use chezmoi naming such as `dot_config/`, but only inside
 
 Tracked files under `infra/chezmoi/` should remain orchestration files, not mirrored home-directory content.
 
+For the operator-facing first-host execution order, see:
+
+- `docs/runbooks/first-host-chezmoi-cutover.md`
+
 ## First build slice
 
 The first manifest targets:

@@ -31,9 +31,26 @@ Additional files like `templates/`, `files/`, `vars/`, and split task files are 
 4. A role must not edit files or manage services that belong to another role.
 5. A role must validate the state it is responsible for.
 
-## Current foundation role
+## Current role set
 
-`common` is the only role in the foundation batch.
+The current control plane contains:
+
+- `common`
+- `base`
+- `packages`
+- `users`
+- `sddm`
+- `hyprland`
+- `fingerprint`
+- `nvidia`
+- `amd_gpu`
+- `tlp`
+- `resolved`
+- `openfortivpn`
+
+## Foundation role
+
+`common` remains the foundation role.
 
 Its purpose is to:
 
@@ -41,4 +58,6 @@ Its purpose is to:
 - validate core host metadata
 - expose a deterministic host summary
 
-It does not install packages or manage services yet.
+It still does not install packages or manage services directly.
+
+The hot-path roles build on top of that contract rather than replacing it.

@@ -4,6 +4,10 @@
 
 This document defines how a user-state path moves from Stow ownership to generated chezmoi ownership without changing canonical source content.
 
+For the operator-facing first-host sequence, use:
+
+- `docs/runbooks/first-host-chezmoi-cutover.md`
+
 ## Preconditions
 
 A path is eligible for cutover only when all of the following are true:

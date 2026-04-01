@@ -34,25 +34,27 @@ Files initialized and populated:
 
 These contain the current architectural decisions, active context, and next milestone.
 
-## Current Local Code Changes
+## Historical Goldendragon Fix Note
 
-Pending commit at handoff time:
+An earlier `goldendragon` repair batch fixed two host-local defects that were discovered before the Ansible control plane fully took over those concerns:
 
 - `hosts/goldendragon/setup.sh`
 - `hosts/goldendragon/scripts/fingerprint/install-fprintd-watchdog.sh`
 
-### What changed
+Those fixes are now part of committed branch history rather than pending local work.
+
+What they changed:
 
 `hosts/goldendragon/setup.sh`
-- fixes the watchdog installer invocation path
-- stops suppressing watchdog installer output
-- adds host-local SDDM theme provisioning via `refresh-sddm` and `sddm-set`
-- adds an explicit `goldendragon-sddm-theme` install-state step
+- fixed the watchdog installer invocation path
+- stopped suppressing watchdog installer output
+- added host-local SDDM theme provisioning via `refresh-sddm` and `sddm-set`
+- added an explicit `goldendragon-sddm-theme` install-state step
 
 `hosts/goldendragon/scripts/fingerprint/install-fprintd-watchdog.sh`
-- fixes broken relative paths for logging, hook, watchdog binary, and user units
-- avoids failing when the user service/timer are already present via Stow-backed paths
-- corrects the documented restart helper path
+- fixed broken relative paths for logging, hook, watchdog binary, and user units
+- avoided failing when the user service/timer are already present via Stow-backed paths
+- corrected the documented restart helper path
 
 ## Root Cause Summary For Recent Goldendragon Failure
 
@@ -110,9 +112,9 @@ Expected new structure:
 - `infra/chezmoi/` for user config source state
 - clear ownership docs for role boundaries and host model
 
-## Recommended Immediate Next Work
+## Historical Initial Plan
 
-This should start in the `foundation` phase only.
+This section captures the pre-implementation starting plan from the beginning of the branch.
 
 ### 1. Formalize the host model
 
@@ -167,7 +169,7 @@ Do not reintroduce:
 
 If something is required, declare it explicitly and fail if it is absent.
 
-## Suggested Foundation Deliverables
+## Historical Foundation Deliverables
 
 The next agent should aim to produce:
 
@@ -177,7 +179,7 @@ The next agent should aim to produce:
 4. a minimal playbook graph for the foundation phase
 5. an initial migration plan from current runtime layout into the new control plane
 
-## Practical Starting Point
+## Historical Practical Starting Point
 
 The first hot-path roles to model after foundation are likely:
 
@@ -703,6 +705,18 @@ Current review result:
 - no direct ownership violations found in tranche contracts
 - residual risk has shifted from Ansible role overlap to the future Stow-to-chezmoi cutover of `$HOME` content
 
+## Ownership Review: Tranches 1-5
+
+The tranche review has now been extended across the full implemented hot-path set in:
+
+- `docs/architecture/ownership-review-tranches-1-5.md`
+
+Current review result:
+
+- no direct ownership violations were found through tranche 5
+- the main remaining risk is no longer Ansible role overlap
+- the main remaining risk is still partial ownership during Stow-to-chezmoi cutover of `$HOME`
+
 ## Generated-source Expansion and Cutover Design
 
 The generated-source model now expands beyond the first session-core slice.
@@ -942,3 +956,14 @@ This confirms the first cutover flow now works in isolation for the current sess
 - isolated Arch Docker validation completed successfully after the `chezmoi --destination` fix
 - `cutover-host.sh --execute` rebuilt generated source, removed migrated repo-managed paths, re-ran Stow carve-outs, and applied chezmoi state into `/home/arch`
 - post-cutover checks confirmed migrated config paths became materialized files/directories while non-migrated `.local/bin` paths remained Stow-managed
+
+## Post-cutover Canonical Package Evolution
+
+User-session behavior inside already-sliced canonical package paths can continue to evolve without changing the chezmoi control-plane shape.
+
+The important rule is:
+
+- package-path changes inside the active session manifests are picked up automatically by the next generated-source build
+- that should be treated as normal canonical-source evolution, not as control-plane drift
+
+This matters for ongoing Hyprland session work because monitor, autostart, or theme-manager-adjacent refinements may land inside canonical package paths that are already part of the generated-source slice set.

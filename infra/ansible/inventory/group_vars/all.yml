@@ -2,7 +2,7 @@
 dotfiles_architecture:
   system_owner: ansible
   user_owner: chezmoi
-  phase: foundation
+  migration_stage: hot_paths
   no_fallbacks: true
 
 dotfiles_supported_os_families:
@@ -16,3 +16,13 @@ dotfiles_supported_distribution_families:
   debian:
     - Debian
     - Ubuntu
+
+dotfiles_group_capability_map:
+  tlp: tlp
+  fingerprint: fingerprint
+  netbird: netbird
+  fortinet_vpn: fortinet_vpn
+
+dotfiles_group_gpu_map:
+  amd-gpu: amd_gpu
+  nvidia: nvidia

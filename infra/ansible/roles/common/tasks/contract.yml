@@ -40,12 +40,37 @@
     fail_msg: >-
       Host '{{ inventory_hostname }}' has unsupported host_desktop_stack '{{ host_desktop_stack }}'.
 
+- name: Assert host identity groups are aligned with host metadata
+  ansible.builtin.assert:
+    that:
+      - host_role in group_names
+      - host_platform_family in group_names
+      - host_desktop_stack == 'none' or host_desktop_stack in group_names
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' inventory group placement is not aligned with its declared role/platform/desktop metadata.
+
+- name: Assert capability groups are aligned with host_capabilities
+  ansible.builtin.assert:
+    that:
+      - ((item.key in host_capabilities) == (item.value in group_names))
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' has capability/group drift for '{{ item.key }}' and inventory group '{{ item.value }}'.
+  loop: "{{ dotfiles_group_capability_map | dict2items }}"
+
+- name: Assert GPU groups are aligned with host_gpu_stack
+  ansible.builtin.assert:
+    that:
+      - ((item.key in host_gpu_stack) == (item.value in group_names))
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' has gpu-stack/group drift for '{{ item.key }}' and inventory group '{{ item.value }}'.
+  loop: "{{ dotfiles_group_gpu_map | dict2items }}"
+
 - name: Assert ownership boundaries are pinned
   ansible.builtin.assert:
     that:
       - dotfiles_architecture.system_owner == 'ansible'
       - dotfiles_architecture.user_owner == 'chezmoi'
-      - dotfiles_architecture.phase == 'foundation'
+      - dotfiles_architecture.migration_stage == 'hot_paths'
       - dotfiles_architecture.no_fallbacks | bool
     fail_msg: >-
-      The global foundation contract is not aligned with the approved Ansible + chezmoi architecture.
+      The global architecture contract is not aligned with the approved Ansible + chezmoi migration state.
