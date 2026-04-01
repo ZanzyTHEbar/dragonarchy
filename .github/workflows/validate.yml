@@ -34,13 +34,34 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install shellcheck
-        run: sudo apt-get install -y shellcheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
 
       - name: Lint all shell scripts
         run: |
-          find scripts/lib/ scripts/install/ hosts/*/setup.sh install.sh \
+          find scripts/lib/ scripts/install/ infra/chezmoi/scripts/ hosts/*/setup.sh install.sh \
             -name '*.sh' -type f -print0 \
             | xargs -0 shellcheck -x -s bash
+
+  ansible-syntax:
+    name: Ansible Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ansible
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ansible
+
+      - name: Syntax check foundation playbook
+        working-directory: infra/ansible
+        run: ansible-playbook -i inventory/hosts.yml playbooks/foundation.yml --syntax-check
+
+      - name: Syntax check full site playbook
+        working-directory: infra/ansible
+        run: ansible-playbook -i inventory/hosts.yml playbooks/site.yml --syntax-check
 
   syntax-check:
     name: Bash Syntax Check

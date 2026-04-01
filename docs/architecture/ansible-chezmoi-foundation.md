@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the foundation batch for the new control plane.
+This document defines the foundation of the new control plane and how that foundation extends into the currently implemented hot-path migration work.
 
 The approved architecture is a clean break:
 
@@ -12,7 +12,15 @@ The approved architecture is a clean break:
 
 The foundation batch exists to establish explicit ownership, explicit host identity, and explicit execution boundaries before any hot-path migration begins.
 
-## Scope
+That foundation is no longer hypothetical in this branch.
+
+The current branch now includes:
+
+- the foundation control-plane skeleton
+- hot-path tranches `1` through `5`
+- the first chezmoi generated-source and cutover-control-plane tooling
+
+## Foundation scope
 
 Foundation includes:
 
@@ -32,6 +40,10 @@ Foundation excludes:
 - user dotfile migration
 - secrets migration
 - CI and full automation wiring
+
+Those exclusions apply to the foundation batch itself.
+
+They do not describe the current branch as a whole, because later hot-path tranches and the first chezmoi migration-control tooling are now implemented.
 
 ## Control-plane layout
 
@@ -89,10 +101,20 @@ The long-term execution order remains:
 4. review
 5. iterate
 
-Current playbook graph is intentionally minimal:
+The current execution entrypoint remains intentionally simple:
 
-- `playbooks/foundation.yml`
-- `playbooks/site.yml`
+- `playbooks/foundation.yml` enforces the shared contract directly
+- `playbooks/site.yml` is the main entrypoint and currently routes through `hot-path-tranche-5.yml`
+
+The effective playbook chain is:
+
+1. `foundation.yml`
+2. `hot-path-tranche-1.yml`
+3. `hot-path-tranche-2.yml`
+4. `hot-path-tranche-3.yml`
+5. `hot-path-tranche-4.yml`
+6. `hot-path-tranche-5.yml`
+7. `site.yml`
 
 ## Design constraints
 
