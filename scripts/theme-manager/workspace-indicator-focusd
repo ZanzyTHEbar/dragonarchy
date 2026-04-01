@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+#
+# workspace-indicator-focusd
+#
+# Keep the workspace-indicator service bound to the currently focused monitor.
+# The indicator daemon itself binds correctly when it starts, so this watcher
+# restarts the service only when monitor focus changes.
+#
+set -euo pipefail
+IFS=$'\n\t'
+
+POLL_SECONDS="${WORKSPACE_INDICATOR_FOCUSD_POLL_SECONDS:-1}"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/workspace-indicator-focusd"
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+focused_monitor() {
+  hyprctl monitors -j | jq -r '.[] | select(.focused == true) | .name' | head -n1
+}
+
+main() {
+  have_cmd hyprctl || exit 0
+  have_cmd jq || exit 0
+  have_cmd systemctl || exit 0
+
+  mkdir -p "$CACHE_DIR"
+  if have_cmd flock; then
+    exec 9>"$CACHE_DIR/lock"
+    flock -n 9 || exit 0
+  fi
+
+  local last=""
+  while true; do
+    local current=""
+    current="$(focused_monitor 2>/dev/null || true)"
+
+    if [[ -n "$current" && "$current" != "$last" ]]; then
+      systemctl --user restart workspace-indicator.service >/dev/null 2>&1 || true
+      last="$current"
+    fi
+
+    sleep "$POLL_SECONDS"
+  done
+}
+
+main "$@"

@@ -66,6 +66,16 @@ static double     opacity   = 0.0;
 static guint      tid_hide  = 0;      /* hide-delay timer */
 static guint      tid_fade  = 0;      /* fade-step  timer */
 static guint      tid_dbnc  = 0;      /* debounce   timer */
+static char       bound_monitor[128] = "";
+
+typedef struct {
+    char name[128];
+    int  x, y, width, height;
+    char make[128];
+    char model[128];
+} MonitorTarget;
+
+static void build_window(void);
 
 /* ── Theme palette loader ────────────────────────────────────────── */
 
@@ -159,6 +169,205 @@ static int json_all_ids(const char *js, int *ids, int max)
         p++;
     }
     return n;
+}
+
+static gboolean json_key_int(const char *js, const char *key, int *out)
+{
+    const char *p = strstr(js, key);
+    if (!p) return FALSE;
+
+    p += strlen(key);
+    while (isspace((unsigned char)*p)) p++;
+    *out = atoi(p);
+    return TRUE;
+}
+
+static gboolean json_key_bool(const char *js, const char *key, gboolean *out)
+{
+    const char *p = strstr(js, key);
+    if (!p) return FALSE;
+
+    p += strlen(key);
+    while (isspace((unsigned char)*p)) p++;
+
+    if (g_str_has_prefix(p, "true"))  { *out = TRUE;  return TRUE; }
+    if (g_str_has_prefix(p, "false")) { *out = FALSE; return TRUE; }
+    return FALSE;
+}
+
+static gboolean json_key_string(const char *js, const char *key,
+                                char *out, size_t out_sz)
+{
+    const char *p = strstr(js, key);
+    if (!p) return FALSE;
+
+    p += strlen(key);
+    while (isspace((unsigned char)*p)) p++;
+    if (*p != '"') return FALSE;
+    p++;
+
+    const char *end = strchr(p, '"');
+    if (!end) return FALSE;
+
+    g_strlcpy(out, p, MIN(out_sz, (size_t)(end - p + 1)));
+    return TRUE;
+}
+
+static gboolean focused_monitor_target(const char *js, MonitorTarget *target)
+{
+    const char *obj = NULL;
+    int depth = 0;
+
+    for (const char *p = js; *p; p++) {
+        if (*p == '{') {
+            if (depth == 0)
+                obj = p;
+            depth++;
+            continue;
+        }
+
+        if (*p != '}')
+            continue;
+
+        depth--;
+        if (depth != 0 || !obj)
+            continue;
+
+        char *chunk = g_strndup(obj, (gsize)(p - obj + 1));
+        gboolean focused = FALSE;
+        gboolean ok = json_key_bool(chunk, "\"focused\":", &focused) && focused &&
+                      json_key_int(chunk, "\"x\":",      &target->x) &&
+                      json_key_int(chunk, "\"y\":",      &target->y) &&
+                      json_key_int(chunk, "\"width\":",  &target->width) &&
+                      json_key_int(chunk, "\"height\":", &target->height);
+
+        if (ok) {
+            if (!json_key_string(chunk, "\"make\":", target->make, sizeof target->make))
+                target->make[0] = '\0';
+            if (!json_key_string(chunk, "\"model\":", target->model, sizeof target->model))
+                target->model[0] = '\0';
+            g_free(chunk);
+            return TRUE;
+        }
+
+        g_free(chunk);
+        obj = NULL;
+    }
+
+    return FALSE;
+}
+
+static gboolean monitor_target_by_name(const char *js, const char *name, MonitorTarget *target)
+{
+    const char *obj = NULL;
+    int depth = 0;
+
+    for (const char *p = js; *p; p++) {
+        if (*p == '{') {
+            if (depth == 0)
+                obj = p;
+            depth++;
+            continue;
+        }
+
+        if (*p != '}')
+            continue;
+
+        depth--;
+        if (depth != 0 || !obj)
+            continue;
+
+        char *chunk = g_strndup(obj, (gsize)(p - obj + 1));
+        char monitor_name[sizeof target->name] = {0};
+        gboolean ok = json_key_string(chunk, "\"name\":", monitor_name, sizeof monitor_name) &&
+                      g_strcmp0(monitor_name, name) == 0 &&
+                      json_key_int(chunk, "\"x\":",      &target->x) &&
+                      json_key_int(chunk, "\"y\":",      &target->y) &&
+                      json_key_int(chunk, "\"width\":",  &target->width) &&
+                      json_key_int(chunk, "\"height\":", &target->height);
+
+        if (ok) {
+            g_strlcpy(target->name, monitor_name, sizeof target->name);
+            if (!json_key_string(chunk, "\"make\":", target->make, sizeof target->make))
+                target->make[0] = '\0';
+            if (!json_key_string(chunk, "\"model\":", target->model, sizeof target->model))
+                target->model[0] = '\0';
+            g_free(chunk);
+            return TRUE;
+        }
+
+        g_free(chunk);
+        obj = NULL;
+    }
+
+    return FALSE;
+}
+
+static gboolean active_workspace_monitor_name(char *out, size_t out_sz)
+{
+    char *ws = run_cmd("hyprctl activeworkspace -j");
+    if (!ws) return FALSE;
+
+    gboolean ok = json_key_string(ws, "\"monitor\":", out, out_sz);
+    g_free(ws);
+    return ok;
+}
+
+static GdkMonitor *match_monitor_by_identity(GdkDisplay *display,
+                                             const MonitorTarget *target)
+{
+    int n = gdk_display_get_n_monitors(display);
+    for (int i = 0; i < n; i++) {
+        GdkMonitor *monitor = gdk_display_get_monitor(display, i);
+        const char *make = gdk_monitor_get_manufacturer(monitor);
+        const char *model = gdk_monitor_get_model(monitor);
+
+        if (target->make[0]  && g_strcmp0(make, target->make)  != 0) continue;
+        if (target->model[0] && g_strcmp0(model, target->model) != 0) continue;
+        return monitor;
+    }
+    return NULL;
+}
+
+static void bind_to_focused_monitor(void)
+{
+    GdkDisplay *display = gdk_display_get_default();
+    if (!display) return;
+
+    char *monitors = run_cmd("hyprctl monitors -j");
+    if (!monitors) return;
+
+    MonitorTarget target = {0};
+    char target_name[sizeof target.name] = {0};
+    gboolean resolved = active_workspace_monitor_name(target_name, sizeof target_name) &&
+                        monitor_target_by_name(monitors, target_name, &target);
+
+    if (!resolved && focused_monitor_target(monitors, &target))
+        resolved = TRUE;
+
+    if (!resolved) {
+        g_warning("workspace-indicator: could not resolve target monitor");
+        g_free(monitors);
+        return;
+    }
+    g_free(monitors);
+
+    GdkMonitor *monitor = match_monitor_by_identity(display, &target);
+    if (!monitor) {
+        /* Fallback to monitor lookup by the Hyprland layout origin. */
+        monitor = gdk_display_get_monitor_at_point(display, target.x + 1, target.y + 1);
+    }
+    if (!monitor) {
+        g_warning("workspace-indicator: no GDK monitor matched focused output");
+        return;
+    }
+
+    gtk_layer_set_monitor(GTK_WINDOW(win), monitor);
+    if (target.name[0])
+        g_strlcpy(bound_monitor, target.name, sizeof bound_monitor);
+
+    if (!gtk_widget_get_visible(win))
+        gtk_widget_show_all(win);
 }
 
 static void refresh_state(void)
@@ -301,6 +510,7 @@ static void show_indicator(void)
     if (tid_hide) { g_source_remove(tid_hide); tid_hide = 0; }
     if (tid_fade) { g_source_remove(tid_fade); tid_fade = 0; }
 
+    bind_to_focused_monitor();
     resize_da();
     gtk_widget_queue_draw(da);
     gtk_widget_set_opacity(win, 1.0);
@@ -431,6 +641,7 @@ static void build_window(void)
 
     g_signal_connect(win, "realize", G_CALLBACK(on_realize), NULL);
 
+    bind_to_focused_monitor();
     resize_da();
     gtk_widget_set_opacity(win, 0.0);
     gtk_widget_show_all(win);
