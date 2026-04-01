@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+#
+# dynamic-monitors
+#
+# Apply a stable Hyprland monitor layout across changing docks/outputs.
+# Policy:
+# - the internal panel (eDP/LVDS/DSI) is always the primary display at x=0
+# - external monitors are appended to the right, left-to-right
+# - preferred mode is used for every output
+# - scale is derived from panel DPI when physical dimensions are available
+#
+set -euo pipefail
+IFS=$'\n\t'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES_ROOT="${DOTFILES_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+
+# shellcheck disable=SC1090
+if [[ -f "$DOTFILES_ROOT/scripts/lib/logging.sh" ]]; then
+  source "$DOTFILES_ROOT/scripts/lib/logging.sh"
+else
+  log_info() { echo "[INFO] $1"; }
+  log_success() { echo "[SUCCESS] $1"; }
+  log_warning() { echo "[WARNING] $1" >&2; }
+  log_error() { echo "[ERROR] $1" >&2; }
+  log_step() { echo "[STEP] $1"; }
+fi
+
+POLL_SECONDS="${MONITOR_LAYOUT_POLL_SECONDS:-2}"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dynamic-monitors"
+
+usage() {
+  cat <<'EOF'
+dynamic-monitors - Hyprland monitor layout helper
+
+Commands:
+  --dry-run   Print the monitor commands that would be applied
+  --apply     Apply the current layout once
+  --watch     Watch for monitor topology changes and re-apply
+  --status    Validate dependencies and print the current topology signature
+
+Environment:
+  MONITOR_LAYOUT_POLL_SECONDS   Poll interval for --watch (default: 2)
+EOF
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+require_deps() {
+  local ok=0
+  if ! have_cmd hyprctl; then
+    log_error "hyprctl is required"
+    ok=1
+  fi
+  if ! have_cmd jq; then
+    log_error "jq is required"
+    ok=1
+  fi
+  return "$ok"
+}
+
+is_internal_name() {
+  [[ "$1" =~ ^(eDP|LVDS|DSI) ]]
+}
+
+scale_for_monitor() {
+  local name="$1"
+  local width="$2"
+  local physical_width_mm="$3"
+  local dpi=""
+
+  if [[ "$physical_width_mm" =~ ^[0-9]+$ ]] && (( physical_width_mm > 0 )); then
+    dpi="$(awk -v px="$width" -v mm="$physical_width_mm" 'BEGIN { printf "%.2f", px / (mm / 25.4) }')"
+    if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 170) }'; then
+      echo "2"
+      return 0
+    fi
+    if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 140) }'; then
+      echo "1.5"
+      return 0
+    fi
+    if is_internal_name "$name" && awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 115) }'; then
+      echo "1.25"
+      return 0
+    fi
+  fi
+
+  if is_internal_name "$name"; then
+    if (( width >= 2560 )); then
+      echo "2"
+    elif (( width >= 1920 )); then
+      echo "1.5"
+    else
+      echo "1"
+    fi
+    return 0
+  fi
+
+  echo "1"
+}
+
+monitors_json() {
+  hyprctl monitors -j
+}
+
+topology_signature() {
+  monitors_json | jq -r '
+    sort_by(.name)
+    | map([
+        .name,
+        (.description // ""),
+        (.width | tostring),
+        (.height | tostring),
+        (.physicalWidth | tostring),
+        (.physicalHeight | tostring)
+      ] | join(":"))
+    | join("|")
+  '
+}
+
+layout_rows() {
+  monitors_json | jq -r '
+    sort_by((if (.name | test("^(eDP|LVDS|DSI)")) then 0 else 1 end), .x, .name)
+    | .[]
+    | [
+        .name,
+        (.width | tostring),
+        (.height | tostring),
+        (.physicalWidth | tostring),
+        (.physicalHeight | tostring),
+        (if (.name | test("^(eDP|LVDS|DSI)")) then "1" else "0" end)
+      ]
+    | @tsv
+  '
+}
+
+apply_layout() {
+  local mode="${1:-apply}"
+  local xpos=0
+  local rows=()
+
+  mapfile -t rows < <(layout_rows)
+  if (( ${#rows[@]} == 0 )); then
+    log_warning "No active monitors detected"
+    return 1
+  fi
+
+  for row in "${rows[@]}"; do
+    local name width height physical_width physical_height internal scale spec
+    IFS=$'\t' read -r name width height physical_width physical_height internal <<<"$row"
+    scale="$(scale_for_monitor "$name" "$width" "$physical_width")"
+    spec="$name,preferred,${xpos}x0,${scale}"
+
+    if [[ "$mode" == "dry-run" ]]; then
+      printf 'hyprctl keyword monitor %q\n' "$spec"
+    else
+      log_info "Applying monitor layout: $spec"
+      hyprctl keyword monitor "$spec" >/dev/null
+    fi
+
+    xpos=$((xpos + width))
+  done
+}
+
+watch_layout() {
+  mkdir -p "$CACHE_DIR"
+  if have_cmd flock; then
+    exec 9>"$CACHE_DIR/lock"
+    if ! flock -n 9; then
+      log_info "dynamic-monitors is already running"
+      return 0
+    fi
+  fi
+
+  local last_signature=""
+  while true; do
+    local signature=""
+    signature="$(topology_signature 2>/dev/null || true)"
+    if [[ -n "$signature" && "$signature" != "$last_signature" ]]; then
+      log_step "Monitor topology changed; recalculating layout"
+      apply_layout apply || log_warning "Failed to apply dynamic monitor layout"
+      last_signature="$signature"
+    fi
+    sleep "$POLL_SECONDS"
+  done
+}
+
+status() {
+  require_deps
+  log_success "hyprctl and jq are available"
+  printf 'topology=%s\n' "$(topology_signature)"
+}
+
+main() {
+  local cmd="${1:---watch}"
+
+  case "$cmd" in
+    -h|--help)
+      usage
+      ;;
+    --dry-run)
+      require_deps
+      apply_layout dry-run
+      ;;
+    --apply)
+      require_deps
+      apply_layout apply
+      ;;
+    --watch)
+      require_deps
+      watch_layout
+      ;;
+    --status)
+      status
+      ;;
+    *)
+      log_error "Unknown option: $cmd"
+      usage >&2
+      return 2
+      ;;
+  esac
+}
+
+main "$@"

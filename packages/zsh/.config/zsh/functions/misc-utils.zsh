@@ -131,3 +131,27 @@ Request: $request"
         print -n "$script"
     fi
 }
+
+dotview() {
+  emulate -L zsh
+  local input="$1"
+  local format="${2:-png}"          # default PNG; pass svg/pdf/etc as 2nd arg
+  local base="${input:t:r}"         # basename without extension
+  local tmpout="/tmp/${base}.${format}"
+
+  if [[ -z "$input" || ! -f "$input" ]]; then
+    print -u2 "Usage: dotview <file.dot> [format]"
+    print -u2 "   e.g. dotview graph.dot          # → PNG"
+    print -u2 "        dotview graph.dot svg      # → SVG"
+    return 1
+  fi
+
+  # Render to /tmp (clean artifact location, never pollutes cwd)
+  dot -T"$format" "$input" -o "$tmpout" || return 1
+
+  # Open with whatever you registered (feh / imv / …)
+  xdg-open "$tmpout"
+
+  # Optional: echo the temp path for scripting/debug
+  print "Rendered → $tmpout"
+}

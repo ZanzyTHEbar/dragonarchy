@@ -18,6 +18,7 @@
 
 [platforms.arch.pacman.core_cli]
 packages = [
+    "xdg-utils",
     "vim",
     "kitty",
     "neovim",
@@ -61,6 +62,8 @@ packages = [
     "gum",
     "img2pdf",
     "cronie",
+    "feh",
+    "perl-file-mimeinfo"
 ]
 
 [platforms.arch.pacman.host_firedragon_laptop]
