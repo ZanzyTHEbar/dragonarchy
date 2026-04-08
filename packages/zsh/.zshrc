@@ -118,7 +118,7 @@ esac
 # pnpm end
 
 # >>> cursor-installer path >>>
-if [ -f "$HOME/.local/share/cursor-installer/shell-path.sh" ]; then
-  . "$HOME/.local/share/cursor-installer/shell-path.sh"
+if [ -f "/home/daofficialwizard/.local/share/cursor-installer/shell-path.sh" ]; then
+  . "/home/daofficialwizard/.local/share/cursor-installer/shell-path.sh"
 fi
 # <<< cursor-installer path <<<

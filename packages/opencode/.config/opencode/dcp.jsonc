@@ -1,0 +1,92 @@
+{
+    "$schema": "https://raw.githubusercontent.com/Opencode-DCP/opencode-dynamic-context-pruning/master/dcp.schema.json",
+
+    // Core
+    "enabled": true,
+    "debug": false,
+
+    // Keep notifications visible but not noisy
+    "pruneNotification": "minimal",
+    "pruneNotificationType": "toast",
+
+    // /dcp commands
+    "commands": {
+        "enabled": true,
+        // Additional protection for manual sweep actions
+        "protectedTools": ["question"],
+    },
+
+    // Autonomous mode by default, but keep cleanup active if manual mode is turned on later
+    "manualMode": {
+        "enabled": false,
+        "automaticStrategies": true,
+    },
+
+    // Keep very recent tool calls out of pruning strategies
+    "turnProtection": {
+        "enabled": true,
+        "turns": 4,
+    },
+
+    // Experimental features: keep stable defaults
+    "experimental": {
+        "allowSubAgents": true,
+        "customPrompts": false,
+    },
+
+    // Keep AI/config-management edits recoverable in long sessions
+    "protectedFilePatterns": [
+        "**/.opencode/**",
+        "**/opencode.json",
+        "**/opencode.jsonc",
+        "**/dcp.json",
+        "**/dcp.jsonc",
+        "**/tui.json",
+        "**/mcp.json",
+    ],
+
+    // Compression behavior
+    "compress": {
+        "mode": "range",
+        "permission": "allow",
+        "showCompression": false,
+
+        // Count active summary tokens as extra buffer before max-limit pressure
+        "summaryBuffer": true,
+
+        // Model-agnostic defaults (percentage of model context window)
+        "minContextLimit": "35%",
+        "maxContextLimit": "65%",
+
+        // Optional per-model tuning (uncomment and adapt if needed)
+        // "modelMinLimits": {
+        //   "openai/gpt-5.3-codex": "30%"
+        // },
+        // "modelMaxLimits": {
+        //   "openai/gpt-5.3-codex": "60%"
+        // },
+
+        "nudgeFrequency": 5,
+        "iterationNudgeThreshold": 12,
+        "nudgeForce": "soft",
+
+        // Keep high-value agent outputs and explicit user-choice tools embedded in summaries
+        "protectedTools": ["task", "skill", "question"],
+
+        // Let DCP compress very large pasted prompts and logs instead of pinning them forever
+        "protectUserMessages": false,
+    },
+
+    // Automatic cleanup strategies
+    "strategies": {
+        "deduplication": {
+            "enabled": true,
+            "protectedTools": [],
+        },
+        "purgeErrors": {
+            "enabled": true,
+            "turns": 4,
+            "protectedTools": [],
+        },
+    },
+}
