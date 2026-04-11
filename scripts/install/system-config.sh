@@ -14,6 +14,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/logging.sh"
 # shellcheck disable=SC1091  # Runtime-resolved path to bootloader library
 source "${SCRIPT_DIR}/../lib/bootloader.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/control-plane-mode.sh"
 
 export CONFIG_DIR
 CONFIG_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -169,6 +171,11 @@ main() {
     log_info "🔧 Starting system configuration (SAFE mode)"
     echo
     check_privileges
+
+    if dotfiles_system_owner_is_ansible; then
+        log_info "Skipping legacy system configuration because DOTFILES_SYSTEM_OWNER=ansible"
+        exit 0
+    fi
 
     setup_hardware_config
 
