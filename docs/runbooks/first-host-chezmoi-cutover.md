@@ -8,6 +8,10 @@ It is intentionally concrete.
 
 Use it when you want to move the current session-core plus session-shell slice from legacy Stow ownership to generated chezmoi ownership.
 
+For disposable Proxmox machine preparation before this runbook, use:
+
+- `docs/runbooks/proxmox-validation-template-workflow.md`
+
 ## Scope
 
 This runbook currently applies to the first generated-source slice set:

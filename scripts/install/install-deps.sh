@@ -1639,11 +1639,13 @@ finalize_setup() {
     
     # Change default shell to zsh
     if [[ "$SHELL" != */zsh ]] && command_exists zsh; then
+        local zsh_path
+        zsh_path="$(command -v zsh)"
         log_info "Changing default shell to zsh..."
-        if sudo chsh -s "$(which zsh)" "$current_user"; then
+        if sudo chsh -s "$zsh_path" "$current_user"; then
             log_success "Default shell changed to zsh. Please log out and back in."
         else
-            log_error "Failed to change default shell."
+            log_warning "Failed to change default shell."
         fi
     fi
     

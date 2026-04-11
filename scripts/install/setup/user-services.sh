@@ -287,6 +287,18 @@ else
     log_info "thermal-profile-init.service not present; skipping enablement"
 fi
 
+# --- Dynamic monitor layout service ---
+DYNAMIC_MONITORS_UNIT="dynamic-monitors.service"
+if systemctl --user list-unit-files --no-legend 2>/dev/null | grep -q "^${DYNAMIC_MONITORS_UNIT}"; then
+    if systemctl --user enable --now "${DYNAMIC_MONITORS_UNIT}" >/dev/null 2>&1; then
+        log_success "Dynamic monitors service enabled"
+    else
+        log_warning "Failed to enable dynamic-monitors.service"
+    fi
+else
+    log_info "dynamic-monitors.service not present; skipping enablement"
+fi
+
 # --- Quick hints ---
 log_info "Verify: systemctl --user status elephant"
 log_info "If socket busy, ExecStartPre cleans /tmp/elephant.sock"

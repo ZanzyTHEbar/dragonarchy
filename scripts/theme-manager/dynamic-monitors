@@ -6,8 +6,8 @@
 # Policy:
 # - the internal panel (eDP/LVDS/DSI) is always the primary display at x=0
 # - external monitors are appended to the right, left-to-right
-# - external monitors use their preferred mode
-# - internal high-DPI panels may prefer a lower native-compatible mode
+# - every monitor uses its preferred/native mode
+# - internal high-DPI panels prefer fractional scale over lower non-native modes
 # - scale is derived from panel DPI when physical dimensions are available
 #
 set -euo pipefail
@@ -74,25 +74,38 @@ scale_for_monitor() {
 
   if [[ "$physical_width_mm" =~ ^[0-9]+$ ]] && (( physical_width_mm > 0 )); then
     dpi="$(awk -v px="$width" -v mm="$physical_width_mm" 'BEGIN { printf "%.2f", px / (mm / 25.4) }')"
-    if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 170) }'; then
-      echo "2"
-      return 0
-    fi
-    if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 140) }'; then
-      echo "1.5"
-      return 0
-    fi
-    if is_internal_name "$name" && awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 115) }'; then
-      echo "1.25"
-      return 0
+    if is_internal_name "$name"; then
+      if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 240) }'; then
+        echo "2"
+        return 0
+      fi
+      if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 170) }'; then
+        echo "1.5"
+        return 0
+      fi
+      if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 135) }'; then
+        echo "1.25"
+        return 0
+      fi
+    else
+      if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 170) }'; then
+        echo "2"
+        return 0
+      fi
+      if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 140) }'; then
+        echo "1.5"
+        return 0
+      fi
     fi
   fi
 
   if is_internal_name "$name"; then
-    if (( width >= 2560 )); then
+    if (( width >= 3200 )); then
       echo "2"
-    elif (( width >= 1920 )); then
+    elif (( width >= 2560 )); then
       echo "1.5"
+    elif (( width >= 1920 )); then
+      echo "1.25"
     else
       echo "1"
     fi
@@ -134,87 +147,11 @@ native_dimensions_for_modes() {
 }
 
 choose_mode_for_monitor() {
-  local name="$1"
-  local native_width="$2"
-  local native_height="$3"
-  local physical_width_mm="$4"
-  local available_modes_b64="${5:-}"
-  local modes_json="[]"
-  local target_width=""
-  local selected_mode=""
-
-  if ! is_internal_name "$name"; then
-    echo "preferred"
-    return 0
-  fi
-
-  if [[ -n "$available_modes_b64" ]]; then
-    modes_json="$(printf '%s' "$available_modes_b64" | base64 -d 2>/dev/null || echo '[]')"
-  fi
-
-  if [[ "$physical_width_mm" =~ ^[0-9]+$ ]] && (( physical_width_mm > 0 )); then
-    target_width="$(awk -v mm="$physical_width_mm" 'BEGIN {
-      desired = (mm / 25.4) * 145;
-      if (desired < 1600) desired = 1600;
-      if (desired > 2304) desired = 2304;
-      printf "%.0f", desired
-    }')"
-  elif (( native_width >= 2800 )); then
-    target_width="1920"
-  elif (( native_width >= 2400 )); then
-    target_width="1800"
-  fi
-
-  if [[ -z "$target_width" ]] || (( target_width >= native_width )); then
-    echo "preferred"
-    return 0
-  fi
-
-  selected_mode="$(
-    printf '%s' "$modes_json" | jq -r \
-      --argjson native_width "$native_width" \
-      --argjson native_height "$native_height" \
-      --argjson target_width "$target_width" '
-      map(
-        . as $mode
-        | (capture("^(?<w>[0-9]+)x(?<h>[0-9]+)@(?<hz>[0-9.]+)Hz$")?)
-        | select(.)
-        | {
-            mode: $mode,
-            width: (.w | tonumber),
-            height: (.h | tonumber),
-            refresh: (.hz | tonumber)
-          }
-      )
-      | map(
-          select(
-            .width < $native_width
-            and .width >= 1600
-            and .width <= 2304
-            and (
-              (
-                ((.width / .height) - ($native_width / $native_height))
-                | if . < 0 then -. else . end
-              ) <= 0.10
-            )
-          )
-        )
-      | sort_by([
-          (
-            (.width - $target_width)
-            | if . < 0 then -. else . end
-          ),
-          -.refresh
-        ])
-      | .[0].mode // empty
-    '
-  )"
-
-  if [[ -n "$selected_mode" ]]; then
-    echo "$selected_mode"
-    return 0
-  fi
-
+  local _name="${1:-}"
+  local _native_width="${2:-}"
+  local _native_height="${3:-}"
+  local _physical_width_mm="${4:-}"
+  local _available_modes_b64="${5:-}"
   echo "preferred"
 }
 
@@ -223,11 +160,6 @@ scale_for_selected_mode() {
   local native_width="$2"
   local physical_width_mm="$3"
   local mode="$4"
-
-  if [[ "$mode" != "preferred" ]]; then
-    echo "1"
-    return 0
-  fi
 
   scale_for_monitor "$name" "$native_width" "$physical_width_mm"
 }

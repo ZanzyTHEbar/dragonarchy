@@ -79,6 +79,18 @@ PY
 declare -A package_paths=()
 declare -A host_paths=()
 declare -a migrated_paths=()
+common_runtime_ignore_flags=(
+  "--ignore=^\\.config/btop/themes/current\\.theme$"
+  "--ignore=^\\.config/walker/themes/current/style\\.css$"
+  "--ignore=^\\.config/kitty/colors\\.conf$"
+  "--ignore=^\\.config/gtk-3\\.0/(gtk\\.css|settings\\.ini)$"
+  "--ignore=^\\.config/gtk-4\\.0/(gtk\\.css|settings\\.ini)$"
+  "--ignore=^\\.config/hypr/config/keyboard\\.local\\.conf$"
+  "--ignore=^\\.config/hypr/colors-theme\\.conf$"
+  "--ignore=^\\.config/swaync/style\\.css$"
+  "--ignore=^\\.config/clipse/theme\\.toml$"
+  "--ignore=^\\.config/wlogout/wlogout\\.css$"
+)
 
 while IFS='|' read -r mode source_rel dest_rel; do
   [[ -z "${mode}" ]] && continue
@@ -114,14 +126,21 @@ printf '%s\n' "${migrated_paths[@]}" | sort -u | sed 's/^/  - /'
 
 for package_name in $(printf '%s\n' "${!package_paths[@]}" | sort); do
   printf '\nPackage carve-out for `%s`:\n' "${package_name}"
+  cmd=(stow --restow -d packages -t "\$HOME")
+  case "${package_name}" in
+    zsh|hyprland|kitty|gtk-3.0|gtk-4.0|wlogout)
+      cmd=(stow --no-folding --restow -d packages -t "\$HOME")
+      ;;
+  esac
   ignore_flags=()
   while IFS= read -r path; do
     [[ -z "${path}" ]] && continue
     escaped="$(regex_escape "${path}")"
     ignore_flags+=("--ignore=^${escaped}(/|\$)")
   done < <(printf '%s' "${package_paths[${package_name}]}" | sort -u)
+  ignore_flags+=("${common_runtime_ignore_flags[@]}")
 
-  printf '  %s\n' "stow --restow -d packages -t \"\$HOME\" ${ignore_flags[*]} ${package_name}"
+  printf '  %s\n' "${cmd[*]} ${ignore_flags[*]} ${package_name}"
 done
 
 for host_name in $(printf '%s\n' "${!host_paths[@]}" | sort); do

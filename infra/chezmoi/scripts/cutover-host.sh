@@ -110,6 +110,18 @@ declare -A package_paths=()
 declare -A host_paths=()
 declare -a migrated_paths=()
 blocked_paths=0
+common_runtime_ignore_flags=(
+  "--ignore=^\\.config/btop/themes/current\\.theme$"
+  "--ignore=^\\.config/walker/themes/current/style\\.css$"
+  "--ignore=^\\.config/kitty/colors\\.conf$"
+  "--ignore=^\\.config/gtk-3\\.0/(gtk\\.css|settings\\.ini)$"
+  "--ignore=^\\.config/gtk-4\\.0/(gtk\\.css|settings\\.ini)$"
+  "--ignore=^\\.config/hypr/config/keyboard\\.local\\.conf$"
+  "--ignore=^\\.config/hypr/colors-theme\\.conf$"
+  "--ignore=^\\.config/swaync/style\\.css$"
+  "--ignore=^\\.config/clipse/theme\\.toml$"
+  "--ignore=^\\.config/wlogout/wlogout\\.css$"
+)
 
 while IFS='|' read -r mode source_rel dest_rel; do
   [[ -z "${mode}" ]] && continue
@@ -152,6 +164,12 @@ verify_cmd+=(--output "${OUTPUT_PATH}")
 declare -a package_commands=()
 for package_name in $(printf '%s\n' "${!package_paths[@]}" | sort); do
   cmd=(stow --restow -d "${REPO_ROOT}/packages" -t "${TARGET_HOME}")
+  case "${package_name}" in
+    zsh|hyprland|kitty|gtk-3.0|gtk-4.0|wlogout)
+      cmd=(stow --no-folding --restow -d "${REPO_ROOT}/packages" -t "${TARGET_HOME}")
+      ;;
+  esac
+  cmd+=("${common_runtime_ignore_flags[@]}")
   while IFS= read -r path; do
     [[ -z "${path}" ]] && continue
     escaped="$(regex_escape "${path}")"
@@ -173,7 +191,46 @@ for host_name in $(printf '%s\n' "${!host_paths[@]}" | sort); do
   host_commands+=("cd $(printf '%q' "${REPO_ROOT}/hosts/${host_name}/dotfiles") && $(printf '%q ' "${cmd[@]}")")
 done
 
-path_is_repo_managed() {
+is_repo_symlink() {
+  local path="$1"
+  [[ -L "${path}" ]] || return 1
+
+  local resolved
+  resolved="$(readlink -f "${path}" 2>/dev/null || true)"
+  [[ -n "${resolved}" && "${resolved}" == "${REPO_ROOT}"/* ]]
+}
+
+path_has_blockers() {
+  local path="$1"
+
+  if [[ ! -e "${path}" && ! -L "${path}" ]]; then
+    return 1
+  fi
+
+  if [[ -L "${path}" ]]; then
+    if is_repo_symlink "${path}"; then
+      return 1
+    fi
+    return 0
+  fi
+
+  if [[ -f "${path}" ]]; then
+    return 0
+  fi
+
+  if [[ -d "${path}" ]]; then
+    while IFS= read -r entry; do
+      if ! is_repo_symlink "${entry}"; then
+        return 0
+      fi
+    done < <(find "${path}" -type l -print)
+    return 1
+  fi
+
+  return 0
+}
+
+repo_managed_targets() {
   local path="$1"
 
   if [[ ! -e "${path}" && ! -L "${path}" ]]; then
@@ -181,35 +238,19 @@ path_is_repo_managed() {
   fi
 
   if [[ -L "${path}" ]]; then
-    local resolved
-    resolved="$(readlink -f "${path}" 2>/dev/null || true)"
-    [[ -n "${resolved}" && "${resolved}" == "${REPO_ROOT}"/* ]]
-    return
-  fi
-
-  if [[ -f "${path}" ]]; then
-    return 1
+    if is_repo_symlink "${path}"; then
+      printf '%s\n' "${path}"
+    fi
+    return 0
   fi
 
   if [[ -d "${path}" ]]; then
     while IFS= read -r entry; do
-      if [[ -L "${entry}" ]]; then
-        local resolved
-        resolved="$(readlink -f "${entry}" 2>/dev/null || true)"
-        if [[ -z "${resolved}" || "${resolved}" != "${REPO_ROOT}"/* ]]; then
-          return 1
-        fi
-        continue
+      if is_repo_symlink "${entry}"; then
+        printf '%s\n' "${entry}"
       fi
-
-      if [[ -f "${entry}" ]]; then
-        return 1
-      fi
-    done < <(find "${path}" -mindepth 1 \( -type f -o -type l \) -print)
-    return 0
+    done < <(find "${path}" -type l -print)
   fi
-
-  return 1
 }
 
 print_header() {
@@ -226,13 +267,15 @@ print_header() {
 remove_path() {
   local home_rel="$1"
   local target_path="${TARGET_HOME}/${home_rel}"
+  local removable_target=""
+  declare -a removable_targets=()
 
   if [[ ! -e "${target_path}" && ! -L "${target_path}" ]]; then
     echo "SKIP ${target_path} (absent)"
     return 0
   fi
 
-  if ! path_is_repo_managed "${target_path}"; then
+  if path_has_blockers "${target_path}"; then
     echo "BLOCKED ${target_path} (not repo-managed)" >&2
     blocked_paths=$((blocked_paths + 1))
     if [[ "${EXECUTE}" == "true" ]]; then
@@ -241,10 +284,26 @@ remove_path() {
     return 0
   fi
 
+  while IFS= read -r removable_target; do
+    [[ -n "${removable_target}" ]] || continue
+    removable_targets+=("${removable_target}")
+  done < <(repo_managed_targets "${target_path}")
+
+  if [[ ${#removable_targets[@]} -eq 0 ]]; then
+    echo "SKIP ${target_path} (no repo-managed entries)"
+    return 0
+  fi
+
   if [[ "${EXECUTE}" == "true" ]]; then
-    mkdir -p "${BACKUP_ROOT}/$(dirname "${home_rel}")"
-    cp -a "${target_path}" "${BACKUP_ROOT}/${home_rel}"
-    rm -rf "${target_path}"
+    for removable_target in "${removable_targets[@]}"; do
+      local backup_rel="${removable_target#${TARGET_HOME}/}"
+      mkdir -p "${BACKUP_ROOT}/$(dirname "${backup_rel}")"
+      cp -a "${removable_target}" "${BACKUP_ROOT}/${backup_rel}"
+      rm -rf "${removable_target}"
+    done
+    if [[ -d "${target_path}" ]]; then
+      find "${target_path}" -mindepth 1 -depth -type d -empty -delete
+    fi
     echo "REMOVED ${target_path}"
     return 0
   fi
@@ -304,7 +363,7 @@ chezmoi_common_flags=(
   --destination "${TARGET_HOME}"
 )
 chezmoi_diff_cmd="chezmoi $(printf '%q ' "${chezmoi_common_flags[@]}") diff"
-chezmoi_apply_cmd="chezmoi $(printf '%q ' "${chezmoi_common_flags[@]}") apply"
+chezmoi_apply_cmd="chezmoi $(printf '%q ' "${chezmoi_common_flags[@]}") apply --force"
 
 run_command "${chezmoi_diff_cmd}"
 run_command "${chezmoi_apply_cmd}"
