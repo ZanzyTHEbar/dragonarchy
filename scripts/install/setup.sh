@@ -11,6 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../lib/logging.sh"
 source "${SCRIPT_DIR}/../lib/platform.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/control-plane-mode.sh"
 SETUP_SCRIPT_DIR="$SCRIPT_DIR/setup"
 HEADLESS_MODE=false
 
@@ -53,6 +55,12 @@ should_run_script() {
     platform_key=$(canonical_platform_key "$platform")
 
     case "$script_name" in
+        power-management.sh|system-services.sh)
+            if dotfiles_system_owner_is_ansible; then
+                return 1
+            fi
+            return 0
+            ;;
         pacman-tweaks.sh|steam.sh)
             [[ "$platform_key" == "arch" ]]
             return

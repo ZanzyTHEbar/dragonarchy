@@ -63,7 +63,7 @@ packages = [
     "img2pdf",
     "cronie",
     "feh",
-    "perl-file-mimeinfo"
+    "perl-file-mimeinfo",
 ]
 
 [platforms.arch.pacman.host_firedragon_laptop]
@@ -183,6 +183,7 @@ packages = [
     "pipewire-pulse",
     "plocate",
     "playerctl",
+    "polkit",
     "polkit-gnome",
     "power-profiles-daemon",
     "qt6-svg",

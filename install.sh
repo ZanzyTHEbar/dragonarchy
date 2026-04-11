@@ -22,6 +22,8 @@ source "${SCRIPT_DIR}/scripts/lib/stow-helpers.sh"
 source "${SCRIPT_DIR}/scripts/lib/icons.sh"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/scripts/lib/fresh-mode.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/scripts/lib/control-plane-mode.sh"
 
 CONFIG_DIR="$SCRIPT_DIR"
 PACKAGES_DIR="$CONFIG_DIR/packages"
@@ -436,6 +438,11 @@ setup_dotfiles() {
     if [[ "$INSTALL_DOTFILES" != "true" ]]; then
         return 0
     fi
+
+    if dotfiles_user_owner_is_chezmoi; then
+        log_info "Skipping legacy user Stow because DOTFILES_USER_OWNER=chezmoi"
+        return 0
+    fi
     
     log_step "Setting up dotfiles with GNU Stow..."
     
@@ -679,6 +686,11 @@ setup_dotfiles() {
 
 # Stow system packages
 stow_system_packages() {
+    if dotfiles_system_owner_is_ansible; then
+        log_info "Skipping system Stow because DOTFILES_SYSTEM_OWNER=ansible"
+        return 0
+    fi
+
     log_step "Stowing system packages..."
     local stow_script="$SCRIPTS_DIR/install/stow-system.sh"
     if [[ -f "$stow_script" ]]; then
@@ -803,23 +815,31 @@ setup_host_config() {
     
     if [[ -d "$host_config_dir" ]]; then
         log_info "Loading host-specific configuration from $host_config_dir"
-        
-        # Stow host-specific system files first
-        stow_system_packages
-        
-        # Source host-specific setup script if it exists
-        if [[ -f "$host_config_dir/setup.sh" ]]; then
-            log_info "Running host-specific setup script..."
-            if [[ "$RESET_STATE" == "true" ]]; then
-                bash "$host_config_dir/setup.sh" --reset
-            else
-                bash "$host_config_dir/setup.sh"
+
+        if dotfiles_system_owner_is_ansible; then
+            log_info "Skipping legacy host system writers because DOTFILES_SYSTEM_OWNER=ansible"
+        else
+            # Stow host-specific system files first
+            stow_system_packages
+
+            # Source host-specific setup script if it exists
+            if [[ -f "$host_config_dir/setup.sh" ]]; then
+                log_info "Running host-specific setup script..."
+                if [[ "$RESET_STATE" == "true" ]]; then
+                    bash "$host_config_dir/setup.sh" --reset
+                else
+                    bash "$host_config_dir/setup.sh"
+                fi
             fi
         fi
-        
+
         # Install host-specific dotfiles if they exist
         if [[ -d "$host_config_dir/dotfiles" ]]; then
-            stow_host_dotfiles "$host_config_dir/dotfiles" "$HOST"
+            if dotfiles_user_owner_is_chezmoi; then
+                log_info "Skipping host dotfile Stow because DOTFILES_USER_OWNER=chezmoi"
+            else
+                stow_host_dotfiles "$host_config_dir/dotfiles" "$HOST"
+            fi
         fi
         
         log_success "Host-specific configuration completed"
@@ -1025,57 +1045,61 @@ main() {
         
         # Setup SDDM themes if SDDM is installed
         if command -v sddm >/dev/null 2>&1; then
-            log_info "Setting up SDDM themes..."
-            if [[ -x "$SCRIPTS_DIR/theme-manager/refresh-sddm" ]]; then
-                bash "$SCRIPTS_DIR/theme-manager/refresh-sddm" -y
-                
-                if [[ -x "$SCRIPTS_DIR/theme-manager/sddm-set" ]]; then
-                    local sddm_theme_to_set="$SDDM_THEME"
-                    local sddm_themes_dir="$PACKAGES_DIR/sddm/usr/share/sddm/themes"
+            if dotfiles_system_owner_is_ansible; then
+                log_info "Skipping legacy SDDM theme writes because DOTFILES_SYSTEM_OWNER=ansible"
+            else
+                log_info "Setting up SDDM themes..."
+                if [[ -x "$SCRIPTS_DIR/theme-manager/refresh-sddm" ]]; then
+                    bash "$SCRIPTS_DIR/theme-manager/refresh-sddm" -y
 
-                    # If --sddm-theme was given, validate it
-                    if [[ -n "$sddm_theme_to_set" ]]; then
-                        if [[ ! -d "$sddm_themes_dir/$sddm_theme_to_set" ]]; then
-                            log_error "SDDM theme '$sddm_theme_to_set' not found in $sddm_themes_dir"
-                            log_info "Available themes:"
-                            find "$sddm_themes_dir" -mindepth 1 -maxdepth 1 -type d -printf "  %f\n" 2>/dev/null | sort
-                            log_warning "Falling back to default SDDM theme: catppuccin-mocha-sky-sddm"
-                            sddm_theme_to_set="catppuccin-mocha-sky-sddm"
-                        fi
-                    fi
+                    if [[ -x "$SCRIPTS_DIR/theme-manager/sddm-set" ]]; then
+                        local sddm_theme_to_set="$SDDM_THEME"
+                        local sddm_themes_dir="$PACKAGES_DIR/sddm/usr/share/sddm/themes"
 
-                    # Interactive selection if no theme specified and gum is available
-                    if [[ -z "$sddm_theme_to_set" ]] && [[ -t 0 ]] && command -v gum >/dev/null 2>&1; then
-                        local -a available_themes=()
-                        while IFS= read -r d; do
-                            available_themes+=("$(basename "$d")")
-                        done < <(find "$sddm_themes_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
-
-                        if [[ ${#available_themes[@]} -gt 0 ]]; then
-                            log_info "Select an SDDM theme (or press Ctrl-C to keep current):"
-                            local chosen
-                            chosen=$(printf '%s\n' "${available_themes[@]}" | gum choose --header="Select SDDM theme") || true
-                            if [[ -n "$chosen" ]]; then
-                                sddm_theme_to_set="$chosen"
+                        # If --sddm-theme was given, validate it
+                        if [[ -n "$sddm_theme_to_set" ]]; then
+                            if [[ ! -d "$sddm_themes_dir/$sddm_theme_to_set" ]]; then
+                                log_error "SDDM theme '$sddm_theme_to_set' not found in $sddm_themes_dir"
+                                log_info "Available themes:"
+                                find "$sddm_themes_dir" -mindepth 1 -maxdepth 1 -type d -printf "  %f\n" 2>/dev/null | sort
+                                log_warning "Falling back to default SDDM theme: catppuccin-mocha-sky-sddm"
+                                sddm_theme_to_set="catppuccin-mocha-sky-sddm"
                             fi
                         fi
-                    fi
 
-                    # Fall back to default if still unset and no theme configured
-                    if [[ -z "$sddm_theme_to_set" ]] && [[ ! -f /etc/sddm.conf.d/10-theme.conf ]]; then
-                        sddm_theme_to_set="catppuccin-mocha-sky-sddm"
-                        log_info "No SDDM theme specified; using default: $sddm_theme_to_set"
-                    fi
+                        # Interactive selection if no theme specified and gum is available
+                        if [[ -z "$sddm_theme_to_set" ]] && [[ -t 0 ]] && command -v gum >/dev/null 2>&1; then
+                            local -a available_themes=()
+                            while IFS= read -r d; do
+                                available_themes+=("$(basename "$d")")
+                            done < <(find "$sddm_themes_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
 
-                    if [[ -n "$sddm_theme_to_set" ]]; then
-                        log_info "Setting SDDM theme to $sddm_theme_to_set..."
-                        bash "$SCRIPTS_DIR/theme-manager/sddm-set" "$sddm_theme_to_set"
-                    else
-                        log_info "SDDM theme already configured, skipping..."
+                            if [[ ${#available_themes[@]} -gt 0 ]]; then
+                                log_info "Select an SDDM theme (or press Ctrl-C to keep current):"
+                                local chosen
+                                chosen=$(printf '%s\n' "${available_themes[@]}" | gum choose --header="Select SDDM theme") || true
+                                if [[ -n "$chosen" ]]; then
+                                    sddm_theme_to_set="$chosen"
+                                fi
+                            fi
+                        fi
+
+                        # Fall back to default if still unset and no theme configured
+                        if [[ -z "$sddm_theme_to_set" ]] && [[ ! -f /etc/sddm.conf.d/10-theme.conf ]]; then
+                            sddm_theme_to_set="catppuccin-mocha-sky-sddm"
+                            log_info "No SDDM theme specified; using default: $sddm_theme_to_set"
+                        fi
+
+                        if [[ -n "$sddm_theme_to_set" ]]; then
+                            log_info "Setting SDDM theme to $sddm_theme_to_set..."
+                            bash "$SCRIPTS_DIR/theme-manager/sddm-set" "$sddm_theme_to_set"
+                        else
+                            log_info "SDDM theme already configured, skipping..."
+                        fi
                     fi
+                else
+                    log_warning "refresh-sddm script not found, skipping SDDM theme setup"
                 fi
-            else
-                log_warning "refresh-sddm script not found, skipping SDDM theme setup"
             fi
         else
             log_info "SDDM not installed, skipping SDDM theme setup"
@@ -1106,25 +1130,29 @@ main() {
     
     # System configuration (requires root)
     if [[ "$NO_SYSTEM_CONFIG" != "true" && "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
-        log_info "Setting up system-level configuration..."
-        if [[ $EUID -eq 0 ]]; then
-            log_info "Running system configuration as root..."
-            "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
+        if dotfiles_system_owner_is_ansible; then
+            log_info "Skipping legacy system configuration because DOTFILES_SYSTEM_OWNER=ansible"
         else
-            log_info "System configuration requires root privileges. You will be prompted for your password..."
-            if sudo -v 2>/dev/null; then
-                log_info "Running system configuration with sudo..."
-                sudo bash "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
+            log_info "Setting up system-level configuration..."
+            if [[ $EUID -eq 0 ]]; then
+                log_info "Running system configuration as root..."
+                "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
             else
-                log_error "Failed to authenticate with sudo. System configuration will be skipped."
-                log_info "To install system configurations later, run:"
-                log_info "  sudo bash $SCRIPTS_DIR/install/system-config.sh"
-                log_info ""
-                log_info "Or install PAM configuration separately:"
-                log_info "  sudo bash $SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"
+                log_info "System configuration requires root privileges. You will be prompted for your password..."
+                if sudo -v 2>/dev/null; then
+                    log_info "Running system configuration with sudo..."
+                    sudo bash "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
+                else
+                    log_error "Failed to authenticate with sudo. System configuration will be skipped."
+                    log_info "To install system configurations later, run:"
+                    log_info "  sudo bash $SCRIPTS_DIR/install/system-config.sh"
+                    log_info ""
+                    log_info "Or install PAM configuration separately:"
+                    log_info "  sudo bash $SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"
+                fi
             fi
+            echo
         fi
-        echo
     else
         if [[ "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
             log_warning "System configuration skipped due to --no-system-config flag"
