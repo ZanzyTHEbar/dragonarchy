@@ -22,3 +22,14 @@
       - ansible_facts.services[item].state == 'running'
     fail_msg: "Expected ASUS laptop service {{ item }} to be installed and running."
   loop: "{{ asus_laptop_managed_services }}"
+
+- name: Check ASUS performance profile
+  ansible.builtin.command: asusctl profile -p
+  register: asus_laptop_verified_profile
+  changed_when: false
+
+- name: Assert ASUS performance profile is Balanced
+  ansible.builtin.assert:
+    that:
+      - "'Balanced' in asus_laptop_verified_profile.stdout"
+    fail_msg: "Expected ASUS performance profile to be Balanced."

@@ -70,6 +70,11 @@
     executable: /bin/bash
   changed_when: false
 
-- name: Set ASUS laptop performance profile to Balanced
-  ansible.builtin.command: asusctl profile -n Balanced
+- name: Read current ASUS performance profile
+  ansible.builtin.command: asusctl profile -p
+  register: asus_laptop_current_profile
   changed_when: false
+
+- name: Set ASUS laptop performance profile to Balanced
+  ansible.builtin.command: asusctl profile set Balanced
+  when: "'Balanced' not in asus_laptop_current_profile.stdout"

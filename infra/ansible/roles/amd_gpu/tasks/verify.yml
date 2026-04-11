@@ -1,14 +1,25 @@
 ---
+- name: Determine whether AMD Vulkan tooling is part of the host contract
+  ansible.builtin.set_fact:
+    amd_gpu_expect_vulkaninfo: >-
+      {{
+        'vulkan-tools' in
+        (amd_gpu_packages_by_platform[host_platform_family][inventory_hostname] | default([]))
+      }}
+
 - name: Check AMD Vulkan command availability
   ansible.builtin.shell: "command -v vulkaninfo"
   register: amd_gpu_vulkaninfo_command
   changed_when: false
+  failed_when: false
+  when: amd_gpu_expect_vulkaninfo
 
 - name: Assert AMD Vulkan command exists
   ansible.builtin.assert:
     that:
       - amd_gpu_vulkaninfo_command.rc == 0
     fail_msg: "Expected vulkaninfo to be available."
+  when: amd_gpu_expect_vulkaninfo
 
 - name: Check AMD modules-load file
   ansible.builtin.stat:
