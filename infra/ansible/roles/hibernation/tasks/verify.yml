@@ -1,0 +1,71 @@
+---
+- name: Read hibernation state file
+  ansible.builtin.slurp:
+    path: "{{ hibernation_state_file }}"
+  register: hibernation_state_raw
+
+- name: Decode hibernation state file
+  ansible.builtin.set_fact:
+    hibernation_state_text: "{{ hibernation_state_raw.content | b64decode }}"
+
+- name: Assert hibernation state file captures chosen swap metadata
+  ansible.builtin.assert:
+    that:
+      - hibernation_state_text is search('(?m)^CHOSEN_NAME=')
+      - hibernation_state_text is search('(?m)^RESUME_PARAMS=')
+    fail_msg: >-
+      Hibernation state file '{{ hibernation_state_file }}' is missing required metadata.
+
+- name: Read chosen swap and bootloader from hibernation state file
+  ansible.builtin.shell: |
+    set -euo pipefail
+    source "{{ hibernation_state_file }}"
+    printf 'CHOSEN_NAME=%s\n' "$CHOSEN_NAME"
+    printf 'BOOTLOADER=%s\n' "$BOOTLOADER"
+  args:
+    executable: /bin/bash
+  register: hibernation_state_vars
+  changed_when: false
+
+- name: Decode chosen swap and bootloader
+  ansible.builtin.set_fact:
+    hibernation_chosen_name: "{{ hibernation_state_vars.stdout_lines[0].split('=', 1)[1] }}"
+    hibernation_bootloader: "{{ hibernation_state_vars.stdout_lines[1].split('=', 1)[1] }}"
+
+- name: Gather active swap devices
+  ansible.builtin.command: swapon --show --noheadings --output=NAME
+  register: hibernation_swapon
+  changed_when: false
+
+- name: Assert chosen swap is active
+  ansible.builtin.assert:
+    that:
+      - hibernation_chosen_name in hibernation_swapon.stdout_lines
+    fail_msg: >-
+      Expected chosen hibernation swap '{{ hibernation_chosen_name }}' to be active.
+
+- name: Read mkinitcpio hooks line
+  ansible.builtin.command: grep -E '^HOOKS=' /etc/mkinitcpio.conf
+  register: hibernation_mkinitcpio_hooks
+  changed_when: false
+
+- name: Assert mkinitcpio contains a resume hook
+  ansible.builtin.assert:
+    that:
+      - "'resume' in hibernation_mkinitcpio_hooks.stdout"
+    fail_msg: >-
+      Expected /etc/mkinitcpio.conf to contain resume or sd-resume hook configuration.
+
+- name: Check Limine hibernation drop-in when Limine is active
+  ansible.builtin.stat:
+    path: /etc/limine-entry-tool.d/20-hibernate.conf
+  register: hibernation_limine_dropin
+  when: hibernation_bootloader == 'limine'
+
+- name: Assert Limine hibernation drop-in exists when Limine is active
+  ansible.builtin.assert:
+    that:
+      - hibernation_limine_dropin.stat.exists
+    fail_msg: >-
+      Expected /etc/limine-entry-tool.d/20-hibernate.conf to exist for Limine-managed hibernation.
+  when: hibernation_bootloader == 'limine'

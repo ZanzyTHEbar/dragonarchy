@@ -1,0 +1,36 @@
+---
+- name: Ensure shared helper directory exists for hibernation role
+  ansible.builtin.file:
+    path: "{{ hibernation_helper_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install shared bootloader helper for hibernation role
+  ansible.builtin.copy:
+    src: "{{ hibernation_bootloader_helper_src }}"
+    dest: "{{ hibernation_bootloader_helper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install hibernation management helper
+  ansible.builtin.copy:
+    src: "{{ hibernation_helper_src }}"
+    dest: "{{ hibernation_helper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Converge hibernation plumbing
+  ansible.builtin.command: "{{ hibernation_helper_path }}"
+  environment:
+    BOOT_LIB: "{{ hibernation_bootloader_helper_path }}"
+    HIBERNATION_STATE_FILE: "{{ hibernation_state_file }}"
+    SWAPFILE_PATH: "{{ hibernation_settings.swapfile_path }}"
+    SWAPFILE_PRIORITY: "{{ hibernation_settings.swapfile_priority | string }}"
+    SWAP_SIZE_GIB: "{{ hibernation_settings.swap_size_gib | string }}"
+    FORCE_RECREATE: "{{ hibernation_settings.force_recreate | string }}"
+  register: hibernation_helper_run
+  changed_when: "'RESULT=changed' in hibernation_helper_run.stdout"

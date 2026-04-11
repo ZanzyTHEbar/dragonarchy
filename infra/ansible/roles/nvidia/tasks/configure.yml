@@ -7,6 +7,22 @@
     group: root
     mode: "0755"
 
+- name: Ensure shared helper directory exists for NVIDIA role
+  ansible.builtin.file:
+    path: "{{ nvidia_bootloader_helper_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install shared bootloader helper for NVIDIA role
+  ansible.builtin.copy:
+    src: "{{ nvidia_bootloader_helper_src }}"
+    dest: "{{ nvidia_bootloader_helper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Install NVIDIA modules-load configuration
   ansible.builtin.copy:
     dest: /etc/modules-load.d/nvidia.conf
@@ -40,7 +56,7 @@
 - name: Persist NVIDIA kernel parameters
   ansible.builtin.shell: |
     set -euo pipefail
-    source "{{ nvidia_bootloader_helper }}"
+    source "{{ nvidia_bootloader_helper_path }}"
     boot_append_kernel_params "{{ nvidia_kernel_params | join(' ') }}"
     boot_rebuild_if_changed
   args:
