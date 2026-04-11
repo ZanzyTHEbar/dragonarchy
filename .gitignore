@@ -46,6 +46,10 @@ packages/hyprland/.config/elephant/providers/*.so
 # Artifacts
 *.log
 .artifacts/
+infra/packer/.packer/
+infra/packer/.packer.d/
+infra/packer/*.auto.pkrvars.hcl
+infra/packer/*.auto.pkrvars.json
 
 # pkgsolve may be cloned as a nested working tree; never commit its .git metadata
 tools/pkgsolve/.git/

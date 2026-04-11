@@ -61,7 +61,9 @@ Before cutover, remove or neutralize any script path that would overwrite the mi
 
 Known examples:
 
+- `~/.config/btop/themes/current.theme` from theme-selection scripts
 - `keyboard.local.conf` from `scripts/install/setup/keyboard.sh`
+- `colors-theme.conf` from `scripts/theme-manager/theme-set`
 - host-written `host-config.conf` behavior from host setup scripts
 - theme-generated files such as merged `swaync/style.css`
 
@@ -98,8 +100,9 @@ Execution behavior:
 
 - rebuilds and verifies the generated source
 - backs up and removes repo-managed migrated paths under `$HOME`
+- preserves local runtime-owned files inside unfolded directories while removing Stow-owned symlinks
 - re-runs package and host Stow with manifest-derived `--ignore=...` carve-outs
-- runs `chezmoi diff` and `chezmoi apply` against the generated source
+- runs `chezmoi diff` and a non-interactive `chezmoi apply --force` against the generated source
 
 ### 7. Validate post-cutover behavior
 

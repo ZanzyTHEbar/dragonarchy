@@ -124,8 +124,23 @@ get_available_hosts() {
 
 # Detect current host
 detect_host() {
-    local hostname
-    hostname=$(hostname | cut -d. -f1)
+    local hostname=""
+
+    if command -v hostname >/dev/null 2>&1; then
+        hostname="$(hostname 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$hostname" && -r /etc/hostname ]]; then
+        hostname="$(tr -d '\n' </etc/hostname 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$hostname" ]]; then
+        hostname="$(uname -n 2>/dev/null || true)"
+    fi
+
+    if [[ -n "$hostname" ]]; then
+        hostname="${hostname%%.*}"
+    fi
     
     # Check if a host-specific configuration directory exists
     if [[ -d "$HOSTS_DIR/$hostname" ]]; then
@@ -325,9 +340,14 @@ configure_shell() {
     # Set zsh as default shell if not already
     if [[ "$SHELL" != */zsh ]]; then
         if command -v zsh >/dev/null 2>&1; then
+            local zsh_path
+            zsh_path="$(command -v zsh)"
             log_info "Setting zsh as default shell..."
-            sudo chsh -s "$(which zsh)" "$USER"
-            log_success "Default shell changed to zsh"
+            if sudo chsh -s "$zsh_path" "$USER"; then
+                log_success "Default shell changed to zsh"
+            else
+                log_warning "Failed to change default shell to zsh"
+            fi
         else
             log_warning "zsh not found, cannot change default shell"
         fi

@@ -38,6 +38,13 @@ polkit_agent_running() {
 # Background (swww/swaybg)
 run_exec "uwsm app -- ~/.local/bin/theme-bg-apply"
 
+# Monitor layout
+if command -v systemctl >/dev/null 2>&1 && systemctl --user list-unit-files --type=service 2>/dev/null | grep -q '^dynamic-monitors\.service'; then
+  systemctl --user restart dynamic-monitors.service >/dev/null 2>&1 || true
+else
+  run_exec "$HOME/dotfiles/scripts/theme-manager/dynamic-monitors --apply"
+fi
+
 # Waybar
 # True show/hide for Waybar is managed by waybar-hoverd
 pkill -x waybar >/dev/null 2>&1 || true

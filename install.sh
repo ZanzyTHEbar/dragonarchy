@@ -568,12 +568,17 @@ setup_dotfiles() {
             #
             # So we stow `zsh` with --no-folding (file-by-file) and do a one-time clean unstow/restow
             # to migrate away from an existing folded directory link.
+            #
+            # Several theme/runtime-managed packages also need --no-folding so writes under $HOME`
+            # stay local instead of traversing a folded directory symlink back into the repo checkout.
             local stow_args=(--restow -t "$HOME")
-            if [[ "$package" == "zsh" ]]; then
+            case "$package" in
+                zsh|hyprland|kitty|gtk-3.0|gtk-4.0|wlogout)
                 stow_args=(--no-folding --restow -t "$HOME")
                 # Best-effort remove any previous folded layout so we can recreate file-by-file links.
                 stow -D -t "$HOME" "$package" >/dev/null 2>&1 || true
-            fi
+                ;;
+            esac
             local stow_ec=0
             local stow_tmpfile stow_retry_tmpfile
             stow_tmpfile=$(mktemp /tmp/stow_output.XXXXXX)
@@ -852,9 +857,14 @@ configure_shell() {
     # Set zsh as default shell if not already
     if [[ "$SHELL" != */zsh ]]; then
         if command -v zsh >/dev/null 2>&1; then
+            local zsh_path
+            zsh_path="$(command -v zsh)"
             log_info "Setting zsh as default shell..."
-            sudo chsh -s "$(which zsh)" "$current_user"
-            log_success "Default shell changed to zsh"
+            if sudo chsh -s "$zsh_path" "$current_user"; then
+                log_success "Default shell changed to zsh"
+            else
+                log_warning "Failed to change default shell to zsh"
+            fi
         else
             log_warning "zsh not found, cannot change default shell"
         fi

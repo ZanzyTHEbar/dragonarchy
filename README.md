@@ -59,6 +59,10 @@ dragonarchy/
 │   ├── utilities/      # Utility scripts
 │   └── hardware/       # Hardware-specific scripts
 ├── hosts/              # Host-specific configurations (with .traits files)
+├── infra/              # New control planes and validation infrastructure
+│   ├── ansible/        # System-state control plane
+│   ├── chezmoi/        # User-state cutover orchestration
+│   └── packer/         # Proxmox validation template pipeline
 ├── secrets/            # Encrypted secrets management
 ├── .github/workflows/  # CI pipeline (shellcheck, validation)
 ├── install.sh          # Main setup script
@@ -276,6 +280,32 @@ bash ./scripts/ci/debian-vm-e2e.sh
 ```
 
 That boots a Debian cloud image under QEMU, provisions the repo over SSH, runs the headless install twice for idempotency, then validates inside the guest.
+
+## Proxmox Validation Templates
+
+Use the Proxmox-backed template lane when you need a stronger disposable-machine substrate for branch-shift and chezmoi cutover validation:
+
+```bash
+cd infra/packer
+./scripts/run-packer-build.sh \
+  -only=debian-14-validation-template.proxmox-clone.debian_14_validation \
+  -var-file=local.auto.pkrvars.hcl
+```
+
+This flow is intentionally separate from the QEMU CI smoke lane.
+
+The wrapper is required because the Packer HCL is intentionally split across `builds/` and `sources/`, while `packer build .` only loads HCL files from the working directory.
+
+Use it for:
+
+- Debian and Arch disposable validation VMs
+- branch shifts from `main` to `feat/ansible-chezmoi-foundation`
+- first-host cutover rehearsal before touching live hosts
+
+Operator docs:
+
+- `docs/architecture/proxmox-vm-template-strategy.md`
+- `docs/runbooks/proxmox-validation-template-workflow.md`
 
 ## Docs
 

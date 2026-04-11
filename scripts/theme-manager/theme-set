@@ -48,6 +48,21 @@ record_prev_theme() {
     fi
 }
 
+ensure_runtime_parent() {
+    local path="$1"
+    mkdir -p "$(dirname "$path")"
+    if [[ -L "$path" ]]; then
+        rm -f "$path"
+    fi
+}
+
+copy_runtime_file() {
+    local src="$1"
+    local dst="$2"
+    ensure_runtime_parent "$dst"
+    cp --remove-destination "$src" "$dst"
+}
+
 schedule_ui_refresh() {
     setsid bash -c '
         sleep 0.15
@@ -57,6 +72,12 @@ schedule_ui_refresh() {
         command pkill --signal USR2 -f workspace-indicator --ignore-ancestors >/dev/null 2>&1 || true
         if command -v hyprctl >/dev/null 2>&1; then
             hyprctl reload >/dev/null 2>&1 || true
+            sleep 0.1
+            if command -v systemctl >/dev/null 2>&1 && systemctl --user list-unit-files --type=service 2>/dev/null | grep -q "^dynamic-monitors\.service"; then
+                systemctl --user restart dynamic-monitors.service >/dev/null 2>&1 || true
+            elif [[ -x "'"$SCRIPT_DIR"'/dynamic-monitors" ]]; then
+                "'"$SCRIPT_DIR"'/dynamic-monitors" --apply >/dev/null 2>&1 || true
+            fi
         fi
         # Reload swaync CSS. theme-set now writes a merged style.css directly
         # (no @import chain), so swaync-client -rs re-reads the changed file.
@@ -150,7 +171,7 @@ rm -f "$WALKER_THEMES_ROOT/default.css"
 # If the theme CSS is already stow-managed (or otherwise present), do not overwrite it.
 # Only copy from the current theme if the destination doesn't exist yet.
 if [[ -f "$CURRENT_THEME_DIR/walker.css" && ! -e "$WALKER_THEMES_ROOT/$THEME_NAME/style.css" ]]; then
-    cp "$CURRENT_THEME_DIR/walker.css" "$WALKER_THEMES_ROOT/$THEME_NAME/style.css"
+    copy_runtime_file "$CURRENT_THEME_DIR/walker.css" "$WALKER_THEMES_ROOT/$THEME_NAME/style.css"
 fi
 
 # Maintain a convenience symlink for scripts that still reference themes/current
@@ -185,13 +206,13 @@ mkdir -p ~/.config/gtk-3.0 ~/.config/gtk-4.0
 # - GTK3: Adwaita @define-color overrides + Nemo selectors
 # - GTK4: libadwaita :root color token overrides
 if [[ -f "$HOME/.config/current/theme/gtk-3.0/gtk.css" ]]; then
-    cp --remove-destination "$HOME/.config/current/theme/gtk-3.0/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
+    copy_runtime_file "$HOME/.config/current/theme/gtk-3.0/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
 elif [[ -f "$HOME/.config/current/theme/gtk.css" ]]; then
-    cp --remove-destination "$HOME/.config/current/theme/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
+    copy_runtime_file "$HOME/.config/current/theme/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
 fi
 
 if [[ -f "$HOME/.config/current/theme/gtk-4.0/gtk.css" ]]; then
-    cp --remove-destination "$HOME/.config/current/theme/gtk-4.0/gtk.css" "$HOME/.config/gtk-4.0/gtk.css"
+    copy_runtime_file "$HOME/.config/current/theme/gtk-4.0/gtk.css" "$HOME/.config/gtk-4.0/gtk.css"
 else
     # No GTK4 overrides for this theme; remove stale file
     rm -f "$HOME/.config/gtk-4.0/gtk.css"
@@ -206,8 +227,11 @@ GTK4_THEME="$HOME/.config/current/theme/gtk-4.0/settings.ini"
 GTK3_OUT="$HOME/.config/gtk-3.0/settings.ini"
 GTK4_OUT="$HOME/.config/gtk-4.0/settings.ini"
 
+ensure_runtime_parent "$GTK3_OUT"
+ensure_runtime_parent "$GTK4_OUT"
+
 if [[ -f "$GTK3_BASE" ]]; then
-    cp "$GTK3_BASE" "$GTK3_OUT"
+    cp --remove-destination "$GTK3_BASE" "$GTK3_OUT"
 else
     printf '[Settings]\n' >"$GTK3_OUT"
 fi
@@ -216,7 +240,7 @@ if [[ -f "$GTK3_THEME" ]]; then
 fi
 
 if [[ -f "$GTK4_BASE" ]]; then
-    cp "$GTK4_BASE" "$GTK4_OUT"
+    cp --remove-destination "$GTK4_BASE" "$GTK4_OUT"
 else
     printf '[Settings]\n' >"$GTK4_OUT"
 fi
@@ -283,6 +307,9 @@ SWAYNC_COLORS="$CURRENT_THEME_DIR/swaync.css"
 SWAYNC_BASE="$SWAYNC_DIR/style-base.css"
 if [[ -f "$SWAYNC_COLORS" && -f "$SWAYNC_BASE" ]]; then
     mkdir -p "$SWAYNC_DIR"
+    if [[ -L "$SWAYNC_DIR/style.css" ]]; then
+        rm -f "$SWAYNC_DIR/style.css"
+    fi
     {
         cat "$SWAYNC_COLORS"
         printf '\n'
