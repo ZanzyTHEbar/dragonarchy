@@ -7,6 +7,22 @@
     group: root
     mode: "0755"
 
+- name: Ensure shared helper directory exists for AMD GPU role
+  ansible.builtin.file:
+    path: "{{ amd_gpu_bootloader_helper_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install shared bootloader helper for AMD GPU role
+  ansible.builtin.copy:
+    src: "{{ amd_gpu_bootloader_helper_src }}"
+    dest: "{{ amd_gpu_bootloader_helper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Install AMD modules-load configuration
   ansible.builtin.copy:
     dest: /etc/modules-load.d/amd.conf
@@ -35,7 +51,7 @@
 
 - name: Find host-specific AMD GPU systemd services
   ansible.builtin.find:
-    paths: "{{ amd_gpu_legacy_root }}/etc/systemd/system"
+    paths: "{{ amd_gpu_role_files_root }}/etc/systemd/system"
     patterns: "amdgpu*.service"
     file_type: file
   register: amd_gpu_service_files
@@ -60,7 +76,7 @@
 
 - name: Find host-specific AMD GPU polkit rules
   ansible.builtin.find:
-    paths: "{{ amd_gpu_legacy_root }}/etc/polkit-1/rules.d"
+    paths: "{{ amd_gpu_role_files_root }}/etc/polkit-1/rules.d"
     patterns: "*.rules"
     file_type: file
   register: amd_gpu_polkit_rules
@@ -86,7 +102,7 @@
 
 - name: Find host-specific AMD GPU bootloader drop-ins
   ansible.builtin.find:
-    paths: "{{ amd_gpu_legacy_root }}/etc/limine-entry-tool.d"
+    paths: "{{ amd_gpu_role_files_root }}/etc/limine-entry-tool.d"
     patterns: "*.conf"
     file_type: file
   register: amd_gpu_bootloader_dropins
@@ -113,7 +129,7 @@
 - name: Persist AMD GPU kernel parameters
   ansible.builtin.shell: |
     set -euo pipefail
-    source "{{ amd_gpu_bootloader_helper }}"
+    source "{{ amd_gpu_bootloader_helper_path }}"
     boot_append_kernel_params "{{ amd_gpu_kernel_params | join(' ') }}"
     boot_rebuild_if_changed
   args:

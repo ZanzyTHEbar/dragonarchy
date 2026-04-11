@@ -1,8 +1,8 @@
-# Hot-Path Tranche 1
+# Hot-Path Batch 1
 
 ## Scope
 
-The first hot-path tranche includes only:
+The first hot-path batch includes only:
 
 - `base`
 - `packages`
@@ -20,10 +20,12 @@ Owns:
 
 - minimal host-wide baseline state
 - explicit baseline validation
+- baseline local-admin identity for polkit
 
-Current tranche-1 implementation:
+Current batch-1 implementation:
 
 - timezone management
+- baseline wheel-admin polkit rule
 
 ### `packages`
 
@@ -33,16 +35,16 @@ Owns:
 - explicit package profile resolution
 - distro-specific package naming
 
-Current tranche-1 package profiles:
+Current batch-1 package profiles:
 
 - `core_cli`
 - `dev`
 
-Current tranche-1 package policy:
+Current batch-1 package policy:
 
 - keep the profiles minimal and portable
 - avoid GUI-terminal assumptions in `core_cli`
-- avoid high-drift packages like `terraform` in tranche 1
+- avoid high-drift packages like `terraform` in batch 1
 - prefer release-safer Debian mappings such as `fd-find` and `lsd`
 
 ### `users`
@@ -54,7 +56,7 @@ Owns:
 
 It does not own user dotfiles or rendered `$HOME` content.
 
-Current tranche-1 user policy:
+Current batch-1 user policy:
 
 - manage only the primary operator account per host
 - use the platform-default admin group only
@@ -83,7 +85,7 @@ Deferred to later hot-path or edge-case batches:
 
 ## No-fallback rule
 
-This tranche follows the same architecture rule as foundation:
+This batch follows the same architecture rule as foundation:
 
 - no alternate execution paths
 - no best-effort continuation for role contracts

@@ -9,7 +9,7 @@
 
 - name: Install host-specific TLP configuration
   ansible.builtin.copy:
-    src: "{{ tlp_legacy_root }}/etc/tlp.d/01-{{ inventory_hostname }}.conf"
+    src: "{{ tlp_config_src_by_host[inventory_hostname] }}"
     dest: "/etc/tlp.d/01-{{ inventory_hostname }}.conf"
     owner: root
     group: root

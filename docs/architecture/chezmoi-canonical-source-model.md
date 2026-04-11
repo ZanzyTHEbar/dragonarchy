@@ -79,6 +79,7 @@ Current tracked slices are:
 
 - `session-core.manifest`
 - `session-shell.manifest`
+- `session-zsh.manifest`
 
 The current session-shell slice stages:
 
@@ -86,6 +87,14 @@ The current session-shell slice stages:
 - `packages/hyprland/.config/clipse`
 - `packages/hyprland/.config/swaync`
 - `packages/hyprland/.config/swayosd`
+
+The current session-zsh slice stages:
+
+- `packages/zsh/.zshrc`
+- `packages/zsh/.zshenv`
+- `packages/zsh/.config/zsh`
+- optional host overlays under `hosts/<host>/dotfiles/.config/zsh/hosts/<host>.zsh`
+- optional host overlays under `hosts/<host>/dotfiles/.config/zsh/functions/<host>.zsh`
 
 Use the verifier after build to confirm required generated paths exist before any cutover:
 

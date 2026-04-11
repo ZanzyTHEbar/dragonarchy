@@ -32,6 +32,7 @@ First expected roles:
 - `nvidia`
 - `amd_gpu`
 - `resolved`
+- `netbird`
 - `openfortivpn`
 
 ## Edge cases
@@ -43,6 +44,10 @@ Examples:
 - vendor-specific laptop behavior
 - GPU-specific behavior
 - secrets-backed user config
+
+Current implemented edge-case role:
+
+- `asus_laptop`
 
 ## Review
 

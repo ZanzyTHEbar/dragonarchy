@@ -22,6 +22,8 @@ dotfiles_group_capability_map:
   fingerprint: fingerprint
   netbird: netbird
   fortinet_vpn: fortinet_vpn
+  asus: asus
+  hibernation: hibernation
 
 dotfiles_group_gpu_map:
   amd-gpu: amd_gpu

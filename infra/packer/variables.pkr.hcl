@@ -72,6 +72,18 @@ variable "validation_template_memory_mb" {
   default     = 4096
 }
 
+variable "graphical_validation_template_cores" {
+  type        = number
+  description = "vCPU count for desktop-class graphical validation templates."
+  default     = 4
+}
+
+variable "graphical_validation_template_memory_mb" {
+  type        = number
+  description = "RAM size in MiB for desktop-class graphical validation templates."
+  default     = 8192
+}
+
 variable "validation_template_cpu_type" {
   type        = string
   description = "CPU type exposed to validation templates."
@@ -102,6 +114,12 @@ variable "validation_template_ip_arch" {
   default     = "192.168.0.254/24"
 }
 
+variable "validation_template_ip_arch_graphical" {
+  type        = string
+  description = "Static IPv4/CIDR for the Arch graphical validation-template build VM."
+  default     = "192.168.0.252/24"
+}
+
 variable "gold_template_debian_14" {
   type        = string
   description = "Gold Debian 14 cloud-base template name."
@@ -124,4 +142,10 @@ variable "validation_template_vm_id_arch" {
   type        = number
   description = "Cluster-unique VMID for the Arch validation template artifact."
   default     = 9320
+}
+
+variable "validation_template_vm_id_arch_graphical" {
+  type        = number
+  description = "Cluster-unique VMID for the Arch graphical validation template artifact."
+  default     = 9330
 }

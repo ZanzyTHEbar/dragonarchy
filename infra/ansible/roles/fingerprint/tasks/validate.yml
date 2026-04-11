@@ -9,36 +9,7 @@
       - fingerprint_usb_id is match('^[0-9a-fA-F]{4}:[0-9a-fA-F]{4}$')
       - host_capabilities is defined
       - "'fingerprint' in host_capabilities"
-      - legacy_host_directory is defined
+      - inventory_hostname in fingerprint_sleep_hook_src_by_host
+      - inventory_hostname in fingerprint_hyprlock_pam_src_by_host
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the fingerprint tranche-4 contract.
-
-- name: Set fingerprint legacy root
-  ansible.builtin.set_fact:
-    fingerprint_legacy_root: "{{ playbook_dir }}/../../../{{ legacy_host_directory }}"
-
-- name: Check host-specific fingerprint sleep hook source
-  ansible.builtin.stat:
-    path: "{{ fingerprint_legacy_root }}/etc/systemd/system-sleep/99-fprintd-reset.sh"
-  register: fingerprint_sleep_hook_source
-
-- name: Assert host-specific fingerprint sleep hook source exists
-  ansible.builtin.assert:
-    that:
-      - fingerprint_sleep_hook_source.stat.exists
-    fail_msg: >-
-      Host '{{ inventory_hostname }}' is missing the managed fingerprint sleep hook source.
-
-- name: Check host-specific fingerprint hyprlock PAM source
-  ansible.builtin.stat:
-    path: "{{ fingerprint_legacy_root }}/etc/pam.d/hyprlock"
-  register: fingerprint_hyprlock_pam_source
-  when: host_desktop_stack == 'hyprland'
-
-- name: Assert host-specific fingerprint hyprlock PAM source exists
-  ansible.builtin.assert:
-    that:
-      - fingerprint_hyprlock_pam_source.stat.exists
-    fail_msg: >-
-      Host '{{ inventory_hostname }}' is missing the managed fingerprint hyprlock PAM source.
-  when: host_desktop_stack == 'hyprland'

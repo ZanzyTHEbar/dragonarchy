@@ -1,6 +1,7 @@
 ---
 nvidia_enabled: true
-nvidia_bootloader_helper: "{{ playbook_dir }}/../../../scripts/lib/bootloader.sh"
+nvidia_bootloader_helper_src: "{{ playbook_dir }}/../../../scripts/lib/bootloader.sh"
+nvidia_bootloader_helper_path: /usr/local/libexec/dotfiles/bootloader.sh
 
 nvidia_packages_by_platform:
   arch:
@@ -19,3 +20,6 @@ nvidia_modules:
 
 nvidia_kernel_params:
   - nvidia-drm.modeset=1
+
+nvidia_modprobe_src_dir_by_host:
+  goldendragon: hosts/goldendragon/etc/modprobe.d

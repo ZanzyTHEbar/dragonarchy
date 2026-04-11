@@ -28,7 +28,7 @@
 
 - name: Install NVIDIA modprobe configuration
   ansible.builtin.copy:
-    src: "{{ nvidia_legacy_root }}/etc/modprobe.d/{{ item }}"
+    src: "{{ nvidia_modprobe_src_dir }}/{{ item }}"
     dest: "/etc/modprobe.d/{{ item }}"
     owner: root
     group: root

@@ -1,3 +1,5 @@
 ---
 base_timezone: UTC
 base_firewall_enabled: false
+base_polkit_admin_identities:
+  - unix-group:wheel

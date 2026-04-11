@@ -7,11 +7,18 @@ host_gpu_stack:
 host_capabilities:
   - tlp
   - asus
+  - hibernation
   - netbird
+
+host_profile_packages:
+  - core_cli
+  - dev
+  - firedragon_laptop
 
 managed_users:
   - name: daofficialwizard
     groups:
       - wheel
+      - video
 
 legacy_host_directory: hosts/firedragon

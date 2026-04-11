@@ -1,19 +1,21 @@
-# Hot-Path Tranche 5
+# Hot-Path Batch 5
 
 ## Scope
 
-The fifth hot-path tranche finishes the remaining system-service ownership before user-state migration expands.
+The fifth hot-path batch finishes the remaining system-service ownership before user-state migration expands.
 
 Included roles:
 
 - `tlp`
 - `resolved`
+- `netbird`
 - `openfortivpn`
 
-This tranche intentionally keeps the boundary narrow:
+This batch intentionally keeps the boundary narrow:
 
 - `tlp` owns laptop power-policy system state.
 - `resolved` owns systemd-resolved configuration and service state.
+- `netbird` owns NetBird installation, service state, and routing-peer integration.
 - `openfortivpn` owns the Fortinet VPN system package, service units, helper installation, and system config path.
 - user-facing Waybar host markers remain chezmoi-owned user state.
 
@@ -48,6 +50,22 @@ Does not own:
 - NetBird DNS integration logic
 - user-facing network menus
 
+### `netbird`
+
+Owns:
+
+- NetBird installation
+- NetBird service enablement and running state
+- the `systemd-resolved` stub `resolv.conf` linkage needed for NetBird on hosts that use the `resolved` role
+- host-specific routing-peer sysctl state such as `net.ipv4.ip_forward=1`
+
+Does not own:
+
+- full systemd-resolved DNS policy
+- NetworkManager dispatcher logic
+- user-facing VPN UI or login state
+- OpenFortiVPN configuration
+
 ### `openfortivpn`
 
 Owns:
@@ -69,12 +87,12 @@ Does not own:
 
 Deferred to the next phase:
 
-- first real chezmoi migration slices
-- ownership-overlap review across completed tranches
+- first chezmoi migration slices
+- ownership-overlap review across completed batches
 - edge-case cleanup for distro- and hardware-specific drift
 
 ## No-overlap rule
 
 If a change primarily affects `$HOME`, launcher rendering, Waybar host markers, or Hyprland session files, it belongs to chezmoi.
 
-If a change primarily affects PAM, fprintd, or GPU recovery, it belongs to the tranche-4 roles.
+If a change primarily affects PAM, fprintd, or GPU recovery, it belongs to the batch-4 roles.

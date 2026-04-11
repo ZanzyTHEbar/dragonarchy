@@ -8,17 +8,17 @@
       - host_gpu_stack is defined
       - "'amd-gpu' in host_gpu_stack"
       - inventory_hostname in amd_gpu_packages_by_platform[host_platform_family]
-      - legacy_host_directory is defined
+      - inventory_hostname in amd_gpu_host_src_dir_by_host
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the AMD GPU tranche-4 contract.
 
-- name: Set AMD GPU legacy root
+- name: Set AMD GPU role-local host payload root
   ansible.builtin.set_fact:
-    amd_gpu_legacy_root: "{{ playbook_dir }}/../../../{{ legacy_host_directory }}"
+    amd_gpu_role_files_root: "{{ role_path }}/files/{{ amd_gpu_host_src_dir_by_host[inventory_hostname] }}"
 
 - name: Check host-specific AMD GPU modprobe sources
   ansible.builtin.stat:
-    path: "{{ amd_gpu_legacy_root }}/etc/modprobe.d/{{ item }}"
+    path: "{{ amd_gpu_role_files_root }}/etc/modprobe.d/{{ item }}"
   loop:
     - amdgpu.conf
     - amdgpu-dragon.conf

@@ -48,6 +48,7 @@ if [[ ${#MANIFEST_PATHS[@]} -eq 0 ]]; then
   MANIFEST_PATHS=(
     "${CHEZMOI_ROOT}/manifests/session-core.manifest"
     "${CHEZMOI_ROOT}/manifests/session-shell.manifest"
+    "${CHEZMOI_ROOT}/manifests/session-zsh.manifest"
   )
 fi
 

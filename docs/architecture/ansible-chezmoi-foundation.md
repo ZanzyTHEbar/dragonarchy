@@ -17,7 +17,7 @@ That foundation is no longer hypothetical in this branch.
 The current branch now includes:
 
 - the foundation control-plane skeleton
-- hot-path tranches `1` through `5`
+- hot-path implementation batches `1` through `5`
 - the first chezmoi generated-source and cutover-control-plane tooling
 
 ## Foundation scope
@@ -43,7 +43,7 @@ Foundation excludes:
 
 Those exclusions apply to the foundation batch itself.
 
-They do not describe the current branch as a whole, because later hot-path tranches and the first chezmoi migration-control tooling are now implemented.
+They do not describe the current branch as a whole, because later hot-path implementation batches and the first chezmoi migration-control tooling are now implemented.
 
 ## Control-plane layout
 
@@ -104,7 +104,7 @@ The long-term execution order remains:
 The current execution entrypoint remains intentionally simple:
 
 - `playbooks/foundation.yml` enforces the shared contract directly
-- `playbooks/site.yml` is the main entrypoint and currently routes through `hot-path-tranche-5.yml`
+- `playbooks/site.yml` is the main entrypoint and currently routes through the fifth hot-path batch playbook plus the edge-case playbook
 
 The effective playbook chain is:
 
@@ -114,7 +114,8 @@ The effective playbook chain is:
 4. `hot-path-tranche-3.yml`
 5. `hot-path-tranche-4.yml`
 6. `hot-path-tranche-5.yml`
-7. `site.yml`
+7. `edge-cases.yml`
+8. `site.yml`
 
 ## Design constraints
 

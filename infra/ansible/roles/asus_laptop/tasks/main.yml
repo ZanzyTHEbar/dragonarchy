@@ -1,0 +1,12 @@
+---
+- name: Validate ASUS laptop role inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Converge ASUS laptop service state
+  ansible.builtin.import_tasks: install.yml
+
+- name: Configure ASUS laptop platform files
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Validate ASUS laptop platform state
+  ansible.builtin.import_tasks: verify.yml

@@ -15,3 +15,7 @@ gold_template_arch      = "arch-cloud-base"
 
 validation_template_vm_id_debian_14 = 9310
 validation_template_vm_id_arch      = 9320
+validation_template_vm_id_arch_graphical = 9330
+
+# Override this as needed if 192.168.0.252/24 is not free on your lab network.
+# validation_template_ip_arch_graphical = "192.168.0.252/24"

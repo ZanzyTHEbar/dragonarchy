@@ -9,39 +9,11 @@
       - "'fortinet_vpn' in host_capabilities"
       - managed_users is defined
       - managed_users | length > 0
-      - legacy_host_directory is defined
+      - inventory_hostname in openfortivpn_helper_src_by_host
+      - inventory_hostname in openfortivpn_unit_src_dir_by_host
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the OpenFortiVPN tranche-5 contract.
 
-- name: Set OpenFortiVPN legacy root
+- name: Set OpenFortiVPN primary user
   ansible.builtin.set_fact:
-    openfortivpn_legacy_root: "{{ playbook_dir }}/../../../{{ legacy_host_directory }}"
     openfortivpn_primary_user: "{{ managed_users[0].name }}"
-
-- name: Check OpenFortiVPN service sources
-  ansible.builtin.stat:
-    path: "{{ openfortivpn_legacy_root }}/etc/systemd/system/{{ item }}"
-  loop:
-    - openfortivpn.service
-    - openfortivpn-cleanup.service
-  register: openfortivpn_service_sources
-
-- name: Assert OpenFortiVPN service sources exist
-  ansible.builtin.assert:
-    that:
-      - item.stat.exists
-    fail_msg: >-
-      Host '{{ inventory_hostname }}' is missing the OpenFortiVPN source file '{{ item.item }}'.
-  loop: "{{ openfortivpn_service_sources.results }}"
-
-- name: Check OpenFortiVPN helper source
-  ansible.builtin.stat:
-    path: "{{ openfortivpn_legacy_root }}/dotfiles/.local/bin/avular-vpn-dns"
-  register: openfortivpn_helper_source
-
-- name: Assert OpenFortiVPN helper source exists
-  ansible.builtin.assert:
-    that:
-      - openfortivpn_helper_source.stat.exists
-    fail_msg: >-
-      Host '{{ inventory_hostname }}' is missing the OpenFortiVPN DNS helper source.
