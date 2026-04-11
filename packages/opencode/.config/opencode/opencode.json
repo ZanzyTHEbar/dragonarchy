@@ -24,6 +24,7 @@
     }
   },
   "plugin": [
-    "@tarquinen/opencode-dcp@beta"
+    "@tarquinen/opencode-dcp@beta",
+    "opencode-rules@latest"
   ]
 }
