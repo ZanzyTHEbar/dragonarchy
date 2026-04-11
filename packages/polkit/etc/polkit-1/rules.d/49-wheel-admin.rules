@@ -1,0 +1,8 @@
+// Managed by DragonArchy.
+//
+// Keep wheel as the canonical local admin identity for polkit so pkexec-based
+// desktop flows can authenticate with the logged-in operator account instead of
+// relying on distro defaults under /usr/share.
+polkit.addAdminRule(function(action, subject) {
+    return ["unix-group:wheel"];
+});
