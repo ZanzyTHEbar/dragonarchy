@@ -48,6 +48,7 @@ Examples:
 Current implemented edge-case role:
 
 - `asus_laptop`
+- `hibernation`
 
 ## Review
 

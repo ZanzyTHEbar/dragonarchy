@@ -262,6 +262,11 @@ Batch-9 progress:
 - completed for the firedragon ASUS laptop edge stack via `roles/asus_laptop`
 - vendored firedragon NetworkManager dispatcher, lid/sleep drop-ins, system-sleep hooks, and AX210 udev rules into role-local payloads
 
+Batch-11 progress:
+
+- completed for firedragon hibernation and resume plumbing via `roles/hibernation`
+- retired the direct dependency on `hosts/firedragon/enable-sleep-hibernate.sh` by moving swap, resume, mkinitcpio, and Limine state under explicit Ansible ownership
+
 #### Stage 3. Close capability gaps
 
 - add a real `netbird` role
@@ -271,7 +276,8 @@ Batch-9 progress:
 Current progress:
 
 - `asus_laptop` is now the explicit Ansible owner of the firedragon NetworkManager dispatcher, lid/sleep policy, system-sleep hooks, and AX210 Bluetooth udev behavior
-- remaining capability gaps still include `aio-cooler`, broader ASUS/Vivobook bringup beyond the edge stack, secure boot, and fingerprint watchdog
+- `hibernation` is now the explicit Ansible owner of firedragon swap, resume, mkinitcpio, and Limine hibernate plumbing
+- remaining capability gaps still include `aio-cooler`, secure boot, fingerprint watchdog, and the manual suspend/ACPI repair scripts that have not yet been assigned an owner
 
 #### Stage 4. Finish chezmoi expansion
 
@@ -463,6 +469,7 @@ Roles currently applied to `firedragon`:
 - `amd_gpu`
 - `tlp`
 - `asus_laptop`
+- `hibernation`
 - `resolved`
 - `netbird`
 
@@ -489,6 +496,7 @@ Chezmoi:
 - ASUS ACPI kernel parameters via `roles/asus_laptop`
 - firedragon laptop package parity from `setup_firedragon_packages()` via `roles/packages`, `roles/tlp`, and `roles/amd_gpu`
 - ASUS platform services via `roles/asus_laptop`
+- hibernation and swap/resume plumbing from `enable-sleep-hibernate.sh` via `roles/hibernation`
 - `etc/systemd/resolved.conf.d/dns.conf` via `roles/resolved`
 - NetBird installation and service ownership via `roles/netbird`
 - Hyprland and SDDM session substrate via `roles/hyprland` and `roles/sddm`
@@ -496,7 +504,6 @@ Chezmoi:
 ### Missing or only partially represented
 
 - NetBird DNS integration behavior beyond the dispatcher/resolved edge stack
-- hibernation and swap/resume plumbing from `enable-sleep-hibernate.sh`
 - the manual suspend/ACPI repair scripts still live outside the new control plane
 - user `kbd-backlight` helper still lives outside chezmoi and explicit user-state ownership
 
@@ -504,7 +511,7 @@ Chezmoi:
 
 - keep `roles/packages`, `roles/amd_gpu`, and `roles/asus_laptop` aligned with the firedragon package contract
 - preserve firedragon DNS integration behavior around NetBird while retiring the legacy installer path
-- decide how hibernation and ACPI repair scripts are represented in the new model
+- decide how the remaining ACPI repair scripts are represented in the new model now that hibernation is role-owned
 - decide whether `kbd-backlight` becomes chezmoi-owned user state or is intentionally retired
 
 ## `goldendragon`

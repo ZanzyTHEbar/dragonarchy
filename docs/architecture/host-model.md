@@ -17,7 +17,7 @@ The current inventory models these group axes:
 - distro family: `arch`, `debian`
 - form factor / role: `desktop`, `laptop`, `server`
 - desktop stack: `hyprland`
-- capability or rollout groups: `tlp`, `fingerprint`, `amd_gpu`, `nvidia`, `netbird`, `fortinet_vpn`, `asus`, `resolved`
+- capability or rollout groups: `tlp`, `fingerprint`, `amd_gpu`, `nvidia`, `netbird`, `fortinet_vpn`, `asus`, `hibernation`, `resolved`
 
 These groups are explicit declarations, not inferred tags.
 
@@ -39,6 +39,7 @@ The current contract is:
   - `netbird` -> `netbird`
   - `fortinet_vpn` -> `fortinet_vpn`
   - `asus` -> `asus`
+  - `hibernation` -> `hibernation`
 
 Not every inventory group has to come from `host_capabilities`.
 
@@ -71,7 +72,7 @@ Every managed host must define:
 - platform family: `arch`
 - desktop stack: `hyprland`
 - gpu stack: `amd-gpu`
-- capabilities: `tlp`, `asus`, `netbird`
+- capabilities: `tlp`, `asus`, `hibernation`, `netbird`
 
 ### `goldendragon`
 

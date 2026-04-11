@@ -46,6 +46,7 @@ The current control plane contains:
 - `amd_gpu`
 - `tlp`
 - `asus_laptop`
+- `hibernation`
 - `resolved`
 - `netbird`
 - `openfortivpn`
