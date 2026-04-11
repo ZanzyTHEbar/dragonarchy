@@ -158,6 +158,27 @@ Fine-grained control over what gets installed and configured:
 > [!NOTE]
 > Cursor is installed by default on Hyprland-configured hosts. Use `--cursor` to force installation on non-Hyprland hosts, or `--no-cursor` to skip it entirely.
 
+### Control Plane Gating
+
+When you are intentionally pivoting away from legacy writers, use environment flags to keep the old installer from rewriting state now owned by Ansible or chezmoi:
+
+```bash
+DOTFILES_SYSTEM_OWNER=ansible ./install.sh
+DOTFILES_USER_OWNER=chezmoi ./install.sh --dotfiles-only
+DOTFILES_SYSTEM_OWNER=ansible DOTFILES_USER_OWNER=chezmoi ./install.sh
+```
+
+Modes:
+
+- `DOTFILES_SYSTEM_OWNER=legacy|ansible`
+- `DOTFILES_USER_OWNER=stow|chezmoi`
+
+Defaults preserve the legacy installer behavior.
+
+Use `DOTFILES_SYSTEM_OWNER=ansible` to gate legacy system writers such as system Stow, host `setup.sh`, legacy SDDM theme writes, and `scripts/install/system-config.sh`.
+
+Use `DOTFILES_USER_OWNER=chezmoi` only after the relevant `$HOME` paths have been cut over, because it disables legacy user Stow for those runs.
+
 ## Package Bundles
 
 Packages are defined in `scripts/install/deps.manifest.toml`. Bundles compose package groups into named profiles:
@@ -299,6 +320,7 @@ The wrapper is required because the Packer HCL is intentionally split across `bu
 Use it for:
 
 - Debian and Arch disposable validation VMs
+- desktop-class Arch graphical validation VMs
 - branch shifts from `main` to `feat/ansible-chezmoi-foundation`
 - first-host cutover rehearsal before touching live hosts
 
@@ -306,6 +328,7 @@ Operator docs:
 
 - `docs/architecture/proxmox-vm-template-strategy.md`
 - `docs/runbooks/proxmox-validation-template-workflow.md`
+- `docs/runbooks/first-safe-cutover-rollout-gate.md`
 
 ## Docs
 

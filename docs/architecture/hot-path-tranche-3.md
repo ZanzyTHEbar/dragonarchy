@@ -1,14 +1,14 @@
-# Hot-Path Tranche 3
+# Hot-Path Batch 3
 
 ## Scope
 
-The third hot-path tranche defines the display-session boundary.
+The third hot-path batch defines the display-session boundary.
 
 Included role:
 
 - `hyprland`
 
-This tranche intentionally keeps the boundary narrow:
+This batch intentionally keeps the boundary narrow:
 
 - SDDM remains the only owner of display-manager state.
 - PAM and fingerprint policy remain separate from Hyprland.
@@ -24,6 +24,7 @@ Owns:
 - Hyprland session-substrate packages
 - UWSM package presence for session launch
 - XDG desktop portal package presence for Wayland integration
+- a desktop authentication-agent package for GUI polkit prompts
 - validation of the system-level Hyprland session substrate
 
 Does not own:
@@ -44,6 +45,7 @@ Ansible owns only the system state required for a Hyprland-capable login session
 - compositor and lock/idle packages
 - UWSM package presence
 - desktop portal packages
+- a polkit authentication agent package
 - system-level validation that the session substrate exists
 
 ### Future chezmoi user rendering
@@ -72,7 +74,7 @@ Deferred to later hot-path or edge-case batches:
 
 ## Current implementation rule
 
-The tranche-3 implementation is intentionally limited to the current real Hyprland fleet.
+The batch-3 implementation is intentionally limited to the current real Hyprland fleet.
 
 - current managed Hyprland hosts are Arch-family
 - Debian-family Hyprland activation is deferred until package-track metadata is explicit in inventory

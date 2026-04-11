@@ -1,14 +1,14 @@
-# Hot-Path Tranche 2
+# Hot-Path Batch 2
 
 ## Scope
 
-The second hot-path tranche centers on the display-manager boundary.
+The second hot-path batch centers on the display-manager boundary.
 
 Included role:
 
 - `sddm`
 
-This tranche intentionally avoids broader display-stack ownership so it can establish one clean owner for login-manager state before Hyprland, GPU, fingerprint, or VPN work begins.
+This batch intentionally avoids broader display-stack ownership so it can establish one clean owner for login-manager state before Hyprland, GPU, fingerprint, or VPN work begins.
 
 ## Ownership
 

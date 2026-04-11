@@ -1,19 +1,19 @@
-# Ownership Review: Tranches 1-4
+# Ownership Review: Batches 1-4
 
 ## Scope
 
-This review checks the first four hot-path tranches for ownership overlap before broader user-state migration expands.
+This review checks the first four hot-path batches for ownership overlap before broader user-state migration expands.
 
-Reviewed tranches:
+Reviewed batches:
 
-- tranche 1: `base`, `packages`, `users`
-- tranche 2: `sddm`
-- tranche 3: `hyprland`
-- tranche 4: `fingerprint`, `nvidia`, `amd_gpu`
+- batch 1: `base`, `packages`, `users`
+- batch 2: `sddm`
+- batch 3: `hyprland`
+- batch 4: `fingerprint`, `nvidia`, `amd_gpu`
 
 ## Findings
 
-No direct ownership violations were found in the implemented tranche contracts.
+No direct ownership violations were found in the implemented batch contracts.
 
 The current split is consistent:
 
@@ -35,7 +35,7 @@ The current architecture is clean, but these seams still need attention:
 
 ## Review result
 
-The tranche-1 through tranche-4 contracts are acceptable to continue from.
+The batch-1 through batch-4 contracts are acceptable to continue from.
 
 The next architectural risk is no longer role overlap inside Ansible.
 

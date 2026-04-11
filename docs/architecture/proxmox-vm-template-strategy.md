@@ -6,7 +6,7 @@ This document defines the VM-template strategy for disposable branch-shift and c
 
 The goal is not to replace the current QEMU CI smoke lane.
 
-The goal is to add a stronger desktop-capable validation substrate before touching live hosts such as `goldendragon` or `firedragon`.
+The goal is to add a stronger desktop-capable validation substrate before any real-host validation or bringup is considered for hosts such as `goldendragon` or `firedragon`.
 
 ## Decision
 
@@ -55,6 +55,16 @@ For this repo, the validation layer should add:
 - `qemu-guest-agent`
 
 That makes the validation template the reproducible handoff between infrastructure and repo validation.
+
+For graphical Arch validation, use a separate desktop-class validation template rather than mutating the headless Arch lane.
+
+That graphical template should add:
+
+- Hyprland session packages
+- Wayland portal packages
+- a virtual VGA adapter suitable for a desktop console
+- guest helpers such as `spice-vdagent`
+- VM-safe rendering defaults for nested graphical validation
 
 ### Disposable clones for the execution layer
 
@@ -137,9 +147,24 @@ Use second for:
 - Arch-specific package/runtime validation
 - user-session behavior before touching live Arch hosts
 
+### Arch graphical lane
+
+Use after the headless Arch disposable lane is already stable.
+
+Its job is narrower:
+
+- prove a desktop-capable Arch validation substrate exists
+- give Hyprland and session tooling a real graphical VM surface
+- keep that proof isolated from the simpler cloud-image headless cutover lane
+
 ## Acceptance rule
 
-Do not touch live hosts until both are true:
+Do not consider any real-host validation or bringup until all of the following are true:
 
 1. Debian disposable cutover remains clean and repeatable
 2. Arch disposable validation proves the session path is stable enough for host-local behavior checks
+3. Arch graphical validation proves Hyprland can hold a real tty-backed graphical session with sane compositor state
+
+After those are true, the next step is still not a real host.
+
+The next step is the first safe non-production execute cutover with an explicit rollback plan.

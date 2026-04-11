@@ -1,0 +1,75 @@
+---
+- name: Ensure ASUS laptop parent directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: >-
+    {{
+      asus_laptop_managed_paths
+      | map(attribute='dest')
+      | map('dirname')
+      | unique
+      | list
+    }}
+
+- name: Ensure shared helper directory exists for ASUS laptop role
+  ansible.builtin.file:
+    path: "{{ asus_laptop_bootloader_helper_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install shared bootloader helper for ASUS laptop role
+  ansible.builtin.copy:
+    src: "{{ asus_laptop_bootloader_helper_src }}"
+    dest: "{{ asus_laptop_bootloader_helper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install ASUS laptop managed files except udev rules
+  ansible.builtin.copy:
+    src: "{{ asus_laptop_role_files_root }}/{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop: >-
+    {{
+      asus_laptop_managed_paths
+      | rejectattr('dest', 'match', '^/etc/udev/rules\\.d/')
+      | list
+    }}
+
+- name: Install ASUS laptop udev rules
+  ansible.builtin.copy:
+    src: "{{ asus_laptop_role_files_root }}/{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop: >-
+    {{
+      asus_laptop_managed_paths
+      | selectattr('dest', 'match', '^/etc/udev/rules\\.d/')
+      | list
+    }}
+  notify: Reload udev rules
+
+- name: Persist ASUS laptop ACPI kernel parameters
+  ansible.builtin.shell: |
+    set -euo pipefail
+    source "{{ asus_laptop_bootloader_helper_path }}"
+    boot_append_kernel_params "{{ asus_laptop_kernel_param_string }}"
+    boot_rebuild_if_changed
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Set ASUS laptop performance profile to Balanced
+  ansible.builtin.command: asusctl profile -n Balanced
+  changed_when: false

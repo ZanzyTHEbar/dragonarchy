@@ -13,3 +13,9 @@ fingerprint_pam_targets:
   - /etc/pam.d/polkit-1
   - /etc/pam.d/system-local-login
   - /etc/pam.d/sddm
+
+fingerprint_sleep_hook_src_by_host:
+  goldendragon: hosts/goldendragon/99-fprintd-reset.sh
+
+fingerprint_hyprlock_pam_src_by_host:
+  goldendragon: hosts/goldendragon/hyprlock

@@ -1,2 +1,7 @@
 ---
 resolved_enabled: true
+
+resolved_config_src_by_host:
+  dragon: hosts/dragon/dns.conf
+  firedragon: hosts/firedragon/dns.conf
+  goldendragon: hosts/goldendragon/dns.conf

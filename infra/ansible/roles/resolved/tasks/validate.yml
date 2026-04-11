@@ -3,22 +3,6 @@
   ansible.builtin.assert:
     that:
       - resolved_enabled | bool
-      - legacy_host_directory is defined
+      - inventory_hostname in resolved_config_src_by_host
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the resolved tranche-5 contract.
-
-- name: Set resolved legacy root
-  ansible.builtin.set_fact:
-    resolved_legacy_root: "{{ playbook_dir }}/../../../{{ legacy_host_directory }}"
-
-- name: Check host-specific resolved config source
-  ansible.builtin.stat:
-    path: "{{ resolved_legacy_root }}/etc/systemd/resolved.conf.d/dns.conf"
-  register: resolved_config_source
-
-- name: Assert host-specific resolved config source exists
-  ansible.builtin.assert:
-    that:
-      - resolved_config_source.stat.exists
-    fail_msg: >-
-      Host '{{ inventory_hostname }}' is missing the managed resolved config source.

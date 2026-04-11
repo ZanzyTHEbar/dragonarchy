@@ -19,3 +19,9 @@ openfortivpn_seed_config: |
   # set-dns = 1                  # auto-set DNS if possible
   # set-routes = 1
   # pppd-use-peerdns = 1
+
+openfortivpn_helper_src_by_host:
+  goldendragon: hosts/goldendragon/avular-vpn-dns
+
+openfortivpn_unit_src_dir_by_host:
+  goldendragon: hosts/goldendragon

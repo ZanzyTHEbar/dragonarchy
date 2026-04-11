@@ -1,22 +1,22 @@
-# Ownership Review: Tranches 1-5
+# Ownership Review: Batches 1-5
 
 ## Scope
 
 This review extends the ownership-overlap check through the full implemented hot-path set before broader edge-case work and larger chezmoi cutover proceeds.
 
-Reviewed tranches:
+Reviewed batches:
 
-- tranche 1: `base`, `packages`, `users`
-- tranche 2: `sddm`
-- tranche 3: `hyprland`
-- tranche 4: `fingerprint`, `nvidia`, `amd_gpu`
-- tranche 5: `tlp`, `resolved`, `openfortivpn`
+- batch 1: `base`, `packages`, `users`
+- batch 2: `sddm`
+- batch 3: `hyprland`
+- batch 4: `fingerprint`, `nvidia`, `amd_gpu`
+- batch 5: `tlp`, `resolved`, `openfortivpn`
 
 ## Findings
 
-No direct ownership violations were found in the implemented tranche contracts.
+No direct ownership violations were found in the implemented batch contracts.
 
-The tranche-5 split remains consistent with the earlier tranche reviews:
+The batch-5 split remains consistent with the earlier batch reviews:
 
 - `tlp` stays limited to laptop power-policy system state.
 - `resolved` stays limited to systemd-resolved configuration and service state.
@@ -48,10 +48,8 @@ The current seams that still need care are:
 
 ## Review result
 
-The tranche-1 through tranche-5 contracts are acceptable to continue from.
+The batch-1 through batch-5 contracts are acceptable to continue from.
 
-The current architecture is ready to proceed into:
+The current architecture is ready to proceed into additional parity completion work, edge-case cleanup, and follow-on simplification.
 
-1. first-host chezmoi cutover execution
-2. edge-case cleanup
-3. follow-on simplification and iteration
+It is not yet ready for any real-host validation or bringup until the parity catalog is complete and the required disposable-VM validation gates are fully green.

@@ -1,8 +1,8 @@
-# Hot-Path Tranche 4
+# Hot-Path Batch 4
 
 ## Scope
 
-The fourth hot-path tranche defines the authentication and GPU ownership boundaries.
+The fourth hot-path batch defines the authentication and GPU ownership boundaries.
 
 Included roles:
 
@@ -10,7 +10,7 @@ Included roles:
 - `nvidia`
 - `amd_gpu`
 
-This tranche intentionally keeps the boundary narrow:
+This batch intentionally keeps the boundary narrow:
 
 - `fingerprint` owns fprintd and PAM/auth-adjacent system state.
 - `nvidia` owns NVIDIA driver and kernel-module behavior.
@@ -84,7 +84,7 @@ Deferred to later hot-path or edge-case batches:
 
 ## Current implementation rule
 
-The tranche-4 implementation is intentionally limited to the current real Arch-family hardware fleet:
+The batch-4 implementation is intentionally limited to the current real Arch-family hardware fleet:
 
 - `fingerprint` currently targets `goldendragon`
 - `nvidia` currently targets `goldendragon`

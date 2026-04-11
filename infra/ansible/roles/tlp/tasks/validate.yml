@@ -7,22 +7,6 @@
       - host_platform_family in tlp_packages_by_platform
       - host_capabilities is defined
       - "'tlp' in host_capabilities"
-      - legacy_host_directory is defined
+      - inventory_hostname in tlp_config_src_by_host
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the TLP tranche-5 contract.
-
-- name: Set TLP legacy root
-  ansible.builtin.set_fact:
-    tlp_legacy_root: "{{ playbook_dir }}/../../../{{ legacy_host_directory }}"
-
-- name: Check host-specific TLP config source
-  ansible.builtin.stat:
-    path: "{{ tlp_legacy_root }}/etc/tlp.d/01-{{ inventory_hostname }}.conf"
-  register: tlp_config_source
-
-- name: Assert host-specific TLP config source exists
-  ansible.builtin.assert:
-    that:
-      - tlp_config_source.stat.exists
-    fail_msg: >-
-      Host '{{ inventory_hostname }}' is missing the managed TLP config source.

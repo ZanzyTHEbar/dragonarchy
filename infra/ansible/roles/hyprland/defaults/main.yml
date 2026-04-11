@@ -8,6 +8,7 @@ hyprland_session_packages_by_platform:
     - hyprlock
     - hyprpicker
     - hyprshot
+    - polkit
     - uwsm
     - xdg-desktop-portal-gtk
     - xdg-desktop-portal-hyprland
@@ -23,3 +24,5 @@ hyprland_required_paths:
     description: Hyprland desktop entry
   - path: /usr/lib/systemd/user/xdg-desktop-portal-hyprland.service
     description: Hyprland portal user unit
+  - path: /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+    description: Polkit authentication agent

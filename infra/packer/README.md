@@ -29,6 +29,13 @@ Packer then adds only the validation tooling that the repo needs:
 
 That keeps the gold template small and makes the validation template the reproducible handoff point for cutover work.
 
+The desktop-class Arch graphical lane adds only what the VM needs for Hyprland/session validation:
+
+- Hyprland session packages
+- Wayland portal packages
+- virtual-GPU guest helpers such as `spice-vdagent`
+- VM-safe graphical environment defaults for nested validation
+
 ## Layout
 
 ```text
@@ -64,6 +71,14 @@ Build the Arch validation template:
 ```bash
 ./scripts/run-packer-build.sh \
   -only=arch-validation-template.proxmox-clone.arch_validation \
+  -var-file=local.auto.pkrvars.hcl
+```
+
+Build the Arch graphical validation template:
+
+```bash
+./scripts/run-packer-build.sh \
+  -only=arch-graphical-validation-template.proxmox-clone.arch_graphical_validation \
   -var-file=local.auto.pkrvars.hcl
 ```
 

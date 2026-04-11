@@ -1,0 +1,24 @@
+---
+- name: Check ASUS laptop managed files
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+  loop: "{{ asus_laptop_managed_paths }}"
+  register: asus_laptop_installed_files
+
+- name: Assert ASUS laptop managed files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Expected ASUS laptop managed file {{ item.item.dest }} to exist."
+  loop: "{{ asus_laptop_installed_files.results }}"
+
+- name: Gather service facts for ASUS laptop services
+  ansible.builtin.service_facts:
+
+- name: Assert ASUS laptop services are present and running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item] is defined
+      - ansible_facts.services[item].state == 'running'
+    fail_msg: "Expected ASUS laptop service {{ item }} to be installed and running."
+  loop: "{{ asus_laptop_managed_services }}"

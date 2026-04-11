@@ -1,0 +1,17 @@
+[Unit]
+Description=AMD GPU Post-Resume Fix for Hyprland
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+User=root
+# Wait for system to stabilize after resume
+ExecStart=/usr/bin/sleep 1
+# Restore AMD GPU power management
+ExecStart=/bin/sh -c 'for card in /sys/class/drm/card*/device/power_dpm_force_performance_level; do echo "auto" > "$card" 2>/dev/null || true; done'
+# Log success (used by verify script)
+ExecStart=/bin/sh -c 'echo "AMD GPU resumed successfully at $(date -Is)" > /tmp/amdgpu-resume.log'
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

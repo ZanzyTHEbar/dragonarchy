@@ -70,7 +70,7 @@
 
 - name: Install OpenFortiVPN DNS helper
   ansible.builtin.copy:
-    src: "{{ openfortivpn_legacy_root }}/dotfiles/.local/bin/avular-vpn-dns"
+    src: "{{ openfortivpn_helper_src_by_host[inventory_hostname] }}"
     dest: /usr/local/bin/avular-vpn-dns
     owner: root
     group: root
@@ -78,7 +78,7 @@
 
 - name: Install OpenFortiVPN systemd units
   ansible.builtin.copy:
-    src: "{{ openfortivpn_legacy_root }}/etc/systemd/system/{{ item }}"
+    src: "{{ openfortivpn_unit_src_dir_by_host[inventory_hostname] }}/{{ item }}"
     dest: "/etc/systemd/system/{{ item }}"
     owner: root
     group: root

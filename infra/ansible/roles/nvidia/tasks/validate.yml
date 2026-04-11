@@ -7,13 +7,13 @@
       - host_platform_family in nvidia_packages_by_platform
       - host_gpu_stack is defined
       - "'nvidia' in host_gpu_stack"
-      - legacy_host_directory is defined
+      - inventory_hostname in nvidia_modprobe_src_dir_by_host
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the NVIDIA tranche-4 contract.
 
-- name: Set NVIDIA legacy root
+- name: Set NVIDIA role-local modprobe source directory
   ansible.builtin.set_fact:
-    nvidia_legacy_root: "{{ playbook_dir }}/../../../{{ legacy_host_directory }}"
+    nvidia_modprobe_src_dir: "{{ role_path }}/files/{{ nvidia_modprobe_src_dir_by_host[inventory_hostname] }}"
 
 - name: Gather installed package facts
   ansible.builtin.package_facts:
@@ -30,7 +30,7 @@
 
 - name: Check host-specific NVIDIA modprobe sources
   ansible.builtin.stat:
-    path: "{{ nvidia_legacy_root }}/etc/modprobe.d/{{ item }}"
+    path: "{{ nvidia_modprobe_src_dir }}/{{ item }}"
   loop:
     - nvidia.conf
     - nvidia-drm.conf

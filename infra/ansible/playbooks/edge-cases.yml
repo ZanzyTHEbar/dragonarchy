@@ -1,0 +1,16 @@
+---
+- name: Edge-case ASUS laptop platform
+  hosts: asus
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: asus_laptop
+
+- name: Edge-case hibernation plumbing
+  hosts: hibernation
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: hibernation

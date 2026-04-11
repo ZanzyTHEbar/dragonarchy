@@ -28,6 +28,27 @@ packages_by_platform:
       - ansible
       - github-cli
       - python-pipx
+    firedragon_laptop:
+      - powertop
+      - acpid
+      - acpi
+      - acpi_call
+      - lm_sensors
+      - thermald
+      - brightnessctl
+      - auto-cpufreq
+      - laptop-detect
+      - libinput
+      - libinput-gestures
+      - asusctl
+      - asus-nb-ctrl
+      - amd-ucode
+      - corectrl
+      - radeontop
+      - glm
+      - cmake
+      - meson
+      - ninja
   debian:
     core_cli:
       - vim

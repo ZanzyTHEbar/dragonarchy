@@ -29,7 +29,7 @@
 
 - name: Install fingerprint sleep hook
   ansible.builtin.copy:
-    src: "{{ fingerprint_legacy_root }}/etc/systemd/system-sleep/99-fprintd-reset.sh"
+    src: "{{ fingerprint_sleep_hook_src_by_host[inventory_hostname] }}"
     dest: /usr/lib/systemd/system-sleep/99-fprintd-reset.sh
     owner: root
     group: root
@@ -45,7 +45,7 @@
 
 - name: Install host-specific hyprlock PAM policy
   ansible.builtin.copy:
-    src: "{{ fingerprint_legacy_root }}/etc/pam.d/hyprlock"
+    src: "{{ fingerprint_hyprlock_pam_src_by_host[inventory_hostname] }}"
     dest: /etc/pam.d/hyprlock
     owner: root
     group: root

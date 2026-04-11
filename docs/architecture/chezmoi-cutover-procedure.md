@@ -126,7 +126,7 @@ The current state is:
 
 ## First practical cutover target
 
-The safest first real cutover target is the current session-core plus session-shell set:
+The safest first safe non-production cutover target is the current session-core, session-shell, plus session-zsh set:
 
 - `dot_config/hypr`
 - `dot_config/waybar`
@@ -136,6 +136,9 @@ The safest first real cutover target is the current session-core plus session-sh
 - `dot_config/clipse`
 - `dot_config/swaync`
 - `dot_config/swayosd`
+- `dot_zshrc`
+- `dot_zshenv`
+- `dot_config/zsh`
 
 Current runtime-managed exceptions inside that target are:
 

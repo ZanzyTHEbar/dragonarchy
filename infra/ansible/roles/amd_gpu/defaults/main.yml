@@ -1,6 +1,7 @@
 ---
 amd_gpu_enabled: true
-amd_gpu_bootloader_helper: "{{ playbook_dir }}/../../../scripts/lib/bootloader.sh"
+amd_gpu_bootloader_helper_src: "{{ playbook_dir }}/../../../scripts/lib/bootloader.sh"
+amd_gpu_bootloader_helper_path: /usr/local/libexec/dotfiles/bootloader.sh
 
 amd_gpu_packages_by_platform:
   arch:
@@ -23,3 +24,7 @@ amd_gpu_packages_by_platform:
 
 amd_gpu_kernel_params:
   - amdgpu.modeset=1
+
+amd_gpu_host_src_dir_by_host:
+  dragon: hosts/dragon
+  firedragon: hosts/firedragon

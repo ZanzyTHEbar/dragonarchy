@@ -2,3 +2,24 @@
 - name: Set system timezone
   ansible.builtin.timezone:
     name: "{{ base_timezone }}"
+
+- name: Ensure polkit rules directory exists
+  ansible.builtin.file:
+    path: /etc/polkit-1/rules.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install baseline polkit admin rule
+  ansible.builtin.copy:
+    dest: /etc/polkit-1/rules.d/49-wheel-admin.rules
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      // Managed by Ansible base role.
+      // Keep wheel as the canonical local admin identity for polkit.
+      polkit.addAdminRule(function(action, subject) {
+          return {{ base_polkit_admin_identities | to_json }};
+      });

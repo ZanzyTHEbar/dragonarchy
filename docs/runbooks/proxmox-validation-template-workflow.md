@@ -8,6 +8,7 @@ It complements:
 
 - `docs/architecture/proxmox-vm-template-strategy.md`
 - `docs/runbooks/first-host-chezmoi-cutover.md`
+- `docs/runbooks/first-safe-cutover-rollout-gate.md`
 
 ## Target artifacts
 
@@ -20,11 +21,13 @@ Validation templates:
 
 - `dotfiles-debian-14-validation-template`
 - `dotfiles-arch-validation-template`
+- `dotfiles-arch-graphical-validation-template`
 
 Disposable VMs:
 
 - `dotfiles-cutover-debian-*`
 - `dotfiles-cutover-arch-*`
+- `dotfiles-graphical-arch-*`
 
 ## Phase 1: Create or refresh the gold template
 
@@ -80,6 +83,14 @@ Build the Arch validation template:
   -var-file=local.auto.pkrvars.hcl
 ```
 
+Build the Arch graphical validation template:
+
+```bash
+./scripts/run-packer-build.sh \
+  -only=arch-graphical-validation-template.proxmox-clone.arch_graphical_validation \
+  -var-file=local.auto.pkrvars.hcl
+```
+
 The wrapper is required because the repo keeps the Packer HCL split across `sources/` and `builds/`, while `packer build .` only evaluates `.pkr.hcl` files in the current working directory.
 
 Expected result:
@@ -110,6 +121,22 @@ Create a disposable Arch VM:
   --name dotfiles-cutover-arch-01 \
   --ssh-public-key-file ~/.ssh/id_ed25519.pub
 ```
+
+Create a disposable Arch graphical VM:
+
+```bash
+./infra/packer/scripts/create-disposable-validation-vm.sh \
+  --template dotfiles-arch-graphical-validation-template \
+  --vm-id 9403 \
+  --name dotfiles-graphical-arch-01 \
+  --memory-mb 8192 \
+  --cores 4 \
+  --ssh-public-key-file ~/.ssh/id_ed25519.pub
+```
+
+The graphical Arch lane is the desktop-capable validation substrate used for the final virtualized gate before any safe non-production cutover is even considered.
+
+It is expected to drive a real tty-backed graphical Hyprland smoke, not only package installation or SSH reachability checks.
 
 Use linked clones only for short-lived experimentation.
 
@@ -164,7 +191,9 @@ For the full operator sequence and stop conditions, follow:
 | Debian 14 validation template | template boots, cloud-init works, `git`/`python`/`chezmoi`/`stow` are present | primary branch-shift and cutover lane |
 | Debian disposable VM | `main -> feature` checkout is normalized by hard reset and cutover sequence stays clean | first blocker-clearing lane |
 | Arch validation template | template boots, guest agent works, Arch repo prerequisites are present | session-adjacent validation substrate |
-| Arch disposable VM | Hyprland/session-adjacent validation is stable enough before live-host work | required before touching live Arch hosts |
+| Arch disposable VM | Hyprland/session-adjacent validation is stable enough before any safe non-production cutover is considered | required before parity-complete Arch cutover work |
+| Arch graphical validation template | template boots with a desktop-capable virtual VGA and graphical prerequisites | substrate for the real graphical Hyprland/session gate |
+| Arch graphical disposable VM | Hyprland can start on a real tty-backed graphical path and expose sane compositor state | final virtualized gate before the first safe non-production cutover |
 
 ## Stop conditions
 
@@ -174,3 +203,14 @@ Stop immediately if:
 - Packer build succeeds but the guest agent or SSH path is broken
 - branch shift still leaves unexpected repo dirtiness after `git reset --hard FETCH_HEAD`
 - cutover dry-run surfaces blockers that widen ownership boundaries
+- the graphical disposable lane cannot hold a real Hyprland session long enough to query compositor state
+
+## Promotion rule
+
+Do not promote directly from the virtualized lanes to any real host.
+
+The next step after Debian, Arch, and graphical validation is:
+
+1. complete `docs/architecture/host-bringup-parity-catalog.md` for the exact target and required capabilities
+2. pass the rollout gate in `docs/runbooks/first-safe-cutover-rollout-gate.md`
+3. execute the first cutover only on a safe non-production target

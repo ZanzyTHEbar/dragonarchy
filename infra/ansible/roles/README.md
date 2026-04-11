@@ -45,7 +45,9 @@ The current control plane contains:
 - `nvidia`
 - `amd_gpu`
 - `tlp`
+- `asus_laptop`
 - `resolved`
+- `netbird`
 - `openfortivpn`
 
 ## Foundation role

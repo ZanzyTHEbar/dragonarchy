@@ -89,6 +89,14 @@ The next manifest slice expands the session shell with:
 - swaync
 - swayosd
 
+The current zsh slice expands user-shell ownership with:
+
+- `.zshrc`
+- `.zshenv`
+- `.config/zsh/**`
+- host-specific zsh overlays under `.config/zsh/hosts/<host>.zsh`
+- host-specific zsh functions under `.config/zsh/functions/<host>.zsh`
+
 Generated or script-owned files still need explicit handling before final cutover.
 
 Notable current exceptions:
