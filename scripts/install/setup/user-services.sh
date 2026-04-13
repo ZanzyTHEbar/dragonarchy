@@ -38,7 +38,8 @@ ensure_user_package_stowed() {
         return 1
     fi
 
-    if stow --restow -d "$PACKAGES_ROOT" -t "$HOME" "$package"; then
+    # Run from the packages root so GNU Stow applies packages/.stowrc ignores.
+    if (cd "$PACKAGES_ROOT" && stow --restow -t "$HOME" "$package"); then
         log_success "Restowed user package: $package"
         return 0
     fi
@@ -351,5 +352,4 @@ fi
 # --- Quick hints ---
 log_info "Verify: systemctl --user status elephant"
 log_info "If socket busy, ExecStartPre cleans /tmp/elephant.sock"
-
 
