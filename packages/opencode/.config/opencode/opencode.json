@@ -9,6 +9,21 @@
     "/home/daofficialwizard/.config/opencode/memory-bank.md"
   ],
   "mcp": {
+    "linear": {
+      "type": "remote",
+      "url": "https://mcp.linear.app/sse",
+      "enabled": true
+    },
+    "actualbudget": {
+      "type": "remote",
+      "url": "http://192.168.0.157:3000/http",
+      "enabled": true
+    },
+    "mealie": {
+      "type": "remote",
+      "url": "http://192.168.0.157:3031/mcp",
+      "enabled": true
+    },
     "allpepper-memory-bank": {
       "type": "local",
       "command": [
