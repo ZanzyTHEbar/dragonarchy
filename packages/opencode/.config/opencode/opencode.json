@@ -6,7 +6,7 @@
     "auto": false
   },
   "instructions": [
-    "/home/daofficialwizard/.config/opencode/memory-bank.md"
+    "/home/daofficialwizard/.config/opencode/rules/general/memory-bank.mdc"
   ],
   "mcp": {
     "linear": {
@@ -17,12 +17,12 @@
     "actualbudget": {
       "type": "remote",
       "url": "http://192.168.0.157:3000/http",
-      "enabled": true
+      "enabled": false
     },
     "mealie": {
       "type": "remote",
       "url": "http://192.168.0.157:3031/mcp",
-      "enabled": true
+      "enabled": false
     },
     "allpepper-memory-bank": {
       "type": "local",
@@ -32,7 +32,7 @@
         "@allpepper/memory-bank-mcp"
       ],
       "environment": {
-        "MEMORY_BANK_ROOT": "/home/daofficialwizard/Documents/.memory/memory-bank"
+        "MEMORY_BANK_ROOT": "/mnt/dragonnet/.memory/memory-bank/"
       },
       "enabled": true,
       "timeout": 20000

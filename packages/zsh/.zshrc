@@ -6,7 +6,7 @@
 unsetopt nounset 2>/dev/null
 
 ZSH_TTY_UI=false
-if [[ -o interactive ]]; then
+if [[ -o interactive && -t 0 && -t 1 ]]; then
     ZSH_TTY_UI=true
 fi
 
@@ -52,7 +52,6 @@ if [[ "$ZSH_TTY_UI" == "true" ]] && command -v zinit >/dev/null 2>&1; then
     zinit snippet OMZP::git
     zinit snippet OMZP::sudo
     zinit snippet OMZP::zoxide
-    zinit snippet OMZP::direnv
     zinit snippet OMZP::nvm
     zinit snippet OMZP::npm
     zinit snippet OMZP::docker-compose

@@ -74,9 +74,74 @@ if [[ "${ZSH_TTY_UI:-false}" == "true" ]]; then
     zstyle ':completion:*:*:docker-*:*' option-stacking yes
 fi
 
-# Set up direnv if available
+# Set up direnv if available.
+#
+# Avoid the default precmd hook because it re-runs `direnv export zsh` before
+# every prompt. That gets painful in slow `.envrc` trees (for example Nix-backed
+# envs or anything living on NFS/automount paths) and matches the intermittent
+# prompt stalls seen on this machine.
+#
+# `chpwd` still covers the normal case: load/unload envs when entering or
+# leaving a project. If `.envrc` changes in-place, `direnv reload` keeps the
+# behavior explicit instead of stalling every prompt.
 if [[ "${ZSH_TTY_UI:-false}" == "true" ]] && command -v direnv &> /dev/null; then
-    eval "$(direnv hook zsh)"
+    autoload -Uz add-zsh-hook 2>/dev/null || true
+
+    # Ignore module/cache trees that may vendor their own `.envrc` files.
+    # These should never affect the interactive shell.
+    typeset -ga _direnv_ignored_path_prefixes
+    _direnv_ignored_path_prefixes=(
+        "/mnt/common/bin/pkg/mod"
+        "${GOMODCACHE:-$HOME/go/pkg/mod}"
+        "${CARGO_HOME:-$HOME/.cargo}/registry"
+        "$HOME/.local/share/nvim/lazy"
+        "$HOME/.local/share/hyprland-plugins"
+    )
+
+    _direnv_should_ignore_pwd() {
+        emulate -L zsh
+        setopt no_unset 2>/dev/null || true
+
+        local cwd="${1:-$PWD}"
+        local prefix
+
+        for prefix in "${_direnv_ignored_path_prefixes[@]}"; do
+            [[ -n "$prefix" ]] || continue
+            case "$cwd/" in
+                "${prefix%/}/"*)
+                    return 0
+                    ;;
+            esac
+        done
+
+        return 1
+    }
+
+    _direnv_chpwd_hook() {
+        emulate -L zsh
+        setopt no_unset 2>/dev/null || true
+
+        local export_cmd
+
+        trap -- '' SIGINT
+
+        if _direnv_should_ignore_pwd "$PWD"; then
+            # Export from `/` so direnv unloads any previously active project
+            # env without ever touching ignored cache/module directories.
+            export_cmd="$(builtin cd / && direnv export zsh)"
+        else
+            export_cmd="$(direnv export zsh)"
+        fi
+
+        eval "$export_cmd"
+        trap - SIGINT
+    }
+
+    if (( $+functions[add-zsh-hook] )); then
+        add-zsh-hook chpwd _direnv_chpwd_hook
+    fi
+
+    _direnv_chpwd_hook
 fi
 
 # Initialize zoxide if available
