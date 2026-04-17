@@ -4,7 +4,7 @@
 
 On Arch-family installs, `scripts/install/install-deps.sh --host dragon` installs `platforms.arch.pacman.host_dragon_workstation` from `scripts/install/deps.manifest.toml`, including:
 
-- **Vulkan/Mesa tooling**: `vulkan-tools`, `mesa-utils`, `vulkan-radeon`, `libva-mesa-driver`, `mesa-vdpau`
+- **Vulkan/Mesa tooling**: `vulkan-tools`, `mesa-utils`, `vulkan-radeon`, `libva-mesa-driver`
 - **Monitoring/tuning**: `radeontop`, `lm_sensors`, `corectrl`
 - **Microcode**: `amd-ucode`
 

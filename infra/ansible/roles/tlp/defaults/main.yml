@@ -1,10 +1,9 @@
 ---
 tlp_enabled: true
 
+# Packages: deps.manifest.toml (laptop_power_tlp) via packages role.
 tlp_packages_by_platform:
-  arch:
-    - tlp
-    - tlp-rdw
+  arch: []
 
 tlp_conflict_services:
   - power-profiles-daemon.service

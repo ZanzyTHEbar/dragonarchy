@@ -96,30 +96,44 @@ Created `fix-lid-close-freeze.sh` to:
 - Verify TLP doesn't interfere
 - Provide clear next steps
 
-## ⚡ Quick Fix (For FireDragon Host)
+## Status
 
-If you're experiencing this issue now, run the automated fix script:
+This document is retained as historical context.
+
+The legacy `fix-lid-close-freeze.sh` helper is retired.
+
+Current ownership is split across:
+
+- `infra/ansible/roles/amd_gpu`
+- `infra/ansible/roles/asus_laptop`
+- `infra/ansible/roles/tlp`
+- `infra/ansible/roles/hibernation`
+
+## Current Convergence Path
+
+Converge the canonical owners:
 
 ```bash
-cd ~/dotfiles/hosts/firedragon
-./fix-lid-close-freeze.sh
+ansible-playbook -i ~/dotfiles/infra/ansible/inventory/hosts.yml \
+  ~/dotfiles/infra/ansible/playbooks/site.yml \
+  --limit firedragon
 ```
 
-The script will:
+The converged stack now owns:
 1. ✅ Install all AMD GPU suspend/resume services
 2. ✅ Verify systemd-logind configuration
-3. ✅ Check kernel module parameters
-4. ✅ Rebuild initramfs if needed
+3. ✅ Persist kernel module parameters
+4. ✅ Verify hibernation and resume plumbing
 5. ✅ Verify TLP configuration
 
-**Then reboot** (required for changes to take effect).
+**Then reboot if convergence changed boot or initramfs state.**
 
 ## ✅ Verification
 
-After reboot, verify the fix:
+After convergence, verify the stack:
 
 ```bash
-~/dotfiles/hosts/firedragon/verify-suspend-fix.sh
+~/dotfiles/tests/vm/proxmox-validation/firedragon-suspend-verify.sh
 ```
 
 Expected output:

@@ -100,6 +100,18 @@ Expected result:
 - cleans cloud-init and machine identity state
 - freezes a reusable validation template artifact
 
+### Package tiers vs what a disposable VM proves
+
+Canonical package definitions live in `scripts/install/deps.manifest.toml`. Resolution tiers:
+
+| Tier | Managers | What disposable/bootstrap lanes should assume |
+|------|-----------|-----------------------------------------------|
+| **Repo-native** | `pacman` / `apt` | Safe to assert on a stock image with default repos (and optional Chaotic-AUR if your lane enables it). Ansible `packages` installs this tier via `export-package-plan.sh`. |
+| **AUR** | `paru` | Requires an AUR helper and build deps; **not** implied by `ansible.builtin.package` / pacman-only convergence. Proves only if you explicitly run `install-deps.sh`, `paru`, or a dedicated gate. |
+| **Script / vendor** | `script` | Downloaders or custom installers; treat as an explicit, separate proof. |
+
+Minimal Arch bootstrap scripts under `infra/packer/scripts/bootstrap-arch*.sh` intentionally install **small repo-native sets** for SSH/agent/desktop smoke. They do **not** prove the full manifest (including AUR or `script` groups). Full composition is validated by `scripts/install/install-deps.sh` and inventory-driven `export-package-plan.sh` output.
+
 ## Phase 3: Clone a disposable VM
 
 Create a disposable Debian VM:
@@ -174,6 +186,24 @@ Inside the guest:
 For the full operator sequence and stop conditions, follow:
 
 - `docs/runbooks/first-host-chezmoi-cutover.md`
+
+## Phase 6: Run host-specific parity probes when applicable
+
+After the disposable host has been converged to the relevant target shape, run any host-specific read-only proof scripts needed for the parity surface you just changed.
+
+Current example:
+
+```bash
+./tests/vm/proxmox-validation/firedragon-suspend-verify.sh
+```
+
+Use this after the firedragon laptop stack has been converged to verify:
+
+- AMD GPU suspend/resume services
+- ASUS sleep/logind policy
+- hibernation and resume state
+- Hypridle sleep-session policy
+- ASUS profile state
 
 ## Decision table
 

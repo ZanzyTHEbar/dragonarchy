@@ -3,15 +3,7 @@
   ansible.builtin.assert:
     that:
       - host_platform_family is defined
-      - host_platform_family in packages_by_platform
+      - host_platform_family in ['arch', 'debian']
       - host_profile_packages is defined
     fail_msg: >-
       Package role inputs are incomplete for host '{{ inventory_hostname }}'.
-
-- name: Assert requested package profiles exist for host platform
-  ansible.builtin.assert:
-    that:
-      - item in packages_by_platform[host_platform_family]
-    fail_msg: >-
-      Package profile '{{ item }}' is not defined for platform family '{{ host_platform_family }}'.
-  loop: "{{ host_profile_packages }}"

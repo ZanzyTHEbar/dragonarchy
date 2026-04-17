@@ -1,5 +1,6 @@
 ---
-- name: Install TLP packages
+- name: Install TLP packages (legacy override; default is manifest via packages role)
   ansible.builtin.package:
     name: "{{ tlp_packages_by_platform[host_platform_family] }}"
     state: present
+  when: tlp_packages_by_platform[host_platform_family] | default([]) | length > 0

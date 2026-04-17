@@ -167,9 +167,9 @@ disable_power_saving_mode() {
   # Restore ASUS profile
   if command -v asusctl >/dev/null 2>&1; then
     if [[ -n "${target_asus:-}" && "$target_asus" != "n/a" && "$target_asus" != "unknown" ]]; then
-      asusctl profile -n "$target_asus" >/dev/null 2>&1 && did_any=1
+      asusctl profile set "$target_asus" >/dev/null 2>&1 && did_any=1
     else
-      asusctl profile -n Balanced >/dev/null 2>&1 && did_any=1
+      asusctl profile set Balanced >/dev/null 2>&1 && did_any=1
     fi
   fi
 

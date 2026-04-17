@@ -3,8 +3,8 @@
   ansible.builtin.set_fact:
     amd_gpu_expect_vulkaninfo: >-
       {{
-        'vulkan-tools' in
-        (amd_gpu_packages_by_platform[host_platform_family][inventory_hostname] | default([]))
+        host_platform_family == 'arch'
+        and inventory_hostname in ['dragon', 'firedragon']
       }}
 
 - name: Check AMD Vulkan command availability

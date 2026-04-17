@@ -52,7 +52,7 @@ flowchart TD
 
 - **Driver**: Open-source `amdgpu` kernel driver
 - **Vulkan**: RADV driver with ACO shader compiler
-- **Video Acceleration**: VA-API and VDPAU support
+- **Video Acceleration**: VA-API plus the Mesa Radeon userspace stack
 - **Features**:
   - TearFree rendering
   - Variable Refresh Rate (VRR) support
@@ -190,7 +190,7 @@ After running setup, complete these steps:
      ```bash
      sudo pacman -S --needed asusctl asus-nb-ctrl
      sudo systemctl enable --now asusd.service
-     asusctl profile -n Balanced
+     asusctl profile set Balanced
      ```
 
 8. **Confirm Sleep State**:
@@ -199,14 +199,13 @@ After running setup, complete these steps:
    cat /sys/power/mem_sleep
    ```
 
-   - If `deep` is available (e.g. `s2idle [deep]`), add `mem_sleep_default=deep` via `~/dotfiles/hosts/firedragon/fix-acpi-boot.sh` and reboot.
+   - If `deep` is available (e.g. `s2idle [deep]`), treat that as a follow-on platform decision and manage the boot parameter through the canonical ASUS laptop Ansible role rather than the retired `fix-acpi-boot.sh` helper.
    - If only `s2idle` is exposed (current default), keep it and rely on the runtime-PM override script (`/etc/systemd/system-sleep/99-runtime-pm.sh`) that forces NVMe/Wi-Fi/USB controllers to `power/control=on` before the system enters Modern Standby.
 
 9. **Verify Hardware Acceleration**:
 
    ```bash
    vainfo  # Check VA-API
-   vdpauinfo  # Check VDPAU
    ```
 
 ## Quick Reference Commands
@@ -336,16 +335,18 @@ Repeated `HTTP error (500)` entries there usually point to a Vivaldi service-sid
 
 **ROOT CAUSE**: Missing `amdgpu-console-restore.service` that reinitializes the framebuffer after resume.
 
-**QUICK FIX** (automated):
+**CURRENT OWNER PATH**:
 ```bash
-cd ~/dotfiles/hosts/firedragon
-./fix-lid-close-freeze.sh
-# Then reboot when prompted
+ansible-playbook -i ~/dotfiles/infra/ansible/inventory/hosts.yml \
+  ~/dotfiles/infra/ansible/playbooks/site.yml \
+  --limit firedragon
 ```
 
-**After reboot, verify:**
+The legacy `fix-lid-close-freeze.sh` mutator is retired because this surface is now owned by the Ansible roles.
+
+**After convergence, verify:**
 ```bash
-~/dotfiles/hosts/firedragon/verify-suspend-fix.sh
+~/dotfiles/tests/vm/proxmox-validation/firedragon-suspend-verify.sh
 ```
 
 **Then test lid close:**
@@ -358,19 +359,19 @@ cd ~/dotfiles/hosts/firedragon
 ---
 
 ### ⚠️ General Suspend/Resume & TTY Issues
-- Double-check firmware/EC versions and re-run `asusctl profile -n Balanced` after every BIOS update.
+- Double-check firmware/EC versions and re-run `asusctl profile set Balanced` after every BIOS update.
 - If the display still fails to return from s2idle, test with the latest LTS kernel and inspect `/etc/systemd/system-sleep/99-runtime-pm.sh` to ensure the NVMe/Wi-Fi paths match `lspci -nn`.
 
-**Suspend/Resume Fix (Recommended)**:
+**Suspend/Resume Convergence (Recommended)**:
 ```bash
-cd ~/dotfiles/hosts/firedragon
-./fix-lid-close-freeze.sh
-# Then reboot when prompted
+ansible-playbook -i ~/dotfiles/infra/ansible/inventory/hosts.yml \
+  ~/dotfiles/infra/ansible/playbooks/site.yml \
+  --limit firedragon
 ```
 
-**After reboot, verify:**
+**After convergence, verify:**
 ```bash
-~/dotfiles/hosts/firedragon/verify-suspend-fix.sh
+~/dotfiles/tests/vm/proxmox-validation/firedragon-suspend-verify.sh
 ```
 
 **Full Documentation**: `docs/SUSPEND_RESUME_COMPLETE_FIX.md`
@@ -381,18 +382,18 @@ cd ~/dotfiles/hosts/firedragon
 
 If `systemctl hibernate` fails, or SDDM doesn’t show a hibernate button, you usually need **disk-backed swap + resume kernel params + initramfs resume hook**.
 
-**Enable hibernate (automated):**
+**Enable hibernate (canonical owner):**
 
 ```bash
-cd ~/dotfiles/hosts/firedragon
-bash ./enable-sleep-hibernate.sh
-reboot
+ansible-playbook -i ~/dotfiles/infra/ansible/inventory/hosts.yml \
+  ~/dotfiles/infra/ansible/playbooks/site.yml \
+  --limit firedragon
 ```
 
-After reboot:
+After convergence:
 
 ```bash
-~/dotfiles/hosts/firedragon/verify-suspend-fix.sh
+~/dotfiles/tests/vm/proxmox-validation/firedragon-suspend-verify.sh
 systemctl hibernate
 ```
 

@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+# Adds a small **Wayland/Hyprland** repo-native set for graphical smoke tests.
+# This is not a full manifest bundle; AUR/vendor tiers remain out-of-band.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 "${SCRIPT_DIR}/bootstrap-arch-validation.sh"

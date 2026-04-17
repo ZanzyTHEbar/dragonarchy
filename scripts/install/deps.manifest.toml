@@ -68,7 +68,47 @@ packages = [
 
 [platforms.arch.pacman.host_firedragon_laptop]
 requires_hosts = ["firedragon"]
-packages = ["asusctl"]
+packages = [
+    "asusctl",
+    "powertop",
+    "acpid",
+    "acpi",
+    "acpi_call",
+    "lm_sensors",
+    "thermald",
+    "brightnessctl",
+    "laptop-detect",
+    "libinput",
+    "amd-ucode",
+    "corectrl",
+    "radeontop",
+    "glm",
+    "cmake",
+    "meson",
+    "ninja",
+    # AMD GPU (repo); aligns with former amd_gpu role for this host
+    "mesa",
+    "vulkan-radeon",
+    "libva-mesa-driver",
+    "xf86-video-amdgpu",
+    "vulkan-tools",
+    "mesa-utils",
+]
+
+# AUR-only laptop tools for firedragon (explicit tier; not installed by ansible.builtin.package)
+[platforms.arch.paru.host_firedragon_laptop]
+requires_hosts = ["firedragon"]
+packages = ["libinput-gestures"]
+
+# Shared laptop power management (TLP); hosts that use the Ansible `tlp` role
+[platforms.arch.pacman.laptop_power_tlp]
+requires_hosts = ["firedragon", "goldendragon"]
+packages = ["tlp", "tlp-rdw"]
+
+# NVIDIA proprietary stack for goldendragon (replaces role-local list)
+[platforms.arch.pacman.host_goldendragon_nvidia]
+requires_hosts = ["goldendragon"]
+packages = ["nvidia-dkms", "nvidia-utils"]
 
 [platforms.arch.pacman.dev]
 packages = [
@@ -113,7 +153,6 @@ packages = [
     "vulkan-tools",
     "mesa-utils",
     "libva-mesa-driver",
-    "mesa-vdpau",
     "radeontop",
 
     # AMD CPU microcode

@@ -8,6 +8,12 @@ host_capabilities:
   - aio-cooler
   - netbird
 
+# Overrides desktop group; AMD workstation packages live in deps.manifest.toml (host_dragon_workstation)
+host_profile_packages:
+  - core_cli
+  - dev
+  - host_dragon_workstation
+
 managed_users:
   - name: daofficialwizard
     groups:

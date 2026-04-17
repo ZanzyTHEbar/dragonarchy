@@ -10,6 +10,12 @@ host_capabilities:
   - fingerprint
   - fortinet_vpn
 
+host_profile_packages:
+  - core_cli
+  - dev
+  - laptop_power_tlp
+  - host_goldendragon_nvidia
+
 managed_users:
   - name: daofficialwizard
     groups:

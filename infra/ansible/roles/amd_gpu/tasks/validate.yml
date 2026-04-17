@@ -19,6 +19,9 @@
 - name: Check host-specific AMD GPU modprobe sources
   ansible.builtin.stat:
     path: "{{ amd_gpu_role_files_root }}/etc/modprobe.d/{{ item }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
   loop:
     - amdgpu.conf
     - amdgpu-dragon.conf
@@ -29,8 +32,10 @@
     amd_gpu_modprobe_sources: >-
       {{
         amd_gpu_modprobe_source_candidates.results
-        | selectattr('stat.exists')
-        | map(attribute='stat.path')
+        | selectattr('stat.exists', 'defined')
+        | selectattr('stat.exists', 'equalto', true)
+        | map(attribute='item')
+        | map('regex_replace', '^(.*)$', amd_gpu_role_files_root ~ '/etc/modprobe.d/\\1')
         | list
       }}
 
