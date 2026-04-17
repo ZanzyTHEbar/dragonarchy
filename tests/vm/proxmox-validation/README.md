@@ -16,6 +16,7 @@ What it verifies:
 - disposable VMs normalize the worktree with `git reset --hard FETCH_HEAD`
 - Debian and Arch lanes can exercise the chezmoi cutover workflow without touching live hosts
 - the Arch graphical disposable lane can host a real tty-backed Hyprland session smoke
+- host-specific read-only probes such as `firedragon-suspend-verify.sh` can validate parity-sensitive system and session behavior after convergence
 
 What it does not yet prove:
 
@@ -27,3 +28,7 @@ What still remains between this lane and a live host:
 
 - the explicit rollout gate and rollback checklist
 - the first real execute cutover on a safe non-production target
+
+Useful host-specific probes:
+
+- `tests/vm/proxmox-validation/firedragon-suspend-verify.sh`

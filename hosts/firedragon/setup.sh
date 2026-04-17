@@ -52,7 +52,6 @@ setup_firedragon_packages() {
         "lm_sensors"             # Hardware monitoring
         "thermald"               # Thermal daemon
         "brightnessctl"          # Brightness control
-        "auto-cpufreq"           # CPU frequency scaling
         "laptop-detect"          # Laptop detection utility
         "libinput"               # Input device management
         "libinput-gestures"      # Gesture recognition library (optional)
@@ -64,7 +63,6 @@ setup_firedragon_packages() {
         "mesa"                   # AMD graphics drivers
         "vulkan-radeon"          # Vulkan support for AMD
         "libva-mesa-driver"      # VA-API support
-        "mesa-vdpau"             # VDPAU support
         "xf86-video-amdgpu"      # AMD GPU DDX driver
         "amd-ucode"              # AMD microcode
         "corectrl"               # AMD GPU/CPU control GUI
@@ -104,7 +102,7 @@ setup_asus_ec_tools() {
     fi
 
     if command_exists asusctl; then
-        if asusctl profile -n Balanced >/dev/null 2>&1; then
+        if asusctl profile set Balanced >/dev/null 2>&1; then
             log_success "Set ASUS performance profile to Balanced"
         else
             log_warning "Failed to set ASUS profile via asusctl"
@@ -678,14 +676,9 @@ RemoveIPC=yes
 # Setup hibernation (swap + resume parameters + initramfs resume hook)
 setup_hibernation() {
     log_info "Setting up hibernation (swap + resume)..."
-    
-    if [[ -x "${SCRIPT_DIR}/enable-sleep-hibernate.sh" ]]; then
-        bash "${SCRIPT_DIR}/enable-sleep-hibernate.sh"
-        log_success "Hibernation configured"
-    else
-        log_warning "enable-sleep-hibernate.sh not found; skipping hibernation setup"
-        log_info "Expected path: ${SCRIPT_DIR}/enable-sleep-hibernate.sh"
-    fi
+
+    log_warning "Legacy hibernation helper is retired in favor of infra/ansible/roles/hibernation"
+    log_info "Use the Ansible control plane plus tests/vm/proxmox-validation/firedragon-suspend-verify.sh for current validation"
 }
 
 # Setup Asus VivoBook-specific configurations
@@ -739,7 +732,7 @@ options asus_wmi enable_fs=1
     log_info "Escalating privileges to update bootloader configuration..."
     if ! _sysmod_sudo -v 2>/dev/null; then
         log_warning "Cannot access bootloader files (sudo required)"
-        log_info "Run manually after setup: bash ~/dotfiles/hosts/firedragon/fix-acpi-boot.sh"
+        log_info "Current canonical owner is infra/ansible/roles/asus_laptop"
         return 0
     fi
 
@@ -756,7 +749,7 @@ options asus_wmi enable_fs=1
         log_warning "Reboot recommended to apply ACPI changes"
     else
         log_warning "Failed to apply ACPI parameters automatically"
-        log_info "You can retry manually with: bash ~/dotfiles/hosts/firedragon/fix-acpi-boot.sh"
+        log_info "Retry through the Ansible control plane for the current supported path"
     fi
 
     # Add keyboard backlight control via udev

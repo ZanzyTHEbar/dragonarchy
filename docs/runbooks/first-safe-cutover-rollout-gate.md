@@ -71,6 +71,8 @@ Required evidence:
 - minimal-image install assumptions are already corrected
 - no new runtime-ownership or folded-Stow regressions appear
 
+Package expectations: disposable lanes prove **repo-native** bootstrap tooling and workflow mechanics. **AUR/vendor** packages from `deps.manifest.toml` (`paru` / `script` managers) are a separate explicit gate—do not treat them as covered by the minimal Arch template alone.
+
 This gate proves the same mechanics under the host family that matters for the live Hyprland fleet.
 
 ### Gate 3: Arch graphical proof

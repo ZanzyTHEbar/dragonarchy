@@ -51,6 +51,10 @@ The current control plane contains:
 - `netbird`
 - `openfortivpn`
 
+## Package ownership
+
+The `packages` role does not author package lists. It runs `scripts/install/export-package-plan.sh` against `scripts/install/deps.manifest.toml` using inventory (`host_profile_packages`, host name, features). Repo-native installs use `pacman`/`apt`; `paru` and `script` tiers are reported as pending. See `docs/architecture/package-manifest-contract.md`.
+
 ## Foundation role
 
 `common` remains the foundation role.

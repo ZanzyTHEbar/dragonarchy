@@ -114,16 +114,9 @@ Ansible and chezmoi exist, but they are not yet the only bringup path.
 
 ### 2. Duplicate package truth
 
-Legacy package truth remains in:
+**Closed for Ansible convergence:** `scripts/install/deps.manifest.toml` is canonical. The `packages` role resolves plans via `scripts/install/export-package-plan.sh` (see `docs/architecture/package-manifest-contract.md`). Role-local package lists were removed or emptied where migrated (e.g. `amd_gpu`, `nvidia`, `tlp` stacks; `roles/packages/vars/main.yml` retired).
 
-- `scripts/install/deps.manifest.toml`
-
-New package truth exists in:
-
-- `infra/ansible/roles/packages/vars/main.yml`
-- role defaults and per-host/per-group variables
-
-Parity work must treat this as a drift source until one side becomes canonical.
+**Remaining seams (incremental):** some roles still carry install lists for session/UI stacks (`hyprland`, `sddm`, `fingerprint`, `openfortivpn`) until those are folded into manifest-backed groups or host profiles in a later batch.
 
 ### 3. NetBird is now role-owned, but not yet parity-complete
 
@@ -172,7 +165,7 @@ If legacy shell, Stow, or host trees can still write or source the same concern,
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | top-level bringup                                 | `install.sh`, `scripts/install/*`, `hosts/<host>/setup.sh`                                                                                             | `infra/ansible/playbooks/*.yml`, `infra/chezmoi/scripts/*.sh`                                                       | migration seam   | Ansible + chezmoi                                                                          | define one supported end-to-end bringup entrypoint and retire mixed-mode operator flow                                                        |
 | validation gate                                   | `scripts/install/validate.sh`                                                                                                                          | role `validate.yml` and `verify.yml`, CI syntax checks, VM cutover lane                                             | migration seam   | Ansible/chezmoi parity gate                                                                | map trait checks into inventory/capability-based validation and produce one authoritative parity proof                                        |
-| package truth                                     | `scripts/install/deps.manifest.toml`                                                                                                                   | `infra/ansible/roles/packages/vars/main.yml` and host/group package vars                                            | full duplication | Ansible `packages` role or one generated shared manifest                                   | choose one source of truth, then remove or thin the other path                                                                                |
+| package truth                                     | `scripts/install/deps.manifest.toml`                                                                                                                   | `infra/ansible/roles/packages` (manifest plan consumer) + optional legacy role overrides                                                           | **resolved**     | **`deps.manifest.toml` + `export-package-plan.sh`**                                        | keep thinning role-local lists (`hyprland`, `sddm`, …) into manifest groups                                                                    |
 | SDDM theme payload and active theme               | `packages/sddm/**`, `scripts/install/stow-system.sh`, `scripts/theme-manager/refresh-sddm`, `scripts/theme-manager/sddm-set`                           | `infra/ansible/roles/sddm/tasks/configure.yml`                                                                      | partial overlap  | Ansible `sddm` role                                                                        | stop using system Stow and theme-manager as the runtime writer for managed hosts                                                              |
 | baseline polkit admin rule                        | `packages/polkit/etc/polkit-1/rules.d/49-wheel-admin.rules`                                                                                            | `infra/ansible/roles/base/tasks/configure.yml`                                                                      | full duplication | Ansible `base` role                                                                        | remove `polkit` from system-Stow bringup for managed hosts                                                                                    |
 | fingerprint PAM insertion                         | `hosts/goldendragon/setup.sh`, `hosts/goldendragon/etc/pam.d/*`                                                                                        | `infra/ansible/roles/fingerprint/defaults/main.yml`, `infra/ansible/roles/fingerprint/tasks/configure.yml`          | partial overlap  | Ansible `fingerprint` role                                                                 | stop relying on `setup.sh` edits; own `sudo`, `polkit-1`, `system-local-login`, and `sddm` insertion only through the role                    |
@@ -267,6 +260,12 @@ Batch-11 progress:
 - completed for firedragon hibernation and resume plumbing via `roles/hibernation`
 - retired the direct dependency on `hosts/firedragon/enable-sleep-hibernate.sh` by moving swap, resume, mkinitcpio, and Limine state under explicit Ansible ownership
 
+Batch-12 progress:
+
+- retired `hosts/firedragon/fix-acpi-boot.sh` because ASUS ACPI boot parameters are already owned by `roles/asus_laptop`
+- retired `hosts/firedragon/fix-lid-close-freeze.sh` because its mutation surface is now split across `roles/amd_gpu`, `roles/asus_laptop`, `roles/tlp`, and `roles/hibernation`
+- ported `hosts/firedragon/verify-suspend-fix.sh` into the disposable validation lane as `tests/vm/proxmox-validation/firedragon-suspend-verify.sh`
+
 #### Stage 3. Close capability gaps
 
 - add a real `netbird` role
@@ -277,7 +276,8 @@ Current progress:
 
 - `asus_laptop` is now the explicit Ansible owner of the firedragon NetworkManager dispatcher, lid/sleep policy, system-sleep hooks, and AX210 Bluetooth udev behavior
 - `hibernation` is now the explicit Ansible owner of firedragon swap, resume, mkinitcpio, and Limine hibernate plumbing
-- remaining capability gaps still include `aio-cooler`, secure boot, fingerprint watchdog, and the manual suspend/ACPI repair scripts that have not yet been assigned an owner
+- the old firedragon ACPI and lid-close repair mutators are now retired in favor of explicit role ownership plus disposable-lane validation
+- remaining capability gaps still include `aio-cooler`, secure boot, fingerprint watchdog, and the user `kbd-backlight` ownership decision
 
 #### Stage 4. Finish chezmoi expansion
 
@@ -504,7 +504,6 @@ Chezmoi:
 ### Missing or only partially represented
 
 - NetBird DNS integration behavior beyond the dispatcher/resolved edge stack
-- the manual suspend/ACPI repair scripts still live outside the new control plane
 - user `kbd-backlight` helper still lives outside chezmoi and explicit user-state ownership
 
 ### `firedragon` parity checklist

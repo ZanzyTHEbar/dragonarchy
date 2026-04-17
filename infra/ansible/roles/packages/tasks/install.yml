@@ -1,17 +1,31 @@
 ---
-- name: Install resolved packages on Debian-family systems
+- name: Install resolved pacman plan (repo-native)
+  ansible.builtin.package:
+    name: "{{ resolved_package_list_pacman }}"
+    state: present
+  when:
+    - host_platform_family == 'arch'
+    - resolved_package_list_pacman | length > 0
+
+- name: Install resolved apt plan (repo-native)
   ansible.builtin.apt:
-    name: "{{ resolved_package_list }}"
+    name: "{{ resolved_package_list_apt }}"
     state: present
     update_cache: true
   when:
     - host_platform_family == 'debian'
-    - resolved_package_list | length > 0
+    - resolved_package_list_apt | length > 0
 
-- name: Install resolved packages on Arch-family systems
-  ansible.builtin.package:
-    name: "{{ resolved_package_list }}"
-    state: present
-  when:
-    - host_platform_family == 'arch'
-    - resolved_package_list | length > 0
+- name: Report AUR / paru-tier packages (not installed by this role)
+  ansible.builtin.debug:
+    msg: >-
+      Manifest lists {{ packages_pending_paru | length }} paru/AUR package(s) for this host
+      (install via install-deps.sh, paru, or a dedicated gate): {{ packages_pending_paru | join(', ') }}
+  when: packages_pending_paru | default([]) | length > 0
+
+- name: Report script-channel packages (not installed by this role)
+  ansible.builtin.debug:
+    msg: >-
+      Manifest lists {{ packages_pending_script | length }} script/vendor package(s)
+      (handled by install-deps.sh or manual steps): {{ packages_pending_script | join(', ') }}
+  when: packages_pending_script | default([]) | length > 0

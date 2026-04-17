@@ -42,21 +42,28 @@ The fix addresses **all three layers** of the problem:
 - `after_sleep_cmd = hyprctl dispatch dpms on`
 - `before_sleep_cmd = loginctl lock-session`
 
-## ⚡ Installation
+## Status
 
-Run the complete fix script:
+This document is retained as historical context.
+
+The legacy `fix-lid-close-freeze.sh` mutator is retired.
+
+## Current Convergence Path
+
+Converge the canonical owners:
 
 ```bash
-cd ~/dotfiles/hosts/firedragon
-./fix-lid-close-freeze.sh
+ansible-playbook -i ~/dotfiles/infra/ansible/inventory/hosts.yml \
+  ~/dotfiles/infra/ansible/playbooks/site.yml \
+  --limit firedragon
 ```
 
-**The script will:**
+**The converged role set will ensure:**
 1. Configure AMD GPU kernel module parameters
-2. **Rebuild initramfs** (takes 1-2 minutes) ⚠️ **CRITICAL STEP!**
+2. **Rebuild initramfs** when needed ⚠️ **CRITICAL STEP!**
 3. Install 3 systemd services for suspend/resume/TTY
-4. Verify hypridle configuration
-5. Create verification script
+4. Preserve the Hypridle sleep policy under the chezmoi-owned session config
+5. Expose a read-only verification probe
 
 **IMPORTANT:** 
 - ⚠️ **REBOOT REQUIRED** - Changes will NOT work until reboot
@@ -65,10 +72,10 @@ cd ~/dotfiles/hosts/firedragon
 
 ## ✅ Verification
 
-After reboot, run the verification script:
+After convergence, run the verification probe:
 
 ```bash
-~/dotfiles/hosts/firedragon/verify-suspend-fix.sh
+~/dotfiles/tests/vm/proxmox-validation/firedragon-suspend-verify.sh
 ```
 
 **Expected output:**

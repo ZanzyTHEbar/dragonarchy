@@ -1,5 +1,6 @@
 ---
-- name: Install NVIDIA packages
+- name: Install NVIDIA packages (legacy override; default is manifest via packages role)
   ansible.builtin.package:
     name: "{{ nvidia_packages_by_platform[host_platform_family] }}"
     state: present
+  when: nvidia_packages_by_platform[host_platform_family] | default([]) | length > 0

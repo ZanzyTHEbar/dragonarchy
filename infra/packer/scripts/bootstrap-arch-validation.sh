@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+# Minimal **repo-native** toolchain for disposable Arch validation (SSH, git, chezmoi).
+# Full host package composition is defined in ../../scripts/install/deps.manifest.toml
+# and inspected via scripts/install/export-package-plan.sh (tiers: pacman/apt vs paru/script).
+
 # Let first-boot cloud-init settle before we touch pacman.
 cloud-init status --wait >/dev/null 2>&1 || true
 
