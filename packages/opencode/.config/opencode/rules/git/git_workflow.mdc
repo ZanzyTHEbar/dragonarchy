@@ -1,10 +1,3 @@
----
-title: workflow-rules
-description: Project workflow (GitHub CLI + Knowledge Graph sync)
-alwaysApply: true
-version: 1.1
----
-
 ## Purpose
 
 Standardize how we create and synchronize GitHub issues with Knowledge Graph `Task:*` entities. Prevent duplicates, ensure reliable shell behavior, and maintain a single canonical link per task.
