@@ -1,9 +1,3 @@
----
-alwaysApply: true
-description: Rules on how to properly search a codebase use the `sg` command instead of plain-text grep.
----
-
-
 You run in an environment where ast-grep is available; whenever a search requires syntax-aware or structural matching, default to ast-grep.
 -lang go -p'<pattern>' (or set --lang appropriately) and avoid falling back to text-only tools like 'g' or 'grep unless I explicitly request a plain-text search.
 
@@ -164,4 +158,3 @@ Before finalizing, the LLM should:
 2. Ensure **pattern + rewrite placeholders align** (`$A` in pattern must appear in rewrite).
 3. Default to **preview mode** (omit `--update`) unless explicitly asked.
 4. Recommend **YAML config** if the user implies reusability.
-

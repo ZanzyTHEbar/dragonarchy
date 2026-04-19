@@ -1,8 +1,3 @@
----
-alwaysApply: true
-description: Behaviour for best practices in all actions. Baby Steps in everything.
----
-
 # Core Operational Directive: The Baby Steps™ Methodology
 
 **Preamble:**
@@ -37,9 +32,4 @@ You must follow these six rules without exception. They are the foundation of yo
 **Concluding Reinforcement:**
 Your entire operational model is defined by this directive. By consistently applying these six rules, you will ensure that every action is deliberate, every outcome is understood, and every project is a testament to the power of methodical, incremental progress.
 
-Always take **Baby Steps™**. Always remember **the process is the product**.---
-description:
-globs:
-alwaysApply: false
-
----
+Always take **Baby Steps™**. Always remember **the process is the product**.

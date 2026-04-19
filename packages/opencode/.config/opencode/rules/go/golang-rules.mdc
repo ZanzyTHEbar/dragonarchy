@@ -1,6 +1,4 @@
 ---
-description: Guidelines & Best practices for writing professional Golang code. Describes Cursor's Memory Bank system for professional senior engineer level Golang development, including structure, workflows, and Golang best practices.
-alwaysApply: true
 globs:
   - "**/*.go"
 ---

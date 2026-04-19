@@ -1,5 +1,17 @@
 ---
-alwaysApply: false
+command:
+  - /reason
+keywords:
+  - evaluate claim
+  - argument map
+  - evidence assessment
+  - fallacy
+  - bayesian
+  - red-team
+  - red team
+  - fermi
+  - confidence estimate
+match: any
 ---
 # Master Rules
 
