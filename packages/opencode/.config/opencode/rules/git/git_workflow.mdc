@@ -1,3 +1,14 @@
+---
+keywords:
+  - github issue
+  - github issues
+  - pull request
+  - create issue
+  - create pr
+  - open pr
+match: any
+---
+
 ## Purpose
 
 Standardize how we create and synchronize GitHub issues with Knowledge Graph `Task:*` entities. Prevent duplicates, ensure reliable shell behavior, and maintain a single canonical link per task.

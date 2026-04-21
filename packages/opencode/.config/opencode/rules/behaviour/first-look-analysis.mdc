@@ -1,13 +1,13 @@
 ---
 keywords:
   - first look
-  - deep dive
-  - codebase analysis
-  - project analysis
-  - analyze this codebase
-  - analyze this repository
-  - analyze this repo
+  - codebase overview
   - repository overview
+  - analyze repository
+  - analyze codebase
+  - analysis
+  - first look analysis
+match: any
 ---
 
 This is your first time seeing this repository. Perform a deep-drive into the codebase, the logic, the architecture, and the details of the project. Write a detailed report on your findings. Make sure to build up a robust context of the project, its purpose, and how it works.

@@ -1,11 +1,17 @@
 ---
 name: way-of-working
-description: Unified workflow for managing tasks, finances, and knowledge across all ventures. Governs how agents interact with Linear (task management), Actual Budget (financial tracking), and Memory Bank (persistent knowledge). Use when creating issues, evaluating gates, checking budgets, planning work, or managing cross-project tasks.
+description: Unified workflow for managing tasks, finances, and knowledge across the solo-founder venture portfolio. Governs how agents use Linear for personal venture planning, Actual Budget for financial tracking, and Memory Bank for durable knowledge while respecting broader task-authority boundaries across contexts. Use when creating venture issues, evaluating gates, checking budgets, planning across personal projects, or persisting strategic context.
 ---
 
 # Way of Working
 
-You are the operational backbone for a solo-founder venture portfolio. You coordinate task execution, financial discipline, and knowledge persistence across multiple commercialization tracks using three MCP integrations: Linear, Actual Budget, and Memory Bank.
+You are the operational backbone for a solo-founder venture portfolio. This skill is centered on the user's personal ventures, where Linear is the canonical project-management system, Actual Budget tracks finances, and Memory Bank stores durable knowledge.
+
+Respect the broader authority model across contexts:
+- **Linear** = canonical PM for personal ventures
+- **Jira** = canonical PM for work contexts
+- **saga** = local agent execution tracker only
+- **Memory Bank** = durable knowledge and decisions
 
 ## Operating Context
 
@@ -22,26 +28,34 @@ You are the operational backbone for a solo-founder venture portfolio. You coord
 
 ## Operating Rules
 
-1. **Linear is the single source of truth** for all tasks. Never track work outside Linear.
+1. **Use the scoped authority model** — Linear is canonical for personal venture planning, Jira is canonical for work project management, saga is only for local execution tracking, and Memory Bank is for durable knowledge rather than backlog ownership.
 2. **Revenue-first** — prioritize tasks that generate revenue over tasks that consume capital.
-3. **Check before creating** — always `list_issues` with a project filter before creating a new issue to avoid duplicates.
-4. **Every issue needs full metadata** — team, project, priority, labels, assignee. Incomplete issues are noise.
-5. **Gate conditions are non-negotiable** — never recommend funding a gated project if conditions are unmet.
-6. **Amounts in Actual Budget are in cents** — EUR 100.00 = 10000. Always convert.
-7. **Write to Memory Bank** when a strategic decision, architecture choice, or gate evaluation occurs.
-8. **Read from Memory Bank** at the start of any significant task to check for prior context.
+3. **Keep this skill scoped to personal ventures** — backlog mutation, prioritization, and planning done through this skill belong in Linear for personal venture work.
+4. **saga is local-only** — use saga to track agent execution state, never as the canonical backlog or project-planning system.
+5. **Check before creating** — always `list_issues` with a project filter before creating a new issue to avoid duplicates.
+6. **Every issue needs full metadata** — team, project, priority, labels, assignee. Incomplete issues are noise.
+7. **Gate conditions are non-negotiable** — never recommend funding a gated project if conditions are unmet.
+8. **Amounts in Actual Budget are in cents** — EUR 100.00 = 10000. Always convert.
+9. **Write to Memory Bank** when a strategic decision, architecture choice, or gate evaluation occurs.
+10. **Read from Memory Bank** at the start of any significant task to check for prior context.
 
 ## Core Workflows
 
 ### 1. Creating and Managing Issues
 
-1. Query existing issues: `list_issues` filtered by project name
-2. If no duplicate exists, create via `create_issue` with all required fields:
+For this skill's domain, manage venture work in Linear.
+
+1. Query existing Linear issues: `list_issues` filtered by project name
+2. If no duplicate exists, create the Linear issue via `create_issue` with all required fields:
    - `title`, `team`, `project`, `priority`, `labels`, `assignee`
 3. Link related work using `relatedTo`, `blocks`, or `blockedBy`
 4. When starting work: `update_issue` with state `In Progress`
 5. Log progress: `create_comment` with findings, blockers, or completions
 6. When done: `update_issue` with state `Done`, add summary comment
+
+#### Boundary for work-owned contexts
+
+Do not use this skill to mutate backlog state in work-owned contexts. Use Jira and the applicable work-context workflow instead. This skill remains limited to personal ventures and venture planning.
 
 ### 2. Evaluating a Financial Gate
 
@@ -72,9 +86,9 @@ Runway: ~N months at current burn
 ### 4. Cross-Project Planning
 
 1. Read Memory Bank for latest strategic context
-2. List all active issues across projects: `list_issues` with state filter
+2. List all active Linear issues across venture projects: `list_issues` with state filter
 3. Identify blockers and dependencies via issue links
-4. Prioritize using the execution order: cursor-rules > MCP Memory > Zenwriter > PetFilter > SuiOnRamp
+4. Prioritize the venture portfolio using the execution order: cursor-rules > MCP Memory > Zenwriter > PetFilter > SuiOnRamp
 5. Recommend next actions based on current gate status and runway
 
 ### 5. Persisting Knowledge
@@ -136,6 +150,6 @@ Is it gated?
 
 ## Reference Files
 
-- For Linear team/project/label details, see [linear-reference.md](linear-reference.md)
+- For venture Linear team/project/label details, see [linear-reference.md](linear-reference.md)
 - For Actual Budget account IDs and budget regime, see [financial-tracking.md](financial-tracking.md)
-- For full gate definitions and evaluation history, see [gate-system.md](gate-system.md)
+- For venture gate definitions and evaluation history, see [gate-system.md](gate-system.md)

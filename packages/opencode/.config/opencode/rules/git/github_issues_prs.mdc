@@ -1,3 +1,14 @@
+---
+keywords:
+  - github issue
+  - github issues
+  - pull request
+  - open pull request
+  - create issue
+  - create pr
+match: any
+---
+
 # GitHub Issues & PR Creation (Canonical, Idempotent, Newline-Safe)
 
 ## Purpose
