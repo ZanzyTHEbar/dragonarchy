@@ -1,18 +1,46 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "opencode/kimi-k2.5",
+  "model": "github-copilot/gpt-5.4",
   "autoupdate": true,
   "compaction": {
     "auto": false
   },
+  "experimental": {
+	"disable_paste_summary": true 
+  },
   "instructions": [
-    "/home/daofficialwizard/.config/opencode/rules/general/memory-bank.mdc"
+    "./rules/general/memory-bank.mdc",
+    "./rules/general/task-authority-boundaries.mdc"
   ],
+  "tools": {
+    "jira_rovo_*": false,
+    "saga_*": false
+  },
+  "agent": {
+    "build": {
+      "tools": {
+        "jira_rovo_*": true,
+        "saga_*": true
+      }
+    },
+    "general": {
+      "tools": {
+        "jira_rovo_*": true,
+        "saga_*": true
+      }
+    }
+  },
   "mcp": {
     "linear": {
       "type": "remote",
       "url": "https://mcp.linear.app/sse",
       "enabled": true
+    },
+    "jira_rovo": {
+      "type": "remote",
+      "url": "https://mcp.atlassian.com/v1/mcp",
+      "enabled": false,
+      "timeout": 20000
     },
     "actualbudget": {
       "type": "remote",
@@ -32,7 +60,20 @@
         "@allpepper/memory-bank-mcp"
       ],
       "environment": {
-        "MEMORY_BANK_ROOT": "/mnt/dragonnet/.memory/memory-bank/"
+        "MEMORY_BANK_ROOT": "{env:MEMORY_BANK_ROOT}"
+      },
+      "enabled": true,
+      "timeout": 20000
+    },
+    "saga": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "saga-mcp"
+      ],
+      "environment": {
+        "DB_PATH": "{env:HOME}/.local/share/opencode/saga-tasks.db"
       },
       "enabled": true,
       "timeout": 20000

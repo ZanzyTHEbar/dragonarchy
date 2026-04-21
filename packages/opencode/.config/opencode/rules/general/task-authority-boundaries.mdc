@@ -1,0 +1,18 @@
+---
+keywords:
+  - "linear"
+  - "jira"
+  - "saga"
+  - "memory bank"
+  - "task authority"
+match: any
+---
+
+Use each system for its own authority boundary.
+
+- Linear is the source of truth for personal project management.
+- Jira is the source of truth for work project management.
+- saga is only for local agent execution tracking tied to work already defined elsewhere.
+- memory bank is for durable project knowledge, decisions, and handoff context.
+
+Do not create a second backlog in saga or memory bank when the parent work belongs in Linear or Jira.

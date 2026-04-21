@@ -1,3 +1,13 @@
+---
+keywords:
+  - "memory bank"
+  - "update memory bank"
+  - "project memory"
+  - "durable memory"
+  - "session handoff"
+match: any
+---
+
 Use `allpepper-memory-bank` for durable project memory that should survive beyond the current session.
 
 - Prefer reading the current project's memory when starting non-trivial work or when prior decisions may matter.

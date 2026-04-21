@@ -155,3 +155,4 @@ dotview() {
   # Optional: echo the temp path for scripting/debug
   print "Rendered → $tmpout"
 }
+
