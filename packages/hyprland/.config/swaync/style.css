@@ -37,7 +37,9 @@
 /* SwayNC layout/structural overrides (base template).
  * Theme colors are prepended by theme-set at runtime.
  * Do NOT add @import here -- theme-set merges colors + this file
- * and writes the result to ~/.config/swaync/style.css directly. */
+ * and writes the result to ~/.config/swaync/style.css directly.
+ * That runtime file is user-local and intentionally replaces the
+ * initial stow symlink so theme changes do not mutate repo files. */
 
 .control-center {
   background: var(--cc-bg);
