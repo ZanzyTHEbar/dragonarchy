@@ -3,3 +3,5 @@
 if [[ -r "$HOME/.config/zsh/hosts/shared/nfs-common.zsh" ]]; then
     source "$HOME/.config/zsh/hosts/shared/nfs-common.zsh"
 fi
+
+export MEMORY_BANK_ROOT="/mnt/dragonnet/.memory/memory-bank/"

@@ -901,6 +901,7 @@ configure_shell() {
 # Post-setup tasks
 post_setup() {
     log_step "Running post-setup tasks..."
+    local should_reload_hyprland="false"
     
     # Create symlinks for compatibility
     if [[ ! -L "$HOME/.zshrc" && -f "$HOME/.zshrc" ]]; then
@@ -923,8 +924,24 @@ post_setup() {
     
     
     #bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
+    if command -v hyprctl >/dev/null 2>&1 && [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
+        should_reload_hyprland="true"
+    fi
+
     bash "$SCRIPTS_DIR/install/setup/keyboard.sh"
-    
+
+    # keyboard.sh writes a runtime-owned include file. If install runs from inside
+    # an existing Hyprland session, reload so the compositor picks up the new file
+    # and clears any stale "source ... found no match" parse error.
+    if [[ "$should_reload_hyprland" == "true" ]]; then
+        log_info "Reloading Hyprland configuration..."
+        if hyprctl reload >/dev/null 2>&1; then
+            log_success "Hyprland configuration reloaded"
+        else
+            log_warning "Failed to reload Hyprland configuration"
+        fi
+    fi
+     
     log_success "Post-setup tasks completed"
 }
 
@@ -1192,4 +1209,3 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Run main function
     main "$@"
 fi
-

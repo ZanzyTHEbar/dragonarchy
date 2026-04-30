@@ -121,3 +121,6 @@ if [ -f "/home/daofficialwizard/.local/share/cursor-installer/shell-path.sh" ]; 
   . "/home/daofficialwizard/.local/share/cursor-installer/shell-path.sh"
 fi
 # <<< cursor-installer path <<<
+
+# opencode
+export PATH=/home/daofficialwizard/.opencode/bin:$PATH

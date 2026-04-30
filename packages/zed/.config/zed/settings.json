@@ -7,6 +7,22 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
+  "agent": {
+    "default_model": {
+      "provider": "copilot_chat",
+      "model": "gpt-5.4",
+      "enable_thinking": false,
+      "effort": "high"
+    },
+    "favorite_models": [
+      {
+        "provider": "copilot_chat",
+        "model": "gpt-5.4",
+        "enable_thinking": false
+      }
+    ],
+    "model_parameters": []
+  },
   "edit_predictions": {
     "provider": "copilot"
   },
@@ -31,10 +47,7 @@
   "linked_edits": true,
   "show_edit_predictions": true,
   "agent_servers": {
-    "cursor": {
-      "type": "registry",
     },
-  },
   "vim_mode": true,
   "session": {
     "trust_all_worktrees": true,
