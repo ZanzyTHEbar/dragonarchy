@@ -9,3 +9,20 @@ if [[ -n "${ARGV0:-}" ]]; then
       ;;
   esac
 fi
+
+# >>> cursor-installer path >>>
+if [ -f "$HOME/.local/share/cursor-installer/shell-path.sh" ]; then
+  . "$HOME/.local/share/cursor-installer/shell-path.sh"
+fi
+# <<< cursor-installer path <<<
+
+# pnpm
+export PNPM_HOME="$HOME/.local/share/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+
+# opencode
+export PATH=$HOME/.opencode/bin:$PATH

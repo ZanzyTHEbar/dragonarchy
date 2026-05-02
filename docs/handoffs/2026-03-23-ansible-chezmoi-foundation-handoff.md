@@ -67,9 +67,9 @@ The concrete failure was:
 
 That meant SDDM was configured to load a missing theme.
 
-Why `firedragon` differed:
+Why `firedragon` differed at the time:
 
-- `firedragon/setup.sh` already had host-local SDDM theme setup
+- `firedragon/setup.sh` had host-local SDDM theme setup in the legacy path
 - `goldendragon/setup.sh` did not
 
 The watchdog installer also had independent pathing defects that prevented clean hook/unit installation.

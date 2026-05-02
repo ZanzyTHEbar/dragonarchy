@@ -134,14 +134,14 @@ Comprehensive power profiles optimized for AMD hardware:
 
 ## Installation
 
-Run the FireDragon setup from the dotfiles root:
+Run FireDragon bring-up through the Ansible control plane from the dotfiles root:
 
 ```bash
 cd ~/dotfiles
-./setup.sh --host firedragon
+ansible-playbook -i infra/ansible/inventory/hosts.yml infra/ansible/playbooks/site.yml --limit firedragon
 ```
 
-Or run the host-specific setup directly:
+The host-specific `setup.sh` remains a legacy/manual reference path for still-unported helpers. It no longer owns package installation; package truth is `scripts/install/deps.manifest.toml` via the Ansible `packages` role.
 
 ```bash
 cd ~/dotfiles/hosts/firedragon
@@ -185,10 +185,9 @@ After running setup, complete these steps:
 7. **Update Firmware & ASUS EC Tools**:
 
    - Check for BIOS/EC updates on the ASUS support site and flash the latest release before relying on suspend.
-   - Install the control utilities (the setup script does this automatically):
+   - Confirm the Ansible-managed control utility is present and the platform service is enabled:
 
      ```bash
-     sudo pacman -S --needed asusctl asus-nb-ctrl
      sudo systemctl enable --now asusd.service
      asusctl profile set Balanced
      ```

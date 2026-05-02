@@ -13,8 +13,13 @@ host_capabilities:
 host_profile_packages:
   - core_cli
   - dev
+  - host_goldendragon_laptop
   - laptop_power_tlp
   - host_goldendragon_nvidia
+  - hyprland_session
+  - sddm
+  - fingerprint
+  - openfortivpn
 
 managed_users:
   - name: daofficialwizard

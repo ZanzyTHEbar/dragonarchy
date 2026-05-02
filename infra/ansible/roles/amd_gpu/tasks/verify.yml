@@ -1,10 +1,17 @@
 ---
 - name: Determine whether AMD Vulkan tooling is part of the host contract
   ansible.builtin.set_fact:
+    amd_gpu_contract_packages: >-
+      {{
+        (resolved_package_list_pacman | default([]))
+        + (amd_gpu_packages_by_platform.get(host_platform_family, {}).get(inventory_hostname, []) | default([]))
+      }}
     amd_gpu_expect_vulkaninfo: >-
       {{
-        host_platform_family == 'arch'
-        and inventory_hostname in ['dragon', 'firedragon']
+        'vulkan-tools' in (
+          (resolved_package_list_pacman | default([]))
+          + (amd_gpu_packages_by_platform.get(host_platform_family, {}).get(inventory_hostname, []) | default([]))
+        )
       }}
 
 - name: Check AMD Vulkan command availability

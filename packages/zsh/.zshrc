@@ -107,20 +107,3 @@ fi
 # Unalias zi from zinit to avoid conflicts with zoxide zi command
 unalias zi 2>/dev/null
 
-
-# pnpm
-export PNPM_HOME="$HOME/.local/share/pnpm"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
-# pnpm end
-
-# >>> cursor-installer path >>>
-if [ -f "/home/daofficialwizard/.local/share/cursor-installer/shell-path.sh" ]; then
-  . "/home/daofficialwizard/.local/share/cursor-installer/shell-path.sh"
-fi
-# <<< cursor-installer path <<<
-
-# opencode
-export PATH=/home/daofficialwizard/.opencode/bin:$PATH

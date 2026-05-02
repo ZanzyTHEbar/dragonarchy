@@ -1,5 +1,6 @@
 ---
-- name: Install SDDM packages
+- name: Install SDDM packages (legacy override; default is manifest via packages role)
   ansible.builtin.package:
     name: "{{ sddm_packages_by_platform[host_platform_family] }}"
     state: present
+  when: sddm_packages_by_platform[host_platform_family] | default([]) | length > 0

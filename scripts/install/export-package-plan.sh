@@ -134,6 +134,7 @@ declare -A PACMAN_PKGS=()
 declare -A APT_PKGS=()
 declare -A PARU_PKGS=()
 declare -A SCRIPT_PKGS=()
+declare -a UNRESOLVED_GROUPS=()
 
 for logical_group in "${REQUESTED_GROUPS[@]}"; do
 	[[ -z "$logical_group" ]] && continue
@@ -155,10 +156,6 @@ for logical_group in "${REQUESTED_GROUPS[@]}"; do
 			[[ -z "$p" || "$p" == "null" ]] && continue
 			if [[ "$PLATFORM" == "arch" ]]; then
 				p=$(normalize_arch_pkg "$p")
-			fi
-			# hyprland_base: skip PPD if tlp is present — export cannot know target state; optional policy hook
-			if [[ "$logical_group" == "hyprland_base" && "$p" == "power-profiles-daemon" ]] && command -v tlp >/dev/null 2>&1; then
-				continue
 			fi
 			normalized+=("$p")
 		done
@@ -187,9 +184,14 @@ for logical_group in "${REQUESTED_GROUPS[@]}"; do
 		done
 	done
 	if [[ "$found_any" == "false" ]]; then
-		log_warning "No matching manifest group for '$logical_group' (platform=$PLATFORM) or group disabled for host/features"
+		UNRESOLVED_GROUPS+=("$logical_group")
 	fi
 done
+
+if [[ ${#UNRESOLVED_GROUPS[@]} -gt 0 ]]; then
+	log_error "Requested manifest group(s) missing or disabled for platform=$PLATFORM host=${HOST_NAME:-<unset>} features=${FEATURE_CSV:-<none>}: ${UNRESOLVED_GROUPS[*]}"
+	exit 1
+fi
 
 assoc_keys_to_json_array() {
 	local -n _arr="$1"

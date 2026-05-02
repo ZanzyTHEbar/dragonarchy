@@ -110,6 +110,20 @@ packages = ["tlp", "tlp-rdw"]
 requires_hosts = ["goldendragon"]
 packages = ["nvidia-dkms", "nvidia-utils"]
 
+[platforms.arch.pacman.host_goldendragon_laptop]
+requires_hosts = ["goldendragon"]
+packages = [
+    "powertop",
+    "thermald",
+    "lm_sensors",
+    "acpid",
+    "fwupd",
+    "intel-media-driver",
+    "libva-utils",
+    "vulkan-intel",
+    "intel-gpu-tools",
+]
+
 [platforms.arch.pacman.dev]
 packages = [
     "git",
@@ -165,6 +179,39 @@ packages = [
     # Hardware control
     "liquidctl",
 ]
+
+# Display/session package groups owned by Ansible roles but installed through
+# the manifest-backed packages role.
+[platforms.arch.pacman.hyprland_session]
+requires_features = ["hyprland"]
+packages = [
+    "hyprland",
+    "hypridle",
+    "hyprlock",
+    "hyprpicker",
+    "hyprshot",
+    "polkit",
+    "uwsm",
+    "xdg-desktop-portal-gtk",
+    "xdg-desktop-portal-hyprland",
+    "polkit-gnome",
+]
+
+[platforms.arch.pacman.sddm]
+requires_features = ["hyprland"]
+packages = ["sddm", "qt6-svg"]
+
+[platforms.debian.apt.sddm]
+requires_features = ["hyprland"]
+packages = ["sddm"]
+
+[platforms.arch.pacman.fingerprint]
+requires_hosts = ["goldendragon"]
+packages = ["fprintd", "libfprint", "usbutils"]
+
+[platforms.arch.pacman.openfortivpn]
+requires_hosts = ["goldendragon"]
+packages = ["openfortivpn"]
 
 # Hyprland groups (Arch-family only)
 [platforms.arch.pacman.hyprland_base]
