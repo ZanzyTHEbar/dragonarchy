@@ -10,6 +10,10 @@
         ) | join(',')
       }}
 
+- name: Initialize manifest package group resolution
+  ansible.builtin.set_fact:
+    packages_manifest_resolved_groups: []
+
 - name: Map inventory profiles to manifest group keys
   ansible.builtin.set_fact:
     packages_manifest_resolved_groups: "{{ packages_manifest_resolved_groups | default([]) + [ (packages_manifest_group_aliases | default({}))[item] | default(item) ] }}"

@@ -54,7 +54,7 @@ declare -A PACKAGE_MANAGER_INSTALLER=(
 )
 
 declare -A PACKAGE_MANAGER_SELECTOR=(
-    [pacman]="core_cli,dev,fonts,host_,hyprland_"
+    [pacman]="core_cli,dev,fonts,host_,laptop_power_tlp,hyprland_,sddm,fingerprint,openfortivpn"
     [paru]="gui,fonts,host_,hyprland_"
     [apt]="*"
     [script]="*"
@@ -142,6 +142,69 @@ pkgsolve_artifact_dir() {
     printf '%s\n' "${REPO_ROOT}/.artifacts/pkgsolve/debian/${host_label}-${bundle_label}"
 }
 
+pkgsolve_cargo_available() {
+    if [[ -n "${PKGSOLVE_CARGO:-}" && -x "${PKGSOLVE_CARGO}" ]]; then
+        return 0
+    fi
+
+    if command_exists cargo; then
+        return 0
+    fi
+
+    pkgsolve_user_cargo_available
+}
+
+pkgsolve_user_cargo_available() {
+    if [[ -n "${PKGSOLVE_CARGO:-}" && -x "${PKGSOLVE_CARGO}" ]]; then
+        return 0
+    fi
+
+    local user_cargo="${HOME}/.cargo/bin/cargo"
+    if [[ -x "$user_cargo" ]]; then
+        export PATH="${HOME}/.cargo/bin:${PATH}"
+        return 0
+    fi
+
+    return 1
+}
+
+bootstrap_pkgsolve_build_toolchain() {
+    local platform_id
+    platform_id="$(detect_platform)"
+    if ! platform_is_debian_family "$platform_id"; then
+        if pkgsolve_cargo_available; then
+            return 0
+        fi
+        return 1
+    fi
+
+    # Debian stable can ship a Cargo too old for this repo's lockfile, so prefer
+    # rustup/user Cargo unless the caller explicitly supplied PKGSOLVE_CARGO.
+    if pkgsolve_user_cargo_available; then
+        return 0
+    fi
+
+    log_info "Bootstrapping Rust toolchain for pkgsolve..." >&2
+    ensure_apt_repositories_updated >&2 || return 1
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        build-essential \
+        ca-certificates \
+        curl \
+        pkg-config >&2 || return 1
+
+    export PATH="${HOME}/.cargo/bin:${PATH}"
+
+    if command_exists rustup; then
+        rustup toolchain install stable --profile minimal --no-self-update >&2 || return 1
+        rustup default stable >&2 || return 1
+    else
+        curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain stable >&2 || return 1
+    fi
+
+    pkgsolve_cargo_available || return 1
+}
+
 resolve_pkgsolve_bin() {
     local candidate="${PKGSOLVE_BIN:-}"
     if [[ -n "$candidate" && -x "$candidate" ]]; then
@@ -161,8 +224,12 @@ resolve_pkgsolve_bin() {
     fi
 
     local build_script="${REPO_ROOT}/scripts/tools/build-pkgsolve.sh"
-    if [[ -f "$build_script" ]] && command_exists cargo; then
-        bash "$build_script"
+    if [[ -f "$build_script" ]]; then
+        if ! bootstrap_pkgsolve_build_toolchain; then
+            log_error "cargo is not available and automatic pkgsolve toolchain bootstrap failed" >&2
+            return 1
+        fi
+        bash "$build_script" || return 1
         return 0
     fi
 

@@ -418,10 +418,10 @@ Host-specific sources:
 - `hosts/firedragon/.hyprland`
 - `hosts/firedragon/README.md`
 - `hosts/firedragon/setup.sh`
-- `hosts/firedragon/enable-sleep-hibernate.sh`
-- `hosts/firedragon/fix-acpi-boot.sh`
-- `hosts/firedragon/fix-lid-close-freeze.sh`
-- `hosts/firedragon/verify-suspend-fix.sh`
+- `hosts/firedragon/enable-sleep-hibernate.sh` (retired by `roles/hibernation`)
+- `hosts/firedragon/fix-acpi-boot.sh` (retired stub; boot parameters owned by `roles/asus_laptop`)
+- `hosts/firedragon/fix-lid-close-freeze.sh` (retired stub; behavior split across Ansible roles)
+- `hosts/firedragon/verify-suspend-fix.sh` (compatibility shim to disposable validation probe)
 - `hosts/firedragon/dotfiles/.config/zsh/hosts/firedragon.zsh`
 - `hosts/firedragon/dotfiles/.config/zsh/functions/firedragon.zsh`
 - `hosts/firedragon/etc/limine-entry-tool.d/10-amdgpu.conf`
@@ -494,7 +494,7 @@ Chezmoi:
 - `etc/modules-load.d/asus.conf` via `roles/asus_laptop`
 - `etc/udev/rules.d/90-asus-kbd-backlight.rules` via `roles/asus_laptop`
 - ASUS ACPI kernel parameters via `roles/asus_laptop`
-- firedragon laptop package parity from `setup_firedragon_packages()` via `roles/packages`, `roles/tlp`, and `roles/amd_gpu`
+- firedragon laptop package parity from `setup_firedragon_packages()` via manifest-backed `roles/packages`
 - ASUS platform services via `roles/asus_laptop`
 - hibernation and swap/resume plumbing from `enable-sleep-hibernate.sh` via `roles/hibernation`
 - `etc/systemd/resolved.conf.d/dns.conf` via `roles/resolved`
@@ -510,7 +510,7 @@ Chezmoi:
 
 - keep `roles/packages`, `roles/amd_gpu`, and `roles/asus_laptop` aligned with the firedragon package contract
 - preserve firedragon DNS integration behavior around NetBird while retiring the legacy installer path
-- decide how the remaining ACPI repair scripts are represented in the new model now that hibernation is role-owned
+- keep the retired ACPI repair stubs reference-only while validating the Ansible-owned behavior through the disposable firedragon probe
 - decide whether `kbd-backlight` becomes chezmoi-owned user state or is intentionally retired
 
 ## `goldendragon`
@@ -696,4 +696,3 @@ Do not call any host 1:1 parity-complete until all three are true:
 1. every host-specific file still required for bringup has a declared new owner
 2. every host capability in inventory is backed by executable automation or an explicit documented exception
 3. the host can be brought up end-to-end without relying on `hosts/<host>/setup.sh` for still-required behavior
-

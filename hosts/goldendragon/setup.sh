@@ -150,8 +150,7 @@ setup_fingerprint_auth() {
 
   fingerprint_sensor_hint
 
-  # Packages (official repos).
-  install_pacman_packages fprintd libfprint usbutils
+  log_info "Skipping fingerprint package install; packages are owned by deps.manifest.toml plus Ansible fingerprint/packages roles."
 
   # Service
   # fprintd is typically DBus-activated (UnitFileState=static), so it may show as "inactive" until used.
@@ -231,6 +230,9 @@ has_nvidia_gpu() {
 }
 
 setup_goldendragon_packages() {
+  # Legacy reference only. Current package truth is deps.manifest.toml groups
+  # host_goldendragon_laptop, laptop_power_tlp, host_goldendragon_nvidia,
+  # fingerprint, and openfortivpn.
   log_step "Installing laptop packages (ThinkPad baseline)..."
 
   if ! is_arch_based; then
@@ -304,11 +306,7 @@ setup_openfortivpn_access() {
     return 0
   fi
 
-  if is_arch_based; then
-    install_pacman_packages openfortivpn
-  else
-    log_warning "Non-Arch platform detected; install openfortivpn manually."
-  fi
+  log_info "Skipping OpenFortiVPN package install; package is owned by deps.manifest.toml plus Ansible openfortivpn/packages roles."
 
   if ! getent group "$group" >/dev/null 2>&1; then
     if _sysmod_sudo groupadd -r "$group"; then
@@ -695,11 +693,8 @@ main() {
     echo
   fi
 
-  if ! is_step_completed "goldendragon-packages"; then
-    setup_goldendragon_packages && mark_step_completed "goldendragon-packages"
-  else
-    log_info "✓ Packages already installed (skipped)"
-  fi
+  log_info "Skipping legacy GoldenDragon package install; package truth is scripts/install/deps.manifest.toml via the Ansible packages role (host_goldendragon_laptop + laptop_power_tlp + host_goldendragon_nvidia + fingerprint + openfortivpn)."
+  mark_step_completed "goldendragon-packages" || true
   echo
 
   if ! is_step_completed "goldendragon-system-configs"; then

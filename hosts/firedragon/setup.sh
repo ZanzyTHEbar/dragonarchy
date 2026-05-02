@@ -30,7 +30,8 @@ source "${PROJECT_ROOT}/scripts/lib/system-mods.sh"
 
 # Top-level code moved into main() for sourcing safety
 
-# Install laptop-specific packages
+# Legacy reference only. Current package truth is deps.manifest.toml groups
+# host_firedragon_laptop and laptop_power_tlp via the Ansible packages role.
 setup_firedragon_packages() {
     log_info "Installing laptop-specific packages..."
     
@@ -56,7 +57,6 @@ setup_firedragon_packages() {
         "libinput"               # Input device management
         "libinput-gestures"      # Gesture recognition library (optional)
         "asusctl"                # ASUS EC/keyboard controls
-        "asus-nb-ctrl"           # Additional ASUS laptop integration
     )
     
     local amd_packages=(
@@ -938,11 +938,8 @@ main() {
     echo
     
     # Run each setup function with idempotency tracking
-    if ! is_step_completed "firedragon-packages"; then
-        setup_firedragon_packages && mark_step_completed "firedragon-packages"
-    else
-        log_info "✓ Packages already installed (skipped)"
-    fi
+    log_info "Skipping legacy FireDragon package install; package truth is scripts/install/deps.manifest.toml via the Ansible packages role (host_firedragon_laptop + laptop_power_tlp)."
+    mark_step_completed "firedragon-packages" || true
     echo
 
     if ! is_step_completed "firedragon-asus-ec-tools"; then

@@ -1,5 +1,6 @@
 ---
-- name: Install OpenFortiVPN packages
+- name: Install OpenFortiVPN packages (legacy override; default is manifest via packages role)
   ansible.builtin.package:
     name: "{{ openfortivpn_packages_by_platform[host_platform_family] }}"
     state: present
+  when: openfortivpn_packages_by_platform[host_platform_family] | default([]) | length > 0

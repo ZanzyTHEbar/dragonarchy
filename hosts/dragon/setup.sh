@@ -8,7 +8,7 @@
 # - Applies host system config under hosts/dragon/etc -> /etc
 # - Ensures AIO cooler services (liquidctl + dynamic_led)
 # - Applies host audio config (hosts/dragon/pipewire -> ~/.config/pipewire/pipewire.conf.d)
-# - Installs a small workstation toolset when possible (best-effort)
+# - Keeps legacy package-install reference data; package truth is the manifest
 #
 
 set -euo pipefail
@@ -24,8 +24,8 @@ source "${PROJECT_ROOT}/scripts/lib/install-state.sh"
 source "${PROJECT_ROOT}/scripts/lib/system-mods.sh"
 
 install_dragon_packages() {
-    # Keep host setup runnable standalone even if install-deps wasn’t invoked.
-    # (install-deps also installs host_dragon_workstation via deps.manifest.toml on Arch-family)
+    # Legacy reference only. Current package truth is deps.manifest.toml group
+    # host_dragon_workstation via the Ansible packages role.
     local pkgs=(
         "liquidctl"
         "lm_sensors"
@@ -163,11 +163,8 @@ main() {
         echo
     fi
 
-    if ! is_step_completed "dragon-packages"; then
-        install_dragon_packages && mark_step_completed "dragon-packages"
-    else
-        log_info "✓ Packages already installed (skipped)"
-    fi
+    log_info "Skipping legacy Dragon package install; package truth is scripts/install/deps.manifest.toml via the Ansible packages role (host_dragon_workstation)."
+    mark_step_completed "dragon-packages" || true
     echo
 
     if ! is_step_completed "dragon-install-netbird"; then

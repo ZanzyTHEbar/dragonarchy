@@ -9,4 +9,4 @@ packages_manifest_group_aliases:
 # Extended in resolve.yml from host_desktop_stack.
 
 # Repo root (dotfiles) on the controller; used to locate export-package-plan.sh.
-packages_dotfiles_repo_root: "{{ playbook_dir }}/../.."
+packages_dotfiles_repo_root: "{{ playbook_dir }}/../../.."
