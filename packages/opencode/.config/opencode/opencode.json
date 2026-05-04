@@ -12,24 +12,6 @@
     "./rules/general/memory-bank.mdc",
     "./rules/general/task-authority-boundaries.mdc"
   ],
-  "tools": {
-    "jira_rovo_*": false,
-    "saga_*": false
-  },
-  "agent": {
-    "build": {
-      "tools": {
-        "jira_rovo_*": true,
-        "saga_*": true
-      }
-    },
-    "general": {
-      "tools": {
-        "jira_rovo_*": true,
-        "saga_*": true
-      }
-    }
-  },
   "mcp": {
     "linear": {
       "type": "remote",
