@@ -1,0 +1,8 @@
+---
+galaxy_info:
+  author: daofficialwizard
+  description: Manage AIO liquid cooler system state (liquidctl + dynamic LED).
+  license: MIT
+  min_ansible_version: "2.15"
+
+dependencies: []
