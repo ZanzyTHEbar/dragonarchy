@@ -102,6 +102,19 @@ is_hyprland_host() {
     return 0
 }
 
+# Args: hosts_dir hostname
+is_sddm_host() {
+    local hosts_dir="$1"
+    local hostname="$2"
+
+    if host_has_trait "$hosts_dir" "$hostname" "sddm"; then
+        __hosts_log_info "Host '$hostname' detected as SDDM (trait)" >&2
+        return 0
+    fi
+
+    return 1
+}
+
 # ─── Trait system ───────────────────────────────────────────────
 
 # Read all traits for a host, one per line.

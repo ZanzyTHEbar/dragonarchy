@@ -16,7 +16,6 @@ host_profile_packages:
   - firedragon_laptop
   - laptop_power_tlp
   - hyprland_session
-  - sddm
 
 managed_users:
   - name: daofficialwizard

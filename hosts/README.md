@@ -46,6 +46,8 @@ cat > hosts/$(hostname)/.traits <<'EOF'
 # One trait per line. Lines starting with # are comments.
 desktop
 hyprland
+# Optional: add when this host should run SDDM.
+sddm
 laptop
 tlp
 EOF
@@ -58,6 +60,7 @@ Available traits and what they control:
 | `desktop` | Validates systemd-resolved |
 | `headless` | Documents that the host is terminal-only / non-desktop |
 | `hyprland` | Detects Hyprland host, validates Hyprland components |
+| `sddm` | Opts the host into SDDM package/theme setup |
 | `laptop` | Checks brightnessctl |
 | `tlp` | Checks TLP + masks systemd-rfkill |
 | `aio-cooler` | Validates liquidctl + cooler/LED services |
@@ -89,36 +92,27 @@ _sysmod_sudo systemctl daemon-reload
 
 All modifications create timestamped backups under `/etc/.dragonarchy-backups/` and skip operations when content hasn't changed. Set `SYSMOD_DRY_RUN=1` to preview changes.
 
-### Hyprland Configuration
+### Hyprland And SDDM Configuration
 
-The package installation script automatically detects if a host needs Hyprland packages using multiple methods:
+The package installation script uses explicit traits for desktop-session and display-manager setup:
 
-#### Method 1: Marker File (Recommended)
+- Add `hyprland` to `.traits` when the host should install and validate the Hyprland session stack.
+- Add `sddm` to `.traits` when the host should install and configure SDDM.
+- These traits are independent: a host may use Hyprland without SDDM, SDDM without Hyprland, or neither.
 
-Create a `.hyprland` marker file in your host directory:
+#### Legacy Marker Files
+
+Older hosts may still contain a `.hyprland` or `HYPRLAND` marker file:
 
 ```bash
 touch hosts/$(hostname)/.hyprland
 ```
 
-This is the most explicit and reliable method.
-
-#### Method 2: Automatic Detection from setup.sh
-
-If your `setup.sh` mentions any of these keywords, Hyprland packages will be installed automatically:
-
-- `hyprland`
-- `hyprlock`
-- `hypridle`
-- `waybar`
-
-#### Method 3: Automatic Detection from Documentation
-
-If you have documentation in `hosts/$(hostname)/docs/*.md` that mentions Hyprland, it will be detected.
+Prefer `.traits` for new hosts.
 
 ### What Gets Installed for Hyprland Hosts
 
-When a host is detected as a Hyprland host, it receives:
+When a host has the `hyprland` trait, it receives:
 
 1. **Hyprland Desktop Environment** (~70 packages)
    - Hyprland, waybar, hyprlock, hypridle
@@ -158,7 +152,7 @@ When a host is detected as a Hyprland host, it receives:
 
 ```bash
 hosts/dragon/
-├── .traits                # amd-gpu, aio-cooler, hyprland, desktop, netbird
+├── .traits                # amd-gpu, aio-cooler, hyprland, sddm, desktop, netbird
 ├── .hyprland              # Legacy marker file
 ├── setup.sh               # Host setup script (uses sysmod_* helpers)
 ├── dynamic_led.py         # Custom LED control script
@@ -174,7 +168,7 @@ hosts/dragon/
 
 ```bash
 hosts/firedragon/
-├── .traits                # laptop, amd-gpu, tlp, hyprland, desktop, asus, netbird
+├── .traits                # laptop, amd-gpu, tlp, hyprland, sddm, desktop, asus, netbird
 ├── .hyprland              # Legacy marker file
 ├── setup.sh               # Extensive laptop setup (uses sysmod_* helpers)
 ├── docs/                  # Documentation

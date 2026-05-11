@@ -76,6 +76,10 @@ feature_csv_for_host() {
         features+=("hyprland")
     fi
 
+    if [[ -n "$host" ]] && is_sddm_host "$HOSTS_DIR" "$host" 2>/dev/null; then
+        features+=("sddm")
+    fi
+
     if [[ "$ENABLE_VENDOR_CREATIVE" == "true" ]]; then
         features+=("creative_vendor_optin")
     fi
@@ -342,7 +346,11 @@ pkgsolve_resolve_and_verify_debian_plan() {
 # Returns 0 (install) if no bundle is active OR the group is in the bundle.
 _bundle_allows_group() {
     local group="$1"
+    local host="${2:-}"
     [[ -z "$BUNDLE_NAME" ]] && return 0
+    if [[ "$group" == "sddm" ]] && [[ -n "$host" ]] && is_sddm_host "$HOSTS_DIR" "$host" >/dev/null 2>&1; then
+        return 0
+    fi
     if [[ ${#BUNDLE_GROUP_SET[@]} -eq 0 ]]; then
         load_bundle_group_set "$BUNDLE_NAME"
     fi
@@ -378,7 +386,7 @@ install_manifest_group() {
     local feature_csv="${6:-}"
 
     # Skip groups not in the active bundle (if one is specified)
-    if ! _bundle_allows_group "$group"; then
+    if ! _bundle_allows_group "$group" "$host"; then
         log_info "Bundle '${BUNDLE_NAME}' excludes group ${group} (skipping)"
         return 0
     fi

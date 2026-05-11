@@ -4,9 +4,17 @@
     packages_manifest_feature_csv: >-
       {{
         (
-          ['hyprland']
-          if (host_desktop_stack | default('none')) == 'hyprland'
-          else []
+          (
+            ['hyprland']
+            if (host_desktop_stack | default('none')) == 'hyprland'
+            else []
+          )
+          +
+          (
+            ['sddm']
+            if (display_manager | default('none')) == 'sddm'
+            else []
+          )
         ) | join(',')
       }}
 
@@ -18,6 +26,11 @@
   ansible.builtin.set_fact:
     packages_manifest_resolved_groups: "{{ packages_manifest_resolved_groups | default([]) + [ (packages_manifest_group_aliases | default({}))[item] | default(item) ] }}"
   loop: "{{ host_profile_packages }}"
+
+- name: Add SDDM package group for SDDM hosts
+  ansible.builtin.set_fact:
+    packages_manifest_resolved_groups: "{{ (packages_manifest_resolved_groups | default([]) + ['sddm']) | unique }}"
+  when: display_manager | default('none') == 'sddm'
 
 - name: Resolve package plan from canonical manifest (JSON)
   ansible.builtin.command:
