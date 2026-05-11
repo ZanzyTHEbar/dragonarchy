@@ -34,6 +34,19 @@
     fail_msg: "Expected fingerprint PAM policy in {{ item.item }}."
   loop: "{{ fingerprint_pam_checks.results }}"
 
+- name: Check excluded PAM targets do not contain fingerprint policy
+  ansible.builtin.shell: "! grep -qE '^\\s*auth\\s+.*pam_fprintd\\.so' {{ item }}"
+  loop: "{{ fingerprint_pam_excluded_targets }}"
+  register: fingerprint_pam_excluded_checks
+  changed_when: false
+
+- name: Assert excluded PAM targets do not contain fingerprint policy
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: "Expected fingerprint PAM policy to be absent from {{ item.item }}."
+  loop: "{{ fingerprint_pam_excluded_checks.results }}"
+
 - name: Check managed hyprlock PAM file
   ansible.builtin.stat:
     path: /etc/pam.d/hyprlock

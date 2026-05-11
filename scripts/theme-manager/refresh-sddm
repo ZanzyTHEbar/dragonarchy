@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Link packaged SDDM themes into /usr/share/sddm/themes via stow or rsync
+# Copy packaged SDDM themes into /usr/share/sddm/themes.
 # Usage: refresh-sddm [-y]
 # -y: Skip confirmation (for automated scripts)
 
@@ -28,7 +28,10 @@ if [[ "$AUTO_YES" == "false" ]] && command -v gum >/dev/null 2>&1; then
 fi
 
 mkdir -p "$DEST_DIR"
-rsync -a --delete "$PKG_DIR/usr/share/sddm/themes/" "$DEST_DIR/"
+chown root:root "$DEST_DIR"
+chmod 0755 "$DEST_DIR"
+find "$DEST_DIR" -type l -delete
+rsync -a --copy-links --delete --chown=root:root --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r "$PKG_DIR/usr/share/sddm/themes/" "$DEST_DIR/"
 echo "SDDM themes refreshed to $DEST_DIR"
 
 exit 0

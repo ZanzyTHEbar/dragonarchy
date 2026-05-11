@@ -899,8 +899,8 @@ setup_sddm_theme() {
     
     # Check if SDDM is installed
     if ! command -v sddm &>/dev/null; then
-        log_info "SDDM not installed, skipping theme setup"
-        return 0
+        log_error "SDDM is expected on firedragon but is not installed; run package setup first."
+        return 1
     fi
     
     local theme_scripts_dir="$PROJECT_ROOT/scripts/theme-manager"
@@ -908,9 +908,10 @@ setup_sddm_theme() {
     # Refresh SDDM themes (copies from packages/sddm to /usr/share/sddm/themes)
     if [[ -x "$theme_scripts_dir/refresh-sddm" ]]; then
         log_info "Refreshing SDDM themes..."
-        bash "$theme_scripts_dir/refresh-sddm"
+        bash "$theme_scripts_dir/refresh-sddm" -y
     else
         log_warning "refresh-sddm script not found"
+        return 1
     fi
     
     # Set the catppuccin theme
@@ -920,6 +921,7 @@ setup_sddm_theme() {
         log_success "SDDM theme configured"
     else
         log_warning "sddm-set script not found"
+        return 1
     fi
 }
 

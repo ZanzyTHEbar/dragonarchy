@@ -133,6 +133,24 @@ ensure_pam_fprintd_enabled() {
   log_success "Enabled fingerprint auth (with password fallback) in: $pam_file"
 }
 
+ensure_pam_fprintd_absent() {
+  local pam_file="$1"
+
+  if [[ ! -f "$pam_file" ]]; then
+    return 0
+  fi
+
+  if ! _sysmod_sudo grep -qE '^\s*auth\s+.*pam_fprintd\.so' "$pam_file"; then
+    return 0
+  fi
+
+  backup_root_pam_file "$pam_file"
+  _sysmod_sudo grep -vE '^\s*auth\s+.*pam_fprintd\.so' "$pam_file" | _sysmod_sudo tee "${pam_file}.dragonarchy.tmp" >/dev/null
+  _sysmod_sudo mv "${pam_file}.dragonarchy.tmp" "$pam_file"
+  _sysmod_sudo chmod 644 "$pam_file" 2>/dev/null || true
+  log_success "Removed fingerprint auth from password-login PAM target: $pam_file"
+}
+
 setup_fingerprint_auth() {
   log_step "Setting up fingerprint authentication (goldendragon)..."
   local rc=0
@@ -161,11 +179,12 @@ setup_fingerprint_auth() {
     log_warning "fprintd.service not found (package install may have failed)"
   fi
 
-  # PAM enablement: sudo + polkit + sddm + local login
+  # PAM enablement: keep SDDM password-based so pam_gnome_keyring can unlock
+  # the login keyring with the user's login password.
   ensure_pam_fprintd_enabled /etc/pam.d/sudo
   ensure_pam_fprintd_enabled /etc/pam.d/polkit-1
   ensure_pam_fprintd_enabled /etc/pam.d/system-local-login
-  ensure_pam_fprintd_enabled /etc/pam.d/sddm
+  ensure_pam_fprintd_absent /etc/pam.d/sddm
 
   # USB autosuspend fix: prevent fingerprint reader from being suspended
   # This is critical to avoid 30-40 second wake-up delays at login/lock screens
@@ -634,8 +653,8 @@ setup_sddm_theme() {
   log_step "Setting up SDDM theme..."
 
   if ! command -v sddm >/dev/null 2>&1; then
-    log_info "SDDM not installed, skipping theme setup"
-    return 0
+    log_error "SDDM is expected on goldendragon but is not installed; run package setup first."
+    return 1
   fi
 
   local theme_scripts_dir="$PROJECT_ROOT/scripts/theme-manager"
@@ -646,7 +665,7 @@ setup_sddm_theme() {
     bash "$theme_scripts_dir/refresh-sddm" -y
   else
     log_warning "refresh-sddm script not found: $theme_scripts_dir/refresh-sddm"
-    return 0
+    return 1
   fi
 
   if [[ -x "$theme_scripts_dir/sddm-set" ]]; then
@@ -655,6 +674,7 @@ setup_sddm_theme() {
     log_success "SDDM theme configured"
   else
     log_warning "sddm-set script not found: $theme_scripts_dir/sddm-set"
+    return 1
   fi
 }
 
