@@ -15,4 +15,3 @@ ExecStart=/bin/sh -c 'echo "AMD GPU resumed successfully at $(date -Is)" > /tmp/
 
 [Install]
 WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
-

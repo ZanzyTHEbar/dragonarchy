@@ -11,4 +11,4 @@ aio_cooler_services:
   - liquidctl-dragon.service
 
 aio_cooler_host_src_dir_by_host:
-  dragon: hosts/dragon
+  dragon: "{{ playbook_dir }}/../../../hosts/dragon"

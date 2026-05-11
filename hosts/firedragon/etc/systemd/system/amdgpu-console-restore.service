@@ -16,4 +16,3 @@ ExecStart=/bin/sh -c 'echo "Console framebuffer restored at $(date -Is) (vt=$(fg
 
 [Install]
 WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
-

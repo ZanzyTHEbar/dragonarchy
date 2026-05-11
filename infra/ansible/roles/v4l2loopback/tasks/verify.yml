@@ -1,0 +1,30 @@
+---
+- name: Check v4l2loopback modprobe files
+  ansible.builtin.stat:
+    path: "/etc/modprobe.d/{{ item.path | basename }}"
+  loop: "{{ v4l2loopback_modprobe_files.files }}"
+  register: v4l2loopback_modprobe_stats
+  when: v4l2loopback_modprobe_files.matched | default(0) | int > 0
+
+- name: Assert v4l2loopback modprobe files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Expected /etc/modprobe.d/{{ item.item.path | basename }} to exist."
+  loop: "{{ v4l2loopback_modprobe_stats.results }}"
+  when: v4l2loopback_modprobe_files.matched | default(0) | int > 0
+
+- name: Check v4l2loopback modules-load files
+  ansible.builtin.stat:
+    path: "/etc/modules-load.d/{{ item.path | basename }}"
+  loop: "{{ v4l2loopback_modules_load_files.files }}"
+  register: v4l2loopback_modules_load_stats
+  when: v4l2loopback_modules_load_files.matched | default(0) | int > 0
+
+- name: Assert v4l2loopback modules-load files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Expected /etc/modules-load.d/{{ item.item.path | basename }} to exist."
+  loop: "{{ v4l2loopback_modules_load_stats.results }}"
+  when: v4l2loopback_modules_load_files.matched | default(0) | int > 0

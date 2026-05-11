@@ -12,6 +12,4 @@ tlp_masked_services:
   - systemd-rfkill.service
   - systemd-rfkill.socket
 
-tlp_config_src_by_host:
-  firedragon: hosts/firedragon/01-firedragon.conf
-  goldendragon: hosts/goldendragon/01-goldendragon.conf
+tlp_host_source_dir: "{{ playbook_dir | dirname | dirname }}/../../hosts"

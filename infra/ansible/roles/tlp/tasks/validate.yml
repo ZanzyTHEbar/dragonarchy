@@ -7,6 +7,24 @@
       - host_platform_family in tlp_packages_by_platform
       - host_capabilities is defined
       - "'tlp' in host_capabilities"
-      - inventory_hostname in tlp_config_src_by_host
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the TLP tranche-5 contract.
+
+- name: Set TLP host payload root
+  ansible.builtin.set_fact:
+    tlp_role_files_root: "{{ tlp_host_source_dir }}/{{ inventory_hostname }}"
+
+- name: Check TLP config source
+  ansible.builtin.stat:
+    path: "{{ tlp_role_files_root }}/etc/tlp.d/01-{{ inventory_hostname }}.conf"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: tlp_config_src
+
+- name: Assert TLP config source exists
+  ansible.builtin.assert:
+    that:
+      - tlp_config_src.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing the TLP config source payload.

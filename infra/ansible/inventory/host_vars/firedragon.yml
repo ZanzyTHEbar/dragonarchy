@@ -1,4 +1,5 @@
 ---
+host_timezone: Europe/Lisbon
 host_role: laptop
 host_platform_family: arch
 host_desktop_stack: hyprland
