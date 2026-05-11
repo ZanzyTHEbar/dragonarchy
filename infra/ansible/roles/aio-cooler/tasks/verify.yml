@@ -1,0 +1,28 @@
+---
+- name: Check installed dynamic_led.py
+  ansible.builtin.stat:
+    path: /usr/local/bin/dynamic_led.py
+  register: aio_cooler_dynamic_led_py
+
+- name: Assert dynamic_led.py exists
+  ansible.builtin.assert:
+    that:
+      - aio_cooler_dynamic_led_py.stat.exists
+    fail_msg: "Expected /usr/local/bin/dynamic_led.py to exist."
+
+- name: Gather service facts for aio-cooler
+  ansible.builtin.service_facts:
+
+- name: Assert aio-cooler services are enabled and active
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item] is defined
+      - ansible_facts.services[item].status == 'enabled'
+      - >-
+        ansible_facts.services[item].state == 'running'
+        or (
+          item == 'liquidctl-dragon.service'
+          and ansible_facts.services[item].state in ['stopped', 'running']
+        )
+    fail_msg: "Expected {{ item }} to be enabled and active."
+  loop: "{{ aio_cooler_services }}"

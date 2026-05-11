@@ -32,3 +32,11 @@
 
   roles:
     - role: openfortivpn
+
+- name: Hot-path tranche 5 AIO cooler
+  hosts: aio_cooler
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: aio-cooler

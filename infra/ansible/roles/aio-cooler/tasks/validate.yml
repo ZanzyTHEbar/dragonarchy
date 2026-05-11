@@ -1,0 +1,76 @@
+---
+- name: Assert aio-cooler tranche-5 metadata exists
+  ansible.builtin.assert:
+    that:
+      - aio_cooler_enabled | bool
+      - host_platform_family is defined
+      - host_platform_family in aio_cooler_packages_by_platform
+      - host_capabilities is defined
+      - "'aio-cooler' in host_capabilities"
+      - inventory_hostname in aio_cooler_host_src_dir_by_host
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the aio-cooler tranche-5 contract.
+
+- name: Set aio-cooler role-local host payload root
+  ansible.builtin.set_fact:
+    aio_cooler_role_files_root: "{{ role_path }}/files/{{ aio_cooler_host_src_dir_by_host[inventory_hostname] }}"
+
+- name: Check host-specific aio-cooler dynamic_led.py source
+  ansible.builtin.stat:
+    path: "{{ aio_cooler_role_files_root }}/dynamic_led.py"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: aio_cooler_dynamic_led_py_src
+
+- name: Assert aio-cooler dynamic_led.py source exists
+  ansible.builtin.assert:
+    that:
+      - aio_cooler_dynamic_led_py_src.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing the dynamic_led.py source payload.
+
+- name: Check host-specific aio-cooler dynamic_led.service source
+  ansible.builtin.stat:
+    path: "{{ aio_cooler_role_files_root }}/dynamic_led.service"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: aio_cooler_dynamic_led_service_src
+
+- name: Assert aio-cooler dynamic_led.service source exists
+  ansible.builtin.assert:
+    that:
+      - aio_cooler_dynamic_led_service_src.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing the dynamic_led.service source payload.
+
+- name: Check host-specific aio-cooler liquidctl-dragon.service source
+  ansible.builtin.stat:
+    path: "{{ aio_cooler_role_files_root }}/liquidctl-dragon.service"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: aio_cooler_liquidctl_dragon_service_src
+
+- name: Assert aio-cooler liquidctl-dragon.service source exists
+  ansible.builtin.assert:
+    that:
+      - aio_cooler_liquidctl_dragon_service_src.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing the liquidctl-dragon.service source payload.
+
+- name: Check host-specific aio-cooler liquidctl-suspend.sh source
+  ansible.builtin.stat:
+    path: "{{ aio_cooler_role_files_root }}/etc/systemd/system-sleep/liquidctl-suspend.sh"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: aio_cooler_liquidctl_suspend_sh_src
+
+- name: Assert aio-cooler liquidctl-suspend.sh source exists
+  ansible.builtin.assert:
+    that:
+      - aio_cooler_liquidctl_suspend_sh_src.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing the liquidctl-suspend.sh source payload.

@@ -1,0 +1,12 @@
+---
+- name: Validate aio-cooler role inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Install AIO cooler packages
+  ansible.builtin.import_tasks: install.yml
+
+- name: Configure AIO cooler state
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Validate AIO cooler state
+  ansible.builtin.import_tasks: verify.yml
