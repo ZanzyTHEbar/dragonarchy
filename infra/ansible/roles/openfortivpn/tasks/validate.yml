@@ -20,8 +20,8 @@
       Host '{{ inventory_hostname }}' does not satisfy the OpenFortiVPN tranche-5 contract.
       Required: openfortivpn_enabled=true, host_platform_family defined and in openfortivpn_packages_by_platform,
       'fortinet_vpn' in host_capabilities, 'resolved' in host_capabilities,
-      managed_users defined and non-empty, inventory_hostname in openfortivpn_helper_src_by_host
-      and openfortivpn_unit_src_dir_by_host, and /usr/bin/openfortivpn must exist.
+      managed_users defined and non-empty, openfortivpn payload files must exist under
+      {{ openfortivpn_role_files_root }}, and /usr/bin/openfortivpn must exist.
 
 - name: Set OpenFortiVPN primary user
   ansible.builtin.set_fact:

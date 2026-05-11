@@ -48,6 +48,8 @@ if [[ ${#MANIFEST_PATHS[@]} -eq 0 ]]; then
     "${CHEZMOI_ROOT}/manifests/session-core.manifest"
     "${CHEZMOI_ROOT}/manifests/session-shell.manifest"
     "${CHEZMOI_ROOT}/manifests/session-zsh.manifest"
+    "${CHEZMOI_ROOT}/manifests/devtools-core.manifest"
+    "${CHEZMOI_ROOT}/manifests/git-ssh.manifest"
   )
 fi
 

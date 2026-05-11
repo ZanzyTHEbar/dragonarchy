@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# vpnctl - CLI client for openfortivpn-container
+# Discovers API via Unix socket or TCP port.
+
+API_SOCKET="${OPENFORTIVPN_API_SOCKET:-/run/openfortivpn/api.sock}"
+API_URL="${OPENFORTIVPN_API_URL:-http://127.0.0.1:8080}"
+
+# Prefer Unix socket if accessible, else fall back to TCP
+discover_api() {
+  if [[ -S "$API_SOCKET" ]]; then
+    echo "unix:$API_SOCKET"
+  else
+    echo "$API_URL"
+  fi
+}
+
+api_request() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  local base
+  base="$(discover_api)"
+
+  local -a curl_opts=(-s -S)
+
+  if [[ "$base" == unix:* ]]; then
+    local socket="${base#unix:}"
+    curl_opts+=(--unix-socket "$socket")
+    base="http://localhost"
+  fi
+
+  if [[ "$method" == "POST" ]]; then
+    if [[ -n "$body" ]]; then
+      curl "${curl_opts[@]}" -X POST -H "Content-Type: application/json" -d "$body" "${base}${path}"
+    else
+      curl "${curl_opts[@]}" -X POST "${base}${path}"
+    fi
+  else
+    curl "${curl_opts[@]}" "${base}${path}"
+  fi
+}
+
+cmd_status() {
+  api_request GET "/status" | jq .
+}
+
+cmd_connect() {
+  local resp
+  resp="$(api_request POST "/connect")"
+  echo "$resp" | jq .
+
+  local url
+  url="$(echo "$resp" | jq -r '.saml_url // empty')"
+  if [[ -n "$url" && "$url" != "null" ]]; then
+    echo ""
+    echo "Open this URL in your browser to complete SAML login:"
+    echo "  $url"
+    echo ""
+
+    if command -v xdg-open >/dev/null 2>&1; then
+      xdg-open "$url" >/dev/null 2>&1 || true
+    elif command -v open >/dev/null 2>&1; then
+      open "$url" >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
+cmd_disconnect() {
+  api_request POST "/disconnect" | jq .
+}
+
+cmd_health() {
+  api_request GET "/health" | jq .
+}
+
+cmd_config() {
+  if [[ "${1:-}" == "--edit" ]]; then
+    local tmpfile
+    tmpfile="$(mktemp)"
+    api_request GET "/config" > "$tmpfile"
+    ${EDITOR:-nano} "$tmpfile"
+    # Note: posting raw config text; control plane should handle this
+    # This is a simplified version; the control plane may expect JSON
+    api_request POST "/config" "$(jq -Rs '{config: .}' < "$tmpfile")"
+    rm -f "$tmpfile"
+  else
+    api_request GET "/config"
+  fi
+}
+
+cmd_logs() {
+  # Stream logs via SSE if supported, else plain GET
+  local base
+  base="$(discover_api)"
+  local -a curl_opts=(-s)
+
+  if [[ "$base" == unix:* ]]; then
+    local socket="${base#unix:}"
+    curl_opts+=(--unix-socket "$socket")
+    base="http://localhost"
+  fi
+
+  curl "${curl_opts[@]}" -N "${base}/logs"
+}
+
+usage() {
+  cat <<EOF
+Usage: vpnctl <command> [args]
+
+Commands:
+  status              Show VPN status
+  connect             Start VPN (opens SAML login if needed)
+  disconnect          Stop VPN
+  health              Check container health
+  config              Show current config
+  config --edit       Edit config (requires editor)
+  logs                Stream VPN logs
+
+Environment:
+  OPENFORTIVPN_API_SOCKET   Unix socket path (default: /run/openfortivpn/api.sock)
+  OPENFORTIVPN_API_URL      TCP API URL (default: http://127.0.0.1:8080)
+EOF
+}
+
+main() {
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "Error: curl is required" >&2
+    exit 1
+  fi
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is required" >&2
+    exit 1
+  fi
+
+  local cmd="${1:-}"
+  case "$cmd" in
+    status)      cmd_status ;;
+    connect)     cmd_connect ;;
+    disconnect)  cmd_disconnect ;;
+    health)      cmd_health ;;
+    config)      shift; cmd_config "$@" ;;
+    logs)        cmd_logs ;;
+    -h|--help|*) usage ;;
+  esac
+}
+
+main "$@"
