@@ -832,6 +832,21 @@ check_host_config() {
         fi
     fi
 
+    # ── Trait: sddm ──
+    if host_has_trait "$hosts_dir" "$host" "sddm"; then
+        if command_exists sddm; then
+            check_pass "SDDM is available"
+        else
+            check_fail "SDDM is missing for SDDM host '${host}'"
+        fi
+
+        if [[ -f /etc/sddm.conf.d/10-theme.conf ]]; then
+            check_pass "SDDM theme config exists"
+        else
+            check_warn "SDDM theme config missing: /etc/sddm.conf.d/10-theme.conf"
+        fi
+    fi
+
     # ── Trait: tlp ──
     if host_has_trait "$hosts_dir" "$host" "tlp"; then
         if command_exists tlp; then

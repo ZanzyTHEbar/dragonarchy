@@ -273,6 +273,10 @@ packages_sanity_ok() {
             command -v hyprland >/dev/null 2>&1 || return 1
         fi
     fi
+
+    if [[ -n "${host:-}" ]] && is_sddm_host "$HOSTS_DIR" "$host" >/dev/null 2>&1; then
+        command -v sddm >/dev/null 2>&1 || return 1
+    fi
     return 0
 }
 
@@ -346,6 +350,12 @@ install_packages() {
         feature_fingerprint="hyprland-${provider_track}"
     else
         feature_fingerprint="nohypr-${provider_track}"
+    fi
+
+    if [[ -n "${HOST:-}" ]] && is_sddm_host "$HOSTS_DIR" "$HOST"; then
+        feature_fingerprint+="-sddm"
+    else
+        feature_fingerprint+="-nosddm"
     fi
 
     if [[ " ${INSTALL_DEPS_FLAGS[*]} " == *" --vendor-creative "* ]]; then
@@ -1061,7 +1071,7 @@ main() {
         bash "$SCRIPTS_DIR/theme-manager/refresh-plymouth" -y
         
         # Setup SDDM themes if SDDM is installed
-        if command -v sddm >/dev/null 2>&1; then
+        if [[ -n "${HOST:-}" ]] && is_sddm_host "$HOSTS_DIR" "$HOST" && command -v sddm >/dev/null 2>&1; then
             if dotfiles_system_owner_is_ansible; then
                 log_info "Skipping legacy SDDM theme writes because DOTFILES_SYSTEM_OWNER=ansible"
             else
@@ -1118,8 +1128,10 @@ main() {
                     log_warning "refresh-sddm script not found, skipping SDDM theme setup"
                 fi
             fi
-        else
+        elif [[ -n "${HOST:-}" ]] && is_sddm_host "$HOSTS_DIR" "$HOST"; then
             log_info "SDDM not installed, skipping SDDM theme setup"
+        else
+            log_info "Host is not opted into SDDM, skipping SDDM theme setup"
         fi
     else
         log_info "Skipping theme refresh (--no-theme)"

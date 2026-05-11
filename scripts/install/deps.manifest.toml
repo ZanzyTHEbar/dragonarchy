@@ -198,11 +198,11 @@ packages = [
 ]
 
 [platforms.arch.pacman.sddm]
-requires_features = ["hyprland"]
+requires_features = ["sddm"]
 packages = ["sddm", "qt6-svg"]
 
 [platforms.debian.apt.sddm]
-requires_features = ["hyprland"]
+requires_features = ["sddm"]
 packages = ["sddm"]
 
 [platforms.arch.pacman.fingerprint]

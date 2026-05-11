@@ -14,7 +14,6 @@ host_profile_packages:
   - dev
   - host_dragon_workstation
   - hyprland_session
-  - sddm
 
 managed_users:
   - name: daofficialwizard

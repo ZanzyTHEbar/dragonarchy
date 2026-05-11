@@ -49,6 +49,13 @@
     fail_msg: >-
       Host '{{ inventory_hostname }}' inventory group placement is not aligned with its declared role/platform/desktop metadata.
 
+- name: Assert SDDM group is aligned with display-manager metadata
+  ansible.builtin.assert:
+    that:
+      - ((display_manager | default('none')) == 'sddm') == ('sddm' in group_names)
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' has SDDM display-manager/group drift.
+
 - name: Assert capability groups are aligned with host_capabilities
   ansible.builtin.assert:
     that:

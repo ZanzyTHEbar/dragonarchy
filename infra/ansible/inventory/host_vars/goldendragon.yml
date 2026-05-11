@@ -17,7 +17,6 @@ host_profile_packages:
   - laptop_power_tlp
   - host_goldendragon_nvidia
   - hyprland_session
-  - sddm
   - fingerprint
   - openfortivpn
 
