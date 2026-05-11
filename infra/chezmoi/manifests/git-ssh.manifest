@@ -1,0 +1,14 @@
+# mode|source|dest
+required|packages/git/.gitconfig|dot_gitconfig
+required|packages/git/.config/git|dot_config/git
+required|packages/gpg/dirmngr.conf|dot_gnupg/dirmngr.conf
+required|packages/ssh/.ssh/config|dot_ssh/config
+required|packages/ssh/.ssh/known_hosts|dot_ssh/known_hosts
+required|packages/ssh/.ssh/detos.pub|dot_ssh/detos.pub
+required|packages/ssh/.ssh/spacedragon.pub|dot_ssh/spacedragon.pub
+required|packages/ssh/.ssh/zac.pub|dot_ssh/zac.pub
+# Private keys are excluded until encryption is configured.
+exclude||dot_ssh/detos
+exclude||dot_ssh/spacedragon
+exclude||dot_ssh/zac
+exclude||dot_ssh/known_hosts.old

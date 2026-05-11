@@ -1,0 +1,39 @@
+FROM debian:12-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openfortivpn \
+    ppp \
+    dnsmasq \
+    iproute2 \
+    curl \
+    jq \
+    ca-certificates \
+    tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy control plane binary
+COPY control-plane/openfortivpn-control-plane /usr/local/bin/openfortivpn-control-plane
+
+# Copy scripts
+COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY scripts/dns-helper.sh /usr/local/bin/dns-helper.sh
+
+# Copy web UI
+COPY control-plane/web/index.html /usr/share/openfortivpn/web/index.html
+
+# Ensure scripts are executable
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/dns-helper.sh /usr/local/bin/openfortivpn-control-plane
+
+# Create runtime directories
+RUN mkdir -p /run/openfortivpn /etc/openfortivpn /var/lib/openfortivpn
+
+# Expose API port (optional, mainly for documentation; --network host is required)
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8080/health || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/usr/local/bin/entrypoint.sh"]
