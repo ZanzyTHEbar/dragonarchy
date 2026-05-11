@@ -35,6 +35,16 @@
     group: root
     mode: "0755"
 
+- name: Resolve fingerprint PAM targets
+  ansible.builtin.set_fact:
+    fingerprint_pam_targets: >-
+      {{
+        fingerprint_pam_targets_base
+        + (fingerprint_pam_targets_by_display_manager[display_manager | default('none')] | default([]))
+      }}
+    fingerprint_pam_excluded_targets: >-
+      {{ fingerprint_pam_excluded_targets_by_display_manager[display_manager | default('none')] | default([]) }}
+
 - name: Ensure PAM fingerprint policy is present
   ansible.builtin.lineinfile:
     path: "{{ item }}"
@@ -42,6 +52,13 @@
     insertbefore: '^\s*auth\b'
     state: present
   loop: "{{ fingerprint_pam_targets }}"
+
+- name: Ensure fingerprint PAM policy is absent from excluded targets
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: '^\s*auth\s+.*pam_fprintd\.so.*$'
+    state: absent
+  loop: "{{ fingerprint_pam_excluded_targets }}"
 
 - name: Install host-specific hyprlock PAM policy
   ansible.builtin.copy:

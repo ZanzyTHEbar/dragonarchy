@@ -7,11 +7,16 @@ fingerprint_pam_line: "auth      sufficient pam_fprintd.so timeout=10"
 fingerprint_packages_by_platform:
   arch: []
 
-fingerprint_pam_targets:
+fingerprint_pam_targets_base:
   - /etc/pam.d/sudo
   - /etc/pam.d/polkit-1
   - /etc/pam.d/system-local-login
-  - /etc/pam.d/sddm
+
+fingerprint_pam_targets_by_display_manager: {}
+
+fingerprint_pam_excluded_targets_by_display_manager:
+  sddm:
+    - /etc/pam.d/sddm
 
 fingerprint_sleep_hook_src_by_host:
   goldendragon: hosts/goldendragon/99-fprintd-reset.sh

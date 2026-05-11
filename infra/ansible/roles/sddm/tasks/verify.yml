@@ -19,5 +19,6 @@
   ansible.builtin.assert:
     that:
       - sddm_theme_main_stat.stat.exists
+      - not sddm_theme_main_stat.stat.islnk
     fail_msg: >-
-      Expected SDDM theme '{{ sddm_theme }}' to exist under /usr/share/sddm/themes.
+      Expected SDDM theme '{{ sddm_theme }}' to be a real readable file under /usr/share/sddm/themes.

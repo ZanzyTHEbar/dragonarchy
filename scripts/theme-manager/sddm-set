@@ -16,8 +16,9 @@ shift || true
 RESTART=false
 if [[ "${1:-}" == "--restart" ]]; then RESTART=true; fi
 
-# Ensure packaged themes are copied to system location
-"$SCRIPT_DIR/refresh-sddm"
+# Ensure packaged themes are copied to system location. Theme selection is
+# frequently called from installers, so keep this refresh non-interactive.
+"$SCRIPT_DIR/refresh-sddm" -y
 
 THEME_DIR="/usr/share/sddm/themes/$THEME_NAME"
 if [[ ! -f "$THEME_DIR/Main.qml" ]]; then
