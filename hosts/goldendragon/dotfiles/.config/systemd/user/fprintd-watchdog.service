@@ -1,0 +1,9 @@
+[Unit]
+Description=Fprintd Watchdog - Restart if device claims are stuck
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/fprintd-watchdog
+
+[Install]
+WantedBy=default.target
