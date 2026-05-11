@@ -1,0 +1,60 @@
+---
+- name: Check if mkinitcpio.conf exists
+  ansible.builtin.stat:
+    path: /etc/mkinitcpio.conf
+  register: plymouth_mkinitcpio_stat
+
+- name: Add plymouth hook after base systemd in mkinitcpio.conf
+  ansible.builtin.lineinfile:
+    path: /etc/mkinitcpio.conf
+    regexp: '^(HOOKS=\(.*base systemd)(.*\))'
+    line: '\1 plymouth\2'
+    backrefs: yes
+  when: plymouth_mkinitcpio_stat.stat.exists
+  register: plymouth_systemd_hook
+
+- name: Add plymouth hook after base udev in mkinitcpio.conf
+  ansible.builtin.lineinfile:
+    path: /etc/mkinitcpio.conf
+    regexp: '^(HOOKS=\(.*base udev)(.*\))'
+    line: '\1 plymouth\2'
+    backrefs: yes
+  when:
+    - plymouth_mkinitcpio_stat.stat.exists
+    - plymouth_systemd_hook is not changed
+  register: plymouth_udev_hook
+
+- name: Regenerate initramfs after plymouth hook change
+  ansible.builtin.command: mkinitcpio -P
+  when: plymouth_systemd_hook is changed or plymouth_udev_hook is changed
+
+- name: Ensure shared helper directory exists for base role
+  ansible.builtin.file:
+    path: "{{ base_bootloader_helper_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install shared bootloader helper for base role
+  ansible.builtin.copy:
+    src: "{{ base_bootloader_helper_src }}"
+    dest: "{{ base_bootloader_helper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Add quiet splash kernel parameters
+  ansible.builtin.shell: |
+    set -euo pipefail
+    source "{{ base_bootloader_helper_path }}"
+    boot_append_kernel_params "quiet splash"
+    boot_rebuild_if_changed
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Set default Plymouth theme to dragon
+  ansible.builtin.command: plymouth-set-default-theme -R dragon
+  register: plymouth_theme_set
+  changed_when: plymouth_theme_set.rc == 0

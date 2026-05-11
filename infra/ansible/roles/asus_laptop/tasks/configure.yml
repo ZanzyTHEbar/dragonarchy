@@ -33,7 +33,7 @@
 
 - name: Install ASUS laptop managed files except udev rules
   ansible.builtin.copy:
-    src: "{{ asus_laptop_role_files_root }}/{{ item.src }}"
+    src: "{{ item.src }}"
     dest: "{{ item.dest }}"
     owner: root
     group: root
@@ -47,7 +47,7 @@
 
 - name: Install ASUS laptop udev rules
   ansible.builtin.copy:
-    src: "{{ asus_laptop_role_files_root }}/{{ item.src }}"
+    src: "{{ item.src }}"
     dest: "{{ item.dest }}"
     owner: root
     group: root

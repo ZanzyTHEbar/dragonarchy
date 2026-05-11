@@ -22,7 +22,7 @@ have_cmd() { command -v "$1" >/dev/null 2>&1; }
 
 systemd_service_exists() {
   have_cmd systemctl || return 1
-  systemctl list-unit-files --type=service 2>/dev/null | grep -q '^openfortivpn\.service'
+  systemctl cat openfortivpn.service >/dev/null 2>&1
 }
 
 systemd_is_active() {
@@ -41,7 +41,7 @@ systemd_stop_vpn() {
 
 systemd_cleanup_exists() {
   have_cmd systemctl || return 1
-  systemctl list-unit-files --type=service 2>/dev/null | grep -q '^openfortivpn-cleanup\.service'
+  systemctl cat openfortivpn-cleanup.service >/dev/null 2>&1
 }
 
 systemd_cleanup_vpn() {
@@ -282,10 +282,14 @@ vpn_login_url() {
 }
 
 run_background() {
+  local log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/openfortivpn"
+  mkdir -p "$log_dir"
+  chmod 0700 "$log_dir"
+  local log_file="${log_dir}/waybar.log"
   if have_cmd setsid; then
-    setsid "$@" </dev/null >/tmp/openfortivpn.log 2>&1 &
+    setsid "$@" </dev/null >"$log_file" 2>&1 &
   else
-    "$@" </dev/null >/tmp/openfortivpn.log 2>&1 &
+    "$@" </dev/null >"$log_file" 2>&1 &
   fi
   disown || true
 }
@@ -417,7 +421,11 @@ connect_vpn() {
   fi
   local -a cmd=("$VPN_CMD" "--config" "$config_path" "--saml-login=$saml_port")
   if [[ -n "${OPENFORTIVPN_EXTRA_ARGS:-}" ]]; then
+    local -a extra=()
+    local old_ifs="$IFS"
+    IFS=$' \n\t'
     read -r -a extra <<<"${OPENFORTIVPN_EXTRA_ARGS}"
+    IFS="$old_ifs"
     cmd+=("${extra[@]}")
   fi
 

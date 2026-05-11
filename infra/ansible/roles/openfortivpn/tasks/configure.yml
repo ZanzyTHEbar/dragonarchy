@@ -36,6 +36,14 @@
     group: "{{ openfortivpn_group }}"
     mode: "0640"
 
+- name: Install OpenFortiVPN polkit rule
+  ansible.builtin.copy:
+    src: 50-openfortivpn.rules
+    dest: /etc/polkit-1/rules.d/50-openfortivpn.rules
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Generate OpenFortiVPN service config
   ansible.builtin.shell: |
     python - <<'PY'
@@ -52,13 +60,18 @@
         if stripped.lower().startswith("saml-login"):
             continue
         filtered.append(line)
-    dst.write_text("\n".join(filtered) + "\n")
+    new_content = "\n".join(filtered) + "\n"
+    if not dst.exists() or dst.read_text() != new_content:
+        dst.write_text(new_content)
+        print("changed")
     PY
     chgrp "{{ openfortivpn_group }}" /etc/openfortivpn/waybar.conf
     chmod 0640 /etc/openfortivpn/waybar.conf
   args:
     executable: /bin/bash
-  changed_when: false
+  register: waybar_conf_result
+  changed_when: "'changed' in waybar_conf_result.stdout"
+  notify: Restart openfortivpn
 
 - name: Ensure OpenFortiVPN helper install directory exists
   ansible.builtin.file:
@@ -70,7 +83,7 @@
 
 - name: Install OpenFortiVPN DNS helper
   ansible.builtin.copy:
-    src: "{{ openfortivpn_helper_src_by_host[inventory_hostname] }}"
+    src: "{{ openfortivpn_role_files_root }}/dotfiles/.local/bin/avular-vpn-dns"
     dest: /usr/local/bin/avular-vpn-dns
     owner: root
     group: root
@@ -78,7 +91,7 @@
 
 - name: Install OpenFortiVPN systemd units
   ansible.builtin.copy:
-    src: "{{ openfortivpn_unit_src_dir_by_host[inventory_hostname] }}/{{ item }}"
+    src: "{{ openfortivpn_role_files_root }}/etc/systemd/system/{{ item }}"
     dest: "/etc/systemd/system/{{ item }}"
     owner: root
     group: root

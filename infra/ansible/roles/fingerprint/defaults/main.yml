@@ -18,8 +18,4 @@ fingerprint_pam_excluded_targets_by_display_manager:
   sddm:
     - /etc/pam.d/sddm
 
-fingerprint_sleep_hook_src_by_host:
-  goldendragon: hosts/goldendragon/99-fprintd-reset.sh
-
-fingerprint_hyprlock_pam_src_by_host:
-  goldendragon: hosts/goldendragon/hyprlock
+fingerprint_host_source_dir: "{{ playbook_dir | dirname | dirname }}/../../hosts"

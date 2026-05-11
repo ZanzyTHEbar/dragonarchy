@@ -13,7 +13,7 @@
 
 - name: Set aio-cooler role-local host payload root
   ansible.builtin.set_fact:
-    aio_cooler_role_files_root: "{{ role_path }}/files/{{ aio_cooler_host_src_dir_by_host[inventory_hostname] }}"
+    aio_cooler_role_files_root: "{{ aio_cooler_host_src_dir_by_host[inventory_hostname] }}"
 
 - name: Check host-specific aio-cooler dynamic_led.py source
   ansible.builtin.stat:

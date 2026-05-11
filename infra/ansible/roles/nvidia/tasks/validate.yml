@@ -7,13 +7,12 @@
       - host_platform_family in nvidia_packages_by_platform
       - host_gpu_stack is defined
       - "'nvidia' in host_gpu_stack"
-      - inventory_hostname in nvidia_modprobe_src_dir_by_host
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the NVIDIA tranche-4 contract.
 
-- name: Set NVIDIA role-local modprobe source directory
+- name: Set NVIDIA host payload root
   ansible.builtin.set_fact:
-    nvidia_modprobe_src_dir: "{{ role_path }}/files/{{ nvidia_modprobe_src_dir_by_host[inventory_hostname] }}"
+    nvidia_role_files_root: "{{ nvidia_host_source_dir }}/{{ inventory_hostname }}"
 
 - name: Gather installed package facts
   ansible.builtin.package_facts:
@@ -30,7 +29,10 @@
 
 - name: Check host-specific NVIDIA modprobe sources
   ansible.builtin.stat:
-    path: "{{ nvidia_modprobe_src_dir }}/{{ item }}"
+    path: "{{ nvidia_role_files_root }}/etc/modprobe.d/{{ item }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
   loop:
     - nvidia.conf
     - nvidia-drm.conf

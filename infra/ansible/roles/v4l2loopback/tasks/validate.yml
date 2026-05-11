@@ -1,0 +1,46 @@
+---
+- name: Assert v4l2loopback tranche metadata exists
+  ansible.builtin.assert:
+    that:
+      - v4l2loopback_enabled | bool
+      - host_platform_family is defined
+      - host_platform_family in v4l2loopback_packages_by_platform
+      - inventory_hostname in v4l2loopback_packages_by_platform[host_platform_family]
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the v4l2loopback contract.
+
+- name: Set v4l2loopback role-local host payload root
+  ansible.builtin.set_fact:
+    v4l2loopback_role_files_root: "{{ v4l2loopback_host_source_dir }}/{{ inventory_hostname }}"
+
+- name: Check host-specific v4l2loopback modprobe source
+  ansible.builtin.stat:
+    path: "{{ v4l2loopback_role_files_root }}/etc/modprobe.d/v4l2loopback.conf"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: v4l2loopback_modprobe_source
+
+- name: Assert v4l2loopback modprobe source exists
+  ansible.builtin.assert:
+    that:
+      - v4l2loopback_modprobe_source.stat.exists
+    fail_msg: >-
+      Missing v4l2loopback modprobe source for {{ inventory_hostname }}:
+      {{ v4l2loopback_role_files_root }}/etc/modprobe.d/v4l2loopback.conf
+
+- name: Check host-specific v4l2loopback modules-load source
+  ansible.builtin.stat:
+    path: "{{ v4l2loopback_role_files_root }}/etc/modules-load.d/v4l2loopback.conf"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: v4l2loopback_modules_load_source
+
+- name: Assert v4l2loopback modules-load source exists
+  ansible.builtin.assert:
+    that:
+      - v4l2loopback_modules_load_source.stat.exists
+    fail_msg: >-
+      Missing v4l2loopback modules-load source for {{ inventory_hostname }}:
+      {{ v4l2loopback_role_files_root }}/etc/modules-load.d/v4l2loopback.conf

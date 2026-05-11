@@ -9,7 +9,7 @@
 
 - name: Install host-specific resolved configuration
   ansible.builtin.copy:
-    src: "{{ resolved_config_src_by_host[inventory_hostname] }}"
+    src: "{{ resolved_role_files_root }}/etc/systemd/resolved.conf.d/dns.conf"
     dest: /etc/systemd/resolved.conf.d/dns.conf
     owner: root
     group: root

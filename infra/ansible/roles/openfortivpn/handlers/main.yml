@@ -2,3 +2,8 @@
 - name: Reload systemd
   ansible.builtin.systemd_service:
     daemon_reload: true
+
+- name: Restart openfortivpn
+  ansible.builtin.service:
+    name: openfortivpn
+    state: restarted

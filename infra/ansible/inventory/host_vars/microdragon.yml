@@ -1,4 +1,5 @@
 ---
+host_timezone: Europe/Lisbon
 host_role: server
 host_platform_family: debian
 host_desktop_stack: none

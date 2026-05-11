@@ -1,0 +1,8 @@
+---
+galaxy_info:
+  author: daofficialwizard
+  description: Manage v4l2loopback kernel module configuration for hosts that need it.
+  license: MIT
+  min_ansible_version: "2.15"
+
+dependencies: []

@@ -14,3 +14,11 @@
 
   roles:
     - role: hibernation
+
+- name: Edge-case v4l2loopback kernel module
+  hosts: v4l2loopback
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: v4l2loopback

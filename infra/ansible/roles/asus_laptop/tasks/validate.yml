@@ -9,19 +9,17 @@
       - host_role == 'laptop'
       - host_capabilities is defined
       - "'asus' in host_capabilities"
-      - inventory_hostname in asus_laptop_host_src_dir_by_host
       - inventory_hostname in asus_laptop_managed_paths_by_host
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the ASUS laptop edge-case contract.
 
-- name: Set ASUS laptop role-local host payload root
+- name: Set ASUS laptop managed paths
   ansible.builtin.set_fact:
-    asus_laptop_role_files_root: "{{ role_path }}/files/{{ asus_laptop_host_src_dir_by_host[inventory_hostname] }}"
     asus_laptop_managed_paths: "{{ asus_laptop_managed_paths_by_host[inventory_hostname] }}"
 
 - name: Check ASUS laptop managed payload sources
   ansible.builtin.stat:
-    path: "{{ asus_laptop_role_files_root }}/{{ item.src }}"
+    path: "{{ item.src }}"
   loop: "{{ asus_laptop_managed_paths }}"
   register: asus_laptop_source_files
 

@@ -20,5 +20,4 @@ nvidia_modules:
 nvidia_kernel_params:
   - nvidia-drm.modeset=1
 
-nvidia_modprobe_src_dir_by_host:
-  goldendragon: hosts/goldendragon/etc/modprobe.d
+nvidia_host_source_dir: "{{ playbook_dir | dirname | dirname }}/../../hosts"

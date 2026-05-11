@@ -3,6 +3,24 @@
   ansible.builtin.assert:
     that:
       - resolved_enabled | bool
-      - inventory_hostname in resolved_config_src_by_host
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the resolved tranche-5 contract.
+
+- name: Set resolved host payload root
+  ansible.builtin.set_fact:
+    resolved_role_files_root: "{{ resolved_host_source_dir }}/{{ inventory_hostname }}"
+
+- name: Check resolved config source
+  ansible.builtin.stat:
+    path: "{{ resolved_role_files_root }}/etc/systemd/resolved.conf.d/dns.conf"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: resolved_config_src
+
+- name: Assert resolved config source exists
+  ansible.builtin.assert:
+    that:
+      - resolved_config_src.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing the resolved config source payload.
