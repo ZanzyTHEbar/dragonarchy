@@ -665,4 +665,3 @@ x-systemd.idle-timeout=60,_netdev
 - 🟢 **Remove specific mount**: Use `remove`
 - 🔴 **Complete cleanup**: Use `clean`
 - 🟢 **Check current state**: Use `status`
-
