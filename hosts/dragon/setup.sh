@@ -2,16 +2,28 @@
 #
 # Dragon Host-Specific Setup
 #
-# Dragon is an all-AMD desktop (CPU + workstation GPU).
+# ⚠️  DEPRECATED: This script is reference-only. Do not execute.
 #
-# This script:
-# - Applies host system config under hosts/dragon/etc -> /etc
-# - Ensures AIO cooler services (liquidctl + dynamic_led)
-# - Applies host audio config (hosts/dragon/pipewire -> ~/.config/pipewire/pipewire.conf.d)
-# - Keeps legacy package-install reference data; package truth is the manifest
+# System configuration for this host is now owned by Ansible roles:
+#   - common, base, packages, users
+#   - sddm, hyprland, amd_gpu, resolved, netbird
+#   - aio-cooler (liquidctl + dynamic_led)
+#
+# User configuration is owned by chezmoi manifests.
+#
+# This file is retained as documentation of the legacy setup.
+# For the canonical state, see infra/ansible/ and infra/chezmoi/manifests/.
 #
 
 set -euo pipefail
+
+cat <<'EOF' >&2
+WARNING: This script is deprecated and should not be run.
+
+All system configuration for this host is now managed by Ansible.
+Run ./install --host dragon instead.
+EOF
+exit 1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"

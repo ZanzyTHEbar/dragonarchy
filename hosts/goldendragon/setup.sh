@@ -8,9 +8,30 @@
 # - Laptop-grade power management + sleep/lid behavior
 # - GPU-aware setup (Intel-only or Intel+NVIDIA, auto-detected)
 # - Host-scoped /etc drop-ins live under: hosts/goldendragon/etc/
+#
+# ⚠️  DEPRECATED: This script is reference-only. Do not execute.
+#
+# System configuration for this host is now owned by Ansible roles:
+#   - common, base, packages, users, sddm, hyprland
+#   - fingerprint, nvidia, intel_gpu, tlp
+#   - resolved, openfortivpn
+#
+# User configuration is owned by chezmoi manifests.
+#
+# This file is retained as documentation of the legacy setup.
+# For the canonical state, see infra/ansible/ and infra/chezmoi/manifests/.
+#
 
 set -euo pipefail
 IFS=$'\n\t'
+
+cat <<'EOF' >&2
+WARNING: This script is deprecated and should not be run.
+
+All system configuration for this host is now managed by Ansible.
+Run ./install --host goldendragon instead.
+EOF
+exit 1
 
 # Resolve paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
