@@ -123,13 +123,10 @@ run_ansible_playbook() {
 # Chezmoi execution helpers
 # ---------------------------------------------------------------------------
 
-# TODO: Replace with permanent chezmoi sync mechanism.
-# During migration, chezmoi source is managed by temporary scripts in
-# infra/chezmoi/migration-scripts/. After migration, chezmoi source should
-# be initialized once (via chezmoi init or a lightweight sync script) and
-# then managed directly via `chezmoi edit` / `chezmoi apply`.
-#
-# See: docs/HANDOFF-CHEZMOI-ARCHITECTURE-CLEANUP.md
+run_chezmoi_sync() {
+    log_step "Syncing chezmoi source for host '${HOST_NAME}'"
+    "${REPO_ROOT}/infra/chezmoi/bin/chezmoi-sync" --host "${HOST_NAME}"
+}
 
 run_chezmoi_apply() {
     log_step "Applying chezmoi state for host '${HOST_NAME}'"
@@ -154,10 +151,10 @@ run_ansible_playbook "${REPO_ROOT}/infra/ansible/playbooks/foundation.yml"
 # Phase 2: Ansible site playbook (chains all hot-path tranches + edge cases)
 run_ansible_playbook "${REPO_ROOT}/infra/ansible/playbooks/site.yml" --limit "${HOST_NAME}"
 
-# Phase 3: Apply chezmoi user state
-# NOTE: This assumes chezmoi source has been initialized. During migration,
-# use migration-scripts/cutover-host.sh --execute. After migration, chezmoi
-# source lives in ~/.local/share/chezmoi/ and is managed directly.
+# Phase 3: Sync chezmoi source from repo manifests
+run_chezmoi_sync
+
+# Phase 4: Apply chezmoi state to home directory
 run_chezmoi_apply
 
 log_success "=== Convergence complete for host '${HOST_NAME}' ==="
