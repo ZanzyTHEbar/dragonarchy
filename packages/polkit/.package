@@ -1,1 +1,8 @@
 scope=system
+
+# ⚠️  DEPRECATED for managed hosts: Ansible base and amd_gpu roles now own polkit configuration.
+# This package is retained for reference and for legacy install.sh usage.
+# For new installs, use: ./install --host <hostname>
+#
+# Replacement: infra/ansible/roles/base/ (49-wheel-admin.rules)
+#              infra/ansible/roles/amd_gpu/ (host-specific rules)

@@ -3,8 +3,27 @@
 # Microdragon Host-Specific Setup
 #
 # This script configures the Raspberry Pi as a NetBird routing peer.
+#
+# ⚠️  DEPRECATED: This script is reference-only. Do not execute.
+#
+# System configuration for this host is now owned by Ansible roles:
+#   - common, base, packages, users, netbird
+#
+# User configuration is owned by chezmoi manifests.
+#
+# This file is retained as documentation of the legacy setup.
+# For the canonical state, see infra/ansible/ and infra/chezmoi/manifests/.
+#
 
 set -e
+
+cat <<'EOF' >&2
+WARNING: This script is deprecated and should not be run.
+
+All system configuration for this host is now managed by Ansible.
+Run ./install --host microdragon instead.
+EOF
+exit 1
 
 # Get script directory and source logging utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
