@@ -1,0 +1,11 @@
+{# Generate waybar-safe openfortivpn config from the seeded config file.
+   Strips saml-login lines while preserving comments and blank lines. #}
+{% set raw_lines = lookup('file', '/etc/openfortivpn/config').splitlines() %}
+{% for line in raw_lines %}
+{%   set stripped = line.strip() %}
+{%   if stripped.lower().startswith('saml-login') %}
+{#     skip saml-login lines #}
+{%   else %}
+{{ line }}
+{%   endif %}
+{% endfor %}

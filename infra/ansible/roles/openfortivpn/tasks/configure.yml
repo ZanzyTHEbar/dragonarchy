@@ -45,32 +45,12 @@
     mode: "0644"
 
 - name: Generate OpenFortiVPN service config
-  ansible.builtin.shell: |
-    python - <<'PY'
-    from pathlib import Path
-    src = Path("/etc/openfortivpn/config")
-    dst = Path("/etc/openfortivpn/waybar.conf")
-    lines = src.read_text().splitlines()
-    filtered = []
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("#") or not stripped:
-            filtered.append(line)
-            continue
-        if stripped.lower().startswith("saml-login"):
-            continue
-        filtered.append(line)
-    new_content = "\n".join(filtered) + "\n"
-    if not dst.exists() or dst.read_text() != new_content:
-        dst.write_text(new_content)
-        print("changed")
-    PY
-    chgrp "{{ openfortivpn_group }}" /etc/openfortivpn/waybar.conf
-    chmod 0640 /etc/openfortivpn/waybar.conf
-  args:
-    executable: /bin/bash
-  register: waybar_conf_result
-  changed_when: "'changed' in waybar_conf_result.stdout"
+  ansible.builtin.template:
+    src: waybar.conf.j2
+    dest: /etc/openfortivpn/waybar.conf
+    owner: root
+    group: "{{ openfortivpn_group }}"
+    mode: "0640"
   notify: Restart openfortivpn
 
 - name: Ensure OpenFortiVPN helper install directory exists
