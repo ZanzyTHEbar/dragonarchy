@@ -28,9 +28,19 @@ pacman -S --noconfirm --needed \
     unzip \
     zsh
 
+# Install ansible for control-plane convergence
+if ! command -v ansible-playbook >/dev/null 2>&1; then
+    pacman -S --noconfirm --needed ansible-core
+fi
+
 if ! command -v chezmoi >/dev/null 2>&1; then
     sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin
 fi
 
 systemctl enable qemu-guest-agent
 systemctl start qemu-guest-agent
+
+# TODO: After bootstrap, clone repo and run full convergence:
+#   git clone https://github.com/ZanzyTHEbar/dragonarchy ~/dotfiles
+#   cd ~/dotfiles
+#   ./install --host <validation-host> --dry-run
