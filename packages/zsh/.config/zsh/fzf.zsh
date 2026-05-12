@@ -10,7 +10,12 @@ fi
 
 # Auto-completion and key bindings
 if command -v fzf >/dev/null 2>&1; then
-  source <(fzf --zsh) 2>/dev/null || true
+  if fzf --zsh >/dev/null 2>&1; then
+    source <(fzf --zsh)
+  else
+    [[ -r /usr/share/doc/fzf/examples/key-bindings.zsh ]] && source /usr/share/doc/fzf/examples/key-bindings.zsh
+    [[ -r /usr/share/doc/fzf/examples/completion.zsh ]] && source /usr/share/doc/fzf/examples/completion.zsh
+  fi
 fi
 
 # Use fd instead of find if available
