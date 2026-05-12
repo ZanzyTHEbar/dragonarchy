@@ -12,6 +12,7 @@ hosts/
 ├── goldendragon/    # Lenovo ThinkPad P16s (Intel/NVIDIA)
 ├── headless/        # Generic terminal-only/headless profile
 ├── microdragon/     # Raspberry Pi
+├── opencode-runtime/ # Headless OpenCode container runtime
 └── shared/          # Shared host resources
 ```
 
@@ -194,6 +195,14 @@ hosts/microdragon/
 hosts/headless/
 ├── .traits                # headless
 └── setup.sh               # No-op host setup for terminal-only installs
+```
+
+### OpenCode Runtime Profile
+
+```bash
+hosts/opencode-runtime/
+├── .traits                # headless, opencode
+└── setup.sh               # No-op setup for container user-only installs
 ```
 
 ### Generic Desktop Profile
