@@ -1,72 +1,88 @@
-# Traditional Dotfiles Management with GNU Stow
+# Dotfiles — Ansible + Chezmoi Control Plane
 
-This is a very opinionated Linux configuration, using hyprland, that is built on-top of CachyOS (ideally, there are no hard dependencies, use what you want) and inspired by _Omarchy_.
+This is a very opinionated Linux configuration using Hyprland, built on CachyOS (no hard dependencies) and inspired by _Omarchy_.
 
-- **GNU Stow** for dotfiles/configuration management
-- **Zsh scripts** for automation and setup
+- **Ansible** for system-level state (packages, services, hardware config)
+- **chezmoi** for user-level dotfiles
+- **Manifests** for declarative dotfile ownership
 - **age/sops** for secrets management
-- **Platform-specific package managers** for software installation (APT, AUR, etc.)
+
+The legacy GNU Stow + bash-script flow has been retired. The new architecture is fully declarative and idempotent.
 
 ## Quick Start
 
-It is recommended to clone the repository into your home directory.
-
 ```bash
-# Clone and setup
+# Clone and install
 git clone https://github.com/ZanzyTHEbar/dragonarchy ~/dotfiles
 cd ~/dotfiles
 
-# Run setup for your machine
-./install.sh
+# Full install (system + user state)
+./install --host <hostname>
 
-# Or specific host setup
-./install.sh --host dragon
+# Or apply only system state (Ansible)
+./install --host <hostname> --system-only
 
-# Or a terminal-only/headless install
-./install.sh --host headless --headless
+# Or apply only user state (chezmoi dotfiles)
+./install --host <hostname> --user-only
+
+# Preview changes without applying
+./install --host <hostname> --dry-run
 ```
 
 > [!IMPORTANT]
 > The current hosts are machines that I own, and are not representative of the general population.
 > Be sure to create a new host configuration for your machine, use one of mine as a reference.
 
+## Architecture
+
+This repository uses a **declarative control-plane architecture**:
+
+| Domain | Tool | Owns |
+|--------|------|------|
+| **System state** | Ansible | Packages, services, kernel modules, `/etc` configs |
+| **User state** | chezmoi | Dotfiles, shell config, application configs |
+| **Secrets** | age/sops | Encrypted credentials and private keys |
+
+The legacy GNU Stow + bash-script flow (`./install.sh`) is deprecated. Use `./install` for all new setups.
+
+## Legacy Install (Deprecated)
+
+The old `./install.sh` entrypoint and `scripts/install/setup.sh` orchestrator are being migrated to Ansible roles. They remain functional but are no longer the canonical path. Use `./install` instead.
+
 ## Directory Structure
 
 ```bash
 dragonarchy/
-├── packages/           # Stow packages (dotfiles)
+├── install             # Main entrypoint (Ansible + chezmoi)
+├── packages/           # Canonical dotfile payloads (chezmoi-managed)
 │   ├── zsh/            # Zsh configuration
 │   ├── git/            # Git configuration
 │   ├── kitty/          # Kitty terminal
 │   ├── nvim/           # Neovim configuration
 │   ├── ssh/            # SSH configuration
 │   └── ...
+├── hosts/              # Host-specific system configs and dotfile overlays
+│   ├── dragon/         # AMD desktop workstation
+│   ├── firedragon/     # ASUS laptop
+│   ├── goldendragon/   # ThinkPad P16s
+│   └── ...
+├── infra/
+│   ├── ansible/        # System-state control plane (packages, services, hardware)
+│   │   ├── roles/      # Ansible roles (base, packages, sddm, hyprland, etc.)
+│   │   ├── playbooks/  # Playbooks (foundation.yml, site.yml, edge-cases.yml)
+│   │   └── inventory/  # Host inventory and variables
+│   ├── chezmoi/        # User-state control plane (dotfiles)
+│   │   ├── manifests/  # Canonical dotfile manifest declarations
+│   │   └── bin/        # Sync tooling (chezmoi-sync)
+│   └── packer/         # Proxmox validation template pipeline
 ├── scripts/
-│   ├── lib/            # Shared libraries
-│   │   ├── logging.sh          # Color-coded logging
-│   │   ├── install-state.sh    # Idempotency markers
-│   │   ├── system-mods.sh      # Safe /etc modifications with backups
-│   │   ├── stow-helpers.sh     # Stow conflict resolution
-│   │   ├── icons.sh            # Icon deployment
-│   │   ├── fresh-mode.sh       # Fresh machine detection
-│   │   ├── hosts.sh            # Host/trait detection
-│   │   └── manifest-toml.sh    # TOML manifest parser
-│   ├── install/        # Installation scripts
-│   │   ├── install-deps.sh     # Package installer (supports --bundle)
-│   │   ├── validate.sh         # System validation (supports --json)
-│   │   └── first-run.sh        # First-run setup (firewall, timezone, themes)
+│   ├── lib/            # Shared libraries (legacy, being migrated)
+│   ├── install/        # Legacy installation scripts (being migrated to Ansible)
 │   ├── theme-manager/  # Theme management scripts
 │   ├── utilities/      # Utility scripts
 │   └── hardware/       # Hardware-specific scripts
-├── hosts/              # Host-specific configurations (with .traits files)
-├── infra/              # New control planes and validation infrastructure
-│   ├── ansible/        # System-state control plane
-│   ├── chezmoi/        # User-state cutover orchestration
-│   └── packer/         # Proxmox validation template pipeline
 ├── secrets/            # Encrypted secrets management
-├── .github/workflows/  # CI pipeline (shellcheck, validation)
-├── install.sh          # Main setup script
-└── README.md           # This file
+└── docs/               # Architecture docs and runbooks
 ```
 
 ## Script Entry Points
