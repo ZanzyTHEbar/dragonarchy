@@ -130,11 +130,12 @@ fi
 apply_system_state() {
     log_step "Applying system state via Ansible"
 
-    local inventory="${REPO_ROOT}/infra/ansible/inventory/hosts.yml"
+    local wrapper="${REPO_ROOT}/infra/ansible/run-playbook.sh"
     local playbook_dir="${REPO_ROOT}/infra/ansible/playbooks"
+    local inventory="${REPO_ROOT}/infra/ansible/inventory/hosts.yml"
 
-    if [[ ! -f "${inventory}" ]]; then
-        log_fatal "Inventory not found: ${inventory}"
+    if [[ ! -x "${wrapper}" ]]; then
+        log_fatal "Ansible wrapper not found or not executable: ${wrapper}"
     fi
 
     # Validate host exists in inventory
@@ -148,11 +149,12 @@ apply_system_state() {
     fi
 
     # Run foundation (global contract) then site (full convergence)
+    # Scope foundation to the target host to avoid SSH attempts to unreachable hosts.
     log_info "Running foundation playbook..."
-    ansible-playbook -i "${inventory}" "${playbook_dir}/foundation.yml" "${ansible_args[@]}"
+    "${wrapper}" "${playbook_dir}/foundation.yml" --limit "${HOST_NAME}" "${ansible_args[@]}"
 
     log_info "Running site playbook for ${HOST_NAME}..."
-    ansible-playbook -i "${inventory}" "${playbook_dir}/site.yml" --limit "${HOST_NAME}" "${ansible_args[@]}"
+    "${wrapper}" "${playbook_dir}/site.yml" --limit "${HOST_NAME}" "${ansible_args[@]}"
 
     log_success "System state applied"
 }
