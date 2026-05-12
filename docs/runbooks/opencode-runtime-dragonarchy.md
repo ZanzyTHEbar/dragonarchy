@@ -7,15 +7,15 @@ This runbook records the Dragonarchy issues found while applying the dotfiles to
 Runtime install command:
 
 ```bash
-./install --host opencode-runtime --user-only
+./install --host opencode-runtime
 ```
 
 ## Host Model
 
 - `opencode-runtime` is a headless container host for the remote OpenCode workflow.
-- It should use chezmoi user state only inside the OpenCode container.
+- It should use the full Dragonarchy machine bootstrap inside the OpenCode container.
 - It should not inherit Raspberry Pi, NetBird routing peer, desktop, Hyprland, SDDM, laptop, or workstation assumptions.
-- System state is owned by the container image and deployment platform, not by Dragonarchy Ansible.
+- System state is owned by Dragonarchy Ansible after the container image provides the minimal bootstrap prerequisites required to run Ansible and chezmoi.
 
 ## Issues Found
 
@@ -55,7 +55,7 @@ The OpenCode Coolify deployment should set:
 ```bash
 LINUX_DOTFILES_URL=https://github.com/ZanzyTHEbar/dragonarchy.git
 LINUX_DOTFILES_REF=feat/ansible-chezmoi-foundation
-LINUX_DOTFILES_INSTALL_COMMAND=./install --host opencode-runtime --user-only
+LINUX_DOTFILES_INSTALL_COMMAND=./install --host opencode-runtime
 ```
 
 The previous compatibility command that created SSH placeholders and a Kitty `colors.conf` symlink can be removed after this commit is deployed.

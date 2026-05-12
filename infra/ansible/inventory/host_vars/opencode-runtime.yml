@@ -1,0 +1,19 @@
+---
+host_timezone: Europe/Lisbon
+host_role: server
+host_platform_family: debian
+host_desktop_stack: none
+host_gpu_stack: []
+host_capabilities: []
+base_manage_time: false
+
+ansible_connection: local
+ansible_become: true
+ansible_become_method: sudo
+
+managed_users:
+  - name: coder
+    groups:
+      - sudo
+
+legacy_host_directory: hosts/opencode-runtime
