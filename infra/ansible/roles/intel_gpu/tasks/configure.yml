@@ -1,0 +1,53 @@
+---
+- name: Ensure Intel modules-load directory exists
+  ansible.builtin.file:
+    path: /etc/modules-load.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure shared helper directory exists for Intel GPU role
+  ansible.builtin.file:
+    path: "{{ intel_gpu_bootloader_helper_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install shared bootloader helper for Intel GPU role
+  ansible.builtin.copy:
+    src: "{{ intel_gpu_bootloader_helper_src }}"
+    dest: "{{ intel_gpu_bootloader_helper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install Intel modules-load configuration
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/intel.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {% for module in intel_gpu_modules %}
+      {{ module }}
+      {% endfor %}
+
+- name: Ensure Intel modprobe directory exists
+  ansible.builtin.file:
+    path: /etc/modprobe.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Persist Intel kernel parameters
+  ansible.builtin.shell: |
+    set -euo pipefail
+    source "{{ intel_gpu_bootloader_helper_path }}"
+    boot_append_kernel_params "{{ intel_gpu_kernel_params | join(' ') }}"
+    boot_rebuild_if_changed
+  args:
+    executable: /bin/bash
+  changed_when: false
