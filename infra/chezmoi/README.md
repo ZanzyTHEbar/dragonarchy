@@ -1,6 +1,6 @@
 # chezmoi Control Plane
 
-This directory is the orchestration layer for future chezmoi-managed user state.
+This directory is the orchestration layer for chezmoi-managed user state.
 
 It is not the canonical home-directory content tree.
 
@@ -16,10 +16,9 @@ Canonical host-specific user-state source remains in:
 
 This directory owns:
 
-- build manifests
-- build scripts
-- generated-source conventions
-- cutover documentation
+- build manifests (canonical specification)
+- permanent sync tooling (`bin/chezmoi-sync` — TODO)
+- architecture documentation
 
 This directory does not own:
 
@@ -29,79 +28,37 @@ This directory does not own:
 - hardware state
 - canonical shared package contents
 - canonical host dotfile contents
+- chezmoi source state (lives in `~/.local/share/chezmoi/`)
 
-## Active migration rule
+## Migration status
 
-The chezmoi migration must preserve canonical source contents.
+The Stow-to-chezmoi migration is in progress. Temporary migration scripts have been moved to `migration-scripts/` and are **not part of permanent architecture**.
 
-Rules:
+See `migration-scripts/README.md` for details.
 
-- keep `packages/` untouched
-- keep `hosts/<host>/dotfiles/` untouched
-- prefer `cp -a` and overlay semantics over content rewrites
-- treat generated chezmoi source as rebuildable output, not canonical content
+## Manifest model
 
-## Generated source model
+Manifests are the **canonical specification** of what chezmoi manages. They declare the mapping from repo source trees to chezmoi destination paths.
 
-The build step materializes a host-specific chezmoi source tree under:
+Manifests live in `manifests/` and are permanent. The current set:
 
-- `infra/chezmoi/generated/<host>/`
+| Manifest | Contents |
+|----------|----------|
+| `session-core.manifest` | Hyprland, Waybar, Walker, Elephant |
+| `session-shell.manifest` | Autostart, Clipse, SwayNC, SwayOSD |
+| `session-zsh.manifest` | Zsh config, host-specific overlays |
+| `devtools-core.manifest` | nvim, kitty, tmux, zed, lazygit, yazi, alacritty, fastfetch, fcitx5 |
+| `git-ssh.manifest` | git, gpg, ssh (public keys only) |
 
-That generated tree is the path passed to chezmoi.
+## Generated source
 
-Expected invocation model:
+The `generated/<host>/` directory was a **temporary build artifact** used during migration. It has been removed from git tracking and should not be committed.
 
-```bash
-./infra/chezmoi/scripts/build-source.sh --host goldendragon
-./infra/chezmoi/scripts/verify-generated-source.sh --host goldendragon
-./infra/chezmoi/scripts/plan-stow-cutover.sh --host goldendragon
-./infra/chezmoi/scripts/cutover-host.sh --host goldendragon
-```
+## Runtime-owned exclusions
 
-To execute the full cutover on the target host after dry-run review:
+These paths are owned by the theme manager / runtime and are excluded from chezmoi manifests:
 
-```bash
-./infra/chezmoi/scripts/cutover-host.sh --host goldendragon --execute
-```
+- `swaync/style.css`
+- `clipse/theme.toml`
 
-The generated tree may use chezmoi naming such as `dot_config/`, but only inside `generated/<host>/`.
-
-Tracked files under `infra/chezmoi/` should remain orchestration files, not mirrored home-directory content.
-
-For the operator-facing first-host execution order, see:
-
-- `docs/runbooks/first-host-chezmoi-cutover.md`
-
-## First build slice
-
-The first manifest targets:
-
-- Hyprland shared config
-- Waybar shared config
-- Walker shared config
-- Elephant shared config
-- host-specific Waybar session markers when present
-
-The next manifest slice expands the session shell with:
-
-- autostart
-- clipse
-- swaync
-- swayosd
-
-The current zsh slice expands user-shell ownership with:
-
-- `.zshrc`
-- `.zshenv`
-- `.config/zsh/**`
-- host-specific zsh overlays under `.config/zsh/hosts/<host>.zsh`
-- host-specific zsh functions under `.config/zsh/functions/<host>.zsh`
-
-Generated or script-owned files still need explicit handling before final cutover.
-
-Notable current exceptions:
-
-- `swaync/style.css` is merged runtime output
-- `clipse/theme.toml` is theme-generated runtime state
-
-These runtime-owned paths are excluded from generated source with manifest `exclude` entries.
+See `docs/architecture/theme-manager-contract.md` for the full ownership matrix.

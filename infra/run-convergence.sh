@@ -7,9 +7,7 @@
 # Phases:
 #   1. Run Ansible foundation playbook
 #   2. Run Ansible site playbook (chains all hot-path tranches + edge cases)
-#   3. Build chezmoi generated source for the host
-#   4. Verify chezmoi generated source
-#   5. Run chezmoi cutover (dry-run by default, execute only without --dry-run)
+#   3. Apply chezmoi user state (requires chezmoi source to be initialized)
 #
 
 set -euo pipefail
@@ -106,6 +104,8 @@ log_info "Dry-run mode: ${DRY_RUN}"
 # Ansible execution helpers
 # ---------------------------------------------------------------------------
 
+ANSIBLE_WRAPPER="${REPO_ROOT}/infra/ansible/run-playbook.sh"
+
 run_ansible_playbook() {
     local playbook="$1"
     shift
@@ -116,32 +116,29 @@ run_ansible_playbook() {
     fi
 
     log_step "Running Ansible playbook: ${playbook}"
-    ansible-playbook -i "${INVENTORY_FILE}" "${playbook}" "${extra_args[@]}" "$@"
+    "${ANSIBLE_WRAPPER}" "${playbook}" "${extra_args[@]}" "$@"
 }
 
 # ---------------------------------------------------------------------------
 # Chezmoi execution helpers
 # ---------------------------------------------------------------------------
 
-run_chezmoi_build() {
-    log_step "Building chezmoi generated source for host '${HOST_NAME}'"
-    "${REPO_ROOT}/infra/chezmoi/scripts/build-source.sh" --host "${HOST_NAME}"
-}
+# TODO: Replace with permanent chezmoi sync mechanism.
+# During migration, chezmoi source is managed by temporary scripts in
+# infra/chezmoi/migration-scripts/. After migration, chezmoi source should
+# be initialized once (via chezmoi init or a lightweight sync script) and
+# then managed directly via `chezmoi edit` / `chezmoi apply`.
+#
+# See: docs/HANDOFF-CHEZMOI-ARCHITECTURE-CLEANUP.md
 
-run_chezmoi_verify() {
-    log_step "Verifying chezmoi generated source for host '${HOST_NAME}'"
-    "${REPO_ROOT}/infra/chezmoi/scripts/verify-generated-source.sh" --host "${HOST_NAME}"
-}
+run_chezmoi_apply() {
+    log_step "Applying chezmoi state for host '${HOST_NAME}'"
 
-run_chezmoi_cutover() {
-    local cutover_args=(--host "${HOST_NAME}")
-
-    if [[ "${DRY_RUN}" == "false" ]]; then
-        cutover_args+=(--execute)
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        chezmoi diff || true
+    else
+        chezmoi apply
     fi
-
-    log_step "Running chezmoi cutover for host '${HOST_NAME}' (execute: $([[ "${DRY_RUN}" == "false" ]] && echo true || echo false))"
-    "${REPO_ROOT}/infra/chezmoi/scripts/cutover-host.sh" "${cutover_args[@]}"
 }
 
 # ---------------------------------------------------------------------------
@@ -157,13 +154,10 @@ run_ansible_playbook "${REPO_ROOT}/infra/ansible/playbooks/foundation.yml"
 # Phase 2: Ansible site playbook (chains all hot-path tranches + edge cases)
 run_ansible_playbook "${REPO_ROOT}/infra/ansible/playbooks/site.yml" --limit "${HOST_NAME}"
 
-# Phase 3: Build chezmoi generated source
-run_chezmoi_build
-
-# Phase 4: Verify chezmoi generated source
-run_chezmoi_verify
-
-# Phase 5: Run chezmoi cutover (dry-run by default)
-run_chezmoi_cutover
+# Phase 3: Apply chezmoi user state
+# NOTE: This assumes chezmoi source has been initialized. During migration,
+# use migration-scripts/cutover-host.sh --execute. After migration, chezmoi
+# source lives in ~/.local/share/chezmoi/ and is managed directly.
+run_chezmoi_apply
 
 log_success "=== Convergence complete for host '${HOST_NAME}' ==="
