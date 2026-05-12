@@ -17,6 +17,14 @@
   roles:
     - role: nvidia
 
+- name: Hot-path tranche 4 Intel GPU
+  hosts: intel_gpu
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: intel_gpu
+
 - name: Hot-path tranche 4 AMD GPU
   hosts: amd_gpu
   gather_facts: true

@@ -9,6 +9,7 @@ host_gpu_stack:
 host_capabilities:
   - tlp
   - fingerprint
+  - intel_gpu
   - fortinet_vpn
 
 host_profile_packages:
