@@ -138,8 +138,14 @@ Run FireDragon bring-up through the Ansible control plane from the dotfiles root
 
 ```bash
 cd ~/dotfiles
-ansible-playbook -i infra/ansible/inventory/hosts.yml infra/ansible/playbooks/site.yml --limit firedragon
+./infra/ansible/run-playbook.sh infra/ansible/playbooks/site.yml --limit firedragon
 ```
+
+> **Note**: The `run-playbook.sh` wrapper auto-detects local execution and uses `--connection=local` to skip the SSH hop. For manual `ansible-playbook` invocation against the local host, add `--connection=local`:
+>
+> ```bash
+> ansible-playbook -i infra/ansible/inventory/hosts.yml infra/ansible/playbooks/site.yml --limit firedragon --connection=local
+> ```
 
 The host-specific `setup.sh` remains a legacy/manual reference path for still-unported helpers. It no longer owns package installation; package truth is `scripts/install/deps.manifest.toml` via the Ansible `packages` role.
 
@@ -336,7 +342,7 @@ Repeated `HTTP error (500)` entries there usually point to a Vivaldi service-sid
 
 **CURRENT OWNER PATH**:
 ```bash
-ansible-playbook -i ~/dotfiles/infra/ansible/inventory/hosts.yml \
+~/dotfiles/infra/ansible/run-playbook.sh \
   ~/dotfiles/infra/ansible/playbooks/site.yml \
   --limit firedragon
 ```
@@ -363,7 +369,7 @@ The legacy `fix-lid-close-freeze.sh` mutator is retired because this surface is 
 
 **Suspend/Resume Convergence (Recommended)**:
 ```bash
-ansible-playbook -i ~/dotfiles/infra/ansible/inventory/hosts.yml \
+~/dotfiles/infra/ansible/run-playbook.sh \
   ~/dotfiles/infra/ansible/playbooks/site.yml \
   --limit firedragon
 ```
@@ -384,7 +390,7 @@ If `systemctl hibernate` fails, or SDDM doesn’t show a hibernate button, you u
 **Enable hibernate (canonical owner):**
 
 ```bash
-ansible-playbook -i ~/dotfiles/infra/ansible/inventory/hosts.yml \
+~/dotfiles/infra/ansible/run-playbook.sh \
   ~/dotfiles/infra/ansible/playbooks/site.yml \
   --limit firedragon
 ```

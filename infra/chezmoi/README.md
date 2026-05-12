@@ -17,7 +17,7 @@ Canonical host-specific user-state source remains in:
 This directory owns:
 
 - build manifests (canonical specification)
-- permanent sync tooling (`bin/chezmoi-sync` — TODO)
+- sync tooling (`bin/chezmoi-sync`)
 - architecture documentation
 
 This directory does not own:
@@ -29,12 +29,6 @@ This directory does not own:
 - canonical shared package contents
 - canonical host dotfile contents
 - chezmoi source state (lives in `~/.local/share/chezmoi/`)
-
-## Migration status
-
-The Stow-to-chezmoi migration is in progress. Temporary migration scripts have been moved to `migration-scripts/` and are **not part of permanent architecture**.
-
-See `migration-scripts/README.md` for details.
 
 ## Manifest model
 
@@ -50,9 +44,11 @@ Manifests live in `manifests/` and are permanent. The current set:
 | `devtools-core.manifest` | nvim, kitty, tmux, zed, lazygit, yazi, alacritty, fastfetch, fcitx5 |
 | `git-ssh.manifest` | git, gpg, ssh (public keys only) |
 
-## Generated source
+## Sync mechanism
 
-The `generated/<host>/` directory was a **temporary build artifact** used during migration. It has been removed from git tracking and should not be committed.
+`bin/chezmoi-sync` reads all manifests and syncs the declared source paths into `~/.local/share/chezmoi/` (chezmoi's source directory). It is idempotent and lightweight.
+
+The `install` script at the repo root calls `chezmoi-sync` as part of user-state application.
 
 ## Runtime-owned exclusions
 

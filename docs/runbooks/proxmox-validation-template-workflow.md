@@ -163,7 +163,7 @@ Inside the guest:
 ```bash
 git clone --branch main https://github.com/ZanzyTHEbar/dragonarchy ~/dotfiles
 cd ~/dotfiles
-./install.sh --dotfiles-only --no-packages --no-secrets
+./install --host <hostname> --user-only
 git fetch origin feat/ansible-chezmoi-foundation
 git checkout -B feat/ansible-chezmoi-foundation FETCH_HEAD
 git reset --hard FETCH_HEAD

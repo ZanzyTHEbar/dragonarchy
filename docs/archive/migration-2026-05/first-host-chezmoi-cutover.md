@@ -68,8 +68,14 @@ Run the Ansible control plane before touching user-state ownership:
 
 ```bash
 cd ~/dotfiles/infra/ansible
-ansible-playbook -i inventory/hosts.yml playbooks/site.yml --limit <host>
+./run-playbook.sh playbooks/site.yml --limit <host>
 ```
+
+> **Note**: The `run-playbook.sh` wrapper auto-detects when the target is the local machine and uses `--connection=local` to avoid an unnecessary SSH-to-self hop. For manual `ansible-playbook` invocation, add `--connection=local` when running against the local host:
+>
+> ```bash
+> ansible-playbook -i inventory/hosts.yml playbooks/site.yml --limit <host> --connection=local
+> ```
 
 This ensures the target host already matches the current system-state owner model before user-state ownership shifts.
 

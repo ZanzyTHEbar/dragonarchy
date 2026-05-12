@@ -21,14 +21,14 @@ The contract establishes:
 | Kitty colors | `scripts/theme-manager/generate-kitty-themes` → `~/.config/kitty/colors.conf` | **Runtime** (theme-manager) | Generated from palette |
 | SwayNC CSS | `scripts/theme-manager/generate-swaync-themes` → `~/.config/swaync/style.css` | **Runtime** (theme-manager) | Already excluded from chezmoi |
 | Clipse theme | `scripts/theme-manager/generate-clipse-themes` → `~/.config/clipse/theme.toml` | **Runtime** (theme-manager) | Already excluded from chezmoi |
-| Walker CSS | `scripts/theme-manager/generate-walker-themes` → `~/.config/walker/themes/current/style.css` | **Runtime** (theme-manager) | Already in cutover ignore list |
-| btop theme | `scripts/theme-manager/theme-set` → `~/.config/btop/themes/current.theme` | **Runtime** (theme-manager) | Already in cutover ignore list |
-| wlogout CSS | `scripts/theme-manager/wlogout-setup` → `~/.config/wlogout/wlogout.css` | **Runtime** (theme-manager) | Already in cutover ignore list |
+| Walker CSS | `scripts/theme-manager/generate-walker-themes` → `~/.config/walker/themes/current/style.css` | **Runtime** (theme-manager) | Excluded from chezmoi manifests |
+| btop theme | `scripts/theme-manager/theme-set` → `~/.config/btop/themes/current.theme` | **Runtime** (theme-manager) | Excluded from chezmoi manifests |
+| wlogout CSS | `scripts/theme-manager/wlogout-setup` → `~/.config/wlogout/wlogout.css` | **Runtime** (theme-manager) | Excluded from chezmoi manifests |
 | Plymouth theme | `scripts/theme-manager/refresh-plymouth` → `/usr/share/plymouth/themes/` | **Runtime** (theme-manager) | System-level runtime |
 | SDDM theme | `scripts/theme-manager/refresh-sddm` → `/usr/share/sddm/themes/` | **Runtime** (theme-manager) | System-level runtime |
 | Wallpaper | `scripts/theme-manager/theme-bg-*` → `~/.config/hypr/config/wallpaper.conf` | **Runtime** (theme-manager) | User-selected |
-| Hyprland colors | `scripts/theme-manager/theme-set` → `~/.config/hypr/colors-theme.conf` | **Runtime** (theme-manager) | Already in cutover ignore list |
-| Keyboard local | `scripts/install/setup/keyboard.sh` → `~/.config/hypr/config/keyboard.local.conf` | **Runtime** (theme-manager or user) | Already in cutover ignore list |
+| Hyprland colors | `scripts/theme-manager/theme-set` → `~/.config/hypr/colors-theme.conf` | **Runtime** (theme-manager) | Excluded from chezmoi manifests |
+| Keyboard local | `scripts/install/setup/keyboard.sh` → `~/.config/hypr/config/keyboard.local.conf` | **Runtime** (theme-manager or user) | Excluded from chezmoi manifests |
 | GTK settings | `scripts/theme-manager/generate-gtk-themes` → `~/.config/gtk-3.0/settings.ini` | **Runtime** (theme-manager) | Generated from palette |
 | GTK4 settings | `scripts/theme-manager/generate-gtk-themes` → `~/.config/gtk-4.0/settings.ini` | **Runtime** (theme-manager) | Generated from palette |
 
@@ -52,9 +52,9 @@ When chezmoi owns user state, the theme-manager must still fulfill its runtime c
 
 The theme-manager does not need to check the control-plane mode for system-level paths (Plymouth, SDDM) because those are outside chezmoi's scope entirely.
 
-## Cutover ignore list
+## Runtime exclusions
 
-The following paths are in the common runtime ignore list in `cutover-host.sh` and must remain excluded from chezmoi manifests:
+The following paths are owned by the theme manager at runtime and must remain excluded from chezmoi manifests:
 
 - `~/.config/btop/themes/current.theme`
 - `~/.config/walker/themes/current/style.css`
@@ -73,4 +73,4 @@ The following paths are in the common runtime ignore list in `cutover-host.sh` a
 
 In a later phase, theme generation could be moved into chezmoi templates or Ansible handlers. That would collapse the runtime layer into the control plane itself and remove the need for a separate runtime contract.
 
-That possibility is explicitly out of scope for the current migration phase. The theme-manager remains the canonical owner of runtime theme state until a future design document overrides this contract.
+The theme-manager remains the canonical owner of runtime theme state until a future design document overrides this contract.

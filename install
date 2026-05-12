@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+#
+# install — Idempotent dotfiles installer
+#
+# Usage: ./install [--host <hostname>] [--system-only] [--user-only] [--dry-run]
+#
+# Applies the complete desired state for this machine:
+#   1. System state via Ansible (packages, services, hardware config)
+#   2. User state via chezmoi (dotfiles, shell config, applications)
+#
+# This script is fully idempotent. Running it multiple times is safe.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${SCRIPT_DIR}"
+
+# Source logging library if available
+if [[ -f "${REPO_ROOT}/scripts/lib/logging.sh" ]]; then
+    source "${REPO_ROOT}/scripts/lib/logging.sh"
+else
+    log_info()  { echo "[INFO]  $*"; }
+    log_step()  { echo "[STEP]  $*"; }
+    log_warn()  { echo "[WARN]  $*"; }
+    log_error() { echo "[ERROR] $*"; }
+    log_fatal() { echo "[FATAL] $*"; exit 1; }
+    log_success() { echo "[OK]    $*"; }
+fi
+
+# ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+
+HOST_NAME=""
+SYSTEM_ONLY=false
+USER_ONLY=false
+DRY_RUN=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+
+usage() {
+    cat <<EOF
+Usage: $0 [OPTIONS]
+
+Apply the complete desired state for this machine.
+
+Options:
+    --host <name>      Target host (defaults to current hostname)
+    --system-only      Apply only Ansible system state
+    --user-only        Apply only chezmoi user state
+    --dry-run          Show what would change without applying
+    -h, --help         Show this help
+
+Examples:
+    $0                          # Full install/update
+    $0 --host goldendragon      # Install for specific host
+    $0 --system-only --dry-run  # Preview system changes
+    $0 --user-only              # Update dotfiles only
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --host)
+            HOST_NAME="${2:-}"
+            shift 2
+            ;;
+        --system-only)
+            SYSTEM_ONLY=true
+            shift
+            ;;
+        --user-only)
+            USER_ONLY=true
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            usage
+            exit 2
+            ;;
+    esac
+done
+
+# ---------------------------------------------------------------------------
+# Host detection
+# ---------------------------------------------------------------------------
+
+if [[ -z "${HOST_NAME}" ]]; then
+    HOST_NAME="$(hostname -s)"
+    log_info "Detected host: ${HOST_NAME}"
+fi
+
+# ---------------------------------------------------------------------------
+# Prerequisite checks
+# ---------------------------------------------------------------------------
+
+log_step "Checking prerequisites"
+
+check_cmd() {
+    local cmd="$1"
+    local purpose="$2"
+    if ! command -v "${cmd}" >/dev/null 2>&1; then
+        log_fatal "${cmd} is required (${purpose}) but not found."
+    fi
+}
+
+if [[ "${USER_ONLY}" != "true" ]]; then
+    check_cmd ansible-playbook "Ansible system provisioning"
+    check_cmd ansible-inventory "Ansible inventory validation"
+fi
+
+if [[ "${SYSTEM_ONLY}" != "true" ]]; then
+    check_cmd chezmoi "Chezmoi dotfile management"
+fi
+
+# ---------------------------------------------------------------------------
+# Ansible: System state
+# ---------------------------------------------------------------------------
+
+apply_system_state() {
+    log_step "Applying system state via Ansible"
+
+    local inventory="${REPO_ROOT}/infra/ansible/inventory/hosts.yml"
+    local playbook_dir="${REPO_ROOT}/infra/ansible/playbooks"
+
+    if [[ ! -f "${inventory}" ]]; then
+        log_fatal "Inventory not found: ${inventory}"
+    fi
+
+    # Validate host exists in inventory
+    if ! ansible-inventory -i "${inventory}" --host "${HOST_NAME}" >/dev/null 2>&1; then
+        log_fatal "Host '${HOST_NAME}' not found in Ansible inventory."
+    fi
+
+    local ansible_args=()
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        ansible_args+=(--check --diff)
+    fi
+
+    # Run foundation (global contract) then site (full convergence)
+    log_info "Running foundation playbook..."
+    ansible-playbook -i "${inventory}" "${playbook_dir}/foundation.yml" "${ansible_args[@]}"
+
+    log_info "Running site playbook for ${HOST_NAME}..."
+    ansible-playbook -i "${inventory}" "${playbook_dir}/site.yml" --limit "${HOST_NAME}" "${ansible_args[@]}"
+
+    log_success "System state applied"
+}
+
+# ---------------------------------------------------------------------------
+# Chezmoi: User state
+# ---------------------------------------------------------------------------
+
+apply_user_state() {
+    log_step "Applying user state via chezmoi"
+
+    local chezmoi_source="${HOME}/.local/share/chezmoi"
+
+    # Sync manifest-declared dotfiles into chezmoi source
+    log_info "Syncing dotfiles from repo to chezmoi source..."
+    "${REPO_ROOT}/infra/chezmoi/bin/chezmoi-sync" --host "${HOST_NAME}" --source-dir "${chezmoi_source}"
+
+    # Apply chezmoi state
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log_info "Previewing chezmoi changes..."
+        chezmoi diff || true
+    else
+        log_info "Applying chezmoi state..."
+        chezmoi apply
+    fi
+
+    log_success "User state applied"
+}
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+log_step "=== Installing dotfiles for host '${HOST_NAME}' ==="
+
+if [[ "${SYSTEM_ONLY}" == "true" && "${USER_ONLY}" == "true" ]]; then
+    log_fatal "--system-only and --user-only are mutually exclusive."
+fi
+
+if [[ "${USER_ONLY}" != "true" ]]; then
+    apply_system_state
+fi
+
+if [[ "${SYSTEM_ONLY}" != "true" ]]; then
+    apply_user_state
+fi
+
+log_success "=== Install complete for host '${HOST_NAME}' ==="
