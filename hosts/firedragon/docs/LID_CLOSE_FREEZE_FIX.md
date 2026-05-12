@@ -114,7 +114,7 @@ Current ownership is split across:
 Converge the canonical owners:
 
 ```bash
-ansible-playbook -i ~/dotfiles/infra/ansible/inventory/hosts.yml \
+~/dotfiles/infra/ansible/run-playbook.sh \
   ~/dotfiles/infra/ansible/playbooks/site.yml \
   --limit firedragon
 ```

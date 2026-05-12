@@ -1,3 +1,27 @@
+# Build web UI
+FROM oven/bun:1 AS web-builder
+
+WORKDIR /build
+COPY webui/package.json webui/bun.lockb* ./
+RUN bun install
+
+COPY webui/ .
+RUN bun run build
+
+# Build Go control plane
+FROM golang:1.26-bookworm AS go-builder
+
+WORKDIR /build
+COPY control-plane/go.mod control-plane/go.sum ./
+RUN go mod download
+
+COPY control-plane/ .
+COPY --from=web-builder /build/dist ./cmd/server/webui/dist
+
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o openfortivpn-control-plane ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o openfortivpn-cli ./cmd/cli
+
+# Runtime stage
 FROM debian:12-slim
 
 # Install runtime dependencies
@@ -12,23 +36,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy control plane binary
-COPY control-plane/openfortivpn-control-plane /usr/local/bin/openfortivpn-control-plane
+# Copy binaries
+COPY --from=go-builder /build/openfortivpn-control-plane /usr/local/bin/openfortivpn-control-plane
+COPY --from=go-builder /build/openfortivpn-cli /usr/local/bin/openfortivpn-cli
 
 # Copy scripts
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY scripts/dns-helper.sh /usr/local/bin/dns-helper.sh
 
-# Copy web UI
-COPY control-plane/web/index.html /usr/share/openfortivpn/web/index.html
-
 # Ensure scripts are executable
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/dns-helper.sh /usr/local/bin/openfortivpn-control-plane
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/dns-helper.sh /usr/local/bin/openfortivpn-control-plane /usr/local/bin/openfortivpn-cli
 
 # Create runtime directories
 RUN mkdir -p /run/openfortivpn /etc/openfortivpn /var/lib/openfortivpn
 
-# Expose API port (optional, mainly for documentation; --network host is required)
+# Expose API port (documentation only; --network host is required)
 EXPOSE 8080
 
 # Health check

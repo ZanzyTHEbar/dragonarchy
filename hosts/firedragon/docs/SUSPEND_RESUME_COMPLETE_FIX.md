@@ -53,7 +53,7 @@ The legacy `fix-lid-close-freeze.sh` mutator is retired.
 Converge the canonical owners:
 
 ```bash
-ansible-playbook -i ~/dotfiles/infra/ansible/inventory/hosts.yml \
+~/dotfiles/infra/ansible/run-playbook.sh \
   ~/dotfiles/infra/ansible/playbooks/site.yml \
   --limit firedragon
 ```

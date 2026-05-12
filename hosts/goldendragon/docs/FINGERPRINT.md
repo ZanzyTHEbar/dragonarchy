@@ -8,7 +8,7 @@ Complete guide for fingerprint authentication setup, troubleshooting, and mainte
 
 ```bash
 cd ~/dotfiles
-ansible-playbook -i infra/ansible/inventory/hosts.yml infra/ansible/playbooks/site.yml --limit goldendragon
+./infra/ansible/run-playbook.sh infra/ansible/playbooks/site.yml --limit goldendragon
 ```
 
 The legacy `hosts/goldendragon/setup.sh` path no longer owns fingerprint package installation; packages are owned by `scripts/install/deps.manifest.toml` plus the Ansible `packages` and `fingerprint` roles.

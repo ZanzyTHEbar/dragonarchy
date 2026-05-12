@@ -39,6 +39,6 @@ export OPENCODE_EXPERIMENTAL_WORKSPACES=true          # Git worktrees as isolate
 export OPENCODE_EXPERIMENTAL_HTTPAPI=true             # Experimental HTTP API routes (workspaces + more)
 export OPENCODE_EXPERIMENTAL_SMART_RULES=true         # Context-aware instruction injection
 export OPENCODE_EXPERIMENTAL_BASH_BACKGROUND=true     # Background / non-blocking long bash commands (if available in your build)
-
+export OPENCODE_EXPERIMENTAL_LSP=true                 # LSP Support
 export OPENCODE_EXPERIMENTAL_PLAN_MODE=true           # Enhanced plan mode behavior
 export OPENCODE_EXPERIMENTAL_FILEWATCHER=true         # Full directory file watching
