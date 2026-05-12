@@ -155,8 +155,8 @@ done < <(
   done
 )
 
-build_cmd=("${CHEZMOI_ROOT}/scripts/build-source.sh" --host "${HOST_NAME}")
-verify_cmd=("${CHEZMOI_ROOT}/scripts/verify-generated-source.sh" --host "${HOST_NAME}")
+build_cmd=("${CHEZMOI_ROOT}/migration-scripts/build-source.sh" --host "${HOST_NAME}")
+verify_cmd=("${CHEZMOI_ROOT}/migration-scripts/verify-generated-source.sh" --host "${HOST_NAME}")
 for manifest_path in "${MANIFEST_PATHS[@]}"; do
   build_cmd+=(--manifest "${manifest_path}")
   verify_cmd+=(--manifest "${manifest_path}")
