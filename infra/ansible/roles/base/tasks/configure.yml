@@ -2,10 +2,12 @@
 - name: Set system timezone
   ansible.builtin.timezone:
     name: "{{ host_timezone | default(base_timezone) }}"
+  when: base_manage_time | bool
 
 - name: Enable NTP
   ansible.builtin.command: timedatectl set-ntp true
   changed_when: true
+  when: base_manage_time | bool
 
 - name: Check if pacman.conf exists
   ansible.builtin.stat:
