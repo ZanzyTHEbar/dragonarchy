@@ -3,6 +3,7 @@
     // Core
     "enabled": true,
     "debug": false,
+    //"autoupdate": true,
     // Keep notifications visible but not noisy
     "pruneNotification": "minimal",
     "pruneNotificationType": "toast",
