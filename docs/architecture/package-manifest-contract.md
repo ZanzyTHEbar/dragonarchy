@@ -6,7 +6,7 @@
 
 Ansible inventory describes **host identity and capabilities**; the **packages** role resolves **which manifest groups apply** and installs **repo-native** packages (`pacman` / `apt`) from a **resolved plan** produced by `scripts/install/export-package-plan.sh`.
 
-AUR (`paru`), vendor tarballs, and `script`-channel installs remain **explicit tiers**: they appear in the exported plan for inspection and optional follow-up—they are not silently folded into `ansible.builtin.package` with a pacman backend.
+AUR (`paru`), vendor tarballs, and `script`-channel installs remain **explicit tiers**: they appear in the exported plan for inspection and optional follow-up; they are not silently folded into `ansible.builtin.package` with a pacman backend.
 
 ## Resolution inputs
 
@@ -26,6 +26,13 @@ Bundles (`[bundles.*]` in the manifest) are used by `install-deps.sh --bundle`; 
 | **repo-native** | `pacman`, `apt` | Safe to assert on clean Arch/Debian images with default repos enabled | Installs these packages |
 | **AUR** | `paru` | Requires AUR helper / build tooling; separate gate | Exposed in plan as `pending.paru`; not installed by default |
 | **vendor / script** | `script` | May download binaries or run installers; separate gate | Exposed as `pending.script` |
+
+The packages role exposes pending-tier policy knobs:
+
+- `packages_pending_paru_policy: report|fail`
+- `packages_pending_script_policy: report|fail`
+
+Defaults are `report` so normal managed-host convergence remains non-invasive. Strict disposable validation lanes can set either policy to `fail` to turn unresolved pending tiers into a hard parity failure.
 
 ## Capability-backed groups
 

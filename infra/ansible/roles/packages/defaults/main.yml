@@ -10,3 +10,9 @@ packages_manifest_group_aliases:
 
 # Repo root (dotfiles) on the controller; used to locate export-package-plan.sh.
 packages_dotfiles_repo_root: "{{ playbook_dir }}/../../.."
+
+# Pending package-tier policy. Supported values: report, fail.
+# - report: show pending AUR/script tiers without installing them.
+# - fail: treat pending tiers as a parity failure for strict validation lanes.
+packages_pending_paru_policy: report
+packages_pending_script_policy: report

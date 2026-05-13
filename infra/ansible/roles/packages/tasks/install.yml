@@ -1,4 +1,22 @@
 ---
+- name: Fail on pending AUR / paru-tier packages in strict package parity mode
+  ansible.builtin.fail:
+    msg: >-
+      Manifest lists {{ packages_pending_paru | length }} paru/AUR package(s) for this host,
+      but packages_pending_paru_policy=fail: {{ packages_pending_paru | join(', ') }}
+  when:
+    - packages_pending_paru | default([]) | length > 0
+    - packages_pending_paru_policy == 'fail'
+
+- name: Fail on pending script-channel packages in strict package parity mode
+  ansible.builtin.fail:
+    msg: >-
+      Manifest lists {{ packages_pending_script | length }} script/vendor package(s) for this host,
+      but packages_pending_script_policy=fail: {{ packages_pending_script | join(', ') }}
+  when:
+    - packages_pending_script | default([]) | length > 0
+    - packages_pending_script_policy == 'fail'
+
 - name: Install resolved pacman plan (repo-native)
   ansible.builtin.package:
     name: "{{ resolved_package_list_pacman }}"
@@ -20,12 +38,16 @@
   ansible.builtin.debug:
     msg: >-
       Manifest lists {{ packages_pending_paru | length }} paru/AUR package(s) for this host
-      (install via install-deps.sh, paru, or a dedicated gate): {{ packages_pending_paru | join(', ') }}
-  when: packages_pending_paru | default([]) | length > 0
+        (install via install-deps.sh, paru, or a dedicated gate): {{ packages_pending_paru | join(', ') }}
+  when:
+    - packages_pending_paru | default([]) | length > 0
+    - packages_pending_paru_policy == 'report'
 
 - name: Report script-channel packages (not installed by this role)
   ansible.builtin.debug:
     msg: >-
       Manifest lists {{ packages_pending_script | length }} script/vendor package(s)
       (handled by install-deps.sh or manual steps): {{ packages_pending_script | join(', ') }}
-  when: packages_pending_script | default([]) | length > 0
+  when:
+    - packages_pending_script | default([]) | length > 0
+    - packages_pending_script_policy == 'report'
