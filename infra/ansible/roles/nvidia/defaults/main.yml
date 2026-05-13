@@ -20,4 +20,4 @@ nvidia_modules:
 nvidia_kernel_params:
   - nvidia-drm.modeset=1
 
-nvidia_host_source_dir: "{{ playbook_dir | dirname | dirname }}/../../hosts"
+nvidia_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"

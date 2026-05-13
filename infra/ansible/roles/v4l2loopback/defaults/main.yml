@@ -4,4 +4,4 @@ v4l2loopback_packages_by_platform:
   arch:
     dragon: []
     goldendragon: []
-v4l2loopback_host_source_dir: "{{ playbook_dir | dirname | dirname }}/../../hosts"
+v4l2loopback_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"

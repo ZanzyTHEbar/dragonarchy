@@ -13,4 +13,4 @@ amd_gpu_packages_by_platform:
 amd_gpu_kernel_params:
   - amdgpu.modeset=1
 
-amd_gpu_host_source_dir: "{{ playbook_dir | dirname | dirname }}/../../hosts"
+amd_gpu_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"

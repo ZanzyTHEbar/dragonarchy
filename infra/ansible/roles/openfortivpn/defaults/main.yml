@@ -21,4 +21,4 @@ openfortivpn_seed_config: |
   # set-routes = 1
   # pppd-use-peerdns = 1
 
-openfortivpn_host_source_dir: "{{ playbook_dir | dirname | dirname }}/../../hosts"
+openfortivpn_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"

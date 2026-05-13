@@ -1,4 +1,4 @@
 ---
 resolved_enabled: true
 
-resolved_host_source_dir: "{{ playbook_dir | dirname | dirname }}/../../hosts"
+resolved_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"

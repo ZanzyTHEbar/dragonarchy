@@ -14,4 +14,4 @@ intel_gpu_modules:
 intel_gpu_kernel_params:
   - i915.modeset=1
 
-intel_gpu_host_source_dir: "{{ playbook_dir | dirname | dirname }}/../../hosts"
+intel_gpu_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
