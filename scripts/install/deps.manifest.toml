@@ -199,7 +199,7 @@ packages = [
 
 [platforms.arch.pacman.sddm]
 requires_features = ["sddm"]
-packages = ["sddm", "qt6-svg"]
+packages = ["sddm", "qt6-svg", "qt6-declarative"]
 
 [platforms.debian.apt.sddm]
 requires_features = ["sddm"]
