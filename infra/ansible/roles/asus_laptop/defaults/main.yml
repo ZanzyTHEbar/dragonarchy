@@ -4,7 +4,7 @@ asus_laptop_bootloader_helper_src: "{{ playbook_dir }}/../../../scripts/lib/boot
 asus_laptop_bootloader_helper_path: /usr/local/libexec/dotfiles/bootloader.sh
 asus_laptop_kernel_param_string: "acpi_osi=! acpi_osi='Windows 2020' acpi_backlight=native"
 
-asus_laptop_host_source_dir: "{{ playbook_dir | dirname | dirname }}/../../hosts"
+asus_laptop_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
 
 asus_laptop_managed_paths_by_host:
   firedragon:

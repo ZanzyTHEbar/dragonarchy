@@ -12,4 +12,4 @@ tlp_masked_services:
   - systemd-rfkill.service
   - systemd-rfkill.socket
 
-tlp_host_source_dir: "{{ playbook_dir | dirname | dirname }}/../../hosts"
+tlp_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
