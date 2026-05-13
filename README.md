@@ -109,7 +109,7 @@ This keeps every PATH-visible command sourced from a single canonical script whi
 
 ## Features
 
-- **Declarative Configuration**: All dotfiles managed via Stow
+- **Declarative Configuration**: system state managed by Ansible and user state managed by chezmoi
 - **Multi-Platform**: Linux (CachyOS/Arch) and Debian support
 - **Host-Specific**: Different configs per machine with trait-based capabilities
 - **Secrets Management**: Encrypted secrets with age/sops
@@ -126,49 +126,40 @@ This keeps every PATH-visible command sourced from a single canonical script whi
 ### Basic Usage
 
 ```bash
-./install.sh                    # Complete setup
-./install.sh --host dragon      # Setup for specific host
-./install.sh --packages-only    # Only install packages
-./install.sh --dotfiles-only    # Only setup dotfiles
-./scripts/utilities/secrets.sh --help     # Secrets management
-./scripts/install/update.sh             # Update packages and configs
-./scripts/install/validate.sh           # Validate setup
-./scripts/install/validate.sh --json    # JSON output (for CI/TUI)
-./scripts/install/validate.sh --host firedragon  # Validate specific host
-./scripts/install/install-deps.sh --bundle minimal  # Install a package bundle
-./scripts/install/first-run.sh --dry-run  # Preview first-run tasks
+./install --host dragon              # Complete managed-host setup
+./install --host dragon --dry-run    # Preview Ansible + chezmoi changes
+./install --host dragon --system-only  # Only apply Ansible system state
+./install --host dragon --user-only    # Only apply chezmoi user state
+./infra/validate-parity.sh --host dragon  # Check migration parity surface
 ```
 
-### Feature Toggles
+### Legacy Installer Toggles
 
-Fine-grained control over what gets installed and configured:
+The old `./install.sh` flags below are retained only for unmanaged profiles or explicit recovery work. Managed hosts refuse this path unless `DOTFILES_LEGACY_INSTALL=1` is set.
 
 ```bash
 # Component toggles
-./install.sh --no-packages      # Skip package installation
-./install.sh --no-dotfiles      # Skip dotfiles setup
-./install.sh --no-secrets       # Skip secrets management
-./install.sh --utilities        # Symlink selected utilities to ~/.local/bin
-./install.sh --no-utilities     # Skip utilities symlinking
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --no-packages
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --no-dotfiles
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --no-secrets
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --utilities
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --no-utilities
 
 # Step toggles
-./install.sh --no-theme         # Skip Plymouth theme setup
-./install.sh --no-shell         # Skip shell configuration (zsh)
-./install.sh --no-first-run     # Skip first-run tasks (firewall, timezone, themes)
-./install.sh --no-post-setup    # Skip post-setup tasks
-./install.sh --no-system-config # Skip system-level configuration (PAM, services)
-./install.sh --bundle minimal   # Install only a named package bundle
-./install.sh --headless         # Terminal-only install mode (defaults bundle to minimal)
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --no-theme
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --no-shell
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --no-first-run
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --no-post-setup
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --no-system-config
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --bundle minimal
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --headless
 
 # Application-specific toggles
-./install.sh --cursor           # Force Cursor installation (default: Hyprland hosts only)
-./install.sh --no-cursor        # Skip Cursor installation
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --cursor
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --no-cursor
 
 # Combined examples
-./install.sh --host dragon --cursor --no-theme --no-system-config
-./install.sh --host headless --headless --no-secrets
-./install.sh --packages-only --utilities --no-secrets
-./install.sh --dotfiles-only --no-shell --no-post-setup
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --host headless --headless --no-secrets
 ```
 
 > [!NOTE]
@@ -176,12 +167,12 @@ Fine-grained control over what gets installed and configured:
 
 ### Control Plane Gating
 
-When you are intentionally pivoting away from legacy writers, use environment flags to keep the old installer from rewriting state now owned by Ansible or chezmoi:
+Managed hosts use `./install`, which applies Ansible system state and chezmoi user state directly. Legacy control-plane gates are retained only for old scripts that may still be run manually:
 
 ```bash
-DOTFILES_SYSTEM_OWNER=ansible ./install.sh
-DOTFILES_USER_OWNER=chezmoi ./install.sh --dotfiles-only
-DOTFILES_SYSTEM_OWNER=ansible DOTFILES_USER_OWNER=chezmoi ./install.sh
+DOTFILES_LEGACY_INSTALL=1 DOTFILES_SYSTEM_OWNER=ansible ./install.sh
+DOTFILES_LEGACY_INSTALL=1 DOTFILES_USER_OWNER=chezmoi ./install.sh --dotfiles-only
+DOTFILES_LEGACY_INSTALL=1 DOTFILES_SYSTEM_OWNER=ansible DOTFILES_USER_OWNER=chezmoi ./install.sh
 ```
 
 Modes:
@@ -189,7 +180,7 @@ Modes:
 - `DOTFILES_SYSTEM_OWNER=legacy|ansible`
 - `DOTFILES_USER_OWNER=stow|chezmoi`
 
-Defaults preserve the legacy installer behavior.
+`./install.sh` now refuses managed inventory hosts unless `DOTFILES_LEGACY_INSTALL=1` is set.
 
 Use `DOTFILES_SYSTEM_OWNER=ansible` to gate legacy system writers such as system Stow, host `setup.sh`, legacy SDDM theme writes, and `scripts/install/system-config.sh`.
 
@@ -197,7 +188,7 @@ Use `DOTFILES_USER_OWNER=chezmoi` only after the relevant `$HOME` paths have bee
 
 ## Package Bundles
 
-Packages are defined in `scripts/install/deps.manifest.toml`. Bundles compose package groups into named profiles:
+Packages are defined in `scripts/install/deps.manifest.toml`. Ansible consumes this manifest through `infra/ansible/roles/packages` and `scripts/install/export-package-plan.sh`. Bundles compose package groups into named profiles:
 
 ```bash
 # Install only packages in a bundle
@@ -206,8 +197,8 @@ Packages are defined in `scripts/install/deps.manifest.toml`. Bundles compose pa
 ./scripts/install/install-deps.sh --bundle creative  # Desktop + multimedia tools
 ./scripts/install/install-deps.sh --bundle desktop_smb # Desktop + optional Nemo SMB/usershare support
 
-# Top-level installer using the generic headless host
-./install.sh --host headless --headless
+# Managed-host install uses the Ansible packages role through ./install
+./install --host microdragon --system-only
 ```
 
 Bundles are composable:
@@ -226,19 +217,20 @@ Bundles are composable:
 
 ## System Validation
 
-The validation script checks system health, dotfile integrity, and host-specific requirements:
+The primary migration parity check is read-only and validates inventory, role coverage, manifest sources, and legacy retirement markers:
 
 ```bash
-./scripts/install/validate.sh              # Interactive output
-./scripts/install/validate.sh --json       # Structured JSON (for CI/TUI)
-./scripts/install/validate.sh --host dragon  # Validate a specific host
+./infra/validate-parity.sh --host dragon
+./infra/validate-parity.sh --host firedragon
+./infra/validate-parity.sh --host goldendragon
+./infra/validate-parity.sh --host microdragon
 ```
 
-Validation is trait-driven: each host declares capabilities via `hosts/<hostname>/.traits` (e.g., `hyprland`, `tlp`, `aio-cooler`). The validator checks services, tools, and config drift based on those traits.
+The legacy validator remains available for historical troubleshooting, but it is not the canonical managed-host parity gate.
 
-## Migration System
+## Legacy Migration System
 
-This repository includes a migration system for managing one-time setup tasks and configuration updates. See [MIGRATION-SYSTEM.md](docs/MIGRATION-SYSTEM.md) for detailed documentation.
+The legacy migration framework is retained for historical `install.sh` flows only. It is not part of the canonical Ansible + chezmoi managed-host path.
 
 ```bash
 # Create a new migration
@@ -294,20 +286,20 @@ To connect to your network, you will need to run the `netbird` command and follo
 
 ## Debian Smoke Loop
 
-Use the container smoke loop to verify the terminal-only Debian install path locally:
+Use the container smoke loop only for legacy terminal-only installer coverage:
 
 ```bash
 bash ./scripts/ci/debian-headless-smoke.sh
 bash ./scripts/ci/debian-headless-smoke.sh ubuntu:24.04
 ```
 
-This loop exercises `./install.sh --host headless --headless --bundle minimal` in a Debian-family container.
+This loop exercises `./install.sh --host headless --headless --bundle minimal` in a Debian-family container with the legacy path.
 Desktop/login-manager flows still require a VM or real machine because Docker does not model a full graphical session or systemd boot environment accurately enough for this repo.
 
 For a real machine using the generic headless host profile, validate with:
 
 ```bash
-./scripts/install/validate.sh --host headless
+./infra/validate-parity.sh --host microdragon
 ```
 
 For the slower systemd-aware VM smoke lane:
@@ -320,7 +312,7 @@ That boots a Debian cloud image under QEMU, provisions the repo over SSH, runs t
 
 ## Proxmox Validation Templates
 
-Use the Proxmox-backed template lane when you need a stronger disposable-machine substrate for branch-shift and chezmoi cutover validation:
+Use the Proxmox-backed template lane when you need a stronger disposable-machine substrate for Ansible + chezmoi validation:
 
 ```bash
 cd infra/packer
@@ -338,7 +330,7 @@ Use it for:
 - Debian and Arch disposable validation VMs
 - desktop-class Arch graphical validation VMs
 - branch shifts from `main` to `feat/ansible-chezmoi-foundation`
-- first-host cutover rehearsal before touching live hosts
+- dry-run validation before touching live hosts
 
 Operator docs:
 

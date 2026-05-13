@@ -1,8 +1,15 @@
 # Package Auto-Detection
 
-## Overview
+> [!WARNING]
+> This document describes the deprecated GNU Stow package auto-detection path used by `./install.sh`.
+> Managed hosts now use `./install`, Ansible, chezmoi manifests, and `scripts/install/deps.manifest.toml` as consumed by `infra/ansible/roles/packages`.
+> Do not use `.package` markers or `scripts/install/stow-system.sh` as the canonical managed-host ownership model.
 
-The dotfiles installation system _automatically detects_ which packages to install, eliminating the need to manually maintain a hardcoded list in `install.sh`.
+## Legacy Overview
+
+The legacy dotfiles installation system _automatically detects_ which GNU Stow packages to install, eliminating the need to manually maintain a hardcoded list in `install.sh`.
+
+For managed hosts, package installation is Ansible-owned and user dotfile deployment is chezmoi-owned. `.package` files are retained only for legacy/unmanaged Stow workflows.
 
 ## Detection Method
 
@@ -52,8 +59,8 @@ touch packages/myapp/.package
 # 3. Verify detection
 bash scripts/utilities/verify-package-detection.sh
 
-# 4. Install
-./install.sh --dotfiles-only
+# 4. Legacy install only; managed hosts use chezmoi manifests instead
+DOTFILES_LEGACY_INSTALL=1 ./install.sh --dotfiles-only
 ```
 
 ### Disabling an Existing Package
