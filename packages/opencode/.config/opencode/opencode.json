@@ -12,7 +12,7 @@
     "ignore": ["node_modules/**", "dist/**", ".git/**", "build/**"]
   },
   "lsp": true,
-  "autoupdate": true,
+  "autoupdate": false,
   "experimental": {
 	"disable_paste_summary": true,
 	"chat": { "messages": { "transform": true } }
@@ -36,12 +36,12 @@
     "actualbudget": {
       "type": "remote",
       "url": "http://192.168.0.157:3000/http",
-      "enabled": false
+      "enabled": true
     },
     "mealie": {
       "type": "remote",
       "url": "http://192.168.0.157:3031/mcp",
-      "enabled": false
+      "enabled": true
     },
     "allpepper-memory-bank": {
       "type": "local",
