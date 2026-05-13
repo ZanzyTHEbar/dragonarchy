@@ -1,5 +1,6 @@
 # mode|source|dest
 required|packages/nvim/.config/nvim|dot_config/nvim
+required|packages/opencode/.config/opencode|dot_config/opencode
 required|packages/kitty/.config/kitty|dot_config/kitty
 exclude||dot_config/kitty/colors.conf
 required|packages/tmux/.tmux.conf|dot_tmux.conf
