@@ -98,6 +98,42 @@ if [[ -n "${gpu_stack}" ]]; then
     ok "GPU stack: $(echo ${gpu_stack} | tr '\n' ' ')"
 fi
 
+# Query inventory group membership so role coverage includes group-applied roles.
+if ! INVENTORY_JSON=$(ansible-inventory -i "${INVENTORY}" --list 2>/dev/null); then
+    error "Failed to list Ansible inventory: ${INVENTORY}"
+    exit 1
+fi
+inventory_groups=$(printf '%s\n' "${INVENTORY_JSON}" | python3 -c "
+import sys, json
+
+target = sys.argv[1]
+data = json.load(sys.stdin)
+parents = {}
+groups = set()
+
+for name, group in data.items():
+    if name == '_meta' or not isinstance(group, dict):
+        continue
+    if target in (group.get('hosts') or []):
+        groups.add(name)
+    for child in (group.get('children') or []):
+        parents.setdefault(child, set()).add(name)
+
+pending = list(groups)
+while pending:
+    group = pending.pop()
+    for parent in parents.get(group, set()):
+        if parent not in groups:
+            groups.add(parent)
+            pending.append(parent)
+
+print('\n'.join(sorted(groups)))
+" "${HOST_NAME}" || true)
+
+if [[ -n "${inventory_groups}" ]]; then
+    ok "Inventory groups: $(echo ${inventory_groups} | tr '\n' ' ')"
+fi
+
 # ---------------------------------------------------------------------------
 # Section 2: Ansible role coverage
 # ---------------------------------------------------------------------------
@@ -121,26 +157,57 @@ EXPECTED_ROLES=(
     resolved
 )
 
+add_expected_role() {
+    local role="$1"
+    local existing_role
+    for existing_role in "${EXPECTED_ROLES[@]}"; do
+        [[ "${existing_role}" == "${role}" ]] && return 0
+    done
+    EXPECTED_ROLES+=("${role}")
+}
+
 # Add GPU roles based on GPU stack
 for gpu in ${gpu_stack:-}; do
-    case "${gpu}" in
-        amd) EXPECTED_ROLES+=(amd_gpu) ;;
-        nvidia) EXPECTED_ROLES+=(nvidia) ;;
-        intel) EXPECTED_ROLES+=(intel_gpu) ;;
+    gpu_normalized="${gpu,,}"
+    gpu_normalized="${gpu_normalized//-/_}"
+    case "${gpu_normalized}" in
+        amd|amd_gpu) add_expected_role amd_gpu ;;
+        nvidia) add_expected_role nvidia ;;
+        intel|intel_gpu) add_expected_role intel_gpu ;;
     esac
 done
 
 # Add capability-based roles
 for cap in ${declared_caps:-}; do
     case "${cap}" in
-        tlp) EXPECTED_ROLES+=(tlp) ;;
-        fingerprint) EXPECTED_ROLES+=(fingerprint) ;;
-        asus) EXPECTED_ROLES+=(asus_laptop) ;;
-        hibernation) EXPECTED_ROLES+=(hibernation) ;;
-        netbird) EXPECTED_ROLES+=(netbird) ;;
-        fortinet_vpn) EXPECTED_ROLES+=(openfortivpn) ;;
-        aio-cooler) EXPECTED_ROLES+=(aio-cooler) ;;
-        v4l2loopback) EXPECTED_ROLES+=(v4l2loopback) ;;
+        tlp) add_expected_role tlp ;;
+        fingerprint) add_expected_role fingerprint ;;
+        asus) add_expected_role asus_laptop ;;
+        hibernation) add_expected_role hibernation ;;
+        netbird) add_expected_role netbird ;;
+        fortinet_vpn) add_expected_role openfortivpn ;;
+        aio-cooler) add_expected_role aio-cooler ;;
+        v4l2loopback) add_expected_role v4l2loopback ;;
+    esac
+done
+
+# Add roles applied by inventory group membership.
+for group in ${inventory_groups:-}; do
+    case "${group}" in
+        tlp) add_expected_role tlp ;;
+        fingerprint) add_expected_role fingerprint ;;
+        asus) add_expected_role asus_laptop ;;
+        hibernation) add_expected_role hibernation ;;
+        netbird) add_expected_role netbird ;;
+        fortinet_vpn) add_expected_role openfortivpn ;;
+        aio_cooler) add_expected_role aio-cooler ;;
+        v4l2loopback) add_expected_role v4l2loopback ;;
+        amd_gpu) add_expected_role amd_gpu ;;
+        nvidia) add_expected_role nvidia ;;
+        intel_gpu) add_expected_role intel_gpu ;;
+        sddm) add_expected_role sddm ;;
+        hyprland) add_expected_role hyprland ;;
+        resolved) add_expected_role resolved ;;
     esac
 done
 
@@ -185,6 +252,8 @@ else
                 if [[ ! -e "${source_abs}" ]]; then
                     if [[ "${mode}" == "required" ]]; then
                         error "Required source missing: ${source_rel}"
+                    elif [[ "${source_rel}" == hosts/*/dotfiles/* ]]; then
+                        ok "Optional host overlay absent: ${source_rel}"
                     else
                         warn "Optional source missing: ${source_rel}"
                     fi
