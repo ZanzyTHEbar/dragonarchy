@@ -412,6 +412,7 @@ packages = [
     "tree",
     "rsync",
     "git",
+    "sqlite3",
     "zsh-autosuggestions",
     "zsh-syntax-highlighting",
     "kitty",
