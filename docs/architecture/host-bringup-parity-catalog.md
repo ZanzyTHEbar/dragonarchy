@@ -2,18 +2,15 @@
 
 ## Purpose
 
-This document catalogs what is required for full host bringup parity between:
-
-- the legacy architecture on `main`
-- the current Ansible + chezmoi architecture on `feat/ansible-chezmoi-foundation`
+This document catalogs what remains to reach full host bringup parity after the managed-host pivot to Ansible + chezmoi.
 
 The goal is not a vague migration summary.
 
 The goal is a host-by-host implementation catalog of:
 
-1. legacy source files and behaviors
-2. current new-architecture ownership and coverage
-3. exact parity gaps
+1. legacy source files and behaviors that still matter
+2. current Ansible + chezmoi ownership and coverage
+3. exact remaining parity gaps
 4. a surgical checklist to reach 1:1 bringup parity
 
 ## Comparison basis
@@ -21,7 +18,9 @@ The goal is a host-by-host implementation catalog of:
 The comparison uses these facts:
 
 - `main` has no `infra/` control plane
-- host trees under `hosts/dragon`, `hosts/firedragon`, `hosts/goldendragon`, and `hosts/microdragon` are unchanged on this branch
+- `./install` is the canonical managed-host entrypoint
+- `./install.sh` is deprecated and guarded for managed hosts
+- host trees under `hosts/<host>/etc` and `hosts/<host>/dotfiles` are canonical payload sources consumed by Ansible roles and chezmoi manifests until fully absorbed or explicitly retained
 - the current branch adds the new architecture primarily under:
   - `infra/ansible/`
   - `infra/chezmoi/`
@@ -29,8 +28,8 @@ The comparison uses these facts:
 
 That means most parity analysis is:
 
-- legacy host tree and shell installer on `main`
-- versus additive inventory, roles, manifests, and runbooks on the current branch
+- legacy shell behavior that remains as reference or recovery path
+- versus inventory, roles, manifests, and validation in the current branch
 
 ## In-scope hosts
 
@@ -45,21 +44,21 @@ Current modeled hosts from `infra/ansible/inventory/hosts.yml`:
 
 ### `dragon`
 
-- groups: `arch`, `desktop`, `resolved`, `hyprland`, `amd_gpu`, `netbird`
+- groups: `arch`, `desktop`, `resolved`, `hyprland`, `sddm`, `amd_gpu`, `aio_cooler`, `netbird`, `v4l2loopback`
 - host vars: `infra/ansible/inventory/host_vars/dragon.yml`
 - capabilities: `aio-cooler`, `netbird`
 
 ### `firedragon`
 
-- groups: `arch`, `desktop`, `laptop`, `tlp`, `resolved`, `hyprland`, `amd_gpu`, `netbird`
+- groups: `arch`, `desktop`, `laptop`, `tlp`, `asus`, `hibernation`, `resolved`, `hyprland`, `sddm`, `amd_gpu`, `netbird`
 - host vars: `infra/ansible/inventory/host_vars/firedragon.yml`
-- capabilities: `tlp`, `asus`, `netbird`
+- capabilities: `tlp`, `asus`, `hibernation`, `netbird`
 
 ### `goldendragon`
 
-- groups: `arch`, `desktop`, `laptop`, `tlp`, `resolved`, `hyprland`, `fingerprint`, `nvidia`, `fortinet_vpn`
+- groups: `arch`, `desktop`, `laptop`, `tlp`, `resolved`, `hyprland`, `sddm`, `fingerprint`, `nvidia`, `intel_gpu`, `fortinet_vpn`, `v4l2loopback`
 - host vars: `infra/ansible/inventory/host_vars/goldendragon.yml`
-- capabilities: `tlp`, `fingerprint`, `fortinet_vpn`
+- capabilities: `tlp`, `fingerprint`, `intel_gpu`, `fortinet_vpn`
 
 ### `microdragon`
 
@@ -69,7 +68,7 @@ Current modeled hosts from `infra/ansible/inventory/hosts.yml`:
 
 ## Shared new-architecture ownership
 
-Current role set from `infra/ansible/roles/README.md`:
+Current role directories:
 
 - `common`
 - `base`
@@ -82,12 +81,18 @@ Current role set from `infra/ansible/roles/README.md`:
 - `amd_gpu`
 - `tlp`
 - `asus_laptop`
+- `hibernation`
 - `resolved`
 - `netbird`
 - `openfortivpn`
+- `aio-cooler`
+- `v4l2loopback`
+- `intel_gpu`
 
-Current chezmoi scope is partial but now covers the first session-oriented slices plus zsh:
+Current chezmoi scope is partial but now covers the first session-oriented slices plus zsh and devtool/SSH declarations:
 
+- `infra/chezmoi/manifests/devtools-core.manifest`
+- `infra/chezmoi/manifests/git-ssh.manifest`
 - `infra/chezmoi/manifests/session-core.manifest`
 - `infra/chezmoi/manifests/session-shell.manifest`
 - `infra/chezmoi/manifests/session-zsh.manifest`
@@ -100,17 +105,22 @@ Current Packer scope is validation infrastructure, not host bringup ownership:
 
 These gaps affect multiple hosts and must be understood before claiming 1:1 parity.
 
-### 1. No replacement for the legacy top-level bringup path
+### 1. Top-level bringup path is replaced, legacy path still exists
 
-Legacy full bringup still flows through:
+Managed-host bringup now flows through:
+
+- `./install`
+- `infra/ansible/playbooks/site.yml`
+- `infra/chezmoi/bin/chezmoi-sync`
+- `chezmoi apply`
+
+Legacy recovery/unmanaged bringup still exists under:
 
 - `install.sh`
 - `scripts/install/*`
 - `hosts/<host>/setup.sh`
 
-The current branch does not replace that with a single new-architecture entrypoint.
-
-Ansible and chezmoi exist, but they are not yet the only bringup path.
+`install.sh` is deprecated and should not run for managed hosts without explicit `DOTFILES_LEGACY_INSTALL=1` opt-in.
 
 ### 2. Duplicate package truth
 
@@ -142,13 +152,13 @@ Current manifests cover the first session-oriented slices plus zsh overlays.
 
 Remaining gaps are other non-session host dotfiles and user-state that still sits outside the current manifests.
 
-### 5. Validation is still split
+### 5. Validation is still not a full behavioral proof
 
-Legacy validation remains strong in:
+The current managed-host parity gate is:
 
-- `scripts/install/validate.sh`
+- `infra/validate-parity.sh`
 
-Ansible has syntax checking and role validation tasks, but there is not yet a single parity gate that proves full host bringup only through the new architecture.
+It validates inventory membership, inferred role coverage, manifest source existence, host setup deprecation, and entrypoint presence. It does not yet prove full behavioral parity for running services, pending package tiers, or all runtime-generated user state.
 
 ## Shared duplicate ownership seams
 
@@ -163,20 +173,21 @@ If legacy shell, Stow, or host trees can still write or source the same concern,
 
 | Domain                                            | Legacy owner paths                                                                                                                                     | Current new owner paths                                                                                             | Conflict type    | Canonical owner                                                                            | Remaining pivot work                                                                                                                          |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| top-level bringup                                 | `install.sh`, `scripts/install/*`, `hosts/<host>/setup.sh`                                                                                             | `infra/ansible/playbooks/*.yml`, `infra/chezmoi/scripts/*.sh`                                                       | migration seam   | Ansible + chezmoi                                                                          | define one supported end-to-end bringup entrypoint and retire mixed-mode operator flow                                                        |
-| validation gate                                   | `scripts/install/validate.sh`                                                                                                                          | role `validate.yml` and `verify.yml`, CI syntax checks, VM cutover lane                                             | migration seam   | Ansible/chezmoi parity gate                                                                | map trait checks into inventory/capability-based validation and produce one authoritative parity proof                                        |
+| top-level bringup                                 | `install.sh`, `scripts/install/*`, `hosts/<host>/setup.sh`                                                                                             | `./install`, `infra/ansible/playbooks/*.yml`, `infra/chezmoi/bin/chezmoi-sync`                                      | legacy seam      | Ansible + chezmoi                                                                          | keep legacy installer guarded and finish removing stale operator docs                                                                         |
+| validation gate                                   | `scripts/install/validate.sh`                                                                                                                          | `infra/validate-parity.sh`, role `validate.yml` and `verify.yml`, CI syntax checks                                  | partial overlap  | Ansible/chezmoi parity gate                                                                | extend parity validation to strict behavioral checks and pending package tiers                                                                |
 | package truth                                     | `scripts/install/deps.manifest.toml`                                                                                                                   | `infra/ansible/roles/packages` (manifest plan consumer) + optional legacy role overrides                                                           | **resolved**     | **`deps.manifest.toml` + `export-package-plan.sh`**                                        | keep thinning role-local lists (`hyprland`, `sddm`, …) into manifest groups                                                                    |
 | SDDM theme payload and active theme               | `packages/sddm/**`, `scripts/install/stow-system.sh`, `scripts/theme-manager/refresh-sddm`, `scripts/theme-manager/sddm-set`                           | `infra/ansible/roles/sddm/tasks/configure.yml`                                                                      | partial overlap  | Ansible `sddm` role                                                                        | stop using system Stow and theme-manager as the runtime writer for managed hosts                                                              |
 | baseline polkit admin rule                        | `packages/polkit/etc/polkit-1/rules.d/49-wheel-admin.rules`                                                                                            | `infra/ansible/roles/base/tasks/configure.yml`                                                                      | full duplication | Ansible `base` role                                                                        | remove `polkit` from system-Stow bringup for managed hosts                                                                                    |
 | fingerprint PAM insertion                         | `hosts/goldendragon/setup.sh`, `hosts/goldendragon/etc/pam.d/*`                                                                                        | `infra/ansible/roles/fingerprint/defaults/main.yml`, `infra/ansible/roles/fingerprint/tasks/configure.yml`          | partial overlap  | Ansible `fingerprint` role                                                                 | stop relying on `setup.sh` edits; own `sudo`, `polkit-1`, `system-local-login`, and `sddm` insertion only through the role                    |
-| fingerprint sleep hook and hyprlock PAM           | `hosts/goldendragon/etc/systemd/system-sleep/99-fprintd-reset.sh`, `hosts/goldendragon/etc/pam.d/hyprlock`                                             | `infra/ansible/roles/fingerprint/tasks/configure.yml`, `infra/ansible/roles/fingerprint/files/hosts/goldendragon/*` | partial overlap  | Ansible `fingerprint` role                                                                 | stop using host setup as a second writer and eventually delete or archive the legacy reference copy                                           |
-| fingerprint watchdog                              | `hosts/goldendragon/etc/systemd/user/fprintd-watchdog.*`, `hosts/goldendragon/.local/bin/fprintd-watchdog`, `hosts/goldendragon/scripts/fingerprint/*` | no current owner                                                                                                    | migration seam   | explicit new owner required                                                                | decide whether watchdog is system-owned by Ansible or user-owned by chezmoi, then port it completely                                          |
+| fingerprint sleep hook and hyprlock PAM           | `hosts/goldendragon/etc/systemd/system-sleep/99-fprintd-reset.sh`, `hosts/goldendragon/etc/pam.d/hyprlock`                                             | `infra/ansible/roles/fingerprint/tasks/configure.yml`                                                               | partial overlap  | Ansible `fingerprint` role                                                                 | keep host tree as payload source, not runtime writer                                                                                          |
+| fingerprint watchdog                              | `hosts/goldendragon/scripts/fingerprint/*`                                                                                                             | `hosts/goldendragon/dotfiles/.local/bin/fprintd-watchdog`, `hosts/goldendragon/dotfiles/.config/systemd/user/*`, `session-shell.manifest` | partial overlap | chezmoi                                                                                    | remove obsolete script-oriented install path after real-host verification                                                                     |
 | hyprlock PAM base path                            | `packages/hyprland/hyprlock.pam`, `scripts/install/setup/pam-hyprlock.sh`                                                                              | `infra/ansible/roles/fingerprint/tasks/configure.yml` for fingerprint hosts                                         | partial overlap  | Ansible for managed `/etc/pam.d/hyprlock`                                                  | define one policy for non-fingerprint and fingerprint hosts, then retire shell installers                                                     |
 | Hyprland session packages                         | `scripts/install/install-deps.sh`, `scripts/install/deps.manifest.toml`                                                                                | `infra/ansible/roles/hyprland/*`, `infra/ansible/roles/packages/*`                                                  | partial overlap  | Ansible `hyprland` + `packages`                                                            | stop using installer package paths for Ansible-managed hosts                                                                                  |
 | Hyprland user-state rendering                     | Stow of `packages/hyprland/**`, host dotfiles under `hosts/<host>/dotfiles/**`                                                                         | `infra/chezmoi/manifests/*.manifest`, `infra/chezmoi/scripts/*.sh`                                                  | migration seam   | chezmoi                                                                                    | finish manifest expansion and carve migrated trees out of Stow permanently                                                                    |
 | theme-generated user files                        | `scripts/theme-manager/*` writes runtime state under `$HOME`                                                                                           | chezmoi manifests are beginning to own adjacent trees                                                               | migration seam   | split by concern: chezmoi for static user files, theme-manager for runtime-generated state | document every runtime-generated exception and either keep it runtime-owned or move generation into the new model                             |
-| NVIDIA kernel and module state                    | `scripts/install/system-config.sh`, `hosts/goldendragon/etc/modprobe.d/*`                                                                              | `infra/ansible/roles/nvidia/*`, `infra/ansible/roles/nvidia/files/hosts/goldendragon/**`                            | partial overlap  | Ansible `nvidia` role                                                                      | stop applying NVIDIA kernel and module state through legacy shell on managed hosts and eventually delete or archive the legacy reference copy |
-| AMD GPU kernel, module, polkit, and service state | `scripts/install/system-config.sh`, `hosts/dragon/etc/**`, `hosts/firedragon/etc/**`                                                                   | `infra/ansible/roles/amd_gpu/*`, `infra/ansible/roles/amd_gpu/files/hosts/{dragon,firedragon}/**`                   | partial overlap  | Ansible `amd_gpu` role                                                                     | stop applying AMD state through legacy shell on managed hosts and eventually delete or archive the legacy reference copy                      |
+| NVIDIA kernel and module state                    | `scripts/install/system-config.sh`, `hosts/goldendragon/etc/modprobe.d/*`                                                                              | `infra/ansible/roles/nvidia/*`                                                                                      | partial overlap  | Ansible `nvidia` role                                                                      | keep host tree as payload source, not runtime writer                                                                                          |
+| AMD GPU kernel, module, polkit, and service state | `scripts/install/system-config.sh`, `hosts/dragon/etc/**`, `hosts/firedragon/etc/**`                                                                   | `infra/ansible/roles/amd_gpu/*`                                                                                     | partial overlap  | Ansible `amd_gpu` role                                                                     | keep host tree as payload source, not runtime writer                                                                                          |
+| Intel GPU kernel and module state                 | `scripts/install/system-config.sh`                                                                                                                     | `infra/ansible/roles/intel_gpu/*`                                                                                   | resolved         | Ansible `intel_gpu` role                                                                   | validate on goldendragon hardware                                                                                                             |
 | laptop power policy                               | `scripts/install/setup/power-management.sh`, host TLP config under `hosts/*/etc/tlp.d/*`                                                               | `infra/ansible/roles/tlp/*`, `infra/ansible/roles/tlp/files/hosts/*`                                                | partial overlap  | Ansible `tlp` role                                                                         | retire shell-side service toggles for managed hosts and eventually delete or archive the legacy reference copy                                |
 | resolved DNS drop-ins                             | `hosts/<host>/etc/systemd/resolved.conf.d/dns.conf`                                                                                                    | `infra/ansible/roles/resolved/*`, `infra/ansible/roles/resolved/files/hosts/*`                                      | partial overlap  | Ansible `resolved` role                                                                    | stop treating host `etc/` as a live source for this role and eventually delete or archive the legacy reference copy                           |
 | OpenFortiVPN units and helper                     | `hosts/goldendragon/etc/systemd/system/openfortivpn*.service`, `hosts/goldendragon/dotfiles/.local/bin/avular-vpn-dns`                                 | `infra/ansible/roles/openfortivpn/*`, `infra/ansible/roles/openfortivpn/files/hosts/goldendragon/*`                 | partial overlap  | Ansible `openfortivpn` role                                                                | stop treating host files as a live source and eventually delete or archive the legacy reference copy                                          |
@@ -194,7 +205,7 @@ These should now be treated as policy:
 - Ansible is the canonical owner of `/etc`.
 - Ansible is the canonical owner of system services and service enablement.
 - chezmoi is the canonical owner of static user-state under `$HOME`.
-- legacy host trees under `hosts/<host>/etc/` and `hosts/<host>/dotfiles/` are reference material until their contents are absorbed into roles or manifests.
+- host trees under `hosts/<host>/etc/` and `hosts/<host>/dotfiles/` are canonical payload sources when referenced by Ansible roles or chezmoi manifests; they are not runtime writers.
 - host setup scripts are not the long-term runtime owner of any feature that already has an Ansible role or chezmoi manifest.
 
 ### Canonical-owner decisions that still need explicit resolution
@@ -209,13 +220,13 @@ These still need a hard decision before the repo can claim a full pivot:
 
 ## Pivot plan to reach 100% ownership clarity
 
-The repo is not fully pivoted when new roles merely copy from legacy host trees.
+The repo is not fully pivoted while unreferenced legacy host-tree payloads or shell writers remain ambiguous.
 
 The repo is fully pivoted only when:
 
 1. a concern has one canonical runtime owner
-2. the implementation source also lives under that owner's control plane
-3. the legacy host path is demoted to reference-only or deleted
+2. the implementation source lives under that owner's declared payload model (`infra/ansible`, `infra/chezmoi`, or an explicitly referenced `hosts/<host>` payload)
+3. unreferenced legacy host paths are demoted to reference-only or deleted
 4. parity validation proves the new owner without calling the legacy path
 
 No real-host validation or bringup is allowed before that standard is met for the relevant host and its required capabilities.
