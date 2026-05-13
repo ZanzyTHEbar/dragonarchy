@@ -168,20 +168,36 @@ apply_user_state() {
 
     local chezmoi_source="${HOME}/.local/share/chezmoi"
 
-    # Sync manifest-declared dotfiles into chezmoi source
-    log_info "Syncing dotfiles from repo to chezmoi source..."
-    "${REPO_ROOT}/infra/chezmoi/bin/chezmoi-sync" --host "${HOST_NAME}" --source-dir "${chezmoi_source}"
-
-    # Apply chezmoi state
     if [[ "${DRY_RUN}" == "true" ]]; then
-        log_info "Previewing chezmoi changes..."
-        chezmoi diff || true
+        (
+            local dry_run_source
+            dry_run_source="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-chezmoi-dry-run.XXXXXX")"
+            trap 'rm -rf "${dry_run_source}"' EXIT
+
+            # Dry-run sync must not mutate the user's real chezmoi source tree.
+            if [[ -d "${chezmoi_source}" ]]; then
+                log_info "Copying existing chezmoi source to temporary dry-run source..."
+                cp -a "${chezmoi_source}/." "${dry_run_source}/"
+            else
+                log_info "No existing chezmoi source found; using empty temporary dry-run source..."
+            fi
+
+            log_info "Syncing dotfiles from repo to temporary chezmoi source..."
+            "${REPO_ROOT}/infra/chezmoi/bin/chezmoi-sync" --host "${HOST_NAME}" --source-dir "${dry_run_source}"
+
+            log_info "Previewing chezmoi changes..."
+            chezmoi --source "${dry_run_source}" diff || true
+        )
+        log_success "User state previewed"
     else
+        # Sync manifest-declared dotfiles into chezmoi source
+        log_info "Syncing dotfiles from repo to chezmoi source..."
+        "${REPO_ROOT}/infra/chezmoi/bin/chezmoi-sync" --host "${HOST_NAME}" --source-dir "${chezmoi_source}"
+
         log_info "Applying chezmoi state..."
         chezmoi apply
+        log_success "User state applied"
     fi
-
-    log_success "User state applied"
 }
 
 # ---------------------------------------------------------------------------

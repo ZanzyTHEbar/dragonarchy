@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 
 # Main Setup Script for Traditional Dotfiles Management
+#
+# DEPRECATED: managed hosts now use ./install (Ansible + chezmoi).
+# This legacy GNU Stow/bash installer is retained only for historical recovery
+# and unmanaged profiles. Set DOTFILES_LEGACY_INSTALL=1 to run it deliberately
+# against a managed inventory host.
 
 set -euo pipefail
 
@@ -29,6 +34,8 @@ CONFIG_DIR="$SCRIPT_DIR"
 PACKAGES_DIR="$CONFIG_DIR/packages"
 SCRIPTS_DIR="$CONFIG_DIR/scripts"
 HOSTS_DIR="$CONFIG_DIR/hosts"
+ANSIBLE_HOST_VARS_DIR="$CONFIG_DIR/infra/ansible/inventory/host_vars"
+ANSIBLE_INVENTORY="$CONFIG_DIR/infra/ansible/inventory/hosts.yml"
 
 # Default options
 INSTALL_PACKAGES=true
@@ -65,6 +72,11 @@ Usage: $0 [OPTIONS]
 
 Traditional Dotfiles Management Setup Script
 
+DEPRECATED for managed hosts. Use ./install --host <host> instead.
+
+To force this legacy installer for a managed inventory host, set:
+    DOTFILES_LEGACY_INSTALL=1
+
 OPTIONS:
     -h, --help              Show this help message
     -v, --verbose           Enable verbose output
@@ -94,18 +106,46 @@ OPTIONS:
     --vendor-creative       Enable official vendor installers for opt-in creative apps
 
 EXAMPLES:
-    $0                      # Complete setup for current machine
-    $0 --fresh              # Fresh machine setup (purge conflicting dotfiles before stow)
-    $0 --host dragon        # Setup for specific host
-    $0 --packages-only      # Only install packages
-    $0 --dotfiles-only      # Only setup dotfiles
-    $0 --no-secrets         # Skip secrets setup
-    $0 --headless           # Terminal-only install (defaults to minimal bundle)
-    $0 --bundle minimal     # CLI-only package bundle
-    $0 --sddm-theme sugar-dark  # Set a specific SDDM theme
-    $0 --reset              # Clear state and force full re-run
+    ./install --host dragon             # Managed-host setup (canonical)
+    DOTFILES_LEGACY_INSTALL=1 $0 --host headless --headless
+    DOTFILES_LEGACY_INSTALL=1 $0 --packages-only
+    DOTFILES_LEGACY_INSTALL=1 $0 --dotfiles-only
+    DOTFILES_LEGACY_INSTALL=1 $0 --no-secrets
+    DOTFILES_LEGACY_INSTALL=1 $0 --bundle minimal
+    DOTFILES_LEGACY_INSTALL=1 $0 --reset
 
 EOF
+}
+
+guard_managed_host_legacy_install() {
+    local target_host="${HOST}"
+
+    if [[ -z "${target_host}" ]]; then
+        target_host="$(hostname -s)"
+    fi
+
+    if [[ "${DOTFILES_LEGACY_INSTALL:-}" == "1" ]]; then
+        log_warning "DOTFILES_LEGACY_INSTALL=1 set; running deprecated legacy installer for '${target_host}'."
+        return 0
+    fi
+
+    local is_managed_host=false
+    if [[ -f "${ANSIBLE_HOST_VARS_DIR}/${target_host}.yml" ]]; then
+        is_managed_host=true
+    elif command -v ansible-inventory >/dev/null 2>&1 && [[ -f "${ANSIBLE_INVENTORY}" ]]; then
+        if ansible-inventory -i "${ANSIBLE_INVENTORY}" --host "${target_host}" >/dev/null 2>&1; then
+            is_managed_host=true
+        fi
+    fi
+
+    if [[ "${is_managed_host}" == "true" ]]; then
+        log_error "Legacy ./install.sh is disabled for managed host '${target_host}'."
+        log_info "Use the declarative entrypoint instead:"
+        log_info "  ./install --host ${target_host}"
+        log_info "If you intentionally need the deprecated legacy path, rerun with:"
+        log_info "  DOTFILES_LEGACY_INSTALL=1 ./install.sh --host ${target_host}"
+        exit 1
+    fi
 }
 
 # Parse command line arguments
@@ -1212,12 +1252,13 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Parse arguments
     parse_args "$@"
-    
+    guard_managed_host_legacy_install
+
     # Enable verbose mode if requested
     if [[ "$VERBOSE" == "true" ]]; then
         set -x
     fi
-    
+
     # Run main function
     main "$@"
 fi
