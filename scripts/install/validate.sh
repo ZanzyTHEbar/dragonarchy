@@ -313,8 +313,8 @@ check_git_config() {
     
     # Check Git user configuration
     local git_user_name git_user_email
-    git_user_name=$(git config --global user.name 2>/dev/null || echo "")
-    git_user_email=$(git config --global user.email 2>/dev/null || echo "")
+    git_user_name=$(git config --global --includes user.name 2>/dev/null || echo "")
+    git_user_email=$(git config --global --includes user.email 2>/dev/null || echo "")
     
     if [[ -n "$git_user_name" ]]; then
         check_pass "Git user.name is set: $git_user_name"
