@@ -8,4 +8,5 @@ optional|hosts/__HOST__/dotfiles/.local/bin/fprintd-watchdog|dot_local/bin/fprin
 optional|hosts/__HOST__/dotfiles/.config/systemd/user/fprintd-watchdog.service|dot_config/systemd/user/fprintd-watchdog.service
 optional|hosts/__HOST__/dotfiles/.config/systemd/user/fprintd-watchdog.timer|dot_config/systemd/user/fprintd-watchdog.timer
 exclude||dot_config/clipse/theme.toml
+exclude||dot_config/clipse/clipboard_history.json
 exclude||dot_config/swaync/style.css

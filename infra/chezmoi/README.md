@@ -56,5 +56,6 @@ These paths are owned by the theme manager / runtime and are excluded from chezm
 
 - `swaync/style.css`
 - `clipse/theme.toml`
+- `clipse/clipboard_history.json`
 
 See `docs/architecture/theme-manager-contract.md` for the full ownership matrix.
