@@ -6,7 +6,7 @@
   "compaction": {
     "auto": true,
     "prune": true,
-    "reserved": 10000
+    "reserved": 20000
   },
   "watcher": {
     "ignore": ["node_modules/**", "dist/**", ".git/**", "build/**"]
