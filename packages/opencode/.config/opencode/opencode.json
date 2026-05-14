@@ -35,36 +35,38 @@
     },
     "actualbudget": {
       "type": "remote",
-      "url": "http://192.168.0.157:3000/http",
+      "url": "https://mcp.zacariahheim.com/actualbudget/mcp",
+      "oauth": {
+        "clientId": "019e26d1-cebd-7178-bb61-b2ad4a657f76",
+        "scope": "mcp:actualbudget"
+      },
       "enabled": true
     },
     "mealie": {
       "type": "remote",
-      "url": "http://192.168.0.157:3031/mcp",
+      "url": "https://mcp.zacariahheim.com/mealie/mcp",
+      "oauth": {
+        "clientId": "019e26d1-cebd-7178-bb61-b2ad4a657f76",
+        "scope": "mcp:mealie"
+      },
       "enabled": true
     },
-    "allpepper-memory-bank": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@allpepper/memory-bank-mcp"
-      ],
-      "environment": {
-        "MEMORY_BANK_ROOT": "{env:MEMORY_BANK_ROOT}"
+    "memory": {
+      "type": "remote",
+      "url": "https://mcp.zacariahheim.com/memory/mcp",
+      "oauth": {
+        "clientId": "019e26d1-cebd-7178-bb61-b2ad4a657f76",
+        "scope": "mcp:memory"
       },
       "enabled": true,
       "timeout": 20000
     },
     "saga": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "saga-mcp"
-      ],
-      "environment": {
-        "DB_PATH": "{env:HOME}/.local/share/opencode/saga-tasks.db"
+      "type": "remote",
+      "url": "https://mcp.zacariahheim.com/saga/mcp",
+      "oauth": {
+        "clientId": "019e26d1-cebd-7178-bb61-b2ad4a657f76",
+        "scope": "mcp:saga"
       },
       "enabled": true,
       "timeout": 20000
