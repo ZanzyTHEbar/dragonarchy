@@ -37,7 +37,7 @@
       "type": "remote",
       "url": "https://mcp.zacariahheim.com/actualbudget/mcp",
       "oauth": {
-        "clientId": "019e26d1-cebd-7178-bb61-b2ad4a657f76",
+        "clientId": "019e2843-e98d-7583-9b8d-b71a78abe7ea",
         "scope": "mcp:actualbudget"
       },
       "enabled": true
@@ -46,7 +46,7 @@
       "type": "remote",
       "url": "https://mcp.zacariahheim.com/mealie/mcp",
       "oauth": {
-        "clientId": "019e26d1-cebd-7178-bb61-b2ad4a657f76",
+        "clientId": "019e2843-e98d-7583-9b8d-b71a78abe7ea",
         "scope": "mcp:mealie"
       },
       "enabled": true
@@ -55,7 +55,7 @@
       "type": "remote",
       "url": "https://mcp.zacariahheim.com/memory/mcp",
       "oauth": {
-        "clientId": "019e26d1-cebd-7178-bb61-b2ad4a657f76",
+        "clientId": "019e2843-e98d-7583-9b8d-b71a78abe7ea",
         "scope": "mcp:memory"
       },
       "enabled": true,
@@ -65,7 +65,7 @@
       "type": "remote",
       "url": "https://mcp.zacariahheim.com/saga/mcp",
       "oauth": {
-        "clientId": "019e26d1-cebd-7178-bb61-b2ad4a657f76",
+        "clientId": "019e2843-e98d-7583-9b8d-b71a78abe7ea",
         "scope": "mcp:saga"
       },
       "enabled": true,
