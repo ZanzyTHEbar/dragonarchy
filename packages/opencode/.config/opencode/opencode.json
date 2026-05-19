@@ -14,10 +14,10 @@
   "lsp": true,
   "autoupdate": false,
   "experimental": {
-	"disable_paste_summary": true,
-	"chat": { "messages": { "transform": true } }
+    "disable_paste_summary": true
   },
   "instructions": [
+    "./AGENTS.md",
     "./rules/general/memory-bank.mdc",
     "./rules/general/task-authority-boundaries.mdc"
   ],
@@ -51,12 +51,12 @@
       },
       "enabled": true
     },
-    "memory": {
+    "allpepper-memory-bank": {
       "type": "remote",
-      "url": "https://mcp.zacariahheim.com/memory/mcp",
+      "url": "https://mcp.zacariahheim.com/allpepper-memory-bank/mcp",
       "oauth": {
-        "clientId": "019e2843-e98d-7583-9b8d-b71a78abe7ea",
-        "scope": "mcp:memory"
+        "clientId": "019e36cb-31cf-7ebf-99ba-0ca0ccc399db",
+        "scope": "mcp:allpepper-memory-bank"
       },
       "enabled": true,
       "timeout": 20000

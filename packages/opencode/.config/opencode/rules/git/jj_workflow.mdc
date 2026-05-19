@@ -1,0 +1,31 @@
+---
+keywords:
+  - jj
+  - jujutsu
+  - jujutsu vcs
+  - stacked commits
+  - split commit
+  - squash commit
+match: any
+---
+
+# jj-First Workflow
+
+Prefer `jj` for local version-control work when the repository supports it.
+
+## Local Inspection
+
+- Use `jj status`, `jj diff`, `jj log`, and `jj show` for local status, diffs, and history when `.jj` exists or `jj` works in the repo.
+- Fall back to `git status`, `git diff`, and `git log` when `jj` is unavailable or the repo is not a Jujutsu workspace.
+
+## Change Construction
+
+- Use `jj describe` for commit descriptions when committing through Jujutsu.
+- Use `jj new`, `jj split`, and `jj squash` to keep causal units atomic when safe.
+- Do not rewrite, split, squash, reorder, or abandon user-created changes without explicit approval.
+
+## Stacks And GitHub
+
+- Use Jujutsu to maintain small linear stacks locally.
+- Use `git` and `gh` for GitHub, remotes, and PR creation because GitHub is git-based.
+- Before push or PR, inspect the git-compatible state and ensure only intended changes are included.
