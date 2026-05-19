@@ -1,125 +1,155 @@
 ---
 name: ship
-description: Use when the user wants to commit, push, and open a pull request for the current changes. Stages relevant files, writes a descriptive commit message, pushes the branch, opens a PR against main, and posts an /oc review comment so opencode automatically reviews and approves if ready.
+description: Use when the user explicitly wants to commit, push, and open a pull request for current changes. Enforces atomic staging, Conventional Commits, validation, safe push, PR deduplication, and opencode review trigger.
 ---
 
 # Ship
 
-Commits staged changes, pushes the branch, opens a PR, and triggers an automated opencode review.
-
-## When to Use This Skill
-
-Invoke this skill when the user says things like:
-- "ship it"
-- "commit push pr"
-- "ship this"
-- "create a pr"
-- "push and open a pr"
-- "commit and ship"
+Commit the intended changes, push the branch, open or reuse a PR, and trigger an opencode review. Use only on an explicit user request such as "ship it", "commit push pr", "create a PR", or "commit and ship".
 
 ## Workflow
 
-Follow these steps **in order**, stopping and reporting any errors immediately.
+Stop and report immediately on any blocker, failed validation, auth problem, conflict, or unexpected unrelated staged change.
 
-### Step 1 — Sanity checks
+### 1. Inspect State
 
-Run these in parallel:
+Prefer `jj` for local inspection when available in the repo:
+
+```bash
+jj status
+jj diff
+jj log -r 'latest(ancestors(@), 10)'
+```
+
+Also inspect git-compatible state before committing or pushing:
+
 ```bash
 git status
 git diff
-git log --oneline -5
+git diff --staged
+git log --oneline -10
 git remote -v
 ```
 
-Use the output to understand: what branch we're on, what's changed, what the recent commit style looks like, and what the remote is.
+Use this to identify the branch/bookmark, changed files, recent message style, remote, and any unrelated user changes.
 
-### Step 2 — Fetch and rebase
+### 2. Validate Before Commit
 
-```bash
-git fetch origin
-git rebase origin/main
-```
+Run targeted tests for the changed area first. If project lint/build/test commands are discoverable, run the relevant broader checks before committing.
 
-If there are conflicts, resolve them (keeping both sides where appropriate), then continue the rebase. Do NOT skip this step.
+Abort on failure unless the user explicitly asks to ship despite known failures. Report exact commands and results.
 
-### Step 3 — Stage files
+### 3. Stage Atomic Changes
 
-Stage all changed/new files that are relevant to the work. Explicitly exclude:
-- `.DS_Store`
-- `*.db`, `*.db-shm`, `*.db-wal`
-- Any file that looks like it contains secrets (`.env`, `credentials.*`, etc.)
-- Prototype/demo directories unless they are part of the deliverable
+Stage only files that belong to one reviewable causal unit. Exclude secrets, `.env`, credentials, databases, generated noise, and unrelated work.
+
+Use `jj split` or `jj squash` for atomic local change construction when safe and appropriate. Do not rewrite user-created history without explicit approval.
+
+Verify staging:
 
 ```bash
-git add <relevant files>
-git status   # verify staging looks right
+git status
+git diff --staged
 ```
 
-### Step 4 — Commit
+### 4. Commit
 
-Write a commit message that:
-- Uses the imperative mood (`feat:`, `fix:`, `ci:`, `docs:`, `refactor:`)
-- First line ≤ 72 characters summarising the **why**, not the what
-- Body bullet points for non-obvious details (optional but preferred for large changes)
-- Matches the style of recent commits in `git log`
+Use a Conventional Commit message:
+
+```text
+<type>[optional scope]: <imperative summary>
+```
+
+Prefer <= 50 characters for the subject, hard max 72 unless the repo style differs. Add a body only when the why, risk, or migration detail is not obvious.
+
+Commit with the repository's active workflow (`jj describe`/`jj git export` or `git commit`) as appropriate. Record the resulting git-compatible commit hash before reporting.
+
+### 5. Prepare Push
+
+Derive the repo and default branch dynamically:
 
 ```bash
-git commit -m "<message>"
+SLUG=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+BASE=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
+BRANCH=$(git branch --show-current)
+REMOTE=$(git config "branch.$BRANCH.remote" 2>/dev/null || true)
 ```
 
-### Step 5 — Push
+If `BRANCH` is empty, stop and inspect the active `jj` bookmark or detached git state before pushing. Do not guess a branch name.
 
-If the branch has no upstream yet:
+If `REMOTE` is empty, derive it from `git remote -v` and `SLUG`. If exactly one remote points at the GitHub repo, use it. If none or multiple match, stop and ask which remote to push.
+
+Fetch remote state before pushing:
+
 ```bash
-git push -u origin <branch>
+git fetch "$REMOTE"
 ```
 
-Otherwise:
+Do not force-push. If the branch needs a history rewrite, stop and ask for explicit approval.
+
+Push with upstream if needed:
+
+```bash
+git push -u "$REMOTE" "$BRANCH"
+```
+
+or, if upstream already exists:
+
 ```bash
 git push
 ```
 
-### Step 6 — Open PR
+### 6. Open Or Reuse PR
 
-Use the `gh` CLI to create a PR targeting `main`:
+Deduplicate by branch first:
 
 ```bash
-gh pr create \
-  --title "<concise title matching commit subject>" \
-  --body "$(cat <<'EOF'
+EXISTING_PR=$(gh pr list --repo "$SLUG" --head "$BRANCH" --state open --json url -q '.[0].url' 2>/dev/null || true)
+```
+
+If a PR exists, reuse it. Otherwise create a newline-safe body file and pass it with `-F`:
+
+```bash
+PR_BODY=$(mktemp)
+cat > "$PR_BODY" <<'EOF'
 ## Summary
 
-<2-4 bullet points describing what changed and why>
+- <what changed>
+- <why>
 
-## Notes
+## Validation
 
-<any reviewer context, migration steps, known limitations — omit section if none>
+- <commands and PASS/FAIL status>
+
+## Risks
+
+- <known limitations or none>
 EOF
-)" \
-  --base main
+gh pr create --repo "$SLUG" --base "$BASE" --head "$BRANCH" --title "<title>" -F "$PR_BODY"
 ```
 
-Capture the PR URL from the output.
+The PR body must include a short summary and validation commands/results.
 
-### Step 7 — Trigger opencode review
+### 7. Trigger Review
 
-Post the review comment on the PR so the opencode GitHub Action picks it up:
+Post a review request without asking for automatic approval:
 
 ```bash
-gh pr comment <PR number> --body "/oc please review this PR and approve if you find it ready to merge"
+gh pr comment <PR number-or-url> --body "/oc please review this PR"
 ```
 
-### Step 8 — Report back
+### 8. Report Back
 
-Tell the user:
-- The commit hash and message
-- The PR URL
-- That the opencode review has been triggered
+Report:
 
-## Rules
+- commit hash and message
+- PR URL
+- validation commands and PASS/FAIL status
+- whether opencode review was triggered
 
-- **Never force-push** to `main` or `master`
-- **Never commit** `.env`, secrets, or credential files — warn the user if they're staged
-- **Always rebase** onto `origin/main` before pushing to minimise conflicts
-- If `gh` is not authenticated, tell the user to run `gh auth login` first
-- If the build/tests are known to exist (e.g. `go build ./...`, `npm test`), run them before committing and abort if they fail
+## Safety Rules
+
+- Never commit secrets, credentials, token files, databases, or unrelated work.
+- Never force-push, rewrite public history, or amend user work without explicit approval.
+- Do not assume `origin/main`; derive remote and base branch.
+- If `gh` is not authenticated, stop and tell the user the exact failing command.
