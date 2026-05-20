@@ -41,10 +41,11 @@ These rules are the canonical default workflow for every opencode agent. Skills,
 
 ## Version Control
 
-- Prefer `jj` for local status, diff, history inspection, commit construction, splitting, and stack management when available for the repo.
-- Use `git` for GitHub, remote compatibility, and repositories where `jj` is unavailable.
+- Prefer `jj` for local status, diff, history inspection, commit construction, splitting, rebasing, undo, conflict handling, and stack management when available for the repo.
+- Treat Jujutsu changes as the preferred local unit of work and Git branches/bookmarks as the GitHub compatibility layer.
+- Use `git` for GitHub, remote compatibility, CI integration, and repositories where `jj` is unavailable.
 - Before commit, inspect status and diff, stage only intended files, and avoid unrelated changes.
 - Commits must be atomic: one reviewable causal unit. Keep tests, implementation, and docs for the same behavior change together; split unrelated changes.
 - Commit messages must use Conventional Commits: `<type>[optional scope]: <imperative summary>`.
-- Prefer small stacked commits and PRs for broad work. Each stack layer should build, test, and explain its dependency on the previous layer.
+- Prefer small stacked commits and PRs for broad work. Each stack layer should build, test, and explain its dependency on the previous layer. Use `jj` locally and a detected companion CLI such as `jjpr`, `jj-spr`, or `jj-stack` for GitHub stacked PR automation when available.
 - Never force-push, amend, squash, split, reorder, or rewrite user/public history without explicit approval.

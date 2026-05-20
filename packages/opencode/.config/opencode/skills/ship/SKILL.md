@@ -13,7 +13,7 @@ Stop and report immediately on any blocker, failed validation, auth problem, con
 
 ### 1. Inspect State
 
-Prefer `jj` for local inspection when available in the repo:
+Prefer `jj` for local inspection when available in the repo. If `.jj` is missing but the user explicitly wants a jj stacked workflow, propose `jj git init --colocate`; do not run it without approval.
 
 ```bash
 jj status
@@ -33,6 +33,12 @@ git remote -v
 
 Use this to identify the branch/bookmark, changed files, recent message style, remote, and any unrelated user changes.
 
+Detect stacked PR tooling before choosing the PR path:
+
+```bash
+command -v jjpr || command -v jj-spr || command -v jj-stack || true
+```
+
 ### 2. Validate Before Commit
 
 Run targeted tests for the changed area first. If project lint/build/test commands are discoverable, run the relevant broader checks before committing.
@@ -43,7 +49,7 @@ Abort on failure unless the user explicitly asks to ship despite known failures.
 
 Stage only files that belong to one reviewable causal unit. Exclude secrets, `.env`, credentials, databases, generated noise, and unrelated work.
 
-Use `jj split` or `jj squash` for atomic local change construction when safe and appropriate. Do not rewrite user-created history without explicit approval.
+Use `jj new`, `jj split`, `jj squash`, or `jj rebase` for atomic local stack construction when safe and appropriate. Do not rewrite user-created history without explicit approval.
 
 Verify staging:
 
@@ -62,7 +68,7 @@ Use a Conventional Commit message:
 
 Prefer <= 50 characters for the subject, hard max 72 unless the repo style differs. Add a body only when the why, risk, or migration detail is not obvious.
 
-Commit with the repository's active workflow (`jj describe`/`jj git export` or `git commit`) as appropriate. Record the resulting git-compatible commit hash before reporting.
+Commit with the repository's active workflow (`jj describe` plus bookmark/export, companion stacked-PR tool, or `git commit`) as appropriate. Record the resulting git-compatible commit hash before reporting.
 
 ### 5. Prepare Push
 
@@ -100,6 +106,8 @@ git push
 ```
 
 ### 6. Open Or Reuse PR
+
+If this is a stacked PR workflow and a companion CLI is available, prefer the repo-documented tool. Otherwise use this detection order: `jjpr`, then `jj-spr`, then `jj-stack`. Use dry-run/preview mode first when the tool supports it. If no companion CLI is available, fall back to explicit `gh` PR creation below and report that stacked PR automation was unavailable.
 
 Deduplicate by branch first:
 
