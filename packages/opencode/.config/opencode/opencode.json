@@ -37,7 +37,6 @@
       "type": "remote",
       "url": "https://mcp.zacariahheim.com/actualbudget/mcp",
       "oauth": {
-        "clientId": "019e2843-e98d-7583-9b8d-b71a78abe7ea",
         "scope": "mcp:actualbudget"
       },
       "enabled": true
@@ -46,16 +45,23 @@
       "type": "remote",
       "url": "https://mcp.zacariahheim.com/mealie/mcp",
       "oauth": {
-        "clientId": "019e2843-e98d-7583-9b8d-b71a78abe7ea",
         "scope": "mcp:mealie"
       },
       "enabled": true
+    },
+    "memory-kg": {
+      "type": "remote",
+      "url": "https://mcp.zacariahheim.com/memory/mcp",
+      "oauth": {
+        "scope": "mcp:memory"
+      },
+      "enabled": true,
+      "timeout": 20000
     },
     "allpepper-memory-bank": {
       "type": "remote",
       "url": "https://mcp.zacariahheim.com/allpepper-memory-bank/mcp",
       "oauth": {
-        "clientId": "019e36cb-31cf-7ebf-99ba-0ca0ccc399db",
         "scope": "mcp:allpepper-memory-bank"
       },
       "enabled": true,
@@ -65,8 +71,16 @@
       "type": "remote",
       "url": "https://mcp.zacariahheim.com/saga/mcp",
       "oauth": {
-        "clientId": "019e2843-e98d-7583-9b8d-b71a78abe7ea",
         "scope": "mcp:saga"
+      },
+      "enabled": true,
+      "timeout": 20000
+    },
+    "penpot": {
+      "type": "remote",
+      "url": "https://mcp.zacariahheim.com/penpot/mcp",
+      "oauth": {
+        "scope": "mcp:penpot"
       },
       "enabled": true,
       "timeout": 20000
