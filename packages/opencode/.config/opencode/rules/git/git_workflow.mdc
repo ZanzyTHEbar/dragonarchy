@@ -30,6 +30,8 @@ Use this rule for local version-control hygiene. Use `github_issues_prs.mdc` for
 ## Stacks
 
 - Prefer a small stack of reviewable commits/PRs over one broad change.
+- Prefer `jj` for local stack construction because changes, rebases, conflict recovery, and undo are first-class.
+- Use companion tools such as `jjpr`, `jj-spr`, or `jj-stack` for GitHub stacked PR automation when available; otherwise fall back to explicit `git`/`gh` operations.
 - Each stack layer should build, test, and explain its dependency on the previous layer.
 - Before opening or updating a PR, verify the git-compatible state because GitHub is git-based.
 
