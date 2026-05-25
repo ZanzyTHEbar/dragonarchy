@@ -1,0 +1,13 @@
+---
+keywords:
+  - typescript
+  - exhaustive switch
+  - discriminated union
+  - enum switch
+  - never check
+match: any
+---
+
+# TypeScript exhaustive switch
+
+In switch statements over TypeScript discriminated unions or enums, use a `never` check in the default case so newly added variants cause compile-time failures until handled.

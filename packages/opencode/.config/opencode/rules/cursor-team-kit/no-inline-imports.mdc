@@ -1,0 +1,15 @@
+---
+keywords:
+  - inline import
+  - inline imports
+  - imports
+  - import in function
+  - top-level imports
+match: any
+---
+
+# No inline imports
+
+Prefer static imports at the top of the module. Avoid inline static imports in function bodies, type annotations, or interface fields unless there is a strict circular-dependency reason and it is documented.
+
+Dynamic `import()` is allowed when it is the correct runtime mechanism for lazy loading, code splitting, optional dependencies, environment-gated modules, or plugin loading. Document the reason when it is not obvious from local context.

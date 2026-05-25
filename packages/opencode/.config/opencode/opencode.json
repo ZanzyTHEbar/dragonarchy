@@ -19,7 +19,9 @@
   "instructions": [
     "./AGENTS.md",
     "./rules/general/memory-bank.mdc",
-    "./rules/general/task-authority-boundaries.mdc"
+    "./rules/general/task-authority-boundaries.mdc",
+    "./rules/cursor-team-kit/no-inline-imports.mdc",
+    "./rules/cursor-team-kit/typescript-exhaustive-switch.mdc"
   ],
   "mcp": {
     "linear": {
@@ -84,10 +86,40 @@
       },
       "enabled": true,
       "timeout": 20000
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp@0.0.75"],
+      "enabled": true,
+      "timeout": 20000
+    },
+    "browser-use": {
+      "type": "local",
+      "command": ["uvx", "--from", "browser-use[cli]", "browser-use", "--mcp"],
+      "enabled": false,
+      "timeout": 60000
     }
   },
   "plugin": [
     "@tarquinen/opencode-dcp@beta",
     "opencode-rules@latest"
-  ]
+  ],
+  "permission": {
+    "read": "allow",
+    "edit": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "bash": "allow",
+    "task": "allow",
+    "external_directory": "allow",
+    "todowrite": "allow",
+    "question": "allow",
+    "webfetch": "allow",
+    "websearch": "allow",
+    "repo_clone": "allow",
+    "repo_overview": "allow",
+    "lsp": "allow",
+    "skill": "allow"
+  }
 }
