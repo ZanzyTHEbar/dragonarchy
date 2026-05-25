@@ -24,6 +24,7 @@ Use actual available agents:
 - `architect-designer`: architecture, integration patterns, data flow, or structural decisions are needed.
 - `implementation-specialist`: a bounded implementation task is clear and should follow existing patterns.
 - `test-automation-engineer`: TDD, regression coverage, test gaps, or validation execution is needed.
+- `visual-browser-qa`: browser automation, visual QA, screenshots, accessibility snapshots, Playwright MCP, browser-use MCP, CDP harnesses, or frontend preview verification is needed.
 - `review-worktree`: changed files need final review for correctness, regressions, missing tests, security, or maintainability.
 
 Handle trivial tasks directly. For moderate or complex work, delegate with precise context, constraints, expected output, and validation criteria.
