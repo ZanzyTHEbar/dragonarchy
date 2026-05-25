@@ -77,29 +77,31 @@ Use the Open Slide fixed `1920x1080` canvas rules. Keep one idea per page. Split
 
 Use Penpot MCP when the requested artifact needs a visual design canvas or collaborative design review.
 
+Official Penpot MCP is file-contextual. A Penpot design file must be open in the browser and connected through **File -> MCP Server -> Connect** before tools that inspect or mutate the file can work.
+
+Available official tools:
+
+- `high_level_overview`: read this first in a new Penpot MCP session.
+- `penpot_api_info`: inspect Penpot Plugin API types and members before writing code.
+- `execute_code`: run JavaScript in the connected Penpot plugin context.
+- `export_shape`: export the selected shape, a shape by ID, or the current page.
+
 Discovery flow:
 
-1. Use `penpot_list_teams` to find available teams if the target team is unknown.
-2. Use `penpot_list_projects` or `penpot_search_files` to locate the target project/file.
-3. Use `penpot_list_pages`, `penpot_get_page_shapes`, or `penpot_query_shapes` to inspect existing structure before modifying.
-4. Create snapshots with `penpot_create_file_snapshot` before substantial redesigns to preserve rollback points.
+1. Ask the user to open the target Penpot file/page and connect MCP if no plugin session is active.
+2. Call `high_level_overview` once per session.
+3. Use `penpot_api_info` to confirm the API members needed for the task.
+4. Use read-only `execute_code` first to inspect `penpot.root`, `penpot.currentPage`, selection, shape names, IDs, dimensions, colors, and text.
 
-Creation flow:
+Creation and update flow:
 
-1. Create a file with `penpot_create_file` when the user needs a new visual artifact.
-2. Create pages for variants or deliverables with `penpot_add_page`.
-3. Build layout with `penpot_create_frame`, `penpot_create_text`, `penpot_create_rectangle`, and `penpot_create_circle`.
-4. Use consistent positions, sizes, names, colors, type styles, and hierarchy.
-5. Use alignment/distribution tools for multi-shape layouts.
-6. Add comments with `penpot_create_comment_thread` when the design needs review notes or user decisions.
-7. Create a share link with `penpot_create_share_link` only when the user wants one.
+1. Describe the intended design change before executing substantial writes.
+2. Use small `execute_code` calls that operate on explicit shape IDs or the current selection.
+3. Prefer semantic names, consistent positions, and direct Penpot Plugin API calls over broad generated helper frameworks.
+4. Verify changes with a follow-up read-only `execute_code` query.
+5. Use `export_shape` for visual confirmation when appropriate.
 
-Update flow:
-
-1. Query existing shapes before bulk updates.
-2. Use `penpot_update_shape` for precise edits.
-3. Use `penpot_get_shape_properties` when changing an existing shape's visual language.
-4. Avoid deleting or replacing user-created design work unless explicitly requested.
+Official MCP no longer exposes the old direct `penpot_*` CRUD tools. Do not call `penpot_create_file`, `penpot_list_pages`, `penpot_query_shapes`, or similar legacy custom-server tools unless a separate server explicitly provides them.
 
 ## Content Brief Pattern
 

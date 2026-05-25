@@ -62,6 +62,21 @@ curl -fsS https://mcp.zacariahheim.com/.well-known/oauth-authorization-server
 curl -fsS https://mcp.zacariahheim.com/.well-known/oauth-protected-resource/mealie
 ```
 
+Penpot official MCP smoke after a Penpot cutover:
+
+```bash
+curl -fsS https://mcp.zacariahheim.com/.well-known/oauth-protected-resource/penpot
+curl -i -sS https://mcp.zacariahheim.com/penpot/mcp
+ssh -o BatchMode=yes cool-res 'docker run --rm --network coolify curlimages/curl:8.10.1 -fsS http://penpot-official-mcp-edge-proxy:3000/health'
+```
+
+Expected Penpot behavior:
+
+- Protected-resource metadata advertises resource `https://mcp.zacariahheim.com/penpot/mcp` and scope `mcp:penpot`.
+- Unauthenticated route returns `401` with the Penpot PRM URL.
+- Authenticated `tools/list` returns the official tools: `execute_code`, `high_level_overview`, `penpot_api_info`, and `export_shape`.
+- File-context calls require a Penpot file with File -> MCP Server -> Connect active in the browser.
+
 ## Dynamic Canary
 
 Use disposable service `e2e-smoke` and subject `e2e-smoke-sub` unless user specifies alternatives.
