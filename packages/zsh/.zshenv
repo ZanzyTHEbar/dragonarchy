@@ -42,3 +42,4 @@ export OPENCODE_EXPERIMENTAL_BASH_BACKGROUND=true     # Background / non-blockin
 export OPENCODE_EXPERIMENTAL_LSP_TOOL=true            # Model-facing LSP tool support
 export OPENCODE_EXPERIMENTAL_PLAN_MODE=true           # Enhanced plan mode behavior
 export OPENCODE_EXPERIMENTAL_FILEWATCHER=true         # Full directory file watching
+export OPENCODE_EXPERIMENTAL_NATIVE_LLM=false
