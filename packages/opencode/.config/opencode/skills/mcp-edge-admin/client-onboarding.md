@@ -9,6 +9,7 @@ Clients connect to per-service edge URLs, not tenant containers:
 | Mealie | `https://mcp.zacariahheim.com/mealie/mcp` | `mcp:mealie` | same as URL |
 | Actual | `https://mcp.zacariahheim.com/actualbudget/mcp` | `mcp:actualbudget` | same as URL |
 | Memory | `https://mcp.zacariahheim.com/memory/mcp` | `mcp:memory` | same as URL |
+| Penpot | `https://mcp.zacariahheim.com/penpot/mcp` | `mcp:penpot` | same as URL |
 
 Dynamic services follow:
 
@@ -81,6 +82,8 @@ Public-DCR variant, only when intentionally enabled on the edge:
 ```
 
 Headless/device behavior is client-owned. If opencode is running without a loopback browser and the edge advertises `urn:ietf:params:oauth:grant-type:device_code`, opencode should use the OAuth device authorization endpoint, display the verification URL/user code, and store tokens internally. The config remains the native `oauth` block above; do not paste device-flow access tokens into headers.
+
+Penpot-specific note: the DragonServer Penpot service uses Penpot's official MCP server behind MCP Edge. Clients still connect to `https://mcp.zacariahheim.com/penpot/mcp` with `mcp:penpot`, but design-file tools require the Penpot browser UI to have a file open and **File -> MCP Server -> Connect** active. The expected official tools are `high_level_overview`, `penpot_api_info`, `execute_code`, and `export_shape`.
 
 Operator-issued scoped tokens are not a static `headers` fallback for opencode. Use them only through a credential-managed plugin or local MCP bridge that keeps credentials outside config and environment:
 
