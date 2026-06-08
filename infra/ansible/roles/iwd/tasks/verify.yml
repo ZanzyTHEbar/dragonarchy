@@ -1,0 +1,27 @@
+---
+- name: Check iwd managed files
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+  loop: "{{ iwd_managed_paths }}"
+  register: iwd_installed_files
+
+- name: Assert iwd managed files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.pw_name == 'root'
+      - item.stat.gr_name == 'root'
+      - item.stat.mode == item.item.mode
+    fail_msg: "Expected iwd managed file {{ item.item.dest }} to exist."
+  loop: "{{ iwd_installed_files.results }}"
+
+- name: Gather service facts for iwd
+  ansible.builtin.service_facts:
+
+- name: Assert iwd service is enabled and running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[iwd_service_name] is defined
+      - ansible_facts.services[iwd_service_name].status == 'enabled'
+      - ansible_facts.services[iwd_service_name].state == 'running'
+    fail_msg: "Expected {{ iwd_service_name }} to be installed, enabled, and running."

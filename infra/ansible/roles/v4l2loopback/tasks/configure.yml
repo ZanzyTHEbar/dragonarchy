@@ -7,23 +7,13 @@
     group: root
     mode: "0755"
 
-- name: Find host-specific v4l2loopback modprobe configs
-  ansible.builtin.find:
-    paths: "{{ v4l2loopback_role_files_root }}/etc/modprobe.d"
-    patterns: "v4l2loopback.conf"
-    file_type: file
-  register: v4l2loopback_modprobe_files
-  failed_when: false
-
-- name: Install v4l2loopback modprobe configs
+- name: Install v4l2loopback modprobe config
   ansible.builtin.copy:
-    src: "{{ item.path }}"
-    dest: "/etc/modprobe.d/{{ item.path | basename }}"
+    src: "{{ v4l2loopback_role_files_root }}/etc/modprobe.d/v4l2loopback.conf"
+    dest: /etc/modprobe.d/v4l2loopback.conf
     owner: root
     group: root
     mode: "0644"
-  loop: "{{ v4l2loopback_modprobe_files.files }}"
-  notify: Reload systemd
 
 - name: Ensure modules-load directory exists
   ansible.builtin.file:
@@ -33,20 +23,10 @@
     group: root
     mode: "0755"
 
-- name: Find host-specific v4l2loopback modules-load configs
-  ansible.builtin.find:
-    paths: "{{ v4l2loopback_role_files_root }}/etc/modules-load.d"
-    patterns: "v4l2loopback.conf"
-    file_type: file
-  register: v4l2loopback_modules_load_files
-  failed_when: false
-
-- name: Install v4l2loopback modules-load configs
+- name: Install v4l2loopback modules-load config
   ansible.builtin.copy:
-    src: "{{ item.path }}"
-    dest: "/etc/modules-load.d/{{ item.path | basename }}"
+    src: "{{ v4l2loopback_role_files_root }}/etc/modules-load.d/v4l2loopback.conf"
+    dest: /etc/modules-load.d/v4l2loopback.conf
     owner: root
     group: root
     mode: "0644"
-  loop: "{{ v4l2loopback_modules_load_files.files }}"
-  notify: Reload systemd

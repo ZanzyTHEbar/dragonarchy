@@ -1,0 +1,31 @@
+---
+- name: Assert iwd metadata exists
+  ansible.builtin.assert:
+    that:
+      - iwd_enabled | bool
+      - host_capabilities is defined
+      - "'iwd' in host_capabilities"
+      - inventory_hostname in iwd_managed_paths_by_host
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the iwd contract.
+
+- name: Set iwd managed paths
+  ansible.builtin.set_fact:
+    iwd_managed_paths: "{{ iwd_managed_paths_by_host[inventory_hostname] }}"
+
+- name: Check iwd payload sources
+  ansible.builtin.stat:
+    path: "{{ item.src }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop: "{{ iwd_managed_paths }}"
+  register: iwd_source_files
+
+- name: Assert iwd payload sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing iwd payload source '{{ item.item.src }}'.
+  loop: "{{ iwd_source_files.results }}"

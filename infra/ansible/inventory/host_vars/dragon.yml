@@ -8,6 +8,8 @@ host_gpu_stack:
 host_capabilities:
   - aio-cooler
   - netbird
+  - v4l2loopback
+  - power_sleep
 
 # Overrides desktop group; AMD workstation packages live in deps.manifest.toml (host_dragon_workstation)
 host_profile_packages:

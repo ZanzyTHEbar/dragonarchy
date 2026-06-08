@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Reset fprintd and re-disable ACPI wakeup sources on suspend/resume.
-# Firmware resets ACPI wakeup states on resume, so we must re-apply after every wake.
+# Reset fprintd on suspend/resume.
 
 USB_DEVICE="3-3"
 USB_DEVICE_PATH="/sys/bus/usb/devices/${USB_DEVICE}"
@@ -19,11 +18,6 @@ case "${1}" in
     fi
     ;;
   post)
-    # Re-disable ACPI wakeup sources - firmware resets these on every resume
-    if [ -x /etc/acpi/disable-wakeup.sh ]; then
-      /etc/acpi/disable-wakeup.sh
-    fi
-
     # After resume: rebind USB device and start fprintd
     logger -t fprintd-reset "Rebinding USB fingerprint device after resume"
     sleep 2

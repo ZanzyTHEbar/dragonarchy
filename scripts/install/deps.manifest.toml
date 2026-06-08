@@ -70,6 +70,7 @@ packages = [
 requires_hosts = ["firedragon"]
 packages = [
     "asusctl",
+    "networkmanager",
     "powertop",
     "acpid",
     "acpi",
@@ -113,16 +114,22 @@ packages = ["nvidia-dkms", "nvidia-utils"]
 [platforms.arch.pacman.host_goldendragon_laptop]
 requires_hosts = ["goldendragon"]
 packages = [
+    "networkmanager",
     "powertop",
     "thermald",
     "lm_sensors",
     "acpid",
     "fwupd",
+    "iwd",
     "intel-media-driver",
     "libva-utils",
     "vulkan-intel",
     "intel-gpu-tools",
 ]
+
+[platforms.arch.paru.host_goldendragon_laptop]
+requires_hosts = ["goldendragon"]
+packages = ["v4l2loopback-dkms"]
 
 [platforms.arch.pacman.dev]
 packages = [
@@ -179,6 +186,10 @@ packages = [
     # Hardware control
     "liquidctl",
 ]
+
+[platforms.arch.paru.host_dragon_workstation]
+requires_hosts = ["dragon"]
+packages = ["v4l2loopback-dkms"]
 
 # Display/session package groups owned by Ansible roles but installed through
 # the manifest-backed packages role.

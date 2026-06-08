@@ -1,0 +1,9 @@
+---
+- name: Validate power_sleep role inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Configure systemd power and sleep files
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Validate systemd power and sleep files
+  ansible.builtin.import_tasks: verify.yml
