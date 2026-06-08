@@ -4,10 +4,23 @@
     that:
       - v4l2loopback_enabled | bool
       - host_platform_family is defined
-      - host_platform_family in v4l2loopback_packages_by_platform
-      - inventory_hostname in v4l2loopback_packages_by_platform[host_platform_family]
+      - host_platform_family in v4l2loopback_required_paru_packages_by_platform
+      - host_capabilities is defined
+      - "'v4l2loopback' in host_capabilities"
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the v4l2loopback contract.
+
+- name: Assert v4l2loopback package plan declares required AUR packages
+  ansible.builtin.assert:
+    that:
+      - packages_pending_paru is defined
+      - item in packages_pending_paru
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' requires '{{ item }}' for v4l2loopback, but the
+      manifest-backed package plan did not declare it in the pending paru tier.
+      Run through site.yml so the packages role resolves the plan, and keep the
+      package declared in scripts/install/deps.manifest.toml.
+  loop: "{{ v4l2loopback_required_paru_packages_by_platform[host_platform_family] }}"
 
 - name: Set v4l2loopback role-local host payload root
   ansible.builtin.set_fact:

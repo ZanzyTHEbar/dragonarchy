@@ -1,0 +1,71 @@
+---
+- name: Ensure ACPI wakeup parent directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: >-
+    {{
+      acpi_wakeup_managed_paths
+      | map(attribute='dest')
+      | map('dirname')
+      | union([acpi_wakeup_sleep_hook_path | dirname])
+      | unique
+      | list
+    }}
+
+- name: Install ACPI wakeup managed scripts
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop: >-
+    {{
+      acpi_wakeup_managed_paths
+      | rejectattr('dest', 'match', '^/etc/systemd/system/.*\.service$')
+      | list
+    }}
+
+- name: Install ACPI wakeup systemd unit files
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop: >-
+    {{
+      acpi_wakeup_managed_paths
+      | selectattr('dest', 'match', '^/etc/systemd/system/.*\.service$')
+      | list
+    }}
+  notify: Reload systemd
+
+- name: Install ACPI wakeup system-sleep hook
+  ansible.builtin.copy:
+    dest: "{{ acpi_wakeup_sleep_hook_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      case "${1:-}" in
+        post)
+          /etc/acpi/disable-wakeup.sh
+          ;;
+      esac
+
+- name: Apply ACPI wakeup unit updates before enabling
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable ACPI wakeup service
+  ansible.builtin.systemd_service:
+    name: "{{ acpi_wakeup_service_name }}"
+    enabled: true
+    state: started

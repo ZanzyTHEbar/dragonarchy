@@ -1,6 +1,7 @@
 ---
-- name: Install v4l2loopback packages (legacy override; default is manifest via packages role)
-  ansible.builtin.package:
-    name: "{{ v4l2loopback_packages_by_platform[host_platform_family][inventory_hostname] }}"
-    state: present
-  when: v4l2loopback_packages_by_platform[host_platform_family][inventory_hostname] | default([]) | length > 0
+- name: Report v4l2loopback AUR package ownership
+  ansible.builtin.debug:
+    msg: >-
+      v4l2loopback requires {{ v4l2loopback_required_paru_packages_by_platform[host_platform_family] | join(', ') }}.
+      The packages role declares these as pending paru-tier packages; install them
+      through the explicit AUR/package gate before live convergence.

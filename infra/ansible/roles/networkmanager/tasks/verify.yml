@@ -1,0 +1,27 @@
+---
+- name: Check NetworkManager managed files
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+  loop: "{{ networkmanager_managed_paths }}"
+  register: networkmanager_installed_files
+
+- name: Assert NetworkManager managed files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.pw_name == 'root'
+      - item.stat.gr_name == 'root'
+      - item.stat.mode == item.item.mode
+    fail_msg: "Expected NetworkManager managed file {{ item.item.dest }} to exist."
+  loop: "{{ networkmanager_installed_files.results }}"
+
+- name: Gather service facts for NetworkManager
+  ansible.builtin.service_facts:
+
+- name: Assert NetworkManager service is enabled and running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[networkmanager_service_name] is defined
+      - ansible_facts.services[networkmanager_service_name].status == 'enabled'
+      - ansible_facts.services[networkmanager_service_name].state == 'running'
+    fail_msg: "Expected {{ networkmanager_service_name }} to be installed, enabled, and running."
