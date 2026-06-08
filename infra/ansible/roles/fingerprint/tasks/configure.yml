@@ -45,6 +45,13 @@
     fingerprint_pam_excluded_targets: >-
       {{ fingerprint_pam_excluded_targets_by_display_manager[display_manager | default('none')] | default([]) }}
 
+- name: Remove existing PAM fingerprint policy variants
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: '^\s*auth\s+.*pam_fprintd\.so.*$'
+    state: absent
+  loop: "{{ fingerprint_pam_targets }}"
+
 - name: Ensure PAM fingerprint policy is present
   ansible.builtin.lineinfile:
     path: "{{ item }}"

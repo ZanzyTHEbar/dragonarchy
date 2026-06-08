@@ -59,6 +59,10 @@
     source "{{ nvidia_bootloader_helper_path }}"
     boot_append_kernel_params "{{ nvidia_kernel_params | join(' ') }}"
     boot_rebuild_if_changed
+    if [[ "$BOOT_PARAMS_CHANGED" == "true" ]]; then
+      echo "BOOT_PARAMS_CHANGED=true"
+    fi
   args:
     executable: /bin/bash
-  changed_when: false
+  register: nvidia_kernel_params_result
+  changed_when: "'BOOT_PARAMS_CHANGED=true' in nvidia_kernel_params_result.stdout"
