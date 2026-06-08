@@ -43,6 +43,7 @@ The current control plane contains:
 - `hyprland`
 - `fingerprint`
 - `nvidia`
+- `intel_gpu`
 - `amd_gpu`
 - `tlp`
 - `asus_laptop`
@@ -50,10 +51,29 @@ The current control plane contains:
 - `resolved`
 - `netbird`
 - `openfortivpn`
+- `aio-cooler`
+- `v4l2loopback`
+- `power_sleep`
+- `iwd`
+- `networkmanager`
+- `acpi_wakeup`
 
 ## Package ownership
 
 The `packages` role does not author package lists. It runs `scripts/install/export-package-plan.sh` against `scripts/install/deps.manifest.toml` using inventory (`host_profile_packages`, host name, features). Repo-native installs use `pacman`/`apt`; `paru` and `script` tiers are reported as pending. See `docs/architecture/package-manifest-contract.md`.
+
+## Service ownership
+
+Service enablement belongs to the role that owns the service contract. Roles must not recreate legacy `system-services.sh` behavior by enabling units opportunistically just because they are installed.
+
+Examples:
+
+- `iwd` owns `iwd.service` for hosts in the `iwd` group.
+- `networkmanager` owns `NetworkManager.service` for hosts in the `networkmanager` group.
+- `acpi_wakeup` owns `disable-acpi-wakeup.service` for hosts in the `acpi_wakeup` group.
+- `power_sleep` owns declared power-adjacent platform services such as `acpid.service` and `thermald.service` only when listed for a host.
+
+Roles that manage network service configuration must document whether config changes are applied immediately. `iwd` deliberately avoids automatic restarts because restarting Wi-Fi can drop remote convergence; apply its config changes with a controlled restart or reboot.
 
 ## Foundation role
 
