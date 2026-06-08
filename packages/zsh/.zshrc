@@ -114,3 +114,4 @@ unalias zi 2>/dev/null
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
+
