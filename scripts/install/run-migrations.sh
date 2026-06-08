@@ -208,13 +208,13 @@ list_migrations() {
             status="applied"
         fi
 
-        local deps=""
+        local deps_display=""
         while IFS= read -r dep; do
             [[ -z "$dep" ]] && continue
-            if [[ -n "$deps" ]]; then
-                deps+=", $dep"
+            if [[ -n "$deps_display" ]]; then
+                deps_display+=", $dep"
             else
-                deps="$dep"
+                deps_display="$dep"
             fi
         done < <(parse_dependencies "$f")
 
@@ -223,7 +223,7 @@ list_migrations() {
             rollback_indicator=" [rollback available]"
         fi
 
-        printf "%-50s %-10s %s%s\n" "$filename" "$status" "${deps:-none}" "$rollback_indicator"
+        printf "%-50s %-10s %s%s\n" "$filename" "$status" "${deps_display:-none}" "$rollback_indicator"
     done < <(find "$MIGRATIONS_DIR" -maxdepth 1 -type f -name "*.sh" ! -name "*.rollback.sh" -print | sort)
 }
 
@@ -262,13 +262,13 @@ dry_run_migrations() {
         log_info "[DRY RUN] Would run: $filename"
 
         # Show dependencies
-        local deps=""
+        local deps_display=""
         while IFS= read -r dep; do
             [[ -z "$dep" ]] && continue
-            deps+="  depends on: $dep"$'\n'
+            deps_display+="  depends on: $dep"$'\n'
         done < <(parse_dependencies "$file")
-        if [[ -n "$deps" ]]; then
-            printf '%s' "$deps"
+        if [[ -n "$deps_display" ]]; then
+            printf '%s' "$deps_display"
         fi
 
         # Show first comment block as description
@@ -323,6 +323,7 @@ rollback_migration() {
 
     log_step "Rolling back migration: $target_filename"
     chmod +x "$rollback_file"
+    # shellcheck disable=SC1090  # Migration rollback path is selected at runtime.
     source "$rollback_file"
 
     # Remove the completion marker
@@ -426,6 +427,7 @@ run_migrations() {
 
         log_info "Running migration: $filename"
         chmod +x "$file"
+        # shellcheck disable=SC1090  # Migration path is selected at runtime.
         source "$file"
         mark_step_completed "$step_id"
         record_history "applied" "$filename"

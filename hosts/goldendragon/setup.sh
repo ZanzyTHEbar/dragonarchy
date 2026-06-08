@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1090,SC1091,SC2317,SC2329
 #
 # GoldenDragon Host-Specific Setup
 # Lenovo ThinkPad P16s Gen 4 (Intel) - Type 21QV/21QW

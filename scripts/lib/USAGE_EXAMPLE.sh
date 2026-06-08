@@ -18,6 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # - If your script is in scripts/subdir/: source "${SCRIPT_DIR}/../lib/logging.sh"
 # - If your script is in root/: source "${SCRIPT_DIR}/scripts/lib/logging.sh"
 
+# shellcheck source=scripts/lib/logging.sh
 source "${SCRIPT_DIR}/logging.sh"  # Adjust this path as needed!
 
 # Now you can use all the logging functions!
@@ -36,4 +37,3 @@ main() {
 }
 
 main "$@"
-
