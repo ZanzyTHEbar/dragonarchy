@@ -1,292 +1,105 @@
 # Host-Specific Configurations
 
-This directory contains host-specific configurations for different machines in the dotfiles repository.
+This directory contains host-specific source payloads and legacy reference material for machines modeled by the dotfiles repository.
+
+## Runtime Source Of Truth
+
+Managed hosts are declared in Ansible, not inferred from this directory.
+
+Current runtime authority lives in:
+
+- `infra/ansible/inventory/hosts.yml`
+- `infra/ansible/inventory/host_vars/<host>.yml`
+- `infra/ansible/inventory/group_vars/*.yml`
+
+Use `./install --host <hostname>` for managed-host convergence. Use `./infra/validate-parity.sh --host <hostname>` for read-only parity checks.
 
 ## Directory Structure
 
 ```bash
 hosts/
-├── desktop/         # Generic desktop / Hyprland validation profile
-├── dragon/          # AMD desktop workstation (AIO cooler, LED control)
-├── firedragon/      # ASUS VivoBook AMD laptop
-├── goldendragon/    # Lenovo ThinkPad P16s (Intel/NVIDIA)
-├── headless/        # Generic terminal-only/headless profile
-├── microdragon/     # Raspberry Pi
+├── desktop/          # Generic desktop / Hyprland validation profile
+├── dragon/           # AMD desktop workstation
+├── firedragon/       # ASUS VivoBook AMD laptop
+├── goldendragon/     # Lenovo ThinkPad P16s (Intel/NVIDIA)
+├── headless/         # Generic terminal-only/headless profile
+├── microdragon/      # Debian server profile
 ├── opencode-runtime/ # Headless OpenCode container runtime
-└── shared/          # Shared host resources
+└── shared/           # Shared host resources
 ```
 
-## Creating a New Host Configuration
+## Creating Or Updating A Managed Host
 
-### Basic Setup
+1. Add the host to `infra/ansible/inventory/hosts.yml` under the correct platform, role, and execution groups.
+2. Add `infra/ansible/inventory/host_vars/<host>.yml` with `host_role`, `host_platform_family`, `host_desktop_stack`, `host_gpu_stack`, `host_capabilities`, `managed_users`, and `legacy_host_directory`.
+3. Put host-specific system payloads under `hosts/<host>/etc/` only when an Ansible role consumes them explicitly.
+4. Put host-specific user payloads under `hosts/<host>/dotfiles/` only when a chezmoi manifest consumes them explicitly.
+5. Validate with `ansible-inventory` and `./infra/validate-parity.sh --host <host>`.
 
-1. Create a directory with your machine's hostname:
+## Legacy Reference Files
 
-   ```bash
-   mkdir -p hosts/$(hostname)
-   ```
+These files can remain useful for parity analysis and emergency recovery, but they are not runtime authority in the new architecture:
 
-2. Add a `setup.sh` script for host-specific setup:
+- `hosts/<host>/.traits`
+- `hosts/<host>/.hyprland`
+- `hosts/<host>/HYPRLAND`
+- `hosts/<host>/setup.sh`
 
-   ```bash
-   cat > hosts/$(hostname)/setup.sh <<'EOF'
-   #!/bin/bash
-   set -e
-   echo "Running setup for $(hostname)..."
-   # Add your host-specific setup here
-   EOF
-   chmod +x hosts/$(hostname)/setup.sh
-   ```
+Do not add new behavior by teaching scripts to infer state from these files. Add explicit inventory variables, groups, role defaults, or manifest entries instead.
 
-### Trait Files (Recommended)
+## Capability Model
 
-Each host can declare its capabilities via a `.traits` file. This drives validation, detection, and future automation:
+Inventory groups are execution selectors. Host variables describe identity and capabilities.
 
-```bash
-cat > hosts/$(hostname)/.traits <<'EOF'
-# One trait per line. Lines starting with # are comments.
-desktop
-hyprland
-# Optional: add when this host should run SDDM.
-sddm
-laptop
-tlp
-EOF
-```
+Examples:
 
-Available traits and what they control:
+- `host_role: desktop`, `laptop`, or `server`
+- `host_platform_family: arch` or `debian`
+- `host_desktop_stack: hyprland` or `none`
+- `host_gpu_stack: [amd-gpu]`, `[intel, nvidia]`, or `[]`
+- `host_capabilities: [tlp, fingerprint, fortinet_vpn]`
 
-| Trait | Effect |
-|-------|--------|
-| `desktop` | Validates systemd-resolved |
-| `headless` | Documents that the host is terminal-only / non-desktop |
-| `hyprland` | Detects Hyprland host, validates Hyprland components |
-| `sddm` | Opts the host into SDDM package/theme setup |
-| `laptop` | Checks brightnessctl |
-| `tlp` | Checks TLP + masks systemd-rfkill |
-| `aio-cooler` | Validates liquidctl + cooler/LED services |
-| `asus` | Checks asusd service |
-| `nvidia` | (Future) NVIDIA-specific checks |
-| `amd-gpu` | (Future) AMD GPU checks |
-| `fingerprint` | Checks fprintd |
-| `netbird` | (Future) NetBird VPN checks |
+Some groups are rollout selectors rather than permanent host traits. For example, `resolved`, `sddm`, and `v4l2loopback` are inventory-owned execution groups unless host-model docs say otherwise.
 
-### System Modifications Safety Layer
+## Payload Ownership
 
-All host setup scripts use `system-mods.sh` for privileged operations. **Never use raw `sudo` in host scripts.** Instead:
+System payloads:
 
-```bash
-source "${SCRIPTS_DIR}/lib/system-mods.sh"
+- Must be copied, templated, enabled, or validated by an Ansible role.
+- Must not rely on `hosts/<host>/setup.sh` as the active owner.
 
-# Install a config file (with automatic backup + idempotency)
-sysmod_install_file "./my.conf" /etc/myapp/my.conf 644
+User payloads:
 
-# Write content to a system file
-sysmod_tee_file /etc/sysctl.d/99-custom.conf "vm.swappiness = 10"
+- Must be referenced by `infra/chezmoi/manifests/*.manifest`.
+- Are synced through `infra/chezmoi/bin/chezmoi-sync` and applied by chezmoi.
 
-# Enable and start a systemd service
-sysmod_ensure_service "my-daemon.service" "./my-daemon.service"
+Runtime-generated files:
 
-# Run any command with sudo
-_sysmod_sudo systemctl daemon-reload
-```
-
-All modifications create timestamped backups under `/etc/.dragonarchy-backups/` and skip operations when content hasn't changed. Set `SYSMOD_DRY_RUN=1` to preview changes.
-
-### Hyprland And SDDM Configuration
-
-The package installation script uses explicit traits for desktop-session and display-manager setup:
-
-- Add `hyprland` to `.traits` when the host should install and validate the Hyprland session stack.
-- Add `sddm` to `.traits` when the host should install and configure SDDM.
-- These traits are independent: a host may use Hyprland without SDDM, SDDM without Hyprland, or neither.
-
-#### Legacy Marker Files
-
-Older hosts may still contain a `.hyprland` or `HYPRLAND` marker file:
-
-```bash
-touch hosts/$(hostname)/.hyprland
-```
-
-Prefer `.traits` for new hosts.
-
-### What Gets Installed for Hyprland Hosts
-
-When a host has the `hyprland` trait, it receives:
-
-1. **Hyprland Desktop Environment** (~70 packages)
-   - Hyprland, waybar, hyprlock, hypridle
-   - Swaync, swayosd, swaybg
-   - File managers, launchers, utilities
-
-2. **Development Tools** (~25 AUR packages)
-   - IDEs and editors
-   - Media tools (Kdenlive, Spotify, etc.)
-   - Utilities (calculator, clipboard managers, etc.)
-
-3. **Rust Toolchain and Tools**
-   - rustup, stable toolchain
-   - CLI tools: lsd, bat, ripgrep, zoxide, eza, dua-cli, git-delta
-
-4. **Additional Software**
-   - Cursor IDE
-   - Elephant launcher and plugins
-
-## Host-Specific Files
-
-### Required Files
-
-- `setup.sh` - Host-specific setup script (recommended)
-
-### Optional Files
-
-- `.traits` - Host capability declarations (recommended; drives validation and detection)
-- `.hyprland` - Legacy marker file for Hyprland support (prefer `.traits` with `hyprland` trait)
-- `HYPRLAND` - Alternative legacy marker file name
-- `docs/` - Documentation directory
-- `etc/` - System configuration files (deployed to `/etc/` via `sysmod_install_dir`)
-
-## Examples
-
-### Desktop Workstation (Hyprland)
-
-```bash
-hosts/dragon/
-├── .traits                # amd-gpu, aio-cooler, hyprland, sddm, desktop, netbird
-├── .hyprland              # Legacy marker file
-├── setup.sh               # Host setup script (uses sysmod_* helpers)
-├── dynamic_led.py         # Custom LED control script
-├── dynamic_led.service    # Systemd services
-├── liquidctl-dragon.service
-└── etc/                   # System configs (deployed via sysmod_install_dir)
-    └── systemd/
-        └── resolved.conf.d/
-            └── dns.conf
-```
-
-### Laptop (Hyprland)
-
-```bash
-hosts/firedragon/
-├── .traits                # laptop, amd-gpu, tlp, hyprland, sddm, desktop, asus, netbird
-├── .hyprland              # Legacy marker file
-├── setup.sh               # Extensive laptop setup (uses sysmod_* helpers)
-├── docs/                  # Documentation
-│   ├── GESTURES_QUICKSTART.md
-│   ├── ADVANCED_GESTURES.md
-│   └── SETUP_SUMMARY.md
-└── etc/                   # System configs
-    └── systemd/
-        └── resolved.conf.d/
-            └── dns.conf
-```
-
-### Minimal Server (No Hyprland)
-
-```bash
-hosts/microdragon/
-└── setup.sh               # Basic setup only
-```
-
-### Generic Headless Profile
-
-```bash
-hosts/headless/
-├── .traits                # headless
-└── setup.sh               # No-op host setup for terminal-only installs
-```
-
-### OpenCode Runtime Profile
-
-```bash
-hosts/opencode-runtime/
-├── .traits                # headless, opencode
-└── setup.sh               # No-op setup for container user-only installs
-```
-
-### Generic Desktop Profile
-
-```bash
-hosts/desktop/
-├── .traits                # desktop, hyprland
-└── setup.sh               # No-op host setup for generic desktop parity runs
-```
+- Must stay out of manifests unless ownership is explicitly changed.
+- Examples include theme-manager outputs, caches, clipboard history, and systemd user `*.target.wants` symlinks.
 
 ## Verification
 
-To check host traits and Hyprland detection:
-
 ```bash
-cd ~/dotfiles
-for host in hosts/*/; do
-    hostname=$(basename "$host")
-    [[ "$hostname" == "shared" ]] && continue
-
-    traits=""
-    if [[ -f "$host/.traits" ]]; then
-        traits=$(grep -v '^#' "$host/.traits" | grep -v '^$' | paste -sd, -)
-    fi
-
-    if [[ -f "$host/.traits" ]] && grep -q "^hyprland$" "$host/.traits"; then
-        echo "✓ $hostname - Hyprland (trait) [$traits]"
-    elif [[ -f "$host/.hyprland" ]] || [[ -f "$host/HYPRLAND" ]]; then
-        echo "✓ $hostname - Hyprland (marker file) [$traits]"
-    elif [[ -f "$host/setup.sh" ]] && grep -qi "hyprland\|waybar" "$host/setup.sh"; then
-        echo "✓ $hostname - Hyprland (auto-detected) [$traits]"
-    else
-        echo "✗ $hostname - No Hyprland [$traits]"
-    fi
-done
+ansible-inventory -i infra/ansible/inventory/hosts.yml --host <hostname>
+./infra/validate-parity.sh --host <hostname>
 ```
 
-Or use the validation script for a thorough check:
+For syntax-only Ansible validation:
 
 ```bash
-./scripts/install/validate.sh --host dragon       # Check specific host
-./scripts/install/validate.sh --json | jq .status  # Quick CI check
-```
-
-## Best Practices
-
-1. **Always create a `.traits` file** - Declare host capabilities for validation and detection
-2. **Use `sysmod_*` helpers** - Never use raw `sudo` in setup scripts; always go through `system-mods.sh`
-3. **Gate with `install-state`** - Wrap every non-trivial operation in `is_step_completed`/`mark_step_completed`
-4. **Document your setup** - Add a README or docs explaining host-specific configurations
-5. **Keep setup.sh idempotent** - Scripts should be safe to run multiple times
-6. **Test on a fresh install** - Verify your setup works on a clean system
-7. **Separate concerns** - Use `etc/` for system configs, keep scripts in the root
-
-## Migration Guide
-
-If you have an existing host configuration without a marker file, add one:
-
-```bash
-# For Hyprland hosts
-touch hosts/YOUR_HOSTNAME/.hyprland
-
-# Verify detection
-grep -qi "hyprland" hosts/YOUR_HOSTNAME/setup.sh && echo "Will auto-detect" || echo "Needs marker file"
+cd infra/ansible
+ansible-playbook -i inventory/hosts.yml playbooks/foundation.yml --syntax-check
+ansible-playbook -i inventory/hosts.yml playbooks/site.yml --syntax-check
 ```
 
 ## Troubleshooting
 
-### Host not detected as Hyprland
+If a managed host receives the wrong behavior, inspect these first:
 
-1. Check if marker file exists: `ls -la hosts/YOUR_HOST/.hyprland`
-2. Check setup.sh mentions Hyprland: `grep -i hyprland hosts/YOUR_HOST/setup.sh`
-3. Manually add marker file: `touch hosts/YOUR_HOST/.hyprland`
+1. Inventory group membership in `infra/ansible/inventory/hosts.yml`.
+2. Host variables in `infra/ansible/inventory/host_vars/<host>.yml`.
+3. Role defaults and validation for the role that should own the behavior.
+4. Chezmoi manifests if the issue is user state.
 
-### Wrong packages installed
-
-If you're getting Hyprland packages but don't want them:
-
-1. Remove `.hyprland` marker file
-2. Remove Hyprland mentions from setup.sh
-3. Re-run the installation
-
-### Host-specific setup not running
-
-1. Verify setup.sh is executable: `chmod +x hosts/YOUR_HOST/setup.sh`
-2. Check for syntax errors: `bash -n hosts/YOUR_HOST/setup.sh`
-3. Run manually: `bash hosts/YOUR_HOST/setup.sh`
+Only use legacy host setup scripts for historical diagnosis or explicit recovery work.

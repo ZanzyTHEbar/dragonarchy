@@ -7,8 +7,7 @@ This runbook defines the repeatable Proxmox workflow for disposable branch-shift
 It complements:
 
 - `docs/architecture/proxmox-vm-template-strategy.md`
-- `docs/runbooks/first-host-chezmoi-cutover.md`
-- `docs/runbooks/first-safe-cutover-rollout-gate.md`
+- archived historical notes under `docs/archive/migration-2026-05/`
 
 ## Target artifacts
 
@@ -171,21 +170,22 @@ git reset --hard FETCH_HEAD
 
 The hard reset is required for the disposable validation workflow because the branch shift can otherwise leave a guest-local worktree anomaly where tracked files appear deleted.
 
-## Phase 5: Run the cutover workflow
+## Phase 5: Run user-state convergence proof
 
 Inside the guest:
 
 ```bash
-./infra/chezmoi/scripts/build-source.sh --host goldendragon
-./infra/chezmoi/scripts/verify-generated-source.sh --host goldendragon
-./infra/chezmoi/scripts/plan-stow-cutover.sh --host goldendragon
-./infra/chezmoi/scripts/cutover-host.sh --host goldendragon
-./infra/chezmoi/scripts/cutover-host.sh --host goldendragon --execute
+./install --host <hostname> --user-only --dry-run
+./infra/validate-parity.sh --host <hostname>
 ```
 
-For the full operator sequence and stop conditions, follow:
+If the disposable guest is intentionally being used for apply-mode proof, run the current managed entrypoint instead of archived migration scripts:
 
-- `docs/runbooks/first-host-chezmoi-cutover.md`
+```bash
+./install --host <hostname> --user-only
+```
+
+The old `infra/chezmoi/scripts/*` cutover helpers were migration scaffolding and are no longer the active architecture. Current user-state proof is based on `infra/chezmoi/bin/chezmoi-sync` through `./install`.
 
 ## Phase 6: Run host-specific parity probes when applicable
 
@@ -242,5 +242,5 @@ Do not promote directly from the virtualized lanes to any real host.
 The next step after Debian, Arch, and graphical validation is:
 
 1. complete `docs/architecture/host-bringup-parity-catalog.md` for the exact target and required capabilities
-2. pass the rollout gate in `docs/runbooks/first-safe-cutover-rollout-gate.md`
+2. adapt the archived rollout gate in `docs/archive/migration-2026-05/first-safe-cutover-rollout-gate.md` to the current `chezmoi-sync` model
 3. execute the first cutover only on a safe non-production target
