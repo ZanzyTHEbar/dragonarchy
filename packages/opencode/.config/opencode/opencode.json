@@ -24,12 +24,7 @@
     "./rules/cursor-team-kit/typescript-exhaustive-switch.mdc"
   ],
   "mcp": {
-    "linear": {
-      "type": "remote",
-      "url": "https://mcp.linear.app/sse",
-      "enabled": true
-    },
-    "jira_rovo": {
+   "jira_rovo": {
       "type": "remote",
       "url": "https://mcp.atlassian.com/v1/mcp",
       "enabled": false,
@@ -41,7 +36,7 @@
       "oauth": {
         "scope": "mcp:actualbudget"
       },
-      "enabled": true
+      "enabled": false
     },
     "mealie": {
       "type": "remote",
@@ -49,7 +44,7 @@
       "oauth": {
         "scope": "mcp:mealie"
       },
-      "enabled": true
+      "enabled": false
     },
     "memory-kg": {
       "type": "remote",
@@ -57,7 +52,7 @@
       "oauth": {
         "scope": "mcp:memory"
       },
-      "enabled": true,
+      "enabled": false,
       "timeout": 20000
     },
     "allpepper-memory-bank": {
@@ -84,13 +79,13 @@
       "oauth": {
         "scope": "mcp:penpot"
       },
-      "enabled": true,
+      "enabled": false,
       "timeout": 20000
     },
     "playwright": {
       "type": "local",
       "command": ["npx", "-y", "@playwright/mcp@0.0.75"],
-      "enabled": true,
+      "enabled": false,
       "timeout": 20000
     },
     "browser-use": {
