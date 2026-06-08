@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC1091,SC2317
 #
 # Microdragon Host-Specific Setup
 #

@@ -250,7 +250,7 @@ boot__append_grub() {
   if [[ ! -f "$cfg" ]]; then
     log_warning "GRUB default config not found at $cfg"; return 0
   fi
-  local current new merged
+  local current merged
   current="$(sed -n 's/^GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"/\1/p' "$cfg")"
   merged="$(boot__merge_params "$current" "$params")"
   if [[ "$merged" == "$current" ]]; then

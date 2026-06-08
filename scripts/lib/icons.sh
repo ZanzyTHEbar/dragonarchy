@@ -89,7 +89,7 @@ deploy_dragon_icons() {
 
     local copied=false
     while IFS= read -r -d '' src; do
-        local rel="${src#$src_root/}"
+        local rel="${src#"$src_root"/}"
         if [[ -z "$rel" || "$rel" == "$src" ]]; then
             continue
         fi

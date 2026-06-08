@@ -588,7 +588,8 @@ setup_dotfiles() {
                     link_target=$(readlink "$symlink_path")
                     # If it's an absolute symlink pointing outside the package, temporarily remove it
                     if [[ "$link_target" == /* ]]; then
-                        local pkg_abs="$(readlink -f "$package")"
+                        local pkg_abs
+                        pkg_abs="$(readlink -f "$package")"
                         local link_target_abs
                         link_target_abs=$(readlink -f "$link_target" 2>/dev/null || echo "$link_target")
                         
@@ -602,8 +603,10 @@ setup_dotfiles() {
                         fi
                         
                         # Target is inside package - try to make it relative
-                        local symlink_abs="$(readlink -f "$symlink_path")"
-                        local symlink_dir="$(dirname "$symlink_abs")"
+                        local symlink_abs
+                        local symlink_dir
+                        symlink_abs="$(readlink -f "$symlink_path")"
+                        symlink_dir="$(dirname "$symlink_abs")"
                         local rel_target
                         if rel_target=$(realpath --relative-to="$symlink_dir" "$link_target" 2>/dev/null); then
                             log_info "Resolving absolute symlink in $package: $(basename "$symlink_path") -> $rel_target"
@@ -778,7 +781,7 @@ stow_host_dotfiles() {
     # we fail fast so the user can resolve it intentionally.
     local src rel dst
     while IFS= read -r -d '' src; do
-        rel="${src#${dotfiles_dir}/}"
+        rel="${src#"${dotfiles_dir}"/}"
         [[ -z "$rel" || "$rel" == "$src" ]] && continue
 
         dst="$HOME/$rel"

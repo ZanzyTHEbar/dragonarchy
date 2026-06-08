@@ -40,9 +40,32 @@ jobs:
 
       - name: Lint all shell scripts
         run: |
-          find scripts/lib/ scripts/install/ infra/chezmoi/scripts/ infra/packer/scripts/ infra/ansible/ hosts/*/setup.sh install.sh \
-            -name '*.sh' -type f -print0 \
-            | xargs -0 shellcheck -x -s bash
+          scripts=()
+          while IFS= read -r -d '' script; do
+            scripts+=("$script")
+          done < <(find scripts/lib/ scripts/install/ infra/packer/scripts/ infra/ansible/ -name '*.sh' -type f -print0)
+
+          while IFS= read -r -d '' script; do
+            scripts+=("$script")
+          done < <(find hosts/ -maxdepth 2 -name setup.sh -type f -print0)
+
+          while IFS= read -r -d '' script; do
+            scripts+=("$script")
+          done < <(find infra/ -maxdepth 1 -name '*.sh' -type f -print0)
+
+          for script in \
+            install \
+            install.sh \
+            infra/ansible/run-playbook.sh \
+            infra/chezmoi/bin/chezmoi-sync \
+            scripts/tools/sync-bin-links \
+            hosts/goldendragon/etc/acpi/disable-wakeup.sh \
+            hosts/goldendragon/etc/systemd/system-sleep/99-fprintd-reset.sh \
+            hosts/goldendragon/scripts/fingerprint/restart-fprintd.sh; do
+            [[ -f "$script" ]] && scripts+=("$script")
+          done
+
+          printf '%s\0' "${scripts[@]}" | xargs -0 shellcheck -x -s bash
 
   ansible-syntax:
     name: Ansible Syntax Check
@@ -81,13 +104,22 @@ jobs:
 
       - name: Syntax check all shell scripts
         run: |
-          exit_code=0
+          scripts=()
           while IFS= read -r -d '' script; do
+            scripts+=("$script")
+          done < <(find . -name '*.sh' -type f -print0)
+
+          for script in install infra/ansible/run-playbook.sh infra/chezmoi/bin/chezmoi-sync scripts/tools/sync-bin-links; do
+            [[ -f "$script" ]] && scripts+=("$script")
+          done
+
+          exit_code=0
+          for script in "${scripts[@]}"; do
             if ! bash -n "$script" 2>&1; then
               echo "FAIL: $script"
               exit_code=1
             fi
-          done < <(find . -name '*.sh' -type f -print0)
+          done
           exit "$exit_code"
 
   validate:

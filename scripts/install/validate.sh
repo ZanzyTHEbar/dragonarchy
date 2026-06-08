@@ -896,7 +896,7 @@ check_host_config() {
     if [[ -d "${hosts_dir}/${host}/etc" ]]; then
         local etc_files=()
         while IFS= read -r -d '' f; do
-            local rel="${f#${hosts_dir}/${host}/etc/}"
+            local rel="${f#"${hosts_dir}"/"${host}"/etc/}"
             [[ -n "$rel" ]] && etc_files+=("$rel")
         done < <(find "${hosts_dir}/${host}/etc" -type f -print0 2>/dev/null)
 

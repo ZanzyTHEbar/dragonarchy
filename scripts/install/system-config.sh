@@ -22,7 +22,6 @@ CONFIG_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Options (future extension)
 SETUP_HARDWARE=true
-FORCE=false
 
 # ------------------------ Hardware Detection ------------------------
 
@@ -142,7 +141,7 @@ Usage: $0 [OPTIONS]
 
 Options:
   --no-hardware       Skip hardware kernel parameter configuration
-  --force             Reserved for future features
+  --force             Accepted for compatibility; currently no-op
   -h, --help          Show this help
 EOF
 }
@@ -151,7 +150,7 @@ parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --no-hardware) SETUP_HARDWARE=false; shift ;;
-            --force) FORCE=true; shift ;;
+            --force) shift ;;
             -h|--help) usage; exit 0 ;;
             *) log_error "Unknown option: $1"; usage; exit 1 ;;
         esac
