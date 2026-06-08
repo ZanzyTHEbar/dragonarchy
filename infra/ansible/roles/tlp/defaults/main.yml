@@ -8,6 +8,13 @@ tlp_packages_by_platform:
 tlp_conflict_services:
   - power-profiles-daemon.service
 
+tlp_managed_services:
+  - tlp.service
+  - tlp-sleep.service
+
+tlp_running_services:
+  - tlp.service
+
 tlp_masked_services:
   - systemd-rfkill.service
   - systemd-rfkill.socket

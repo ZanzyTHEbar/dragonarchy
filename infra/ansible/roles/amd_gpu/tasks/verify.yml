@@ -54,18 +54,48 @@
 
 - name: Check AMD GPU service files
   ansible.builtin.stat:
-    path: "/etc/systemd/system/{{ item.path | basename }}"
-  loop: "{{ amd_gpu_service_files.files }}"
+    path: "/etc/systemd/system/{{ item }}"
+  loop: "{{ amd_gpu_managed_files.services }}"
   register: amd_gpu_service_stats
-  when: amd_gpu_service_files.matched | default(0) | int > 0
+  when: amd_gpu_managed_files.services | length > 0
 
 - name: Assert AMD GPU service files exist
   ansible.builtin.assert:
     that:
       - item.stat.exists
-    fail_msg: "Expected /etc/systemd/system/{{ item.item.path | basename }} to exist."
+    fail_msg: "Expected /etc/systemd/system/{{ item.item }} to exist."
   loop: "{{ amd_gpu_service_stats.results }}"
-  when: amd_gpu_service_files.matched | default(0) | int > 0
+  when: amd_gpu_managed_files.services | length > 0
+
+- name: Check AMD GPU polkit rules
+  ansible.builtin.stat:
+    path: "/etc/polkit-1/rules.d/{{ item }}"
+  loop: "{{ amd_gpu_managed_files.polkit_rules }}"
+  register: amd_gpu_polkit_rule_stats
+  when: amd_gpu_managed_files.polkit_rules | length > 0
+
+- name: Assert AMD GPU polkit rules exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Expected /etc/polkit-1/rules.d/{{ item.item }} to exist."
+  loop: "{{ amd_gpu_polkit_rule_stats.results }}"
+  when: amd_gpu_managed_files.polkit_rules | length > 0
+
+- name: Check AMD GPU bootloader drop-ins
+  ansible.builtin.stat:
+    path: "/etc/limine-entry-tool.d/{{ item }}"
+  loop: "{{ amd_gpu_managed_files.bootloader_dropins }}"
+  register: amd_gpu_bootloader_dropin_stats
+  when: amd_gpu_managed_files.bootloader_dropins | length > 0
+
+- name: Assert AMD GPU bootloader drop-ins exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Expected /etc/limine-entry-tool.d/{{ item.item }} to exist."
+  loop: "{{ amd_gpu_bootloader_dropin_stats.results }}"
+  when: amd_gpu_managed_files.bootloader_dropins | length > 0
 
 - name: Check persisted AMD GPU kernel parameter
   ansible.builtin.shell: |

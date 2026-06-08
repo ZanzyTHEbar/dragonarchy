@@ -51,7 +51,6 @@
     owner: root
     group: "{{ openfortivpn_group }}"
     mode: "0640"
-  notify: Restart openfortivpn
 
 - name: Ensure OpenFortiVPN helper install directory exists
   ansible.builtin.file:
@@ -81,8 +80,11 @@
     - openfortivpn-cleanup.service
   notify: Reload systemd
 
+- name: Reload systemd before enabling OpenFortiVPN units
+  ansible.builtin.meta: flush_handlers
+
 - name: Enable OpenFortiVPN systemd units
-  ansible.builtin.service:
+  ansible.builtin.systemd_service:
     name: "{{ item }}"
     enabled: true
     state: stopped

@@ -15,13 +15,16 @@
     group: root
     mode: "0644"
 
+- name: Gather service facts before TLP conflict handling
+  ansible.builtin.service_facts:
+
 - name: Stop conflicting power services
-  ansible.builtin.service:
+  ansible.builtin.systemd_service:
     name: "{{ item }}"
     state: stopped
     enabled: false
   loop: "{{ tlp_conflict_services }}"
-  failed_when: false
+  when: item in ansible_facts.services
 
 - name: Mask conflicting rfkill services
   ansible.builtin.systemd_service:
@@ -31,10 +34,8 @@
   loop: "{{ tlp_masked_services }}"
 
 - name: Enable TLP services
-  ansible.builtin.service:
+  ansible.builtin.systemd_service:
     name: "{{ item }}"
     enabled: true
     state: started
-  loop:
-    - tlp.service
-    - tlp-sleep.service
+  loop: "{{ tlp_managed_services }}"
