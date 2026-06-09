@@ -1,10 +1,9 @@
 ---
 iwd_enabled: true
-iwd_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
 iwd_service_name: iwd.service
 
 iwd_managed_paths_by_host:
   goldendragon:
-    - src: "{{ iwd_host_source_dir }}/goldendragon/etc/iwd/main.conf"
+    - src: "{{ role_path }}/files/hosts/goldendragon/etc/iwd/main.conf"
       dest: /etc/iwd/main.conf
       mode: "0644"

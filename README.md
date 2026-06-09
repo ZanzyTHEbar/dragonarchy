@@ -253,7 +253,6 @@ dragon-cli utilities web-apps    # Create web application launchers
 dragon-cli utilities docker-dbs  # Launch database containers
 dragon-cli utilities secrets     # Secrets management menu
 dragon-cli utilities add-migration  # Create new migration
-dragon-cli utilities netbird     # Install NetBird VPN
 dragon-cli update                # Update dotfiles
 dragon-cli setup                 # Run setup script
 dragon-cli power                 # Power menu

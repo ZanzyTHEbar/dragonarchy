@@ -64,8 +64,7 @@ install_dragon_packages() {
 }
 
 setup_netbird() {
-    log_step "Installing NetBird..."
-    bash "${PROJECT_ROOT}/scripts/utilities/netbird-install.sh"
+    log_warning "NetBird is now managed by the Ansible netbird role; legacy setup skips it."
 }
 
 apply_host_system_configs() {
@@ -183,7 +182,7 @@ main() {
     if ! is_step_completed "dragon-install-netbird"; then
         setup_netbird && mark_step_completed "dragon-install-netbird"
     else
-        log_info "✓ NetBird already installed (skipped)"
+        log_info "✓ NetBird legacy setup step already skipped"
     fi
     echo
 
