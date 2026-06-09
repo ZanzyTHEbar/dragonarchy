@@ -17,6 +17,9 @@ fi
 
 # Load core configuration modules FIRST (order matters)
 [[ -r ~/.config/zsh/profile.zsh ]] && source ~/.config/zsh/profile.zsh         # Platform detection, environment variables, path functions
+if [[ -o interactive && -f "$HOME/.config/zsh/hosts/$HOSTNAME.env.zsh" ]]; then
+    source "$HOME/.config/zsh/hosts/$HOSTNAME.env.zsh"
+fi
 [[ -r ~/.config/zsh/init.zsh ]] && source ~/.config/zsh/init.zsh               # Shell options, keybindings, completion, FZF
 
 # Zinit plugin manager setup
@@ -85,8 +88,8 @@ if [[ "$ZSH_TTY_UI" == "true" ]]; then
     done
 fi
 
-if [[ "$ZSH_TTY_UI" == "true" && -f ~/.config/zsh/hosts/$HOSTNAME.zsh ]]; then
-    source ~/.config/zsh/hosts/$HOSTNAME.zsh
+if [[ "$ZSH_TTY_UI" == "true" && -f "$HOME/.config/zsh/hosts/$HOSTNAME.zsh" ]]; then
+    source "$HOME/.config/zsh/hosts/$HOSTNAME.zsh"
 fi
 
 # Powerlevel10k configuration
@@ -106,4 +109,3 @@ fi
 
 # Unalias zi from zinit to avoid conflicts with zoxide zi command
 unalias zi 2>/dev/null
-
