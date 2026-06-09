@@ -1,10 +1,9 @@
 ---
 networkmanager_enabled: true
-networkmanager_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
 networkmanager_service_name: NetworkManager.service
 
 networkmanager_managed_paths_by_host:
   goldendragon:
-    - src: "{{ networkmanager_host_source_dir }}/goldendragon/etc/NetworkManager/conf.d/10-unmanage-wlan0.conf"
+    - src: "{{ role_path }}/files/hosts/goldendragon/etc/NetworkManager/conf.d/10-unmanage-wlan0.conf"
       dest: /etc/NetworkManager/conf.d/10-unmanage-wlan0.conf
       mode: "0644"

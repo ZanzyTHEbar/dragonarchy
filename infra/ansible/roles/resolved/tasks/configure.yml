@@ -1,23 +1,32 @@
 ---
-- name: Ensure resolved config directory exists
+- name: Ensure resolved parent directories exist
   ansible.builtin.file:
-    path: /etc/systemd/resolved.conf.d
+    path: "{{ item }}"
     state: directory
     owner: root
     group: root
     mode: "0755"
+  loop: >-
+    {{
+      resolved_managed_paths
+      | map(attribute='dest')
+      | map('dirname')
+      | unique
+      | list
+    }}
 
-- name: Install host-specific resolved configuration
+- name: Install resolved managed files
   ansible.builtin.copy:
-    src: "{{ resolved_role_files_root }}/etc/systemd/resolved.conf.d/dns.conf"
-    dest: /etc/systemd/resolved.conf.d/dns.conf
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
     owner: root
     group: root
-    mode: "0644"
+    mode: "{{ item.mode }}"
   notify: Restart systemd-resolved
+  loop: "{{ resolved_managed_paths }}"
 
 - name: Ensure systemd-resolved is enabled and started
-  ansible.builtin.service:
-    name: systemd-resolved.service
+  ansible.builtin.systemd_service:
+    name: "{{ resolved_service_name }}"
     enabled: true
     state: started

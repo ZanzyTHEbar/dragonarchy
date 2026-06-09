@@ -1,32 +1,25 @@
 ---
-- name: Ensure modprobe directory exists
+- name: Ensure v4l2loopback parent directories exist
   ansible.builtin.file:
-    path: /etc/modprobe.d
+    path: "{{ item }}"
     state: directory
     owner: root
     group: root
     mode: "0755"
+  loop: >-
+    {{
+      v4l2loopback_managed_paths
+      | map(attribute='dest')
+      | map('dirname')
+      | unique
+      | list
+    }}
 
-- name: Install v4l2loopback modprobe config
+- name: Install v4l2loopback managed files
   ansible.builtin.copy:
-    src: "{{ v4l2loopback_role_files_root }}/etc/modprobe.d/v4l2loopback.conf"
-    dest: /etc/modprobe.d/v4l2loopback.conf
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
     owner: root
     group: root
-    mode: "0644"
-
-- name: Ensure modules-load directory exists
-  ansible.builtin.file:
-    path: /etc/modules-load.d
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Install v4l2loopback modules-load config
-  ansible.builtin.copy:
-    src: "{{ v4l2loopback_role_files_root }}/etc/modules-load.d/v4l2loopback.conf"
-    dest: /etc/modules-load.d/v4l2loopback.conf
-    owner: root
-    group: root
-    mode: "0644"
+    mode: "{{ item.mode }}"
+  loop: "{{ v4l2loopback_managed_paths }}"

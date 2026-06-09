@@ -7,6 +7,8 @@
       - host_platform_family in v4l2loopback_required_paru_packages_by_platform
       - host_capabilities is defined
       - "'v4l2loopback' in host_capabilities"
+      - v4l2loopback_managed_paths is defined
+      - v4l2loopback_managed_paths | length > 0
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the v4l2loopback contract.
 
@@ -22,38 +24,20 @@
       package declared in scripts/install/deps.manifest.toml.
   loop: "{{ v4l2loopback_required_paru_packages_by_platform[host_platform_family] }}"
 
-- name: Set v4l2loopback role-local host payload root
-  ansible.builtin.set_fact:
-    v4l2loopback_role_files_root: "{{ v4l2loopback_host_source_dir }}/{{ inventory_hostname }}"
-
-- name: Check host-specific v4l2loopback modprobe source
+- name: Check v4l2loopback role-local payload sources
   ansible.builtin.stat:
-    path: "{{ v4l2loopback_role_files_root }}/etc/modprobe.d/v4l2loopback.conf"
+    path: "{{ item.src }}"
   delegate_to: localhost
   become: false
   changed_when: false
-  register: v4l2loopback_modprobe_source
+  loop: "{{ v4l2loopback_managed_paths }}"
+  register: v4l2loopback_source_files
 
-- name: Assert v4l2loopback modprobe source exists
+- name: Assert v4l2loopback role-local payload sources exist
   ansible.builtin.assert:
     that:
-      - v4l2loopback_modprobe_source.stat.exists
+      - item.stat.exists
     fail_msg: >-
-      Missing v4l2loopback modprobe source for {{ inventory_hostname }}:
-      {{ v4l2loopback_role_files_root }}/etc/modprobe.d/v4l2loopback.conf
-
-- name: Check host-specific v4l2loopback modules-load source
-  ansible.builtin.stat:
-    path: "{{ v4l2loopback_role_files_root }}/etc/modules-load.d/v4l2loopback.conf"
-  delegate_to: localhost
-  become: false
-  changed_when: false
-  register: v4l2loopback_modules_load_source
-
-- name: Assert v4l2loopback modules-load source exists
-  ansible.builtin.assert:
-    that:
-      - v4l2loopback_modules_load_source.stat.exists
-    fail_msg: >-
-      Missing v4l2loopback modules-load source for {{ inventory_hostname }}:
-      {{ v4l2loopback_role_files_root }}/etc/modules-load.d/v4l2loopback.conf
+      Missing v4l2loopback role-local payload source for {{ inventory_hostname }}:
+      {{ item.item.src }}
+  loop: "{{ v4l2loopback_source_files.results }}"

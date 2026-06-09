@@ -10,6 +10,7 @@ Included roles:
 - `resolved`
 - `netbird`
 - `openfortivpn`
+- `aio-cooler`
 
 This batch intentionally keeps the boundary narrow:
 
@@ -17,6 +18,7 @@ This batch intentionally keeps the boundary narrow:
 - `resolved` owns systemd-resolved configuration and service state.
 - `netbird` owns NetBird installation, service state, and routing-peer integration.
 - `openfortivpn` owns the Fortinet VPN system package, service units, helper installation, and system config path.
+- `aio-cooler` owns Dragon liquidctl service state and cooler resume hooks.
 - user-facing Waybar host markers remain chezmoi-owned user state.
 
 ## Ownership
@@ -43,6 +45,10 @@ Owns:
 
 - host-specific `/etc/systemd/resolved.conf.d/*.conf`
 - `systemd-resolved.service`
+
+Payload source:
+
+- `infra/ansible/roles/resolved/files/hosts/<host>/etc/systemd/resolved.conf.d/dns.conf`
 
 Does not own:
 
