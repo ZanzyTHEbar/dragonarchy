@@ -34,7 +34,7 @@ vendored/
 
 # opencode
 .opencode/
-
+.letta/
 # Clipse clipboard manager - contains sensitive clipboard history
 packages/hyprland/.config/clipse/clipboard_history.json
 packages/hyprland/.config/clipse/clipse.log
