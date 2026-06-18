@@ -1,0 +1,3 @@
+---
+# iwd uses packaged units. Config changes apply after a controlled service restart
+# or reboot; the role does not restart Wi-Fi automatically during convergence.

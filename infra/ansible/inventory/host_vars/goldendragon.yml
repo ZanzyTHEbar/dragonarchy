@@ -9,8 +9,12 @@ host_gpu_stack:
 host_capabilities:
   - tlp
   - fingerprint
-  - intel_gpu
   - fortinet_vpn
+  - v4l2loopback
+  - power_sleep
+  - iwd
+  - networkmanager
+  - acpi_wakeup
 
 host_profile_packages:
   - core_cli

@@ -1,4 +1,2 @@
 ---
-- name: Reload systemd
-  ansible.builtin.systemd_service:
-    daemon_reload: true
+# v4l2loopback role has no handlers; module config changes apply on next module load or reboot.

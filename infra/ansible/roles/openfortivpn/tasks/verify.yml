@@ -20,9 +20,13 @@
 - name: Gather service facts for OpenFortiVPN
   ansible.builtin.service_facts:
 
-- name: Assert OpenFortiVPN services are present
+- name: Assert OpenFortiVPN services are enabled but stopped
   ansible.builtin.assert:
     that:
       - ansible_facts.services['openfortivpn.service'] is defined
       - ansible_facts.services['openfortivpn-cleanup.service'] is defined
-    fail_msg: "Expected OpenFortiVPN services to be present."
+      - ansible_facts.services['openfortivpn.service'].status == 'enabled'
+      - ansible_facts.services['openfortivpn-cleanup.service'].status == 'enabled'
+      - ansible_facts.services['openfortivpn.service'].state == 'stopped'
+      - ansible_facts.services['openfortivpn-cleanup.service'].state == 'stopped'
+    fail_msg: "Expected OpenFortiVPN services to be enabled but stopped."

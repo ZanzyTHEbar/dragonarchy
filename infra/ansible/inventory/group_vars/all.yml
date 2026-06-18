@@ -24,7 +24,14 @@ dotfiles_group_capability_map:
   fortinet_vpn: fortinet_vpn
   asus: asus
   hibernation: hibernation
+  aio-cooler: aio_cooler
+  v4l2loopback: v4l2loopback
+  power_sleep: power_sleep
+  iwd: iwd
+  networkmanager: networkmanager
+  acpi_wakeup: acpi_wakeup
 
 dotfiles_group_gpu_map:
   amd-gpu: amd_gpu
+  intel: intel_gpu
   nvidia: nvidia

@@ -14,3 +14,22 @@ amd_gpu_kernel_params:
   - amdgpu.modeset=1
 
 amd_gpu_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
+
+amd_gpu_managed_files_by_host:
+  dragon:
+    modprobe:
+      - amdgpu-dragon.conf
+    services: []
+    polkit_rules:
+      - 90-corectrl.rules
+    bootloader_dropins: []
+  firedragon:
+    modprobe:
+      - amdgpu.conf
+    services:
+      - amdgpu-console-restore.service
+      - amdgpu-resume.service
+      - amdgpu-suspend.service
+    polkit_rules: []
+    bootloader_dropins:
+      - 10-amdgpu.conf

@@ -49,38 +49,37 @@
     mode: "0644"
   loop: "{{ amd_gpu_modprobe_sources }}"
 
-- name: Find host-specific AMD GPU systemd services
-  ansible.builtin.find:
-    paths: "{{ amd_gpu_role_files_root }}/etc/systemd/system"
-    patterns: "amdgpu*.service"
-    file_type: file
-  register: amd_gpu_service_files
-  failed_when: false
+- name: Ensure AMD GPU systemd directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: amd_gpu_managed_files.services | length > 0
 
 - name: Install AMD GPU systemd services
   ansible.builtin.copy:
-    src: "{{ item.path }}"
-    dest: "/etc/systemd/system/{{ item.path | basename }}"
+    src: "{{ amd_gpu_role_files_root }}/etc/systemd/system/{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
     owner: root
     group: root
     mode: "0644"
-  loop: "{{ amd_gpu_service_files.files }}"
+  loop: "{{ amd_gpu_managed_files.services }}"
   notify: Reload systemd
+  when: amd_gpu_managed_files.services | length > 0
+
+- name: Flush AMD GPU systemd unit reload
+  ansible.builtin.meta: flush_handlers
+  when: amd_gpu_managed_files.services | length > 0
 
 - name: Enable AMD GPU systemd services
-  ansible.builtin.service:
-    name: "{{ item.path | basename }}"
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
     enabled: true
     state: started
-  loop: "{{ amd_gpu_service_files.files }}"
-
-- name: Find host-specific AMD GPU polkit rules
-  ansible.builtin.find:
-    paths: "{{ amd_gpu_role_files_root }}/etc/polkit-1/rules.d"
-    patterns: "*.rules"
-    file_type: file
-  register: amd_gpu_polkit_rules
-  failed_when: false
+  loop: "{{ amd_gpu_managed_files.services }}"
+  when: amd_gpu_managed_files.services | length > 0
 
 - name: Ensure polkit rules directory exists
   ansible.builtin.file:
@@ -89,24 +88,17 @@
     owner: root
     group: root
     mode: "0755"
-  when: amd_gpu_polkit_rules.matched | default(0) | int > 0
+  when: amd_gpu_managed_files.polkit_rules | length > 0
 
 - name: Install AMD GPU polkit rules
   ansible.builtin.copy:
-    src: "{{ item.path }}"
-    dest: "/etc/polkit-1/rules.d/{{ item.path | basename }}"
+    src: "{{ amd_gpu_role_files_root }}/etc/polkit-1/rules.d/{{ item }}"
+    dest: "/etc/polkit-1/rules.d/{{ item }}"
     owner: root
     group: root
     mode: "0644"
-  loop: "{{ amd_gpu_polkit_rules.files }}"
-
-- name: Find host-specific AMD GPU bootloader drop-ins
-  ansible.builtin.find:
-    paths: "{{ amd_gpu_role_files_root }}/etc/limine-entry-tool.d"
-    patterns: "*.conf"
-    file_type: file
-  register: amd_gpu_bootloader_dropins
-  failed_when: false
+  loop: "{{ amd_gpu_managed_files.polkit_rules }}"
+  when: amd_gpu_managed_files.polkit_rules | length > 0
 
 - name: Ensure Limine drop-in directory exists
   ansible.builtin.file:
@@ -115,16 +107,17 @@
     owner: root
     group: root
     mode: "0755"
-  when: amd_gpu_bootloader_dropins.matched | default(0) | int > 0
+  when: amd_gpu_managed_files.bootloader_dropins | length > 0
 
 - name: Install AMD GPU bootloader drop-ins
   ansible.builtin.copy:
-    src: "{{ item.path }}"
-    dest: "/etc/limine-entry-tool.d/{{ item.path | basename }}"
+    src: "{{ amd_gpu_role_files_root }}/etc/limine-entry-tool.d/{{ item }}"
+    dest: "/etc/limine-entry-tool.d/{{ item }}"
     owner: root
     group: root
     mode: "0644"
-  loop: "{{ amd_gpu_bootloader_dropins.files }}"
+  loop: "{{ amd_gpu_managed_files.bootloader_dropins }}"
+  when: amd_gpu_managed_files.bootloader_dropins | length > 0
 
 - name: Persist AMD GPU kernel parameters
   ansible.builtin.shell: |
@@ -132,6 +125,10 @@
     source "{{ amd_gpu_bootloader_helper_path }}"
     boot_append_kernel_params "{{ amd_gpu_kernel_params | join(' ') }}"
     boot_rebuild_if_changed
+    if [[ "$BOOT_PARAMS_CHANGED" == "true" ]]; then
+      echo "BOOT_PARAMS_CHANGED=true"
+    fi
   args:
     executable: /bin/bash
-  changed_when: false
+  register: amd_gpu_kernel_params_result
+  changed_when: "'BOOT_PARAMS_CHANGED=true' in amd_gpu_kernel_params_result.stdout"

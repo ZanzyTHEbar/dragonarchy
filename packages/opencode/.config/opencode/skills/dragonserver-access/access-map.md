@@ -4,7 +4,8 @@
 
 | Alias | FQDN / IP | Role | Notes |
 |---|---|---|---|
-| `lan-proxmox` | `dragonserver.local` / `192.168.0.215` | Proxmox host and Coolify control plane location | Use for host-level audit and Proxmox operations |
+| `lan-proxmox` | `dragonserver.local` / `192.168.0.191` | Proxmox hypervisor | Use for host-level audit and Proxmox operations |
+| Coolify control plane | `192.168.0.215` | Coolify LXC on the Proxmox host | Use Coolify CLI/API or browser workflows for service metadata and deployments |
 | `cool-res` | `coolifyresources.local` / `192.168.0.157` | LXC resource host running Docker workloads | Use for container-level operations |
 
 ## Channel Responsibilities

@@ -44,9 +44,9 @@ Current modeled hosts from `infra/ansible/inventory/hosts.yml`:
 
 ### `dragon`
 
-- groups: `arch`, `desktop`, `resolved`, `hyprland`, `sddm`, `amd_gpu`, `aio_cooler`, `netbird`, `v4l2loopback`
+- groups: `arch`, `desktop`, `resolved`, `hyprland`, `sddm`, `amd_gpu`, `aio_cooler`, `netbird`, `v4l2loopback`, `power_sleep`
 - host vars: `infra/ansible/inventory/host_vars/dragon.yml`
-- capabilities: `aio-cooler`, `netbird`
+- capabilities: `aio-cooler`, `netbird`, `v4l2loopback`, `power_sleep`
 
 ### `firedragon`
 
@@ -56,9 +56,9 @@ Current modeled hosts from `infra/ansible/inventory/hosts.yml`:
 
 ### `goldendragon`
 
-- groups: `arch`, `desktop`, `laptop`, `tlp`, `resolved`, `hyprland`, `sddm`, `fingerprint`, `nvidia`, `intel_gpu`, `fortinet_vpn`, `v4l2loopback`
+- groups: `arch`, `desktop`, `laptop`, `tlp`, `resolved`, `hyprland`, `sddm`, `fingerprint`, `nvidia`, `intel_gpu`, `fortinet_vpn`, `v4l2loopback`, `power_sleep`, `iwd`, `networkmanager`, `acpi_wakeup`
 - host vars: `infra/ansible/inventory/host_vars/goldendragon.yml`
-- capabilities: `tlp`, `fingerprint`, `intel_gpu`, `fortinet_vpn`
+- capabilities: `tlp`, `fingerprint`, `fortinet_vpn`, `v4l2loopback`, `power_sleep`, `iwd`, `networkmanager`, `acpi_wakeup`
 
 ### `microdragon`
 
@@ -78,6 +78,7 @@ Current role directories:
 - `hyprland`
 - `fingerprint`
 - `nvidia`
+- `intel_gpu`
 - `amd_gpu`
 - `tlp`
 - `asus_laptop`
@@ -87,7 +88,10 @@ Current role directories:
 - `openfortivpn`
 - `aio-cooler`
 - `v4l2loopback`
-- `intel_gpu`
+- `power_sleep`
+- `iwd`
+- `networkmanager`
+- `acpi_wakeup`
 
 Current chezmoi scope is partial but now covers the first session-oriented slices plus zsh and devtool/SSH declarations:
 
@@ -183,7 +187,7 @@ If legacy shell, Stow, or host trees can still write or source the same concern,
 | fingerprint watchdog                              | `hosts/goldendragon/scripts/fingerprint/*`                                                                                                             | `hosts/goldendragon/dotfiles/.local/bin/fprintd-watchdog`, `hosts/goldendragon/dotfiles/.config/systemd/user/*`, `session-shell.manifest` | partial overlap | chezmoi                                                                                    | remove obsolete script-oriented install path after real-host verification                                                                     |
 | hyprlock PAM base path                            | `packages/hyprland/hyprlock.pam`, `scripts/install/setup/pam-hyprlock.sh`                                                                              | `infra/ansible/roles/fingerprint/tasks/configure.yml` for fingerprint hosts                                         | partial overlap  | Ansible for managed `/etc/pam.d/hyprlock`                                                  | define one policy for non-fingerprint and fingerprint hosts, then retire shell installers                                                     |
 | Hyprland session packages                         | `scripts/install/install-deps.sh`, `scripts/install/deps.manifest.toml`                                                                                | `infra/ansible/roles/hyprland/*`, `infra/ansible/roles/packages/*`                                                  | partial overlap  | Ansible `hyprland` + `packages`                                                            | stop using installer package paths for Ansible-managed hosts                                                                                  |
-| Hyprland user-state rendering                     | Stow of `packages/hyprland/**`, host dotfiles under `hosts/<host>/dotfiles/**`                                                                         | `infra/chezmoi/manifests/*.manifest`, `infra/chezmoi/scripts/*.sh`                                                  | migration seam   | chezmoi                                                                                    | finish manifest expansion and carve migrated trees out of Stow permanently                                                                    |
+| Hyprland user-state rendering                     | Stow of `packages/hyprland/**`, host dotfiles under `hosts/<host>/dotfiles/**`                                                                         | `infra/chezmoi/manifests/*.manifest`, `infra/chezmoi/bin/chezmoi-sync`                                              | migration seam   | chezmoi                                                                                    | finish manifest expansion and prove current sync/apply convergence                                                                            |
 | theme-generated user files                        | `scripts/theme-manager/*` writes runtime state under `$HOME`                                                                                           | chezmoi manifests are beginning to own adjacent trees                                                               | migration seam   | split by concern: chezmoi for static user files, theme-manager for runtime-generated state | document every runtime-generated exception and either keep it runtime-owned or move generation into the new model                             |
 | NVIDIA kernel and module state                    | `scripts/install/system-config.sh`, `hosts/goldendragon/etc/modprobe.d/*`                                                                              | `infra/ansible/roles/nvidia/*`                                                                                      | partial overlap  | Ansible `nvidia` role                                                                      | keep host tree as payload source, not runtime writer                                                                                          |
 | AMD GPU kernel, module, polkit, and service state | `scripts/install/system-config.sh`, `hosts/dragon/etc/**`, `hosts/firedragon/etc/**`                                                                   | `infra/ansible/roles/amd_gpu/*`                                                                                     | partial overlap  | Ansible `amd_gpu` role                                                                     | keep host tree as payload source, not runtime writer                                                                                          |
@@ -192,6 +196,7 @@ If legacy shell, Stow, or host trees can still write or source the same concern,
 | resolved DNS drop-ins                             | `hosts/<host>/etc/systemd/resolved.conf.d/dns.conf`                                                                                                    | `infra/ansible/roles/resolved/*`, `infra/ansible/roles/resolved/files/hosts/*`                                      | partial overlap  | Ansible `resolved` role                                                                    | stop treating host `etc/` as a live source for this role and eventually delete or archive the legacy reference copy                           |
 | OpenFortiVPN units and helper                     | `hosts/goldendragon/etc/systemd/system/openfortivpn*.service`, `hosts/goldendragon/dotfiles/.local/bin/avular-vpn-dns`                                 | `infra/ansible/roles/openfortivpn/*`, `infra/ansible/roles/openfortivpn/files/hosts/goldendragon/*`                 | partial overlap  | Ansible `openfortivpn` role                                                                | stop treating host files as a live source and eventually delete or archive the legacy reference copy                                          |
 | NetBird capability                                | `scripts/utilities/netbird-install.sh`, `hosts/*/setup.sh`                                                                                             | `infra/ansible/roles/netbird/*`                                                                                     | partial overlap  | Ansible `netbird` role                                                                     | retire host setup logic and finish any host-specific DNS or routing parity that still lives outside the role                                  |
+| declared system service enablement                | `scripts/install/setup/system-services.sh`, `hosts/<host>/setup.sh`                                                                                    | owning Ansible roles (`iwd`, `networkmanager`, `acpi_wakeup`, `power_sleep`, `asus_laptop`, `tlp`, `resolved`, …)    | partial overlap  | owning Ansible role                                                                        | do not port legacy opportunistic service detection; add explicit capabilities before owning generic Bluetooth, CUPS, Docker, or power-profile services |
 | timezone policy                                   | `scripts/install/first-run.sh`                                                                                                                         | `infra/ansible/roles/base/tasks/configure.yml`                                                                      | partial overlap  | Ansible `base` role                                                                        | set real per-host timezone vars and stop relying on first-run mutation for managed hosts                                                      |
 | secrets flow                                      | `scripts/utilities/secrets.sh`, `install.sh` secrets setup                                                                                             | no new-system replacement yet                                                                                       | migration seam   | explicit product decision required                                                         | choose out-of-band secrets, Ansible Vault, or chezmoi-backed secret rendering and document it                                                 |
 | host-specific hardware and service extras         | `hosts/dragon/setup.sh`, `hosts/firedragon/setup.sh`, `hosts/goldendragon/setup.sh`, assorted `hosts/*/etc/**`                                         | only partially represented in current roles                                                                         | migration seam   | explicit role ownership, chezmoi for `$HOME` only                                          | port remaining host `/etc`, service, and hardware slices into explicit roles or mark them as intentional exceptions                           |
@@ -215,6 +220,8 @@ These still need a hard decision before the repo can claim a full pivot:
 - whether fingerprint watchdog is system-owned by Ansible or user-owned by chezmoi
 - whether PipeWire host audio drop-ins are system-owned by Ansible or intentionally left outside the parity target
 - whether `battery-status` and similar host helper binaries are chezmoi-owned user state or intentionally retired
+- whether generic desktop service enablement for Bluetooth, CUPS, Docker, and non-TLP `power-profiles-daemon` should become explicit inventory capabilities
+- whether user systemd enablement from `scripts/install/setup/user-services.sh` becomes chezmoi-owned user state or remains runtime/user-session setup outside Ansible
 - whether secure boot, NetBird, AIO cooler, ASUS laptop behavior, and other host-specific capabilities become first-class roles or remain documented exceptions
 - whether secrets stay outside the new control plane or become a first-class part of it
 
@@ -252,14 +259,11 @@ Current progress:
 - move role-managed helper binaries out of `hosts/<host>/dotfiles/**` when they are actually system-owned artifacts
 - keep legacy files only as migration references until the role-local source exists
 
-Batch-1 progress:
+Current progress:
 
-- completed for `fingerprint`, `resolved`, `tlp`, and `openfortivpn`
-
-Batch-2 progress:
-
-- completed for `nvidia` and `amd_gpu`
-- still pending for the unmanaged host-specific `/etc` surfaces that do not yet have roles at all
+- `fingerprint`, `resolved`, `tlp`, `openfortivpn`, `nvidia`, and `amd_gpu` have explicit Ansible runtime owners, but still source some managed payloads from legacy host trees
+- `power_sleep`, `iwd`, `networkmanager`, and `acpi_wakeup` now own their declared `/etc` files and service state, but also still source their payloads from legacy host trees
+- moving those payloads into role-local `files/` or `templates/` remains required before calling any of these concerns fully pivoted under the definition below
 
 Batch-9 progress:
 
@@ -288,7 +292,8 @@ Current progress:
 - `asus_laptop` is now the explicit Ansible owner of the firedragon NetworkManager dispatcher, lid/sleep policy, system-sleep hooks, and AX210 Bluetooth udev behavior
 - `hibernation` is now the explicit Ansible owner of firedragon swap, resume, mkinitcpio, and Limine hibernate plumbing
 - the old firedragon ACPI and lid-close repair mutators are now retired in favor of explicit role ownership plus disposable-lane validation
-- remaining capability gaps still include `aio-cooler`, secure boot, fingerprint watchdog, and the user `kbd-backlight` ownership decision
+- `iwd`, `networkmanager`, `acpi_wakeup`, and `power_sleep` now own their declared Batch-3 service enablement for goldendragon
+- remaining capability gaps still include secure boot, fingerprint watchdog, generic desktop services, and user helper ownership decisions such as `kbd-backlight`
 
 #### Stage 4. Finish chezmoi expansion
 
@@ -393,31 +398,24 @@ Chezmoi:
 - resolved DNS via `roles/resolved`
 - AMD GPU core role coverage via `roles/amd_gpu`
 - CoreCtrl polkit rule copied from legacy root by `roles/amd_gpu`
+- AIO cooler services and resume hook via `roles/aio-cooler`
+- v4l2loopback pending AUR package plus modprobe and modules-load state via `roles/packages` and `roles/v4l2loopback`
+- `etc/systemd/logind.conf.d/dragon-power.conf` via `roles/power_sleep`
+- `etc/systemd/sleep.conf.d/dragon-sleep.conf` via `roles/power_sleep`
 - desktop user account and admin group via `roles/users`
 - desktop session substrate via `roles/sddm` and `roles/hyprland`
 
 ### Missing or only partially represented
 
-- `dynamic_led.py`
-- `dynamic_led.service`
-- `liquidctl-dragon.service`
-- `etc/systemd/system-sleep/liquidctl-suspend.sh`
-- `etc/systemd/logind.conf.d/dragon-power.conf`
-- `etc/systemd/sleep.conf.d/dragon-sleep.conf`
-- `etc/modprobe.d/v4l2loopback.conf`
-- `etc/modules-load.d/v4l2loopback.conf`
 - PipeWire host audio drop-ins under `hosts/dragon/pipewire/`
 - NetBird installation and convergence
-- `aio-cooler` capability as a first-class role-owned concern
+- generic desktop service enablement from `system-services.sh` still needs explicit capability decisions for Bluetooth, CUPS, Docker, and `power-profiles-daemon`
 
 ### `dragon` parity checklist
 
-- add a role for `aio-cooler` or fold its owned files into a clearly scoped role
-- install `dynamic_led` and `liquidctl` units from canonical repo paths
-- port `dragon` power and sleep drop-ins into Ansible-managed `/etc`
-- add `v4l2loopback` modprobe and modules-load ownership
 - decide whether PipeWire host audio stays script-owned or moves to chezmoi
 - retire legacy NetBird setup calls once the new role is the only supported path
+- decide whether generic desktop services become explicit role-owned capabilities for `dragon`
 
 ## `firedragon`
 
@@ -515,6 +513,7 @@ Chezmoi:
 ### Missing or only partially represented
 
 - NetBird DNS integration behavior beyond the dispatcher/resolved edge stack
+- generic CUPS and Docker service enablement from `system-services.sh` still needs explicit capability decisions
 - user `kbd-backlight` helper still lives outside chezmoi and explicit user-state ownership
 
 ### `firedragon` parity checklist
@@ -522,6 +521,7 @@ Chezmoi:
 - keep `roles/packages`, `roles/amd_gpu`, and `roles/asus_laptop` aligned with the firedragon package contract
 - preserve firedragon DNS integration behavior around NetBird while retiring the legacy installer path
 - keep the retired ACPI repair stubs reference-only while validating the Ansible-owned behavior through the disposable firedragon probe
+- decide whether generic desktop services become explicit role-owned capabilities for `firedragon`
 - decide whether `kbd-backlight` becomes chezmoi-owned user state or is intentionally retired
 
 ## `goldendragon`
@@ -586,7 +586,13 @@ Roles currently applied to `goldendragon`:
 - `nvidia`
 - `tlp`
 - `resolved`
+- `intel_gpu`
 - `openfortivpn`
+- `v4l2loopback`
+- `power_sleep`
+- `iwd`
+- `networkmanager`
+- `acpi_wakeup`
 
 Chezmoi:
 
@@ -602,32 +608,38 @@ Chezmoi:
 - fingerprint udev and PAM behavior via `roles/fingerprint`
 - `etc/pam.d/hyprlock` via `roles/fingerprint`
 - OpenFortiVPN service units and `/usr/local/bin/avular-vpn-dns` via `roles/openfortivpn`
+- `etc/modprobe.d/v4l2loopback.conf` via `roles/v4l2loopback`
+- `etc/modules-load.d/v4l2loopback.conf` via `roles/v4l2loopback`
+- `v4l2loopback-dkms` pending AUR package via manifest-backed `roles/packages`
+- `etc/systemd/logind.conf.d/10-goldendragon-lid.conf` via `roles/power_sleep`
+- `etc/systemd/sleep.conf.d/10-goldendragon-sleep.conf` via `roles/power_sleep`
+- `acpid.service` and `thermald.service` via `roles/power_sleep`
+- `etc/iwd/main.conf` via `roles/iwd`
+- `iwd.service` via `roles/iwd`
+- `etc/NetworkManager/conf.d/10-unmanage-wlan0.conf` via `roles/networkmanager`
+- `NetworkManager.service` via `roles/networkmanager`
+- `etc/acpi/disable-wakeup.sh` via `roles/acpi_wakeup`
+- `etc/systemd/system/disable-acpi-wakeup.service` via `roles/acpi_wakeup`
+- `disable-acpi-wakeup.service` enablement via `roles/acpi_wakeup`
+- ACPI wakeup resume reapply via `roles/acpi_wakeup`
+- goldendragon laptop package parity from `setup_goldendragon_packages()` via manifest-backed `roles/packages`
 - desktop session substrate via `roles/sddm` and `roles/hyprland`
 
 ### Missing or only partially represented
 
-- `etc/acpi/disable-wakeup.sh`
-- `etc/systemd/system/disable-acpi-wakeup.service`
-- `etc/iwd/main.conf`
-- `etc/modprobe.d/v4l2loopback.conf`
-- `etc/modules-load.d/v4l2loopback.conf`
-- `etc/NetworkManager/conf.d/10-unmanage-wlan0.conf`
-- `etc/systemd/logind.conf.d/10-goldendragon-lid.conf`
-- `etc/systemd/sleep.conf.d/10-goldendragon-sleep.conf`
 - user `fprintd-watchdog` timer/service/binary
-- laptop package parity from `setup_goldendragon_packages()`
 - `~/.local/bin/battery-status` behavior created by legacy `setup.sh`
 - exact Waybar VPN marker lifecycle for `vpn-enabled`
 - secure-boot bringup path is still script-oriented and currently path-fragile
+- generic Bluetooth, CUPS, Docker, and non-TLP `power-profiles-daemon` service enablement from `system-services.sh` still needs explicit capability decisions
 
 ### `goldendragon` parity checklist
 
-- port the unmanaged `etc/` system files into Ansible or explicitly keep `setup.sh` mandatory until done
 - add fingerprint watchdog ownership to the new architecture
-- reconcile laptop package bringup from `setup_goldendragon_packages()` with new package roles
 - decide where `battery-status` lives in the new model
 - add explicit management or validation for the Waybar VPN marker
 - fix the secure-boot script entrypoint so it matches the actual repo path
+- decide whether generic desktop services become explicit role-owned capabilities for `goldendragon`
 
 ## `microdragon`
 

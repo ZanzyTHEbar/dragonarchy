@@ -10,6 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source centralized logging utilities
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../lib/logging.sh"
+# shellcheck disable=SC1091  # Runtime-resolved path to platform library
 source "${SCRIPT_DIR}/../lib/platform.sh"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/../lib/control-plane-mode.sh"

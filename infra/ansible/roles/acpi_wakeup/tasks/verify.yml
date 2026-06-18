@@ -1,0 +1,41 @@
+---
+- name: Check ACPI wakeup managed files
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+  loop: "{{ acpi_wakeup_managed_paths }}"
+  register: acpi_wakeup_installed_files
+
+- name: Assert ACPI wakeup managed files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.pw_name == 'root'
+      - item.stat.gr_name == 'root'
+      - item.stat.mode == item.item.mode
+    fail_msg: "Expected ACPI wakeup managed file {{ item.item.dest }} to exist."
+  loop: "{{ acpi_wakeup_installed_files.results }}"
+
+- name: Check ACPI wakeup system-sleep hook
+  ansible.builtin.stat:
+    path: "{{ acpi_wakeup_sleep_hook_path }}"
+  register: acpi_wakeup_sleep_hook
+
+- name: Assert ACPI wakeup system-sleep hook exists
+  ansible.builtin.assert:
+    that:
+      - acpi_wakeup_sleep_hook.stat.exists
+      - acpi_wakeup_sleep_hook.stat.pw_name == 'root'
+      - acpi_wakeup_sleep_hook.stat.gr_name == 'root'
+      - acpi_wakeup_sleep_hook.stat.mode == '0755'
+    fail_msg: "Expected ACPI wakeup system-sleep hook {{ acpi_wakeup_sleep_hook_path }} to exist."
+
+- name: Gather service facts for ACPI wakeup
+  ansible.builtin.service_facts:
+
+- name: Assert ACPI wakeup service is enabled and healthy
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[acpi_wakeup_service_name] is defined
+      - ansible_facts.services[acpi_wakeup_service_name].status == 'enabled'
+      - ansible_facts.services[acpi_wakeup_service_name].state != 'failed'
+    fail_msg: "Expected {{ acpi_wakeup_service_name }} to be installed, enabled, and not failed."

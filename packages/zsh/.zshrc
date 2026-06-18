@@ -108,15 +108,3 @@ fi
 unalias zi 2>/dev/null
 
 
-# bun completions
-[ -s "/home/daofficialwizard/.bun/_bun" ] && source "/home/daofficialwizard/.bun/_bun"
-
-# bun
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
-
-# >>> grok installer >>>
-export PATH="$HOME/.grok/bin:$PATH"
-fpath=(~/.grok/completions/zsh $fpath)
-autoload -Uz compinit && compinit -C
-# <<< grok installer <<<

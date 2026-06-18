@@ -2,7 +2,7 @@
 - name: Validate v4l2loopback role inputs
   ansible.builtin.import_tasks: validate.yml
 
-- name: Install v4l2loopback packages
+- name: Validate v4l2loopback package ownership
   ansible.builtin.import_tasks: install.yml
 
 - name: Configure v4l2loopback state

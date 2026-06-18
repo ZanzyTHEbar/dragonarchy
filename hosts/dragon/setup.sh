@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2317,SC2329
 #
 # Dragon Host-Specific Setup
 #

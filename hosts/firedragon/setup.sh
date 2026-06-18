@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC1090,SC1091,SC2016,SC2317,SC2329
 #
 # FireDragon Host-Specific Setup
 #

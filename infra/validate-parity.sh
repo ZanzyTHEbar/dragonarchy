@@ -83,19 +83,19 @@ fi
 HOST_JSON=$(ansible-inventory -i "${INVENTORY}" --host "${HOST_NAME}" 2>/dev/null)
 
 # Check capabilities declared
-declared_caps=$(echo "${HOST_JSON}" | python3 -c "import sys, json; d=json.load(sys.stdin); caps=d.get('host_capabilities',[]); print('\n'.join(caps))" || true)
+declared_caps=$(printf '%s\n' "${HOST_JSON}" | python3 -c "import sys, json; d=json.load(sys.stdin); caps=d.get('host_capabilities',[]); print('\n'.join(caps))" || true)
 
 if [[ -z "${declared_caps}" ]]; then
     warn "No capabilities declared for host"
 else
-    ok "Capabilities declared: $(echo ${declared_caps} | tr '\n' ' ')"
+    ok "Capabilities declared: $(printf '%s\n' "${declared_caps}" | tr '\n' ' ')"
 fi
 
 # Check GPU stack
-gpu_stack=$(echo "${HOST_JSON}" | python3 -c "import sys, json; d=json.load(sys.stdin); gpus=d.get('host_gpu_stack',[]); print('\n'.join(gpus))" || true)
+gpu_stack=$(printf '%s\n' "${HOST_JSON}" | python3 -c "import sys, json; d=json.load(sys.stdin); gpus=d.get('host_gpu_stack',[]); print('\n'.join(gpus))" || true)
 
 if [[ -n "${gpu_stack}" ]]; then
-    ok "GPU stack: $(echo ${gpu_stack} | tr '\n' ' ')"
+    ok "GPU stack: $(printf '%s\n' "${gpu_stack}" | tr '\n' ' ')"
 fi
 
 # Query inventory group membership so role coverage includes group-applied roles.
@@ -131,7 +131,7 @@ print('\n'.join(sorted(groups)))
 " "${HOST_NAME}" || true)
 
 if [[ -n "${inventory_groups}" ]]; then
-    ok "Inventory groups: $(echo ${inventory_groups} | tr '\n' ' ')"
+    ok "Inventory groups: $(printf '%s\n' "${inventory_groups}" | tr '\n' ' ')"
 fi
 
 # ---------------------------------------------------------------------------
@@ -167,7 +167,8 @@ add_expected_role() {
 }
 
 # Add GPU roles based on GPU stack
-for gpu in ${gpu_stack:-}; do
+while IFS= read -r gpu; do
+    [[ -n "${gpu}" ]] || continue
     gpu_normalized="${gpu,,}"
     gpu_normalized="${gpu_normalized//-/_}"
     case "${gpu_normalized}" in
@@ -175,10 +176,11 @@ for gpu in ${gpu_stack:-}; do
         nvidia) add_expected_role nvidia ;;
         intel|intel_gpu) add_expected_role intel_gpu ;;
     esac
-done
+done <<< "${gpu_stack:-}"
 
 # Add capability-based roles
-for cap in ${declared_caps:-}; do
+while IFS= read -r cap; do
+    [[ -n "${cap}" ]] || continue
     case "${cap}" in
         tlp) add_expected_role tlp ;;
         fingerprint) add_expected_role fingerprint ;;
@@ -188,11 +190,16 @@ for cap in ${declared_caps:-}; do
         fortinet_vpn) add_expected_role openfortivpn ;;
         aio-cooler) add_expected_role aio-cooler ;;
         v4l2loopback) add_expected_role v4l2loopback ;;
+        power_sleep) add_expected_role power_sleep ;;
+        iwd) add_expected_role iwd ;;
+        networkmanager) add_expected_role networkmanager ;;
+        acpi_wakeup) add_expected_role acpi_wakeup ;;
     esac
-done
+done <<< "${declared_caps:-}"
 
 # Add roles applied by inventory group membership.
-for group in ${inventory_groups:-}; do
+while IFS= read -r group; do
+    [[ -n "${group}" ]] || continue
     case "${group}" in
         tlp) add_expected_role tlp ;;
         fingerprint) add_expected_role fingerprint ;;
@@ -208,8 +215,12 @@ for group in ${inventory_groups:-}; do
         sddm) add_expected_role sddm ;;
         hyprland) add_expected_role hyprland ;;
         resolved) add_expected_role resolved ;;
+        power_sleep) add_expected_role power_sleep ;;
+        iwd) add_expected_role iwd ;;
+        networkmanager) add_expected_role networkmanager ;;
+        acpi_wakeup) add_expected_role acpi_wakeup ;;
     esac
-done
+done <<< "${inventory_groups:-}"
 
 for role in "${EXPECTED_ROLES[@]}"; do
     role_dir="${REPO_ROOT}/infra/ansible/roles/${role}"
@@ -240,7 +251,7 @@ else
         ok "Manifest: ${manifest_name}"
 
         # Validate manifest entries point to existing sources
-        while IFS='|' read -r mode source_rel dest_rel; do
+        while IFS='|' read -r mode source_rel _dest_rel; do
             [[ -z "${mode}" ]] && continue
             [[ "${mode}" =~ ^# ]] && continue
             [[ "${mode}" == "exclude" ]] && continue

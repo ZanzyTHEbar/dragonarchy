@@ -1,0 +1,31 @@
+---
+- name: Assert ACPI wakeup metadata exists
+  ansible.builtin.assert:
+    that:
+      - acpi_wakeup_enabled | bool
+      - host_capabilities is defined
+      - "'acpi_wakeup' in host_capabilities"
+      - inventory_hostname in acpi_wakeup_managed_paths_by_host
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the ACPI wakeup contract.
+
+- name: Set ACPI wakeup managed paths
+  ansible.builtin.set_fact:
+    acpi_wakeup_managed_paths: "{{ acpi_wakeup_managed_paths_by_host[inventory_hostname] }}"
+
+- name: Check ACPI wakeup payload sources
+  ansible.builtin.stat:
+    path: "{{ item.src }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop: "{{ acpi_wakeup_managed_paths }}"
+  register: acpi_wakeup_source_files
+
+- name: Assert ACPI wakeup payload sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing ACPI wakeup payload source '{{ item.item.src }}'.
+  loop: "{{ acpi_wakeup_source_files.results }}"
