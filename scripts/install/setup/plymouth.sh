@@ -5,12 +5,12 @@ set -e
 
 # Get script directory and source logging utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 LOG_LIB="${PROJECT_ROOT}/scripts/lib/logging.sh"
 BOOT_LIB="${PROJECT_ROOT}/scripts/lib/bootloader.sh"
-# shellcheck disable=SC1091
+# shellcheck disable=SC1090
 source "$LOG_LIB"
-# shellcheck disable=SC1091
+# shellcheck disable=SC1090
 source "$BOOT_LIB"
 
 if ! command -v paru &>/dev/null; then

@@ -1,0 +1,2 @@
+---
+# power_sleep does not restart systemd-logind; reboot or maintenance-window restart applies logind/sleep drop-ins.

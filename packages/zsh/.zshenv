@@ -32,7 +32,7 @@ export LD_LIBRARY_PATH=/opt/SEGGER/JLink:$LD_LIBRARY_PATH
 export PATH=$LD_LIBRARY_PATH:$PATH
 
 # Master toggle (enables many experiments at once)
-export OPENCODE_EXPERIMENTAL=1
+export OPENCODE_EXPERIMENTAL=0
 
 # Specific high-value undocumented / experimental features
 export OPENCODE_EXPERIMENTAL_WORKSPACES=true          # Git worktrees as isolated workspaces

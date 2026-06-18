@@ -176,10 +176,10 @@ for logical_group in "${REQUESTED_GROUPS[@]}"; do
 
 		for p in "${normalized[@]}"; do
 			case "$manager" in
-			pacman) PACMAN_PKGS["$p"]=1 ;;
-			apt) APT_PKGS["$p"]=1 ;;
-			paru) PARU_PKGS["$p"]=1 ;;
-			script) SCRIPT_PKGS["$p"]=1 ;;
+			pacman) PACMAN_PKGS["$p"]=1; : "${PACMAN_PKGS[$p]}" ;;
+			apt) APT_PKGS["$p"]=1; : "${APT_PKGS[$p]}" ;;
+			paru) PARU_PKGS["$p"]=1; : "${PARU_PKGS[$p]}" ;;
+			script) SCRIPT_PKGS["$p"]=1; : "${SCRIPT_PKGS[$p]}" ;;
 			esac
 		done
 	done

@@ -15,7 +15,10 @@ ln -sf ../../dotfiles/packages/hyprland/.local/bin/generate-clipse-themes genera
 ln -sf ../../dotfiles/packages/hyprland/.local/bin/test-clipse-theme test-clipse-theme
 
 echo "✅ Symlinks created:"
-ls -la ~/.local/bin/ | grep -E "(clipse|clipboard)"
+for entry in ~/.local/bin/*clipse* ~/.local/bin/*clipboard*; do
+  [[ -e "$entry" || -L "$entry" ]] || continue
+  ls -ld "$entry"
+done
 
 echo ""
 echo "Testing clipse daemon..."
@@ -40,4 +43,3 @@ echo ""
 echo "✅ Setup complete! Try:"
 echo "  Super + V         - Clipse (TUI)"
 echo "  Super + Shift + V - Walker (Advanced)"
-

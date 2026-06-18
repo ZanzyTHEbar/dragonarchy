@@ -1,0 +1,2 @@
+---
+# NetworkManager uses packaged units; no role-local handlers are required.

@@ -1,0 +1,31 @@
+---
+- name: Assert NetworkManager metadata exists
+  ansible.builtin.assert:
+    that:
+      - networkmanager_enabled | bool
+      - host_capabilities is defined
+      - "'networkmanager' in host_capabilities"
+      - inventory_hostname in networkmanager_managed_paths_by_host
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the NetworkManager contract.
+
+- name: Set NetworkManager managed paths
+  ansible.builtin.set_fact:
+    networkmanager_managed_paths: "{{ networkmanager_managed_paths_by_host[inventory_hostname] }}"
+
+- name: Check NetworkManager payload sources
+  ansible.builtin.stat:
+    path: "{{ item.src }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop: "{{ networkmanager_managed_paths }}"
+  register: networkmanager_source_files
+
+- name: Assert NetworkManager payload sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing NetworkManager payload source '{{ item.item.src }}'.
+  loop: "{{ networkmanager_source_files.results }}"

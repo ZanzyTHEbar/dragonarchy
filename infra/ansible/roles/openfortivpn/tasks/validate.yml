@@ -4,6 +4,10 @@
     path: /usr/bin/openfortivpn
   register: openfortivpn_binary
 
+- name: Set OpenFortiVPN host payload root
+  ansible.builtin.set_fact:
+    openfortivpn_role_files_root: "{{ openfortivpn_host_source_dir }}/{{ inventory_hostname }}"
+
 - name: Assert OpenFortiVPN tranche-5 metadata exists
   ansible.builtin.assert:
     that:
@@ -12,24 +16,20 @@
       - host_platform_family in openfortivpn_packages_by_platform
       - host_capabilities is defined
       - "'fortinet_vpn' in host_capabilities"
-      - "'resolved' in host_capabilities"
+      - "'resolved' in group_names"
       - managed_users is defined
       - managed_users | length > 0
       - openfortivpn_binary.stat.exists
     fail_msg: >-
       Host '{{ inventory_hostname }}' does not satisfy the OpenFortiVPN tranche-5 contract.
       Required: openfortivpn_enabled=true, host_platform_family defined and in openfortivpn_packages_by_platform,
-      'fortinet_vpn' in host_capabilities, 'resolved' in host_capabilities,
+      'fortinet_vpn' in host_capabilities, membership in the resolved inventory group,
       managed_users defined and non-empty, openfortivpn payload files must exist under
       {{ openfortivpn_role_files_root }}, and /usr/bin/openfortivpn must exist.
 
 - name: Set OpenFortiVPN primary user
   ansible.builtin.set_fact:
     openfortivpn_primary_user: "{{ managed_users[0].name }}"
-
-- name: Set OpenFortiVPN host payload root
-  ansible.builtin.set_fact:
-    openfortivpn_role_files_root: "{{ openfortivpn_host_source_dir }}/{{ inventory_hostname }}"
 
 - name: Check OpenFortiVPN DNS helper source
   ansible.builtin.stat:

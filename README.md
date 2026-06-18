@@ -7,7 +7,7 @@ This is a very opinionated Linux configuration using Hyprland, built on CachyOS 
 - **Manifests** for declarative dotfile ownership
 - **age/sops** for secrets management
 
-The legacy GNU Stow + bash-script flow has been retired. The new architecture is fully declarative and idempotent.
+The canonical managed-host path is now the Ansible + chezmoi control plane. The legacy GNU Stow + bash-script flow is deprecated and guarded, retained only for unmanaged profiles, recovery, and historical troubleshooting.
 
 ## Quick Start
 
@@ -47,7 +47,7 @@ The legacy GNU Stow + bash-script flow (`./install.sh`) is deprecated. Use `./in
 
 ## Legacy Install (Deprecated)
 
-The old `./install.sh` entrypoint and `scripts/install/setup.sh` orchestrator are being migrated to Ansible roles. They remain functional but are no longer the canonical path. Use `./install` instead.
+The old `./install.sh` entrypoint and `scripts/install/setup.sh` orchestrator remain available only for explicit legacy or recovery work. Managed inventory hosts refuse this path unless `DOTFILES_LEGACY_INSTALL=1` is set. Use `./install` instead.
 
 ## Directory Structure
 
@@ -76,8 +76,8 @@ dragonarchy/
 │   │   └── bin/        # Sync tooling (chezmoi-sync)
 │   └── packer/         # Proxmox validation template pipeline
 ├── scripts/
-│   ├── lib/            # Shared libraries (legacy, being migrated)
-│   ├── install/        # Legacy installation scripts (being migrated to Ansible)
+│   ├── lib/            # Shared libraries for legacy/support tooling
+│   ├── install/        # Legacy installer support scripts
 │   ├── theme-manager/  # Theme management scripts
 │   ├── utilities/      # Utility scripts
 │   └── hardware/       # Hardware-specific scripts
@@ -103,18 +103,18 @@ When adding a new command:
 
 1. Place the executable in the appropriate `scripts/<area>/` directory and make it executable.
 2. Append an entry to `scripts/tools/bin-links.manifest` with `package=`, `target=` (canonical script), and `link=` (package `.local/bin` path).
-3. Run `scripts/tools/sync-bin-links --package <name>` to generate the symlink, then restow the package.
+3. Run `scripts/tools/sync-bin-links --package <name>` to generate or verify the package-local symlink.
 
-This keeps every PATH-visible command sourced from a single canonical script while preserving per-package bin directories for GNU Stow.
+This keeps every PATH-visible command sourced from a single canonical script while preserving per-package bin directories. Managed user-state application goes through `infra/chezmoi/bin/chezmoi-sync` and `./install --user-only`; direct Stow restows are legacy/manual recovery operations.
 
 ## Features
 
 - **Declarative Configuration**: system state managed by Ansible and user state managed by chezmoi
 - **Multi-Platform**: Linux (CachyOS/Arch) and Debian support
-- **Host-Specific**: Different configs per machine with trait-based capabilities
+- **Host-Specific**: Different configs per machine with inventory-declared capabilities
 - **Secrets Management**: Encrypted secrets with age/sops
 - **Package Bundles**: Composable package profiles (desktop, minimal, creative)
-- **Safe System Modifications**: All `/etc` changes go through `system-mods.sh` with automatic backups and idempotency
+- **Safe System Modifications**: Managed `/etc` changes go through Ansible roles with explicit ownership and validation
 - **System Validation**: Host-aware validation with JSON output for CI
 - **First-Run Orchestrator**: Firewall, timezone, theme verification for fresh installs
 - **CI Pipeline**: Shellcheck, syntax checking, and validation via GitHub Actions
@@ -274,7 +274,7 @@ See [scripts/lib/README.md](scripts/lib/README.md) for usage details.
 
 ## Networking with NetBird
 
-This setup includes NetBird for creating a secure peer-to-peer VPN. The `system-config.sh` script will automatically install and enable the NetBird service.
+This setup includes NetBird for creating a secure peer-to-peer VPN. Managed hosts install and enable it through the Ansible `netbird` role when they are in the `netbird` inventory group.
 
 To connect to your network, you will need to run the `netbird` command and follow the instructions.
 
@@ -336,7 +336,7 @@ Operator docs:
 
 - `docs/architecture/proxmox-vm-template-strategy.md`
 - `docs/runbooks/proxmox-validation-template-workflow.md`
-- `docs/runbooks/first-safe-cutover-rollout-gate.md`
+- `docs/archive/migration-2026-05/first-safe-cutover-rollout-gate.md` (historical gate; adapt to the current `chezmoi-sync` model before executing)
 
 ## Docs
 

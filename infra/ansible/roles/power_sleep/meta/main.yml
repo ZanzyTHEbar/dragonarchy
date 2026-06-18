@@ -1,0 +1,8 @@
+---
+galaxy_info:
+  author: daofficialwizard
+  description: Manage host-specific systemd power, sleep, and power-adjacent service state.
+  license: MIT
+  min_ansible_version: "2.15"
+
+dependencies: []

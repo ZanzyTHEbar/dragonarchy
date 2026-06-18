@@ -1,8 +1,35 @@
 # Dotfiles Packages
 
-This directory contains modular package configurations managed by GNU Stow.
+This directory contains canonical shared user-state payloads for the dotfiles control plane.
 
-## Stow Configuration
+Managed user-state application is owned by chezmoi. The permanent flow is:
+
+```bash
+./infra/chezmoi/bin/chezmoi-sync --host <hostname>
+chezmoi apply
+```
+
+or, through the top-level entrypoint:
+
+```bash
+./install --host <hostname> --user-only
+```
+
+GNU Stow metadata remains here because this tree is the historical package layout and is still useful for explicit legacy/recovery operations. Do not treat direct `stow` commands as the canonical managed-host install path.
+
+## Chezmoi Manifest Ownership
+
+`packages/<name>/` is source content. A file becomes managed user state only when an `infra/chezmoi/manifests/*.manifest` entry maps it into the chezmoi source tree.
+
+When adding or changing managed user-state payloads:
+
+1. Put the canonical file under the appropriate `packages/<name>/` tree.
+2. Add or update a manifest entry under `infra/chezmoi/manifests/` if the file should be managed by chezmoi.
+3. Run `./install --host <hostname> --user-only --dry-run` before applying on a real host.
+
+Runtime-generated files, secrets, caches, and local state should stay out of manifests unless an explicit architecture decision says otherwise.
+
+## Legacy Stow Configuration
 
 ### `.stowrc` (recommended / supported by GNU Stow)
 
@@ -16,18 +43,18 @@ GNU Stow (2.4.x) supports a resource file named `.stowrc`. The `.stowrc` file at
 - `.vscode`, `.idea` - Editor/IDE directories
 - Backup files (`*.bak`, `*.backup`, `*.swp`, `*.swo`, `*~`, etc.)
 
-### Usage
+### Legacy Usage
 
-From the `packages/` directory, stow any package:
+For explicit recovery or unmanaged-host work, run Stow from the `packages/` directory:
 
 ```bash
 cd ~/dotfiles/packages
 stow <package-name>
 ```
 
-The `.stowrc` file is automatically applied to all stow operations.
+The `.stowrc` file is automatically applied to all Stow operations run from this directory.
 
-### Adding New Packages
+### Adding New Payload Packages
 
 When creating a new package:
 
@@ -39,13 +66,15 @@ When creating a new package:
 
 2. Add your configuration files in the appropriate paths
 
-3. (Optional) Add a `.package` marker file:
+3. Add or update an `infra/chezmoi/manifests/*.manifest` entry for any paths that should be managed by chezmoi.
+
+4. (Optional) Add a `.package` marker file for legacy tooling:
 
    ```bash
    touch packages/mypackage/.package
    ```
 
-#### System Packages (Advanced)
+#### Legacy System Packages
 
 If a package must be installed system-wide (target: `/`) and must **not** be stowed into `$HOME`,
 set the marker content to:
@@ -54,26 +83,26 @@ set the marker content to:
 echo "scope=system" > packages/<pkg>/.package
 ```
 
-These are installed via `scripts/install/stow-system.sh`.
+These are historical system-Stow markers. New system state belongs in Ansible roles.
 
-4. (Optional) Add a README:
+5. (Optional) Add a README:
 
    ```bash
    echo "# My Package" > packages/mypackage/README.md
    ```
 
-5. Stow the package:
+6. For legacy/manual validation only, dry-run Stow from `packages/`:
 
-   ```bash
-   cd packages
-   stow mypackage
-   ```
+```bash
+cd packages
+stow -n -v mypackage
+```
 
-The `.package` and `README.md` files will automatically be excluded from stowing.
+The `.package` and `README.md` files will automatically be excluded from Stow.
 
 ## Package List
 
-Each subdirectory represents a self-contained configuration package that can be independently stowed or unstowed.
+Each subdirectory represents a self-contained payload package that can be referenced by chezmoi manifests and, where still needed, independently stowed or unstowed for legacy/manual flows.
 
 ### Available Packages
 
@@ -170,10 +199,11 @@ Additional application-specific fixes will be documented here as needed.
 
 ## Related Scripts
 
-- `scripts/install/stow-system.sh` - System-level stow operations
-- `scripts/install/setup.sh` - Main setup script
-- `scripts/install/setup/applications.sh` - Application-specific fixes
-- `scripts/install/update.sh` - Update dotfiles
+- `../infra/chezmoi/bin/chezmoi-sync` - permanent manifest-to-chezmoi sync
+- `../install` - canonical managed-host entrypoint
+- `scripts/install/stow-system.sh` - legacy system-level Stow operations
+- `scripts/install/setup.sh` - legacy setup orchestrator
+- `scripts/install/update.sh` - legacy update flow
 - `scripts/utilities/zoom-fix.sh` - Zoom rendering fix for Hyprland
 
 ## More Information
