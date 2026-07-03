@@ -129,20 +129,9 @@ Request: $request"
   script=$(opencode run "$prompt" \
     --log-level ERROR \
     --format json \
-    --model opencode/deepseek-v4-flash-free \
     --agent ask \
     "${opencode_args[@]}" \
-    | jq -r 'select(.type=="text") | .part.text' \
-    | awk '
-        BEGIN { best = ""; maxlen = 0 }
-        /^#!/ {
-            best = $0; maxlen = length($0); next
-        }
-        length($0) > maxlen {
-            best = $0; maxlen = length($0)
-        }
-        END { print best }
-    ')
+    | jq -r 'if .type == "text" then .part.text elif .type == "error" then "opencode error: \(.error.data.message // .error.message // .error.name // "unknown error")" | halt_error(1) else empty end')
 
   if [[ -z "$script" || "$script" =~ ^[[:space:]]*$ ]]; then
     print -u2 $'\e[31m✗ Error: No script content captured from opencode\e[0m'
