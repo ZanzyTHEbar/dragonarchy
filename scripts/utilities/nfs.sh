@@ -85,13 +85,13 @@ declare -a NFS_SERVER_DATASETS=("$@")
 declare -a FSTAB_ENTRIES=()
 declare -a AUTOMOUNT_UNITS=()
 
-# NFS mount options optimized for performance and reliability
+# NFS mount options optimized for high-latency VPN paths and reliability
 #
 # Notes:
 # - `x-systemd.automount` ensures mounts happen on-demand.
 # - `nofail` prevents boot from being held hostage by unreachable servers.
-# - `x-systemd.mount-timeout` / `x-systemd.device-timeout` reduce worst-case hangs.
-readonly NFS_OPTIONS="nfs4 rw,async,rsize=65536,wsize=65536,proto=tcp,vers=4.1,noatime,actimeo=10,cto,soft,timeo=60,retrans=3,acregmin=0,acregmax=0,acdirmin=0,acdirmax=0,lookupcache=positive,nofail,x-systemd.automount,x-systemd.idle-timeout=60,x-systemd.mount-timeout=5s,x-systemd.device-timeout=5s,_netdev 0 0"
+# - Route selection is handled outside fstab so the same mounts work on LAN or VPN.
+readonly NFS_OPTIONS="nfs4 rw,async,rsize=1048576,wsize=1048576,nconnect=4,proto=tcp,vers=4.1,noatime,actimeo=60,cto,hard,timeo=600,retrans=2,lookupcache=all,nofail,noauto,x-systemd.automount,x-systemd.idle-timeout=1h,x-systemd.mount-timeout=45s,x-systemd.device-timeout=45s,x-systemd.requires=network-online.target,x-systemd.after=network-online.target,_netdev 0 0"
 
 # Logging functions
 check_privileges() {

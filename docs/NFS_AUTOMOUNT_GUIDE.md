@@ -585,40 +585,22 @@ nfs.sh --mode status
 
 ---
 
-## Migration Guide
+## Adopt Managed Entries
 
-### From Manual fstab Entries
+### Bring Existing Entries Under Management
 
-If you have existing manual NFS entries:
+To make existing NFS mounts script-managed:
 
 ```bash
-# 1. Document current entries
+# 1. Capture the current NFS entries
 grep nfs /etc/fstab > my-current-nfs.txt
 
-# 2. Remove manual entries from fstab (outside managed section)
+# 2. Remove the unmanaged NFS entries from fstab
 
-# 3. Add via script
+# 3. Add the canonical managed entries
 ./nfs.sh server /nfs data backup common
 
 # 4. Verify
-./nfs.sh --mode status
-```
-
-### From Old Script Version
-
-If migrating from old version without managed sections:
-
-```bash
-# 1. Note current configuration
-mount | grep nfs4 > current-mounts.txt
-
-# 2. Clean old entries
-# (manually remove old NFS entries from fstab)
-
-# 3. Configure with new script
-./nfs.sh server /nfs data backup common
-
-# 4. Verify mounts
 ./nfs.sh --mode status
 ```
 
@@ -626,22 +608,26 @@ mount | grep nfs4 > current-mounts.txt
 
 ## Performance Notes
 
-The script uses optimized NFS mount options:
+Use one NFS mount definition per dataset. Route selection belongs outside fstab, so the same mount uses whichever route is active.
+
+The generated options are tuned for high-latency VPN paths:
 
 ```
-nfs4 rw,async,rsize=65536,wsize=65536,proto=tcp,vers=4.1,noatime,
-actimeo=10,intr,cto,soft,timeo=60,retrans=3,acregmin=0,acregmax=0,
-acdirmin=0,acdirmax=0,lookupcache=positive,x-systemd.automount,
-x-systemd.idle-timeout=60,_netdev
+nfs4 rw,async,rsize=1048576,wsize=1048576,nconnect=4,proto=tcp,vers=4.1,noatime,
+actimeo=60,cto,hard,timeo=600,retrans=2,lookupcache=all,noauto,x-systemd.automount,
+x-systemd.idle-timeout=1h,x-systemd.requires=network-online.target,_netdev
 ```
 
 **Key Options**:
 - `async`: Async writes for performance
-- `rsize/wsize=65536`: Large transfer sizes
+- `rsize/wsize=1048576`: Larger transfer sizes to reduce NFS-level round trips
+- `nconnect=4`: Multiple TCP connections for better throughput over high-latency tunnels
 - `noatime`: No access time updates
-- `soft,timeo=60`: Timeout after 60s (prevents hangs)
-- `x-systemd.automount`: Auto-mount on access
-- `x-systemd.idle-timeout=60`: Unmount after 60s idle
+- `actimeo=60,lookupcache=all`: Cache metadata longer to avoid repeated VPN round trips
+- `hard,timeo=600,retrans=2`: Retry safely instead of returning partial I/O errors
+- `x-systemd.automount,noauto`: Auto-mount on access without mounting at boot
+- `x-systemd.requires=network-online.target`: Wait for host networking before mount access
+- `x-systemd.idle-timeout=1h`: Unmount after one idle hour
 
 ---
 
