@@ -109,3 +109,4 @@ fi
 
 # Unalias zi from zinit to avoid conflicts with zoxide zi command
 unalias zi 2>/dev/null
+

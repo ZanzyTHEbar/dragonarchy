@@ -19,6 +19,7 @@
   "instructions": [
     "./AGENTS.md",
     "./rules/general/memory-bank.mdc",
+    "./rules/general/code-search.mdc",
     "./rules/general/task-authority-boundaries.mdc",
     "./rules/cursor-team-kit/no-inline-imports.mdc",
     "./rules/cursor-team-kit/typescript-exhaustive-switch.mdc"
@@ -75,6 +76,12 @@
       },
       "timeout": 20000
     },
+    "codebase-memory": {
+      "type": "local",
+      "command": ["sh", "-c", "exec \"$HOME/.local/bin/codebase-memory-mcp\""],
+      "enabled": true,
+      "timeout": 300000
+    },
     "playwright": {
       "type": "local",
       "command": ["npx", "-y", "@playwright/mcp@0.0.75"],
@@ -88,8 +95,14 @@
   },
   "plugin": [
     "@tarquinen/opencode-dcp@beta",
-    "opencode-rules@latest"
+    "opencode-rules@latest",
+    "/home/daofficialwizard/.local/share/opencode/ponytail/.opencode/plugins/ponytail.mjs"
   ],
+  "skills": {
+    "paths": [
+      "/home/daofficialwizard/.local/share/opencode/ponytail/skills"
+    ]
+  },
   "permission": {
    "lsp": "allow"
   }

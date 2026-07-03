@@ -85,62 +85,65 @@ showcalendarcw() {
 }
 
 ops() {
-    # Dependency checks
-    if ! command -v opencode &> /dev/null; then
-        print -u2 $'\e[31m✗ Error: opencode command not found\e[0m'
-        return 1
+  if ! command -v opencode &> /dev/null; then
+    print -u2 $'\e[31m✗ Error: opencode command not found\e[0m'
+    return 1
+  fi
+  if ! command -v jq &> /dev/null; then
+    print -u2 $'\e[31m✗ Error: jq is required (for JSON parsing)\e[0m'
+    return 1
+  fi
+
+  if [[ $# -eq 0 && -t 0 ]]; then
+    print -u2 $'\e[33mUsage:\e[0m ops "your request" [--file file.txt --image img.png ...]'
+    return 1
+  fi
+
+  local -a request_parts=() opencode_args=()
+  for arg in "$@"; do
+    if [[ $arg == -* ]]; then
+      opencode_args+=("$arg")
+    else
+      request_parts+=("$arg")
     fi
-    if ! command -v jq &> /dev/null; then
-        print -u2 $'\e[31m✗ Error: jq is required (for JSON parsing)\e[0m'
-        return 1
-    fi
+  done
 
-    # Usage if no request and nothing piped in
-    if [[ $# -eq 0 && -t 0 ]]; then
-        print -u2 $'\e[33mUsage:\e[0m ops "your request" [--file file.txt --image img.png ...]'
-        return 1
-    fi
+  local request="${(j: :)request_parts}"
 
-    # === Argument separation: everything that starts with -/-- goes to opencode, rest is request ===
-    # This lets us write natural prompts without quoting the whole thing
-    local -a request_parts=() opencode_args=()
-    for arg in "$@"; do
-        if [[ $arg == -* ]]; then
-            opencode_args+=("$arg")
-        else
-            request_parts+=("$arg")
-        fi
-    done
+  if ! [[ -t 0 ]]; then
+    local input=$(cat)
+    request="=== INPUT FROM PIPE ===\n${input}\n\n${request}"
+  fi
 
-    local request="${(j: :)request_parts}"
+  # Lighter prompt — tool restrictions are now enforced by the agent itself
+  local prompt="Provide a complete zsh script for this request.
 
-    # === Piping input support ===
-    if ! [[ -t 0 ]]; then
-        local input=$(cat)
-        request="=== INPUT FROM PIPE ===\n${input}\n\n${request}"
-    fi
-
-    # === Build the exact prompt (unchanged core behaviour) ===
-    local prompt="Provide a complete zsh script for this request. Output ONLY the raw script.
-No explanations, no markdown, no code blocks.
-Start directly with a zsh shebang.
+Rules:
+- Output ONLY the raw script.
+- Start directly with a proper shebang.
+- No explanations, no markdown, no code fences.
 
 Request: $request"
 
-    # === Run opencode with any extra flags you passed (files, images, agents, etc.) ===
-    local script
-    script=$(opencode run "$prompt" --log-level ERROR --format json "${opencode_args[@]}" \
-             | jq -r 'select(.type=="text") | .part.text')
+  local script
+  script=$(opencode run "$prompt" \
+    --log-level ERROR \
+    --format json \
+    --agent ask \
+    "${opencode_args[@]}" \
+    | jq -r 'if .type == "text" then .part.text elif .type == "error" then "opencode error: \(.error.data.message // .error.message // .error.name // "unknown error")" | halt_error(1) else empty end')
 
-    # === Piping output support ===
-    if [[ -t 1 ]]; then
-        # Terminal → copy to clipboard + success message (original behaviour)
-        print -n "$script" | wl-copy
-        print -P "\n%F{green}✓ Script copied to clipboard%f"
-    else
-        # Being piped or redirected → output raw script only
-        print -n "$script"
-    fi
+  if [[ -z "$script" || "$script" =~ ^[[:space:]]*$ ]]; then
+    print -u2 $'\e[31m✗ Error: No script content captured from opencode\e[0m'
+    return 1
+  fi
+
+  if [[ -t 1 ]]; then
+    print -n "$script" | wl-copy
+    print -P "\n%F{green}✓ Script copied to clipboard%f"
+  else
+    print -n "$script"
+  fi
 }
 
 dotview() {

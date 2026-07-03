@@ -42,3 +42,7 @@ asus_laptop_managed_services:
   - asusd.service
   - acpid.service
   - thermald.service
+
+# ponytail: this role uses NetworkManager/wpa_supplicant; mask iwd unless the host switches Wi-Fi stacks.
+asus_laptop_disabled_services:
+  - iwd.service
