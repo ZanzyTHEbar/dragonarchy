@@ -23,6 +23,15 @@
     fail_msg: "Expected ASUS laptop service {{ item }} to be installed and running."
   loop: "{{ asus_laptop_managed_services }}"
 
+- name: Assert conflicting Wi-Fi stack services are disabled when present
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item].status in ['disabled', 'masked']
+      - ansible_facts.services[item].state != 'running'
+    fail_msg: "Expected {{ item }} to be stopped and disabled or masked."
+  loop: "{{ asus_laptop_disabled_services }}"
+  when: item in ansible_facts.services
+
 - name: Check ASUS performance profile
   ansible.builtin.command: asusctl profile -p
   register: asus_laptop_verified_profile

@@ -19,6 +19,7 @@
   "instructions": [
     "./AGENTS.md",
     "./rules/general/memory-bank.mdc",
+    "./rules/general/code-search.mdc",
     "./rules/general/task-authority-boundaries.mdc",
     "./rules/cursor-team-kit/no-inline-imports.mdc",
     "./rules/cursor-team-kit/typescript-exhaustive-switch.mdc"
@@ -81,6 +82,12 @@
       },
       "enabled": false,
       "timeout": 20000
+    },
+    "codebase-memory": {
+      "type": "local",
+      "command": ["sh", "-c", "exec \"$HOME/.local/bin/codebase-memory-mcp\""],
+      "enabled": true,
+      "timeout": 300000
     },
     "playwright": {
       "type": "local",

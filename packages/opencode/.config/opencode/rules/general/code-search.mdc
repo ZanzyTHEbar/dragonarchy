@@ -1,171 +1,43 @@
 ---
 keywords:
+  - "codebase-memory"
+  - "codebase-memory-mcp"
+  - "code search"
+  - "symbol search"
+  - "call graph"
+  - "architecture"
+  - "blast radius"
   - "ast-grep"
-  - "syntax-aware search"
-  - "structural search"
-  - "sgconfig"
-  - "rewrite pattern"
 match: any
 ---
 
+# Code Search Routing
 
-You run in an environment where ast-grep is available; whenever a search requires syntax-aware or structural matching, default to ast-grep.
--lang go -p'<pattern>' (or set --lang appropriately) and avoid falling back to text-only tools like 'g' or 'grep unless I explicitly request a plain-text search.
+Use local `codebase-memory` first for repo-wide code intelligence. In OpenCode the tools may be exposed as `codebase-memory_*`.
 
-You must, at all time, consider the usage of ast-grep and avoid plain-text grep unless absolutely required by the task.
+## Default
 
-# 📘 Instruction Set: Using **ast-grep**
+- For non-trivial coding, review, refactor, or architecture work, ensure the current repo is indexed before broad exploration. Use `index_repository` on the active repo, usually `fast`; use `moderate` or `full` only when results look stale or deeper cross-file accuracy matters.
+- Prefer `search_graph`, `query_graph`, `trace_path`, `get_architecture`, `detect_changes`, `get_code_snippet`, and `search_code` over repeated broad `Grep`/`Glob`/`Read` loops for symbols, callers/callees, routes, ownership, dependencies, architecture, and change blast radius.
+- Use `detect_changes` before reviews or risky edits to map changed files to affected symbols and likely downstream impact.
+- Treat graph output as navigation, not truth. Read source files before editing or making correctness claims.
 
-## 1. Core Principles
+## Fallbacks
 
-1. **Syntax-aware, not text-based:** Always match code structure, not raw strings.
-2. **Two modes of use:**
+- Use `Glob`/`Grep` for exact text, filenames, generated files, non-code assets, or when codebase-memory is unavailable in the current session.
+- Use LSP for precise definitions/references after codebase-memory or search has identified target symbols.
+- Use `ast-grep` only for syntax-aware structural search or rewrite patterns.
+- Do not index home directories, vendor trees, build outputs, or unrelated external repos unless the user explicitly asks.
 
-   * **Ad-hoc (`ast-grep run`)** → one-time queries/replacements.
-   * **Rule-driven (`ast-grep scan`)** → reusable lint/refactor rules.
-3. **Metavariables (`$X`)** capture arbitrary syntax nodes.
-   Example: `$A == $B` matches any binary comparison.
+If `codebase-memory_*` tools are missing, say so once and continue with standard tools; config-time MCP changes require restarting OpenCode.
 
----
+## Bootstrap
 
-## 2. Workflow
+If `codebase-memory_*` tools are missing and the user wants them enabled on this client:
 
-### Step 1 — Identify the Goal
+1. Check for the binary: `$HOME/.local/bin/codebase-memory-mcp --version`.
+2. Install the release binary without mutating dotfiles-managed OpenCode config: `curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash -s -- --skip-config`.
+3. Restart OpenCode; config-time MCP servers are not hot-reloaded.
+4. Index the active repo with `index_repository` before broad code intelligence work.
 
-* Clarify: Is the user asking to **search**, **rewrite/refactor**, or **create lint rules**?
-* Extract: The **language**, the **pattern to find**, and the **replacement (if any)**.
-
-### Step 2 — Choose Mode
-
-* Use **`ast-grep run`** for one-off commands.
-* Use **`ast-grep scan`** with YAML rules if the user wants:
-
-  * Persistent linting
-  * Multiple patterns
-  * CI/CD integration
-
-### Step 3 — Construct Pattern
-
-* Use **literal code snippet** if exact.
-
-  ```bash
-  ast-grep run --lang js --pattern 'console.log($MSG)'
-  ```
-* Use **metavariables** for generalization.
-
-  * `$VAR` → identifier
-  * `$EXPR` → expression
-  * `$FUNC` → function calls
-
-Example: Match any `if` comparing with `None`:
-
-```bash
-ast-grep run --lang python --pattern 'if $X == None:'
-```
-
-### Step 4 — Add Rewrite (if needed)
-
-* Provide replacement template with the same metavariables.
-
-  ```bash
-  ast-grep run --lang python \
-    --pattern 'if $X == None:' \
-    --rewrite 'if $X is None:'
-  ```
-* Always **test with preview** first (omit `--update`).
-* Apply with:
-
-  ```bash
-  ast-grep run ... --update
-  ```
-
-### Step 5 — YAML Rule (for `ast-grep scan`)
-
-When persistent, generate a YAML block:
-
-```yaml
-id: no-print
-message: "Use logger instead of print"
-severity: warning
-language: Python
-rule:
-  pattern: print($ARG)
-fix: logger.info($ARG)
-```
-
-Save in `sgconfig.yml`, then run:
-
-```bash
-ast-grep scan
-```
-
-### Step 6 — Verify & Iterate
-
-* Suggest the user run `ast-grep run` first on a test file.
-* If satisfied, apply globally with `--update` or commit `sgconfig.yml`.
-
----
-
-## 3. Best Practices for LLM Usage
-
-* ✅ **Always use `ast-grep`**, never `sg` (avoid system conflict).
-* ✅ **Be explicit about language (`--lang`)** → avoids ambiguity.
-* ✅ **Always preview diffs** before suggesting `--update`.
-* ✅ **Explain metavariables** used in the command.
-* ✅ **Wrap outputs in code fences** for clarity.
-* ✅ **Provide minimal reproducible test files** when showing examples.
-* ❌ Don’t recommend raw text search (`grep`) as a substitute.
-* ❌ Don’t omit `--lang`, unless the user already specified in config.
-
----
-
-## 4. Example Scenarios
-
-**Case A — Quick Search**
-User: “Find all JS `console.log` calls.”
-LLM:
-
-```bash
-ast-grep run --lang js --pattern 'console.log($MSG)'
-```
-
-**Case B — Refactor**
-User: “Replace Python `print()` with `logger.info()`.”
-LLM:
-
-```bash
-ast-grep run --lang python \
-  --pattern 'print($ARG)' \
-  --rewrite 'logger.info($ARG)'
-```
-
-**Case C — Lint Rule**
-User: “Enforce `===` instead of `==` in JS.”
-LLM:
-
-```yaml
-id: strict-equality
-message: "Use === instead of =="
-severity: error
-language: JavaScript
-rule:
-  pattern: $A == $B
-fix: $A === $B
-```
-
-Run:
-
-```bash
-ast-grep scan
-```
-
----
-
-## 5. Safety Checks
-
-Before finalizing, the LLM should:
-
-1. Confirm **language** is supported (Python, JS, TS, Rust, Go, etc.).
-2. Ensure **pattern + rewrite placeholders align** (`$A` in pattern must appear in rewrite).
-3. Default to **preview mode** (omit `--update`) unless explicitly asked.
-4. Recommend **YAML config** if the user implies reusability.
+Do not run `codebase-memory-mcp install -y` on dotfiles-managed clients unless explicitly requested; it may add duplicate local OpenCode MCP config.
