@@ -1,0 +1,23 @@
+---
+- name: Check v4l2loopback managed files
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+  loop: "{{ v4l2loopback_managed_paths }}"
+  register: v4l2loopback_installed_files
+
+- name: Assert v4l2loopback managed files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.pw_name == 'root'
+      - item.stat.gr_name == 'root'
+      - item.stat.mode == item.item.mode
+    fail_msg: "Expected v4l2loopback managed file {{ item.item.dest }} to exist."
+  loop: "{{ v4l2loopback_installed_files.results }}"
+
+- name: Verify v4l2loopback kernel module is available
+  ansible.builtin.command:
+    argv:
+      - modinfo
+      - v4l2loopback
+  changed_when: false

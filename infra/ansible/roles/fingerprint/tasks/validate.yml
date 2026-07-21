@@ -1,0 +1,47 @@
+---
+- name: Assert fingerprint tranche-4 metadata exists
+  ansible.builtin.assert:
+    that:
+      - fingerprint_enabled | bool
+      - host_platform_family is defined
+      - host_platform_family in fingerprint_packages_by_platform
+      - fingerprint_usb_id is defined
+      - fingerprint_usb_id is match('^[0-9a-fA-F]{4}:[0-9a-fA-F]{4}$')
+      - host_capabilities is defined
+      - "'fingerprint' in host_capabilities"
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the fingerprint tranche-4 contract.
+
+- name: Set fingerprint host payload root
+  ansible.builtin.set_fact:
+    fingerprint_role_files_root: "{{ fingerprint_host_source_dir }}/{{ inventory_hostname }}"
+
+- name: Check fingerprint sleep hook source
+  ansible.builtin.stat:
+    path: "{{ fingerprint_role_files_root }}/etc/systemd/system-sleep/99-fprintd-reset.sh"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: fingerprint_sleep_hook_src
+
+- name: Assert fingerprint sleep hook source exists
+  ansible.builtin.assert:
+    that:
+      - fingerprint_sleep_hook_src.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing the fingerprint sleep hook source payload.
+
+- name: Check fingerprint hyprlock PAM source
+  ansible.builtin.stat:
+    path: "{{ fingerprint_role_files_root }}/etc/pam.d/hyprlock"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: fingerprint_hyprlock_pam_src
+
+- name: Assert fingerprint hyprlock PAM source exists
+  ansible.builtin.assert:
+    that:
+      - fingerprint_hyprlock_pam_src.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing the hyprlock PAM source payload.

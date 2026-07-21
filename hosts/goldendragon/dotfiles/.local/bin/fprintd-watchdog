@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Fprintd Watchdog - Monitor and auto-restart if device is stuck claimed
+# Runs periodically via systemd timer
+
+LOG_TAG="fprintd-watchdog"
+
+log_info() {
+  logger -t "$LOG_TAG" "$1"
+  echo "[INFO] $1"
+}
+
+log_warn() {
+  logger -t "$LOG_TAG" "[WARN] $1"
+  echo "[WARN] $1"
+}
+
+# Check if fprintd is running
+if ! systemctl is-active --quiet fprintd.service; then
+  log_info "fprintd is not running, nothing to check"
+  exit 0
+fi
+
+# Check recent logs for "Device was already claimed" errors
+RECENT_ERRORS=$(journalctl -u fprintd.service --since "5 minutes ago" --no-pager 2>/dev/null | grep -c "Device was already claimed" || echo "0")
+
+if [ "$RECENT_ERRORS" -gt 3 ]; then
+  log_warn "Detected $RECENT_ERRORS 'Device was already claimed' errors in last 5 minutes"
+  log_warn "Restarting fprintd to release stuck device claim..."
+  
+  if sudo -n systemctl restart fprintd.service 2>/dev/null; then
+    log_info "fprintd restarted successfully"
+    notify-send -u low "Fingerprint Reader" "Reset due to stuck device claim" 2>/dev/null || true
+  else
+    log_warn "Could not restart fprintd (may need sudo privileges)"
+  fi
+else
+  log_info "fprintd health check passed (${RECENT_ERRORS} claim errors)"
+fi
+
+exit 0

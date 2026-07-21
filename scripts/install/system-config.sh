@@ -14,13 +14,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/logging.sh"
 # shellcheck disable=SC1091  # Runtime-resolved path to bootloader library
 source "${SCRIPT_DIR}/../lib/bootloader.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/control-plane-mode.sh"
 
 export CONFIG_DIR
 CONFIG_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Options (future extension)
 SETUP_HARDWARE=true
-FORCE=false
 
 # ------------------------ Hardware Detection ------------------------
 
@@ -140,7 +141,7 @@ Usage: $0 [OPTIONS]
 
 Options:
   --no-hardware       Skip hardware kernel parameter configuration
-  --force             Reserved for future features
+  --force             Accepted for compatibility; currently no-op
   -h, --help          Show this help
 EOF
 }
@@ -149,7 +150,7 @@ parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --no-hardware) SETUP_HARDWARE=false; shift ;;
-            --force) FORCE=true; shift ;;
+            --force) shift ;;
             -h|--help) usage; exit 0 ;;
             *) log_error "Unknown option: $1"; usage; exit 1 ;;
         esac
@@ -169,6 +170,11 @@ main() {
     log_info "🔧 Starting system configuration (SAFE mode)"
     echo
     check_privileges
+
+    if dotfiles_system_owner_is_ansible; then
+        log_info "Skipping legacy system configuration because DOTFILES_SYSTEM_OWNER=ansible"
+        exit 0
+    fi
 
     setup_hardware_config
 

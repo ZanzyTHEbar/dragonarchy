@@ -5,7 +5,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../../scripts/lib/logging.sh"
+# shellcheck source=scripts/lib/logging.sh
+source "${SCRIPT_DIR}/../../../../scripts/lib/logging.sh"
 
 log_step "Restarting fprintd service..."
 

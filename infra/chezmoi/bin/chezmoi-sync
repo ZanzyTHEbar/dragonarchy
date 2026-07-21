@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+#
+# chezmoi-sync — Permanent manifest-to-chezmoi sync
+#
+# Usage: chezmoi-sync --host <hostname>
+#
+# Reads all manifests from infra/chezmoi/manifests/ and syncs the declared
+# source paths into ~/.local/share/chezmoi/ (chezmoi's source directory).
+#
+# This is the permanent replacement for the temporary migration scripts
+# (build-source.sh, verify-generated-source.sh, etc.).
+#
+# Design principles:
+#   - Idempotent: running twice produces the same result
+#   - Simple: <100 lines, no Stow awareness, no backup logic
+#   - Manifest-driven: source of truth is the manifest files
+#   - Direct: syncs to chezmoi's native source path
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHEZMOI_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${CHEZMOI_ROOT}/../.." && pwd)"
+
+HOST_NAME=""
+CHEZMOI_SOURCE_DIR="${HOME}/.local/share/chezmoi"
+
+usage() {
+    echo "Usage: $0 --host <hostname> [--source-dir <path>]" >&2
+    echo "" >&2
+    echo "Syncs manifest-declared dotfiles into chezmoi source directory." >&2
+    echo "Default source dir: ${CHEZMOI_SOURCE_DIR}" >&2
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --host)
+            HOST_NAME="${2:-}"
+            shift 2
+            ;;
+        --source-dir)
+            CHEZMOI_SOURCE_DIR="${2:-}"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage
+            exit 2
+            ;;
+    esac
+done
+
+if [[ -z "${HOST_NAME}" ]]; then
+    echo "Error: --host is required" >&2
+    usage
+    exit 2
+fi
+
+# ---------------------------------------------------------------------------
+# Discover manifests
+# ---------------------------------------------------------------------------
+
+MANIFEST_DIR="${CHEZMOI_ROOT}/manifests"
+MANIFEST_PATHS=()
+
+if [[ -d "${MANIFEST_DIR}" ]]; then
+    while IFS= read -r -d '' manifest; do
+        MANIFEST_PATHS+=("${manifest}")
+    done < <(find "${MANIFEST_DIR}" -maxdepth 1 -name '*.manifest' -print0 | sort -z)
+fi
+
+if [[ ${#MANIFEST_PATHS[@]} -eq 0 ]]; then
+    echo "Error: No manifests found in ${MANIFEST_DIR}" >&2
+    exit 1
+fi
+
+echo "==> chezmoi-sync: host=${HOST_NAME} source=${CHEZMOI_SOURCE_DIR}"
+echo "==> Manifests: ${#MANIFEST_PATHS[@]} found"
+
+# ---------------------------------------------------------------------------
+# Sync manifests to chezmoi source
+# ---------------------------------------------------------------------------
+
+mkdir -p "${CHEZMOI_SOURCE_DIR}"
+
+copy_entry() {
+    local mode="$1"
+    local source_rel="$2"
+    local dest_rel="$3"
+
+    source_rel="${source_rel//__HOST__/${HOST_NAME}}"
+    dest_rel="${dest_rel//__HOST__/${HOST_NAME}}"
+
+    local source_abs="${REPO_ROOT}/${source_rel}"
+    local dest_abs="${CHEZMOI_SOURCE_DIR}/${dest_rel}"
+
+    if [[ ! -e "${source_abs}" ]]; then
+        if [[ "${mode}" == "optional" ]]; then
+            return 0
+        fi
+        echo "Error: Required source missing: ${source_rel}" >&2
+        exit 1
+    fi
+
+    if [[ -d "${source_abs}" ]]; then
+        mkdir -p "${dest_abs}"
+        rsync -a --delete "${source_abs}/" "${dest_abs}/"
+    else
+        mkdir -p "$(dirname "${dest_abs}")"
+        cp -a "${source_abs}" "${dest_abs}"
+    fi
+}
+
+exclude_entry() {
+    local dest_rel="$1"
+    dest_rel="${dest_rel//__HOST__/${HOST_NAME}}"
+    local dest_abs="${CHEZMOI_SOURCE_DIR}/${dest_rel}"
+    rm -rf "${dest_abs}"
+}
+
+for manifest_path in "${MANIFEST_PATHS[@]}"; do
+    echo "    -> $(basename "${manifest_path}")"
+    while IFS='|' read -r mode source_rel dest_rel; do
+        [[ -z "${mode}" ]] && continue
+        [[ "${mode}" =~ ^# ]] && continue
+
+        if [[ "${mode}" == "exclude" ]]; then
+            exclude_entry "${dest_rel}"
+            continue
+        fi
+
+        copy_entry "${mode}" "${source_rel}" "${dest_rel}"
+    done < "${manifest_path}"
+done
+
+echo "==> Sync complete. Run 'chezmoi apply' to update home directory."

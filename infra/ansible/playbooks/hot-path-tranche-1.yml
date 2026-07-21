@@ -1,0 +1,12 @@
+---
+- import_playbook: foundation.yml
+
+- name: Hot-path tranche 1
+  hosts: all
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: base
+    - role: packages
+    - role: users

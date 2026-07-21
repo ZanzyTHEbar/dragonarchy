@@ -1,11 +1,33 @@
 #!/bin/bash
+# shellcheck disable=SC1090,SC1091,SC2016,SC2317,SC2329
 #
 # FireDragon Host-Specific Setup
 #
 # This script configures the FireDragon laptop with AMD chipset and Radeon graphics.
 # Optimized for mobile performance, battery life, and thermal management.
+#
+# ⚠️  DEPRECATED: This script is reference-only. Do not execute.
+#
+# System configuration for this host is now owned by Ansible roles:
+#   - common, base, packages, users, sddm, hyprland
+#   - amd_gpu, tlp, asus_laptop, hibernation
+#   - resolved, netbird
+#
+# User configuration is owned by chezmoi manifests.
+#
+# This file is retained as documentation of the legacy setup.
+# For the canonical state, see infra/ansible/ and infra/chezmoi/manifests/.
+#
 
 set -euo pipefail
+
+cat <<'EOF' >&2
+WARNING: This script is deprecated and should not be run.
+
+All system configuration for this host is now managed by Ansible.
+Run ./install --host firedragon instead.
+EOF
+exit 1
 
 # Resolve paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
@@ -30,7 +52,8 @@ source "${PROJECT_ROOT}/scripts/lib/system-mods.sh"
 
 # Top-level code moved into main() for sourcing safety
 
-# Install laptop-specific packages
+# Legacy reference only. Current package truth is deps.manifest.toml groups
+# host_firedragon_laptop and laptop_power_tlp via the Ansible packages role.
 setup_firedragon_packages() {
     log_info "Installing laptop-specific packages..."
     
@@ -52,19 +75,16 @@ setup_firedragon_packages() {
         "lm_sensors"             # Hardware monitoring
         "thermald"               # Thermal daemon
         "brightnessctl"          # Brightness control
-        "auto-cpufreq"           # CPU frequency scaling
         "laptop-detect"          # Laptop detection utility
         "libinput"               # Input device management
         "libinput-gestures"      # Gesture recognition library (optional)
         "asusctl"                # ASUS EC/keyboard controls
-        "asus-nb-ctrl"           # Additional ASUS laptop integration
     )
     
     local amd_packages=(
         "mesa"                   # AMD graphics drivers
         "vulkan-radeon"          # Vulkan support for AMD
         "libva-mesa-driver"      # VA-API support
-        "mesa-vdpau"             # VDPAU support
         "xf86-video-amdgpu"      # AMD GPU DDX driver
         "amd-ucode"              # AMD microcode
         "corectrl"               # AMD GPU/CPU control GUI
@@ -104,7 +124,7 @@ setup_asus_ec_tools() {
     fi
 
     if command_exists asusctl; then
-        if asusctl profile -n Balanced >/dev/null 2>&1; then
+        if asusctl profile set Balanced >/dev/null 2>&1; then
             log_success "Set ASUS performance profile to Balanced"
         else
             log_warning "Failed to set ASUS profile via asusctl"
@@ -235,13 +255,12 @@ setup_networking() {
         fi
     fi
     
-    # Install NetBird for secure networking
+    # NetBird is owned by the Ansible netbird role on managed hosts.
     if ! is_step_completed "firedragon-install-netbird"; then
-        log_info "Installing NetBird VPN..."
-        bash "$PROJECT_ROOT/scripts/utilities/netbird-install.sh"
+        log_warning "NetBird is now managed by the Ansible netbird role; legacy setup skips it."
         mark_step_completed "firedragon-install-netbird"
     else
-        log_info "NetBird already installed"
+        log_info "NetBird legacy setup step already skipped"
     fi
     
     # Copy host-specific system configs (DNS)
@@ -352,7 +371,7 @@ setup_networking() {
         fi
     fi
     
-    log_success "Networking configured (NetBird VPN + Custom DNS)"
+    log_success "Networking configured (DNS); NetBird is managed by the Ansible netbird role"
 }
 
 # Setup display and touchpad
@@ -678,14 +697,9 @@ RemoveIPC=yes
 # Setup hibernation (swap + resume parameters + initramfs resume hook)
 setup_hibernation() {
     log_info "Setting up hibernation (swap + resume)..."
-    
-    if [[ -x "${SCRIPT_DIR}/enable-sleep-hibernate.sh" ]]; then
-        bash "${SCRIPT_DIR}/enable-sleep-hibernate.sh"
-        log_success "Hibernation configured"
-    else
-        log_warning "enable-sleep-hibernate.sh not found; skipping hibernation setup"
-        log_info "Expected path: ${SCRIPT_DIR}/enable-sleep-hibernate.sh"
-    fi
+
+    log_warning "Legacy hibernation helper is retired in favor of infra/ansible/roles/hibernation"
+    log_info "Use the Ansible control plane plus tests/vm/proxmox-validation/firedragon-suspend-verify.sh for current validation"
 }
 
 # Setup Asus VivoBook-specific configurations
@@ -739,7 +753,7 @@ options asus_wmi enable_fs=1
     log_info "Escalating privileges to update bootloader configuration..."
     if ! _sysmod_sudo -v 2>/dev/null; then
         log_warning "Cannot access bootloader files (sudo required)"
-        log_info "Run manually after setup: bash ~/dotfiles/hosts/firedragon/fix-acpi-boot.sh"
+        log_info "Current canonical owner is infra/ansible/roles/asus_laptop"
         return 0
     fi
 
@@ -756,7 +770,7 @@ options asus_wmi enable_fs=1
         log_warning "Reboot recommended to apply ACPI changes"
     else
         log_warning "Failed to apply ACPI parameters automatically"
-        log_info "You can retry manually with: bash ~/dotfiles/hosts/firedragon/fix-acpi-boot.sh"
+        log_info "Retry through the Ansible control plane for the current supported path"
     fi
 
     # Add keyboard backlight control via udev
@@ -906,8 +920,8 @@ setup_sddm_theme() {
     
     # Check if SDDM is installed
     if ! command -v sddm &>/dev/null; then
-        log_info "SDDM not installed, skipping theme setup"
-        return 0
+        log_error "SDDM is expected on firedragon but is not installed; run package setup first."
+        return 1
     fi
     
     local theme_scripts_dir="$PROJECT_ROOT/scripts/theme-manager"
@@ -915,9 +929,10 @@ setup_sddm_theme() {
     # Refresh SDDM themes (copies from packages/sddm to /usr/share/sddm/themes)
     if [[ -x "$theme_scripts_dir/refresh-sddm" ]]; then
         log_info "Refreshing SDDM themes..."
-        bash "$theme_scripts_dir/refresh-sddm"
+        bash "$theme_scripts_dir/refresh-sddm" -y
     else
         log_warning "refresh-sddm script not found"
+        return 1
     fi
     
     # Set the catppuccin theme
@@ -927,6 +942,7 @@ setup_sddm_theme() {
         log_success "SDDM theme configured"
     else
         log_warning "sddm-set script not found"
+        return 1
     fi
 }
 
@@ -945,11 +961,8 @@ main() {
     echo
     
     # Run each setup function with idempotency tracking
-    if ! is_step_completed "firedragon-packages"; then
-        setup_firedragon_packages && mark_step_completed "firedragon-packages"
-    else
-        log_info "✓ Packages already installed (skipped)"
-    fi
+    log_info "Skipping legacy FireDragon package install; package truth is scripts/install/deps.manifest.toml via the Ansible packages role (host_firedragon_laptop + laptop_power_tlp)."
+    mark_step_completed "firedragon-packages" || true
     echo
 
     if ! is_step_completed "firedragon-asus-ec-tools"; then

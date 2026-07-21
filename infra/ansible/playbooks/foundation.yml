@@ -1,0 +1,8 @@
+---
+- name: Foundation contract and fact verification
+  hosts: all
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: common

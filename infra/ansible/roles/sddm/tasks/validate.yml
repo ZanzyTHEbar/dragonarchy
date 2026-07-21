@@ -1,0 +1,24 @@
+---
+- name: Assert display-manager metadata exists
+  ansible.builtin.assert:
+    that:
+      - display_manager is defined
+      - display_manager == 'sddm'
+      - sddm_enabled | bool
+      - sddm_theme is defined
+      - host_platform_family in sddm_packages_by_platform
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the SDDM tranche-2 contract.
+
+- name: Check selected SDDM theme source Main.qml
+  ansible.builtin.stat:
+    path: "{{ sddm_theme_source_dir }}/{{ sddm_theme }}/Main.qml"
+  register: sddm_theme_main_qml_source
+
+- name: Assert selected SDDM theme source exists
+  ansible.builtin.assert:
+    that:
+      - sddm_theme_main_qml_source.stat.exists
+      - not sddm_theme_main_qml_source.stat.islnk
+    fail_msg: >-
+      Selected SDDM theme '{{ sddm_theme }}' is missing Main.qml in {{ sddm_theme_source_dir }}.

@@ -7,15 +7,52 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../../lib/logging.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../../lib/control-plane-mode.sh"
 
 mkdir -p "$HOME/.config/systemd/user"
 
 # --- Walker theme setup (align with theme-manager expectations) ---
 DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PACKAGES_ROOT="$DOTFILES_ROOT/packages"
 WALKER_THEMES_ROOT="$HOME/.config/walker/themes"
 CURRENT_THEME_LINK="$HOME/.config/current/theme"
 ACTIVE_THEME_PATH="$(readlink -f "$CURRENT_THEME_LINK" 2>/dev/null || true)"
 ACTIVE_THEME_NAME="default"
+
+ensure_user_package_stowed() {
+    local package="$1"
+
+    if dotfiles_user_owner_is_chezmoi; then
+        log_info "Skipping user package restow for '$package' because DOTFILES_USER_OWNER=chezmoi"
+        return 0
+    fi
+
+    if ! command -v stow >/dev/null 2>&1; then
+        log_warning "GNU Stow is unavailable; cannot restow '$package'"
+        return 1
+    fi
+
+    if [[ ! -d "$PACKAGES_ROOT/$package" ]]; then
+        log_warning "Package directory not found for stow restow: $PACKAGES_ROOT/$package"
+        return 1
+    fi
+
+    # Run from the packages root so GNU Stow applies packages/.stowrc ignores.
+    if (cd "$PACKAGES_ROOT" && stow --restow -t "$HOME" "$package"); then
+        log_success "Restowed user package: $package"
+        return 0
+    fi
+
+    log_warning "Failed to restow user package: $package"
+    return 1
+}
+
+POLKIT_AGENT_UNIT_PATH="$HOME/.config/systemd/user/polkit-agent.service"
+POLKIT_AGENT_HELPER_PATH="$HOME/.local/bin/start-polkit-agent"
+if [[ ! -e "$POLKIT_AGENT_UNIT_PATH" || ! -x "$POLKIT_AGENT_HELPER_PATH" ]]; then
+    ensure_user_package_stowed "hyprland" || true
+fi
 
 is_stow_managed_link() {
     # True if PATH is a symlink resolving into our dotfiles packages tree.
@@ -139,7 +176,19 @@ Environment="ELEPHANT_RUNPREFIX=uwsm app -- "
 # Ensure desktopapplications provider finds .desktop files (native + Flatpak)
 Environment="XDG_DATA_DIRS=/usr/share:/usr/local/share:%h/.local/share:%h/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share"
 Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/bin
-ExecStartPre=/usr/bin/systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DESKTOP_SESSION
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_BACKEND=wayland
+Environment="GDK_BACKEND=wayland,x11,*"
+Environment="QT_QPA_PLATFORM=wayland;xcb"
+Environment=SDL_VIDEODRIVER=wayland
+Environment=ELECTRON_OZONE_PLATFORM_HINT=wayland
+Environment=OZONE_PLATFORM=wayland
+Environment=NIXOS_OZONE_WL=1
+Environment=XCURSOR_THEME=Bibata-Modern-Ice
+Environment=XCURSOR_SIZE=22
+Environment=HYPRCURSOR_THEME=Bibata-Modern-Ice
+Environment=HYPRCURSOR_SIZE=22
+ExecStartPre=/usr/bin/systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE DESKTOP_SESSION GDK_BACKEND QT_QPA_PLATFORM SDL_VIDEODRIVER ELECTRON_OZONE_PLATFORM_HINT OZONE_PLATFORM NIXOS_OZONE_WL XCURSOR_THEME XCURSOR_SIZE HYPRCURSOR_THEME HYPRCURSOR_SIZE
 ExecStartPre=/usr/bin/rm -f /tmp/elephant.sock
 ExecStartPre=/usr/bin/bash -lc 'for i in {1..50}; do [ -n "${WAYLAND_DISPLAY}" ] && [ -S "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" ] && exit 0; sleep 0.2; done; echo "WAYLAND socket not ready"; exit 1'
 ExecStart=/usr/bin/elephant
@@ -287,8 +336,31 @@ else
     log_info "thermal-profile-init.service not present; skipping enablement"
 fi
 
+# --- Dynamic monitor layout service ---
+DYNAMIC_MONITORS_UNIT="dynamic-monitors.service"
+if systemctl --user list-unit-files --no-legend 2>/dev/null | grep -q "^${DYNAMIC_MONITORS_UNIT}"; then
+    if systemctl --user enable --now "${DYNAMIC_MONITORS_UNIT}" >/dev/null 2>&1; then
+        log_success "Dynamic monitors service enabled"
+    else
+        log_warning "Failed to enable dynamic-monitors.service"
+    fi
+else
+    log_info "dynamic-monitors.service not present; skipping enablement"
+fi
+
+# --- Polkit authentication agent ---
+POLKIT_AGENT_UNIT="polkit-agent.service"
+if systemctl --user list-unit-files --no-legend 2>/dev/null | grep -q "^${POLKIT_AGENT_UNIT}"; then
+    systemctl --user daemon-reload
+    if systemctl --user enable --now "${POLKIT_AGENT_UNIT}" >/dev/null 2>&1; then
+        log_success "Polkit agent service enabled"
+    else
+        log_warning "Failed to enable polkit-agent.service; falling back to Hyprland autostart"
+    fi
+else
+    log_info "polkit-agent.service not present; skipping enablement"
+fi
+
 # --- Quick hints ---
 log_info "Verify: systemctl --user status elephant"
 log_info "If socket busy, ExecStartPre cleans /tmp/elephant.sock"
-
-

@@ -1,0 +1,35 @@
+---
+- name: Assert power_sleep metadata exists
+  ansible.builtin.assert:
+    that:
+      - power_sleep_enabled | bool
+      - host_capabilities is defined
+      - "'power_sleep' in host_capabilities"
+      - inventory_hostname in power_sleep_managed_paths_by_host
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the power_sleep contract.
+
+- name: Set power_sleep managed paths
+  ansible.builtin.set_fact:
+    power_sleep_managed_paths: "{{ power_sleep_managed_paths_by_host[inventory_hostname] }}"
+
+- name: Set power_sleep managed services
+  ansible.builtin.set_fact:
+    power_sleep_managed_services: "{{ power_sleep_managed_services_by_host.get(inventory_hostname, []) }}"
+
+- name: Check power_sleep payload sources
+  ansible.builtin.stat:
+    path: "{{ item.src }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop: "{{ power_sleep_managed_paths }}"
+  register: power_sleep_source_files
+
+- name: Assert power_sleep payload sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing power_sleep payload source '{{ item.item.src }}'.
+  loop: "{{ power_sleep_source_files.results }}"

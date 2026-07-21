@@ -1,0 +1,21 @@
+proxmox_url      = "https://192.168.0.191:8006/api2/json"
+proxmox_username = "packer@pve!dotfiles"
+proxmox_token    = "replace-me"
+proxmox_node = "dragonserver"
+
+proxmox_insecure_skip_tls_verify = true
+vm_bridge                        = "vmbr0"
+template_storage_pool            = "local-lvm"
+
+ssh_username         = "dragon"
+ssh_private_key_file = "~/.ssh/id_ed25519"
+
+gold_template_debian_14 = "debian-14-cloud-base"
+gold_template_arch      = "arch-cloud-base"
+
+validation_template_vm_id_debian_14 = 9310
+validation_template_vm_id_arch      = 9320
+validation_template_vm_id_arch_graphical = 9330
+
+# Override this as needed if 192.168.0.252/24 is not free on your lab network.
+# validation_template_ip_arch_graphical = "192.168.0.252/24"

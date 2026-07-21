@@ -27,7 +27,7 @@ fresh_backup_and_remove() {
     fi
 
     # Determine backup destination path relative to $HOME
-    local rel_from_home="${abs_path#${HOME}/}"
+    local rel_from_home="${abs_path#"${HOME}"/}"
     if [[ -z "$rel_from_home" || "$rel_from_home" == "$abs_path" ]]; then
         log_error "Fresh mode refusing to remove (could not derive rel path): $abs_path"
         return 1
@@ -214,7 +214,7 @@ fresh_purge_stow_conflicts_for_package() {
     # Fallback: if no LINK lines were found (older stow / different output), purge based on package tree
     if [[ "$had_link_lines" != "true" ]]; then
         while IFS= read -r -d '' src; do
-            local rel="${src#${package}/}"
+            local rel="${src#"${package}"/}"
             [[ -z "$rel" || "$rel" == "$src" ]] && continue
 
             # Mirror stow global ignores for marker/docs files

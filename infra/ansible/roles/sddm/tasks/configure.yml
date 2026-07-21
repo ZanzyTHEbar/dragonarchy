@@ -1,0 +1,57 @@
+---
+- name: Ensure SDDM theme destination exists
+  ansible.builtin.file:
+    path: /usr/share/sddm/themes
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Find stale symlinked SDDM theme files
+  ansible.builtin.find:
+    paths: /usr/share/sddm/themes
+    file_type: link
+    recurse: true
+  register: sddm_theme_symlinks
+
+- name: Remove stale symlinked SDDM theme files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ sddm_theme_symlinks.files }}"
+
+- name: Install managed SDDM themes
+  ansible.builtin.copy:
+    src: "{{ sddm_theme_source_dir }}"
+    dest: /usr/share/sddm/themes/
+    owner: root
+    group: root
+    mode: "0644"
+    directory_mode: "0755"
+    local_follow: true
+  notify: Restart sddm
+
+- name: Ensure SDDM configuration directory exists
+  ansible.builtin.file:
+    path: /etc/sddm.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure active SDDM theme
+  ansible.builtin.copy:
+    dest: /etc/sddm.conf.d/10-theme.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Theme]
+      Current={{ sddm_theme }}
+  notify: Restart sddm
+
+- name: Enable and start SDDM
+  ansible.builtin.service:
+    name: sddm
+    enabled: true
+    state: started

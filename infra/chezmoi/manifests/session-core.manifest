@@ -1,0 +1,6 @@
+# mode|source|dest
+required|packages/hyprland/.config/hypr|dot_config/hypr
+required|packages/hyprland/.config/waybar|dot_config/waybar
+required|packages/hyprland/.config/walker|dot_config/walker
+required|packages/hyprland/.config/elephant|dot_config/elephant
+optional|hosts/__HOST__/dotfiles/.config/waybar-hosts/__HOST__|dot_config/waybar-hosts/__HOST__

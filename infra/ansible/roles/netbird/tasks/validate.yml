@@ -1,0 +1,11 @@
+---
+- name: Assert netbird metadata exists
+  ansible.builtin.assert:
+    that:
+      - netbird_enabled | bool
+      - host_platform_family is defined
+      - host_platform_family in ['arch', 'debian']
+      - host_capabilities is defined
+      - "'netbird' in host_capabilities"
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the netbird role contract.

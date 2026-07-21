@@ -1,0 +1,44 @@
+---
+asus_laptop_enabled: true
+asus_laptop_bootloader_helper_src: "{{ playbook_dir }}/../../../scripts/lib/bootloader.sh"
+asus_laptop_bootloader_helper_path: /usr/local/libexec/dotfiles/bootloader.sh
+asus_laptop_kernel_param_string: "acpi_osi=! acpi_osi='Windows 2020' acpi_backlight=native"
+
+asus_laptop_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
+
+asus_laptop_managed_paths_by_host:
+  firedragon:
+    - src: "{{ asus_laptop_host_source_dir }}/firedragon/etc/NetworkManager/dispatcher.d/50-home-dns"
+      dest: /etc/NetworkManager/dispatcher.d/50-home-dns
+      mode: "0755"
+    - src: "{{ asus_laptop_host_source_dir }}/firedragon/etc/systemd/logind.conf.d/10-firedragon-lid.conf"
+      dest: /etc/systemd/logind.conf.d/10-firedragon-lid.conf
+      mode: "0644"
+    - src: "{{ asus_laptop_host_source_dir }}/firedragon/etc/systemd/sleep.conf.d/10-firedragon-sleep.conf"
+      dest: /etc/systemd/sleep.conf.d/10-firedragon-sleep.conf
+      mode: "0644"
+    - src: "{{ asus_laptop_host_source_dir }}/firedragon/etc/systemd/system-sleep/98-ax210-bt-recover.sh"
+      dest: /etc/systemd/system-sleep/98-ax210-bt-recover.sh
+      mode: "0755"
+    - src: "{{ asus_laptop_host_source_dir }}/firedragon/etc/systemd/system-sleep/99-runtime-pm.sh"
+      dest: /etc/systemd/system-sleep/99-runtime-pm.sh
+      mode: "0755"
+    - src: "{{ asus_laptop_host_source_dir }}/firedragon/etc/udev/rules.d/99-intel-ax210-btusb-power.rules"
+      dest: /etc/udev/rules.d/99-intel-ax210-btusb-power.rules
+      mode: "0644"
+    - src: "{{ role_path }}/files/hosts/firedragon/etc/modprobe.d/asus-vivobook.conf"
+      dest: /etc/modprobe.d/asus-vivobook.conf
+      mode: "0644"
+    - src: "{{ role_path }}/files/hosts/firedragon/etc/modules-load.d/asus.conf"
+      dest: /etc/modules-load.d/asus.conf
+      mode: "0644"
+    - src: "{{ role_path }}/files/hosts/firedragon/etc/udev/rules.d/90-asus-kbd-backlight.rules"
+      dest: /etc/udev/rules.d/90-asus-kbd-backlight.rules
+      mode: "0644"
+
+asus_laptop_managed_services:
+  - NetworkManager.service
+  - bluetooth.service
+  - asusd.service
+  - acpid.service
+  - thermald.service

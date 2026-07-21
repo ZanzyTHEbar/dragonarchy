@@ -16,10 +16,21 @@ if [[ -n "$SOURCE_PATH" && "$SOURCE_PATH" != -* ]]; then
     DOTFILES_ROOT="${SOURCE_PATH:A:h:h:h:h:h:h}"  # Go up 6 levels from packages/zsh/.config/zsh/functions/ to repo root
 fi
 if [[ -z "${DOTFILES_ROOT:-}" || ! -f "${DOTFILES_ROOT}/scripts/lib/logging.sh" ]]; then
-    DOTFILES_ROOT="${HOME}/dotfiles"
+    for candidate in "$HOME/.dotfiles-profile/current" "$HOME/dotfiles"; do
+        if [[ -f "$candidate/scripts/lib/logging.sh" ]]; then
+            DOTFILES_ROOT="$candidate"
+            break
+        fi
+    done
 fi
-# shellcheck disable=SC1091  # Runtime-resolved path to logging library
-source "${DOTFILES_ROOT:-${HOME}/dotfiles}/scripts/lib/logging.sh"
+if [[ -n "${DOTFILES_ROOT:-}" && -f "$DOTFILES_ROOT/scripts/lib/logging.sh" ]]; then
+    # shellcheck disable=SC1091  # Runtime-resolved path to logging library
+    source "$DOTFILES_ROOT/scripts/lib/logging.sh"
+else
+    log_error() { print -u2 -- "[ERROR] $*"; }
+    log_info() { print -- "[INFO] $*"; }
+    log_success() { print -- "[SUCCESS] $*"; }
+fi
 
 
 # Smart move that creates directories and moves files

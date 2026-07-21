@@ -1,0 +1,15 @@
+---
+host_timezone: Europe/Lisbon
+host_role: server
+host_platform_family: debian
+host_desktop_stack: none
+host_gpu_stack: []
+host_capabilities:
+  - netbird
+
+managed_users:
+  - name: daofficialwizard
+    groups:
+      - sudo
+
+legacy_host_directory: hosts/microdragon

@@ -1,5 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # FireDragon runtime PM override for devices that misbehave with s2idle.
+
+set -euo pipefail
 
 DEVICES=(
     "/sys/bus/pci/devices/0000:02:00.0/power/control" # NVMe
@@ -9,14 +11,16 @@ DEVICES=(
 
 set_state() {
     local state="$1"
+    local path
+
     for path in "${DEVICES[@]}"; do
         if [[ -w "$path" ]]; then
             echo "$state" > "$path" 2>/dev/null || true
         fi
-    }
+    done
 }
 
-case "$1" in
+case "${1:-}" in
     pre)
         set_state "on"
         ;;
@@ -26,4 +30,3 @@ case "$1" in
 esac
 
 exit 0
-

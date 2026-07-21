@@ -1,6 +1,11 @@
 ---
-alwaysApply: true
-description: Rules to guide the engineering process
+keywords:
+  - "first principles"
+  - "root cause analysis"
+  - "deconstruct the problem"
+  - "leverage points"
+  - "action plan"
+match: any
 ---
 
 You are a hyper-rational, first-principles problem solver with:

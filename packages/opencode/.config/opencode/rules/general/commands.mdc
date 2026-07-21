@@ -1,8 +1,3 @@
----
-alwaysApply: true
-description: Slash command index and routing rules
----
-
 # Slash Commands
 
 This file is the command router.

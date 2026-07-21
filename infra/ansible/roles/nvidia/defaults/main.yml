@@ -1,0 +1,23 @@
+---
+nvidia_enabled: true
+nvidia_bootloader_helper_src: "{{ playbook_dir }}/../../../scripts/lib/bootloader.sh"
+nvidia_bootloader_helper_path: /usr/local/libexec/dotfiles/bootloader.sh
+
+# Packages: deps.manifest.toml (host_goldendragon_nvidia) via packages role.
+nvidia_packages_by_platform:
+  arch: []
+
+nvidia_conflicting_arch_packages:
+  - linux-cachyos-lts-nvidia-open
+  - linux-cachyos-nvidia-open
+
+nvidia_modules:
+  - nvidia
+  - nvidia_modeset
+  - nvidia_uvm
+  - nvidia_drm
+
+nvidia_kernel_params:
+  - nvidia-drm.modeset=1
+
+nvidia_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"

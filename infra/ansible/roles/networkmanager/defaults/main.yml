@@ -1,0 +1,9 @@
+---
+networkmanager_enabled: true
+networkmanager_service_name: NetworkManager.service
+
+networkmanager_managed_paths_by_host:
+  goldendragon:
+    - src: "{{ role_path }}/files/hosts/goldendragon/etc/NetworkManager/conf.d/10-unmanage-wlan0.conf"
+      dest: /etc/NetworkManager/conf.d/10-unmanage-wlan0.conf
+      mode: "0644"

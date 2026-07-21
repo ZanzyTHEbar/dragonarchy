@@ -1,0 +1,14 @@
+---
+aio_cooler_enabled: true
+
+# Packages: deps.manifest.toml (aio_cooler_liquidctl) via packages role.
+aio_cooler_packages_by_platform:
+  arch:
+    dragon: []
+
+aio_cooler_services:
+  - dynamic_led.service
+  - liquidctl-dragon.service
+
+aio_cooler_host_src_dir_by_host:
+  dragon: "{{ playbook_dir }}/../../../hosts/dragon"

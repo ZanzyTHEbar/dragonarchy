@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1090,SC1091,SC2317,SC2329
 #
 # GoldenDragon Host-Specific Setup
 # Lenovo ThinkPad P16s Gen 4 (Intel) - Type 21QV/21QW
@@ -8,9 +9,30 @@
 # - Laptop-grade power management + sleep/lid behavior
 # - GPU-aware setup (Intel-only or Intel+NVIDIA, auto-detected)
 # - Host-scoped /etc drop-ins live under: hosts/goldendragon/etc/
+#
+# ⚠️  DEPRECATED: This script is reference-only. Do not execute.
+#
+# System configuration for this host is now owned by Ansible roles:
+#   - common, base, packages, users, sddm, hyprland
+#   - fingerprint, nvidia, intel_gpu, tlp
+#   - resolved, openfortivpn
+#
+# User configuration is owned by chezmoi manifests.
+#
+# This file is retained as documentation of the legacy setup.
+# For the canonical state, see infra/ansible/ and infra/chezmoi/manifests/.
+#
 
 set -euo pipefail
 IFS=$'\n\t'
+
+cat <<'EOF' >&2
+WARNING: This script is deprecated and should not be run.
+
+All system configuration for this host is now managed by Ansible.
+Run ./install --host goldendragon instead.
+EOF
+exit 1
 
 # Resolve paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -133,6 +155,24 @@ ensure_pam_fprintd_enabled() {
   log_success "Enabled fingerprint auth (with password fallback) in: $pam_file"
 }
 
+ensure_pam_fprintd_absent() {
+  local pam_file="$1"
+
+  if [[ ! -f "$pam_file" ]]; then
+    return 0
+  fi
+
+  if ! _sysmod_sudo grep -qE '^\s*auth\s+.*pam_fprintd\.so' "$pam_file"; then
+    return 0
+  fi
+
+  backup_root_pam_file "$pam_file"
+  _sysmod_sudo grep -vE '^\s*auth\s+.*pam_fprintd\.so' "$pam_file" | _sysmod_sudo tee "${pam_file}.dragonarchy.tmp" >/dev/null
+  _sysmod_sudo mv "${pam_file}.dragonarchy.tmp" "$pam_file"
+  _sysmod_sudo chmod 644 "$pam_file" 2>/dev/null || true
+  log_success "Removed fingerprint auth from password-login PAM target: $pam_file"
+}
+
 setup_fingerprint_auth() {
   log_step "Setting up fingerprint authentication (goldendragon)..."
   local rc=0
@@ -150,8 +190,7 @@ setup_fingerprint_auth() {
 
   fingerprint_sensor_hint
 
-  # Packages (official repos).
-  install_pacman_packages fprintd libfprint usbutils
+  log_info "Skipping fingerprint package install; packages are owned by deps.manifest.toml plus Ansible fingerprint/packages roles."
 
   # Service
   # fprintd is typically DBus-activated (UnitFileState=static), so it may show as "inactive" until used.
@@ -162,11 +201,12 @@ setup_fingerprint_auth() {
     log_warning "fprintd.service not found (package install may have failed)"
   fi
 
-  # PAM enablement: sudo + polkit + sddm + local login
+  # PAM enablement: keep SDDM password-based so pam_gnome_keyring can unlock
+  # the login keyring with the user's login password.
   ensure_pam_fprintd_enabled /etc/pam.d/sudo
   ensure_pam_fprintd_enabled /etc/pam.d/polkit-1
   ensure_pam_fprintd_enabled /etc/pam.d/system-local-login
-  ensure_pam_fprintd_enabled /etc/pam.d/sddm
+  ensure_pam_fprintd_absent /etc/pam.d/sddm
 
   # USB autosuspend fix: prevent fingerprint reader from being suspended
   # This is critical to avoid 30-40 second wake-up delays at login/lock screens
@@ -231,6 +271,9 @@ has_nvidia_gpu() {
 }
 
 setup_goldendragon_packages() {
+  # Legacy reference only. Current package truth is deps.manifest.toml groups
+  # host_goldendragon_laptop, laptop_power_tlp, host_goldendragon_nvidia,
+  # fingerprint, and openfortivpn.
   log_step "Installing laptop packages (ThinkPad baseline)..."
 
   if ! is_arch_based; then
@@ -278,192 +321,7 @@ setup_goldendragon_packages() {
   log_success "Laptop packages installed"
 }
 
-setup_openfortivpn_access() {
-  log_step "Provisioning OpenFortiVPN access..."
 
-  local config="/etc/openfortivpn/config"
-  local service_config="/etc/openfortivpn/waybar.conf"
-  local group="openfortivpn"
-  local helper_src="${SCRIPT_DIR}/dotfiles/.local/bin/avular-vpn-dns"
-  local helper_path="/usr/local/bin/avular-vpn-dns"
-  local target_user="${OPENFORTIVPN_USER:-${SUDO_USER:-$USER}}"
-  local host_short
-  host_short="$(hostname | cut -d. -f1)"
-  local target_home=""
-  target_home="$(getent passwd "$target_user" 2>/dev/null | awk -F: '{print $6}')"
-  [[ -z "$target_home" ]] && target_home="$HOME"
-  local marker_path="${target_home}/.config/waybar-hosts/${host_short}/vpn-enabled"
-  local marker_src="${SCRIPT_DIR}/dotfiles/.config/waybar-hosts/${host_short}/vpn-enabled"
-  local marker_owner=""
-  if [[ -n "$target_user" ]] && id -un "$target_user" &>/dev/null; then
-    marker_owner="$target_user"
-  fi
-
-  if ! command -v sudo >/dev/null 2>&1; then
-    log_warning "sudo not available; skipping OpenFortiVPN provisioning"
-    return 0
-  fi
-
-  if is_arch_based; then
-    install_pacman_packages openfortivpn
-  else
-    log_warning "Non-Arch platform detected; install openfortivpn manually."
-  fi
-
-  if ! getent group "$group" >/dev/null 2>&1; then
-    if _sysmod_sudo groupadd -r "$group"; then
-      log_success "Created group: $group"
-    else
-      log_warning "Failed to create group: $group"
-    fi
-  else
-    log_info "Group already exists: $group"
-  fi
-
-  if [[ ! -f "$config" ]]; then
-    _sysmod_sudo install -d -m 755 /etc/openfortivpn
-    local vpn_config_content='### configuration file for openfortivpn, see man openfortivpn(1) ###
-
-host = vpn.avular.com
-port = 443
-# username = you@example.com   # optional, can prompt
-# password = yourpassword      # optional, better to prompt
-saml-login = 8020              # or any free port; triggers browser SAML flow
-#trusted-cert = <sha256_hash>  # get this first
-# realm = <if needed; try without>
-# set-dns = 1                  # auto-set DNS if possible
-# set-routes = 1
-# pppd-use-peerdns = 1
-'
-    sysmod_tee_file "$config" "$vpn_config_content" 644
-    log_success "Seeded OpenFortiVPN config at $config"
-  else
-    log_info "OpenFortiVPN config already present: $config"
-  fi
-
-  if [[ -z "$target_user" || "$target_user" == "root" ]]; then
-    log_warning "Cannot determine non-root user to add to $group (set OPENFORTIVPN_USER to override)"
-  else
-    if id -nG "$target_user" 2>/dev/null | grep -qw "$group"; then
-      log_info "User already in $group: $target_user"
-    else
-      if _sysmod_sudo usermod -aG "$group" "$target_user"; then
-        log_success "Added user to group: $target_user -> $group"
-        log_warning "Logout/login required to pick up group membership"
-      else
-        log_warning "Failed to add user to group: $target_user -> $group"
-      fi
-    fi
-  fi
-
-  if [[ -f "$config" ]]; then
-    _sysmod_sudo chgrp "$group" "$config" || log_warning "Failed to chgrp $config"
-    _sysmod_sudo chmod 640 "$config" || log_warning "Failed to chmod 640 $config"
-    log_success "Adjusted permissions on $config"
-  else
-    log_warning "OpenFortiVPN config not found: $config"
-  fi
-
-  if [[ -f "$config" ]]; then
-    _sysmod_sudo python - <<'PY'
-from pathlib import Path
-
-src = Path("/etc/openfortivpn/config")
-dst = Path("/etc/openfortivpn/waybar.conf")
-
-lines = src.read_text().splitlines()
-filtered = []
-for line in lines:
-    stripped = line.strip()
-    if stripped.startswith("#") or not stripped:
-        filtered.append(line)
-        continue
-    if stripped.lower().startswith("saml-login"):
-        continue
-    filtered.append(line)
-
-dst.write_text("\n".join(filtered) + "\n")
-PY
-    _sysmod_sudo chgrp "$group" "$service_config" || log_warning "Failed to chgrp $service_config"
-    _sysmod_sudo chmod 640 "$service_config" || log_warning "Failed to chmod 640 $service_config"
-    log_success "Generated service config: $service_config"
-  fi
-
-  if [[ -f "$helper_src" ]]; then
-    _sysmod_sudo install -d -m 755 "$(dirname "$helper_path")"
-    if _sysmod_sudo install -m 755 "$helper_src" "$helper_path"; then
-      log_success "Installed OpenFortiVPN DNS helper: $helper_path"
-    else
-      log_warning "Failed to install OpenFortiVPN DNS helper: $helper_path"
-    fi
-  else
-    log_warning "OpenFortiVPN DNS helper missing in dotfiles: $helper_src"
-  fi
-
-  if [[ -f /etc/systemd/system/openfortivpn.service || -f /etc/systemd/system/openfortivpn-cleanup.service ]]; then
-    _sysmod_sudo systemctl daemon-reload >/dev/null 2>&1 || log_warning "systemctl daemon-reload failed"
-  fi
-
-  if [[ -f "$marker_src" ]]; then
-    mkdir -p "$(dirname "$marker_path")"
-    local marker_link="$marker_src"
-    if command -v realpath >/dev/null 2>&1; then
-      local marker_dir rel
-      marker_dir="$(dirname "$marker_path")"
-      rel="$(realpath --relative-to="$marker_dir" "$marker_src" 2>/dev/null || true)"
-      if [[ -n "$rel" ]]; then
-        marker_link="$rel"
-      fi
-    fi
-    if [[ -n "$marker_owner" && "$marker_owner" != "$USER" ]]; then
-      if ! _sysmod_sudo -u "$marker_owner" ln -snf "$marker_link" "$marker_path"; then
-        log_warning "Unable to create marker as user '$marker_owner'; retrying as current user"
-        ln -snf "$marker_link" "$marker_path"
-      fi
-    else
-      ln -snf "$marker_link" "$marker_path"
-    fi
-    log_success "Provisioned Waybar host marker: $marker_path"
-  else
-    log_warning "Waybar host marker missing in dotfiles: $marker_src"
-  fi
-}
-
-openfortivpn_is_provisioned() {
-  local config="/etc/openfortivpn/config"
-  local service_config="/etc/openfortivpn/waybar.conf"
-  local group="openfortivpn"
-  local helper_path="/usr/local/bin/avular-vpn-dns"
-  local target_user="${OPENFORTIVPN_USER:-${SUDO_USER:-$USER}}"
-  local host_short
-  host_short="$(hostname | cut -d. -f1)"
-  local target_home=""
-  target_home="$(getent passwd "$target_user" 2>/dev/null | awk -F: '{print $6}')"
-  [[ -z "$target_home" ]] && target_home="$HOME"
-  local marker_path="${target_home}/.config/waybar-hosts/${host_short}/vpn-enabled"
-
-  command -v openfortivpn >/dev/null 2>&1 || return 1
-  getent group "$group" >/dev/null 2>&1 || return 1
-  [[ -f "$config" ]] || return 1
-  [[ -f "$service_config" ]] || return 1
-  [[ -x "$helper_path" ]] || return 1
-  if command -v systemctl >/dev/null 2>&1; then
-    systemctl list-unit-files --type=service 2>/dev/null | grep -q '^openfortivpn\.service' || return 1
-    systemctl list-unit-files --type=service 2>/dev/null | grep -q '^openfortivpn-cleanup\.service' || return 1
-  fi
-  [[ "$(stat -c '%G' "$config" 2>/dev/null || true)" == "$group" ]] || return 1
-  getent group "$group" | awk -F: -v u="$target_user" '
-    {
-      n=split($4, users, ",");
-      for (i=1; i<=n; i++) {
-        if (users[i] == u) { found=1; break }
-      }
-    }
-    END { exit(found ? 0 : 1) }
-  ' || return 1
-  [[ -f "$marker_path" ]] || return 1
-  return 0
-}
 
 apply_host_system_configs() {
   log_step "Applying host /etc drop-ins..."
@@ -636,8 +494,8 @@ setup_sddm_theme() {
   log_step "Setting up SDDM theme..."
 
   if ! command -v sddm >/dev/null 2>&1; then
-    log_info "SDDM not installed, skipping theme setup"
-    return 0
+    log_error "SDDM is expected on goldendragon but is not installed; run package setup first."
+    return 1
   fi
 
   local theme_scripts_dir="$PROJECT_ROOT/scripts/theme-manager"
@@ -648,7 +506,7 @@ setup_sddm_theme() {
     bash "$theme_scripts_dir/refresh-sddm" -y
   else
     log_warning "refresh-sddm script not found: $theme_scripts_dir/refresh-sddm"
-    return 0
+    return 1
   fi
 
   if [[ -x "$theme_scripts_dir/sddm-set" ]]; then
@@ -657,6 +515,7 @@ setup_sddm_theme() {
     log_success "SDDM theme configured"
   else
     log_warning "sddm-set script not found: $theme_scripts_dir/sddm-set"
+    return 1
   fi
 }
 
@@ -695,11 +554,8 @@ main() {
     echo
   fi
 
-  if ! is_step_completed "goldendragon-packages"; then
-    setup_goldendragon_packages && mark_step_completed "goldendragon-packages"
-  else
-    log_info "✓ Packages already installed (skipped)"
-  fi
+  log_info "Skipping legacy GoldenDragon package install; package truth is scripts/install/deps.manifest.toml via the Ansible packages role (host_goldendragon_laptop + laptop_power_tlp + host_goldendragon_nvidia + fingerprint + openfortivpn)."
+  mark_step_completed "goldendragon-packages" || true
   echo
 
   if ! is_step_completed "goldendragon-system-configs"; then
@@ -708,14 +564,6 @@ main() {
     # Still check for drift
     apply_host_system_configs || true
     log_info "✓ Host system configs already applied (checked)"
-  fi
-  echo
-
-  if openfortivpn_is_provisioned; then
-    log_info "✓ OpenFortiVPN access already provisioned (skipped)"
-  else
-    log_warning "OpenFortiVPN access incomplete; provisioning now..."
-    setup_openfortivpn_access && mark_step_completed "goldendragon-openfortivpn"
   fi
   echo
 

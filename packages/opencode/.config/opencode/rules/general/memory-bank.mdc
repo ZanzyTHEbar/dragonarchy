@@ -1,0 +1,40 @@
+---
+keywords:
+  - "memory bank"
+  - "update memory bank"
+  - "project memory"
+  - "durable memory"
+  - "session handoff"
+match: any
+---
+
+# allpepper Memory Bank
+
+Memory Bank is the durable continuity source. The agent's working memory resets between sessions, so Memory Bank must be treated as authoritative project context.
+
+## Mandatory Read Doctrine
+
+- At the start of every task, identify the correct allpepper Memory Bank project and read all files in that project before acting.
+- If the correct project is unclear, call `allpepper-memory-bank_list_projects` first and choose by the semantic work context, not by the current filesystem repository alone.
+- Do not assume global opencode workflow memory belongs to `dotfiles` just because opencode config files are stored in the dotfiles repo.
+- If no suitable project exists or the MCP cannot access it, say that clearly before proceeding and avoid inventing memory context.
+
+## Mandatory Write Doctrine
+
+Update Memory Bank whenever durable knowledge changes:
+
+- architecture decisions and why they were chosen
+- project-specific conventions and recurring workflows
+- environment quirks that are not obvious from repository files
+- durable unresolved follow-ups or handoff context
+- user preferences that apply beyond the current chat
+- corrections to prior memory that would mislead future sessions
+
+## What Not To Store
+
+- secrets, credentials, tokens, keys, or private raw logs
+- raw command transcripts or large test output dumps
+- transient plans that have no durable value after the task ends
+- backlog items that belong in Linear, Jira, GitHub, or Saga
+
+Keep entries concise, factual, project-scoped, and accurate. When prior memory is wrong, update it explicitly rather than layering contradictory notes.

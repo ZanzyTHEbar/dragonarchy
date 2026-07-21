@@ -1,0 +1,37 @@
+---
+dotfiles_architecture:
+  system_owner: ansible
+  user_owner: chezmoi
+  migration_stage: hot_paths
+  no_fallbacks: true
+
+dotfiles_supported_os_families:
+  - Archlinux
+  - Debian
+
+dotfiles_supported_distribution_families:
+  arch:
+    - Archlinux
+    - CachyOS
+  debian:
+    - Debian
+    - Ubuntu
+
+dotfiles_group_capability_map:
+  tlp: tlp
+  fingerprint: fingerprint
+  netbird: netbird
+  fortinet_vpn: fortinet_vpn
+  asus: asus
+  hibernation: hibernation
+  aio-cooler: aio_cooler
+  v4l2loopback: v4l2loopback
+  power_sleep: power_sleep
+  iwd: iwd
+  networkmanager: networkmanager
+  acpi_wakeup: acpi_wakeup
+
+dotfiles_group_gpu_map:
+  amd-gpu: amd_gpu
+  intel: intel_gpu
+  nvidia: nvidia

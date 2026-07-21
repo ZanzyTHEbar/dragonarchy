@@ -262,7 +262,7 @@ if [[ "$BATTERY_STATE" == "discharging" && "$BATTERY_LEVEL" -le "$POWER_SAVER_TH
     if [[ $DRY_RUN -eq 1 ]]; then
       echo "[dry-run] Would auto-switch ASUS profile: Quiet (<=${POWER_SAVER_THRESHOLD}%)"
     elif command -v asusctl >/dev/null 2>&1; then
-      asusctl profile -n Quiet >/dev/null 2>&1 || true
+      asusctl profile set Quiet >/dev/null 2>&1 || true
     fi
     touch "$LOW_POWER_FLAG"
   fi
@@ -271,7 +271,7 @@ elif [[ "$BATTERY_LEVEL" -ge "$POWER_RESUME_THRESHOLD" || "$BATTERY_STATE" == "c
     if [[ $DRY_RUN -eq 1 ]]; then
       echo "[dry-run] Would auto-switch ASUS profile: Balanced (>=${POWER_RESUME_THRESHOLD}% or charging)"
     elif command -v asusctl >/dev/null 2>&1; then
-      asusctl profile -n Balanced >/dev/null 2>&1 || true
+      asusctl profile set Balanced >/dev/null 2>&1 || true
     fi
     rm -f "$LOW_POWER_FLAG"
   fi

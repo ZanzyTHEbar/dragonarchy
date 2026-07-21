@@ -20,6 +20,11 @@ esac
 # Host detection
 export HOSTNAME="$(hostname | cut -d. -f1)"
 
+# Dragonarchy repo cache used by managed runtime installs.
+if [[ -z "${DOTFILES_ROOT:-}" && -e "$HOME/.dotfiles-profile/current/scripts/lib/logging.sh" ]]; then
+    export DOTFILES_ROOT="$HOME/.dotfiles-profile/current"
+fi
+
 # Load platform-specific configurations
 case "$PLATFORM" in
 "macos")

@@ -1,17 +1,30 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2317,SC2329
 #
 # Dragon Host-Specific Setup
 #
-# Dragon is an all-AMD desktop (CPU + workstation GPU).
+# ⚠️  DEPRECATED: This script is reference-only. Do not execute.
 #
-# This script:
-# - Applies host system config under hosts/dragon/etc -> /etc
-# - Ensures AIO cooler services (liquidctl + dynamic_led)
-# - Applies host audio config (hosts/dragon/pipewire -> ~/.config/pipewire/pipewire.conf.d)
-# - Installs a small workstation toolset when possible (best-effort)
+# System configuration for this host is now owned by Ansible roles:
+#   - common, base, packages, users
+#   - sddm, hyprland, amd_gpu, resolved, netbird
+#   - aio-cooler (liquidctl + dynamic_led)
+#
+# User configuration is owned by chezmoi manifests.
+#
+# This file is retained as documentation of the legacy setup.
+# For the canonical state, see infra/ansible/ and infra/chezmoi/manifests/.
 #
 
 set -euo pipefail
+
+cat <<'EOF' >&2
+WARNING: This script is deprecated and should not be run.
+
+All system configuration for this host is now managed by Ansible.
+Run ./install --host dragon instead.
+EOF
+exit 1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -24,8 +37,8 @@ source "${PROJECT_ROOT}/scripts/lib/install-state.sh"
 source "${PROJECT_ROOT}/scripts/lib/system-mods.sh"
 
 install_dragon_packages() {
-    # Keep host setup runnable standalone even if install-deps wasn’t invoked.
-    # (install-deps also installs host_dragon_workstation via deps.manifest.toml on Arch-family)
+    # Legacy reference only. Current package truth is deps.manifest.toml group
+    # host_dragon_workstation via the Ansible packages role.
     local pkgs=(
         "liquidctl"
         "lm_sensors"
@@ -51,8 +64,7 @@ install_dragon_packages() {
 }
 
 setup_netbird() {
-    log_step "Installing NetBird..."
-    bash "${PROJECT_ROOT}/scripts/utilities/netbird-install.sh"
+    log_warning "NetBird is now managed by the Ansible netbird role; legacy setup skips it."
 }
 
 apply_host_system_configs() {
@@ -163,17 +175,14 @@ main() {
         echo
     fi
 
-    if ! is_step_completed "dragon-packages"; then
-        install_dragon_packages && mark_step_completed "dragon-packages"
-    else
-        log_info "✓ Packages already installed (skipped)"
-    fi
+    log_info "Skipping legacy Dragon package install; package truth is scripts/install/deps.manifest.toml via the Ansible packages role (host_dragon_workstation)."
+    mark_step_completed "dragon-packages" || true
     echo
 
     if ! is_step_completed "dragon-install-netbird"; then
         setup_netbird && mark_step_completed "dragon-install-netbird"
     else
-        log_info "✓ NetBird already installed (skipped)"
+        log_info "✓ NetBird legacy setup step already skipped"
     fi
     echo
 

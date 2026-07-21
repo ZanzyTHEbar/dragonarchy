@@ -16,10 +16,13 @@
 #   fi
 
 # State directory for tracking completed steps
-STATE_DIR="${HOME}/.local/state/dotfiles/install"
+STATE_DIR="${STATE_DIR:-${HOME}/.local/state/dotfiles/install}"
 if [[ -z "$STATE_DIR" ]]; then
     echo "FATAL: STATE_DIR is empty" >&2
-    return 1 2>/dev/null || exit 1
+    if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+        return 1
+    fi
+    exit 1
 fi
 mkdir -p "$STATE_DIR"
 
@@ -253,4 +256,3 @@ export -f restart_if_running
 export -f is_package_installed
 export -f install_package_if_needed
 export -f show_state_info
-

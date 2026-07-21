@@ -1,0 +1,12 @@
+---
+- name: Validate TLP role inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Install TLP packages
+  ansible.builtin.import_tasks: install.yml
+
+- name: Configure TLP state
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Validate TLP state
+  ansible.builtin.import_tasks: verify.yml

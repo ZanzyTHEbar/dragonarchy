@@ -1,0 +1,14 @@
+---
+hibernation_enabled: true
+hibernation_bootloader_helper_src: "{{ playbook_dir }}/../../../scripts/lib/bootloader.sh"
+hibernation_bootloader_helper_path: /usr/local/libexec/dotfiles/bootloader.sh
+hibernation_helper_src: manage-hibernation.sh
+hibernation_helper_path: /usr/local/libexec/dotfiles/manage-hibernation.sh
+hibernation_state_file: /etc/dotfiles/hibernation.env
+
+hibernation_settings_by_host:
+  firedragon:
+    swapfile_path: /swapfile
+    swapfile_priority: 1000
+    swap_size_gib: ""
+    force_recreate: 0

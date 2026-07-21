@@ -3,7 +3,7 @@
 # goldendragon: enable fingerprint auth for hyprlock via system-local-login
 # while preserving password fallback.
 #
-# Note: system-local-login is patched by hosts/goldendragon/setup.sh to include:
+# Note: system-local-login is patched by the fingerprint role to include:
 #   auth sufficient pam_fprintd.so timeout=10
 # The timeout prevents long delays when the fingerprint reader is unresponsive.
 #

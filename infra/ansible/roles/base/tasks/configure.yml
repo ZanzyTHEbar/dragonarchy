@@ -1,0 +1,93 @@
+---
+- name: Set system timezone
+  ansible.builtin.timezone:
+    name: "{{ host_timezone | default(base_timezone) }}"
+  when: base_manage_time | bool
+
+- name: Enable NTP
+  ansible.builtin.command: timedatectl set-ntp true
+  changed_when: true
+  when: base_manage_time | bool
+
+- name: Check if pacman.conf exists
+  ansible.builtin.stat:
+    path: /etc/pacman.conf
+  register: pacman_conf_stat
+
+- name: Ensure Color is uncommented in pacman.conf
+  ansible.builtin.lineinfile:
+    path: /etc/pacman.conf
+    regexp: '^#Color'
+    line: 'Color'
+  when:
+    - pacman_conf_stat.stat.exists
+    - host_platform_family == 'arch'
+
+- name: Ensure ILoveCandy is present in pacman.conf
+  ansible.builtin.lineinfile:
+    path: /etc/pacman.conf
+    insertafter: '^Color'
+    line: 'ILoveCandy'
+  when:
+    - pacman_conf_stat.stat.exists
+    - host_platform_family == 'arch'
+
+- name: Ensure ParallelDownloads is set in pacman.conf
+  ansible.builtin.lineinfile:
+    path: /etc/pacman.conf
+    regexp: '^#?ParallelDownloads'
+    line: 'ParallelDownloads = 5'
+  when:
+    - pacman_conf_stat.stat.exists
+    - host_platform_family == 'arch'
+
+- name: Ensure polkit rules directory exists
+  ansible.builtin.file:
+    path: /etc/polkit-1/rules.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install baseline polkit admin rule
+  ansible.builtin.copy:
+    dest: /etc/polkit-1/rules.d/49-wheel-admin.rules
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      // Managed by Ansible base role.
+      // Keep wheel as the canonical local admin identity for polkit.
+      polkit.addAdminRule(function(action, subject) {
+          return {{ base_polkit_admin_identities | to_json }};
+      });
+
+- name: Install ufw package
+  ansible.builtin.package:
+    name: ufw
+    state: present
+  when: base_firewall_enabled | bool
+
+- name: Configure UFW default deny incoming
+  community.general.ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+  when: base_firewall_enabled | bool
+
+- name: Allow outgoing traffic via UFW
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+  when: base_firewall_enabled | bool
+
+- name: Allow SSH via UFW
+  community.general.ufw:
+    rule: allow
+    port: 22
+    proto: tcp
+  when: base_firewall_enabled | bool
+
+- name: Configure Plymouth boot splash
+  ansible.builtin.import_tasks: plymouth.yml
+  when: host_platform_family == 'arch'

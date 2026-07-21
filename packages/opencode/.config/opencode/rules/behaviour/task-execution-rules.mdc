@@ -1,12 +1,17 @@
 ---
-alwaysApply: true
-description: Rules for how to execute tasks & todo's
+keywords:
+  - "todo list"
+  - "task list"
+  - "action items"
+  - "execution plan"
+  - "break down the task"
+match: any
 ---
 
-Always decompose each task into smaller more managable atomic steps using Baby Steps methodology. Utilize first principles thinking, lateral thinking, and contrarian thinking with /reason /refine for every decomposition task.
+# Task Execution
 
-Always create detailed todo lists using the above instructions.
-
-Please execute tasks by batching together multiple tasks in sequence. Do not stop until a logical stoppin point. Strive to accomplish as many tasks as is reasonable in each batch.
-
-Do not stop for status updates unless it is an emergency or you need clarity to continue.
+- Decompose non-trivial work into small, reviewable steps with clear completion criteria.
+- Use todo tracking when there are multiple meaningful steps, explicit user-requested action items, or work likely to span context.
+- Batch adjacent safe actions when they naturally belong together, but validate each substantive behavior change before moving on.
+- Stop for blockers, destructive actions, missing credentials, or decisions that materially change scope.
+- Keep progress updates factual and concise; avoid documenting every minor step unless the user asks for a detailed log.

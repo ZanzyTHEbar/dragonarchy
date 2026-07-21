@@ -1,0 +1,47 @@
+---
+- name: Check installed TLP config
+  ansible.builtin.stat:
+    path: "/etc/tlp.d/01-{{ inventory_hostname }}.conf"
+  register: tlp_installed_config
+
+- name: Assert installed TLP config exists
+  ansible.builtin.assert:
+    that:
+      - tlp_installed_config.stat.exists
+    fail_msg: "Expected host-specific TLP config to exist."
+
+- name: Check TLP service state
+  ansible.builtin.service_facts:
+
+- name: Assert TLP services are enabled
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item] is defined
+      - ansible_facts.services[item].status == 'enabled'
+    fail_msg: "Expected {{ item }} to be enabled."
+  loop: "{{ tlp_managed_services }}"
+
+- name: Assert long-running TLP services are running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item] is defined
+      - ansible_facts.services[item].state == 'running'
+    fail_msg: "Expected {{ item }} to be running."
+  loop: "{{ tlp_running_services }}"
+
+- name: Assert conflicting power services are stopped and disabled when present
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item].status in ['disabled', 'masked']
+      - ansible_facts.services[item].state != 'running'
+    fail_msg: "Expected {{ item }} to be stopped and disabled or masked."
+  loop: "{{ tlp_conflict_services }}"
+  when: item in ansible_facts.services
+
+- name: Assert rfkill services are masked
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item] is defined
+      - ansible_facts.services[item].status == 'masked'
+    fail_msg: "Expected {{ item }} to be masked."
+  loop: "{{ tlp_masked_services }}"

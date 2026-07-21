@@ -8,6 +8,7 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
     [[ $SOURCE != /* ]] && SOURCE=$DIR/$SOURCE # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 done
 SCRIPT_DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+REPO_ROOT=$( cd -P "$SCRIPT_DIR/.." >/dev/null 2>&1 && pwd )
 
 PATH="$PATH:$SCRIPT_DIR/theme-manager"
 
@@ -99,6 +100,7 @@ create_web_app() {
     echo ""
     
     if gum confirm "Create web app launcher?"; then
+        # shellcheck source=scripts/utilities/web-apps.sh
         source "$SCRIPT_DIR/utilities/web-apps.sh"
         web2app "$app_name" "$app_url" "$icon_url"
     fi
@@ -181,7 +183,7 @@ secrets_menu() {
 
 utilities_menu() {
     ensure_tty || return
-    local options=("NFS" "Web Apps" "Docker DBs" "Secrets" "Add Migration" "Deps Manifest" "Netbird" "Back")
+    local options=("NFS" "Web Apps" "Docker DBs" "Secrets" "Add Migration" "Deps Manifest" "Back")
     choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Utilities") || main_menu
     case "$choice" in
         NFS)
@@ -208,11 +210,6 @@ utilities_menu() {
         ;;
         "Deps Manifest")
             "$SCRIPT_DIR/utilities/deps-manifest.sh"
-            ack_command
-            utilities_menu
-        ;;
-        Netbird)
-            "$SCRIPT_DIR/utilities/netbird-install.sh"
             ack_command
             utilities_menu
         ;;
@@ -505,8 +502,8 @@ case "${1:-}" in
             ;;
             netbird)
                 shift
-                "$SCRIPT_DIR/utilities/netbird-install.sh"
-                exit 0
+                printf 'NetBird is managed by the Ansible netbird role. Use: cd %s && infra/ansible/run-playbook.sh infra/ansible/playbooks/site.yml --limit <host>\n' "$REPO_ROOT" >&2
+                exit 2
             ;;
             *)
                 utilities_menu

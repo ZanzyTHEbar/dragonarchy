@@ -1,0 +1,23 @@
+---
+keywords:
+  - "linear"
+  - "jira"
+  - "saga"
+  - "memory bank"
+  - "task authority"
+match: any
+---
+
+# Task Authority Boundaries
+
+Use each system for its own authority boundary.
+
+- Linear is the source of truth for personal venture/project management.
+- Jira is the source of truth for work-owned project management.
+- GitHub issues and PRs are code-hosting coordination unless a project explicitly says GitHub is the backlog source.
+- Saga is local agent execution tracking for current work already defined by the user, repo context, Linear, Jira, or GitHub.
+- Memory Bank is durable project knowledge and handoff context, not a task backlog.
+
+Use Saga for multi-step work, delegated work, blockers, consequential decisions, validation milestones, and cross-session handoff. Keep Saga entries factual: current status, blocker, decision, validation result, and next action.
+
+Mark Saga work done only after the implementation state and validation/review result are known. Do not duplicate parent backlog items in Saga or Memory Bank.

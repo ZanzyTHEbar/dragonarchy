@@ -1,0 +1,27 @@
+---
+host_timezone: Europe/Lisbon
+host_role: laptop
+host_platform_family: arch
+host_desktop_stack: hyprland
+host_gpu_stack:
+  - amd-gpu
+host_capabilities:
+  - tlp
+  - asus
+  - hibernation
+  - netbird
+
+host_profile_packages:
+  - core_cli
+  - dev
+  - firedragon_laptop
+  - laptop_power_tlp
+  - hyprland_session
+
+managed_users:
+  - name: daofficialwizard
+    groups:
+      - wheel
+      - video
+
+legacy_host_directory: hosts/firedragon

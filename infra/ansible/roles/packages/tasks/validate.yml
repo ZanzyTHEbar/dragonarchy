@@ -1,0 +1,11 @@
+---
+- name: Assert package manager metadata is present
+  ansible.builtin.assert:
+    that:
+      - host_platform_family is defined
+      - host_platform_family in ['arch', 'debian']
+      - host_profile_packages is defined
+      - packages_pending_paru_policy in ['report', 'fail']
+      - packages_pending_script_policy in ['report', 'fail']
+    fail_msg: >-
+      Package role inputs are incomplete for host '{{ inventory_hostname }}'.

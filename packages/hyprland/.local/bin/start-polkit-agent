@@ -1,19 +1,44 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Debian-family Hyprland packages install their auth agents in libexec paths
-# instead of PATH-visible commands. Prefer the Hyprland-native agent when
-# present, then fall back to MATE or polkit-gnome for older tracks.
+agent_running() {
+  pgrep -x hyprpolkitagent >/dev/null 2>&1 \
+    || pgrep -x polkit-mate-authentication-agent-1 >/dev/null 2>&1 \
+    || pgrep -x polkit-gnome-authentication-agent-1 >/dev/null 2>&1
+}
+
+launch_agent() {
+  local candidate="$1"
+
+  case "$candidate" in
+    */hyprpolkitagent)
+      # The Hyprland Qt agent needs a live Wayland session. Force the platform
+      # explicitly so it does not fall back to an incomplete XCB stack.
+      exec env QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}" "$candidate"
+      ;;
+    *)
+      exec "$candidate"
+      ;;
+  esac
+}
+
+if agent_running; then
+  exit 0
+fi
+
+# Prefer native/system-packaged agents in deterministic order. Debian-family
+# Hyprland packages often install under libexec instead of PATH.
 candidates=(
   "/usr/libexec/hyprpolkitagent"
   "/usr/libexec/polkit-mate-authentication-agent-1"
   "/usr/lib/mate-polkit/polkit-mate-authentication-agent-1"
+  "/usr/libexec/polkit-gnome-authentication-agent-1"
   "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
 )
 
 for candidate in "${candidates[@]}"; do
   if [[ -x "$candidate" ]]; then
-    exec "$candidate"
+    launch_agent "$candidate"
   fi
 done
 

@@ -1,0 +1,29 @@
+---
+- name: Check power_sleep managed files
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+  loop: "{{ power_sleep_managed_paths }}"
+  register: power_sleep_installed_files
+
+- name: Assert power_sleep managed files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.pw_name == 'root'
+      - item.stat.gr_name == 'root'
+      - item.stat.mode == item.item.mode
+    fail_msg: "Expected power_sleep managed file {{ item.item.dest }} to exist."
+  loop: "{{ power_sleep_installed_files.results }}"
+
+- name: Gather service facts for power_sleep services
+  ansible.builtin.service_facts:
+  when: power_sleep_managed_services | length > 0
+
+- name: Assert power_sleep services are enabled and running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item] is defined
+      - ansible_facts.services[item].status == 'enabled'
+      - ansible_facts.services[item].state == 'running'
+    fail_msg: "Expected power_sleep service {{ item }} to be installed, enabled, and running."
+  loop: "{{ power_sleep_managed_services }}"

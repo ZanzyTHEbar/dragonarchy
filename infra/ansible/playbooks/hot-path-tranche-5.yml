@@ -1,0 +1,42 @@
+---
+- import_playbook: hot-path-tranche-4.yml
+
+- name: Hot-path tranche 5 TLP
+  hosts: tlp
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: tlp
+
+- name: Hot-path tranche 5 resolved
+  hosts: resolved
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: resolved
+
+- name: Hot-path tranche 5 NetBird
+  hosts: netbird
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: netbird
+
+- name: Hot-path tranche 5 OpenFortiVPN
+  hosts: fortinet_vpn
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: openfortivpn
+
+- name: Hot-path tranche 5 AIO cooler
+  hosts: aio_cooler
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: aio-cooler

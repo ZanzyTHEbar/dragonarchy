@@ -1,0 +1,32 @@
+---
+- name: Assert ASUS laptop edge-case metadata exists
+  ansible.builtin.assert:
+    that:
+      - asus_laptop_enabled | bool
+      - host_platform_family is defined
+      - host_platform_family == 'arch'
+      - host_role is defined
+      - host_role == 'laptop'
+      - host_capabilities is defined
+      - "'asus' in host_capabilities"
+      - inventory_hostname in asus_laptop_managed_paths_by_host
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the ASUS laptop edge-case contract.
+
+- name: Set ASUS laptop managed paths
+  ansible.builtin.set_fact:
+    asus_laptop_managed_paths: "{{ asus_laptop_managed_paths_by_host[inventory_hostname] }}"
+
+- name: Check ASUS laptop managed payload sources
+  ansible.builtin.stat:
+    path: "{{ item.src }}"
+  loop: "{{ asus_laptop_managed_paths }}"
+  register: asus_laptop_source_files
+
+- name: Assert ASUS laptop managed payload sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing ASUS laptop payload source '{{ item.stat.path | default(item.item.src) }}'.
+  loop: "{{ asus_laptop_source_files.results }}"

@@ -1,0 +1,11 @@
+---
+- name: Display host foundation summary
+  ansible.builtin.debug:
+    msg:
+      inventory_hostname: "{{ inventory_hostname }}"
+      host_role: "{{ host_role }}"
+      host_platform_family: "{{ host_platform_family }}"
+      host_desktop_stack: "{{ host_desktop_stack }}"
+      host_gpu_stack: "{{ host_gpu_stack }}"
+      host_capabilities: "{{ host_capabilities }}"
+      legacy_host_directory: "{{ legacy_host_directory }}"

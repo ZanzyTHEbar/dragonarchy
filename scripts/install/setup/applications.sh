@@ -12,6 +12,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../../lib/logging.sh"
+# shellcheck disable=SC1091  # Runtime-resolved path to install-state library
 source "${SCRIPT_DIR}/../../lib/install-state.sh"
 
 # Detect if running on Hyprland
@@ -146,4 +147,3 @@ main() {
 
 # Run main function
 main "$@"
-

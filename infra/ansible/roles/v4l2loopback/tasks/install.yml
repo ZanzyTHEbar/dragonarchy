@@ -1,0 +1,7 @@
+---
+- name: Report v4l2loopback AUR package ownership
+  ansible.builtin.debug:
+    msg: >-
+      v4l2loopback requires {{ v4l2loopback_required_paru_packages_by_platform[host_platform_family] | join(', ') }}.
+      The packages role declares these as pending paru-tier packages; install them
+      through the explicit AUR/package gate before live convergence.

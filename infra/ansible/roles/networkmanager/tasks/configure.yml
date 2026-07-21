@@ -1,0 +1,31 @@
+---
+- name: Ensure NetworkManager parent directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: >-
+    {{
+      networkmanager_managed_paths
+      | map(attribute='dest')
+      | map('dirname')
+      | unique
+      | list
+    }}
+
+- name: Install NetworkManager managed files
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop: "{{ networkmanager_managed_paths }}"
+
+- name: Ensure NetworkManager service is enabled and started
+  ansible.builtin.systemd_service:
+    name: "{{ networkmanager_service_name }}"
+    enabled: true
+    state: started

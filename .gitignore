@@ -12,6 +12,7 @@ packages/applications/.local/share/icons/hicolor/apps/**/*
 !packages/applications/.local/share/icons/hicolor/index.theme
 packages/hyprland/.config/hypr/colors-theme.conf
 packages/hyprland/.config/walker/themes/current
+packages/hardware/.config/systemd/user/graphical-session.target.wants/dynamic-monitors.service
 
 # GTK CSS overrides — runtime-managed by theme-set
 packages/gtk-3.0/.config/gtk-3.0/gtk.css
@@ -31,6 +32,9 @@ packages/fcitx5/.config/fcitx5/conf/notifications.conf
 .cursorignore
 vendored/
 
+# opencode
+.opencode/
+.letta/
 # Clipse clipboard manager - contains sensitive clipboard history
 packages/hyprland/.config/clipse/clipboard_history.json
 packages/hyprland/.config/clipse/clipse.log
@@ -46,6 +50,10 @@ packages/hyprland/.config/elephant/providers/*.so
 # Artifacts
 *.log
 .artifacts/
+infra/packer/.packer/
+infra/packer/.packer.d/
+infra/packer/*.auto.pkrvars.hcl
+infra/packer/*.auto.pkrvars.json
 
 # pkgsolve may be cloned as a nested working tree; never commit its .git metadata
 tools/pkgsolve/.git/

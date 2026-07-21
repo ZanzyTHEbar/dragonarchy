@@ -1,0 +1,93 @@
+---
+- name: Ensure OpenFortiVPN group exists
+  ansible.builtin.group:
+    name: "{{ openfortivpn_group }}"
+    system: true
+    state: present
+
+- name: Ensure primary operator is in OpenFortiVPN group
+  ansible.builtin.user:
+    name: "{{ openfortivpn_primary_user }}"
+    groups: "{{ openfortivpn_group }}"
+    append: true
+    state: present
+
+- name: Ensure OpenFortiVPN config directory exists
+  ansible.builtin.file:
+    path: /etc/openfortivpn
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Seed OpenFortiVPN config if missing
+  ansible.builtin.copy:
+    dest: /etc/openfortivpn/config
+    content: "{{ openfortivpn_seed_config }}"
+    owner: root
+    group: "{{ openfortivpn_group }}"
+    mode: "0640"
+    force: false
+
+- name: Ensure OpenFortiVPN config permissions
+  ansible.builtin.file:
+    path: /etc/openfortivpn/config
+    owner: root
+    group: "{{ openfortivpn_group }}"
+    mode: "0640"
+
+- name: Install OpenFortiVPN polkit rule
+  ansible.builtin.copy:
+    src: 50-openfortivpn.rules
+    dest: /etc/polkit-1/rules.d/50-openfortivpn.rules
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Generate OpenFortiVPN service config
+  ansible.builtin.template:
+    src: waybar.conf.j2
+    dest: /etc/openfortivpn/waybar.conf
+    owner: root
+    group: "{{ openfortivpn_group }}"
+    mode: "0640"
+
+- name: Ensure OpenFortiVPN helper install directory exists
+  ansible.builtin.file:
+    path: /usr/local/bin
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install OpenFortiVPN DNS helper
+  ansible.builtin.copy:
+    src: "{{ openfortivpn_role_files_root }}/dotfiles/.local/bin/avular-vpn-dns"
+    dest: /usr/local/bin/avular-vpn-dns
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install OpenFortiVPN systemd units
+  ansible.builtin.copy:
+    src: "{{ openfortivpn_role_files_root }}/etc/systemd/system/{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - openfortivpn.service
+    - openfortivpn-cleanup.service
+  notify: Reload systemd
+
+- name: Reload systemd before enabling OpenFortiVPN units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable OpenFortiVPN systemd units
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: stopped
+  loop:
+    - openfortivpn.service
+    - openfortivpn-cleanup.service

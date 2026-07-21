@@ -1,0 +1,6 @@
+---
+- name: Create supplementary groups required by managed users
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ managed_users | map(attribute='groups') | list | flatten | unique }}"
