@@ -2,8 +2,6 @@ name: Debian-Family VM E2E
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 6 * * *"
 
 jobs:
   debian-family-vm:
