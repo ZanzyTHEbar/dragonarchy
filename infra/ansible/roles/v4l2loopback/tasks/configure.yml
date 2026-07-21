@@ -1,0 +1,25 @@
+---
+- name: Ensure v4l2loopback parent directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: >-
+    {{
+      v4l2loopback_managed_paths
+      | map(attribute='dest')
+      | map('dirname')
+      | unique
+      | list
+    }}
+
+- name: Install v4l2loopback managed files
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop: "{{ v4l2loopback_managed_paths }}"

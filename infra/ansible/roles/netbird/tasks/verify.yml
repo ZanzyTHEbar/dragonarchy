@@ -1,0 +1,50 @@
+---
+- name: Check netbird binary
+  ansible.builtin.command: netbird version
+  register: netbird_version
+  changed_when: false
+
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Assert netbird service is present and running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[netbird_service_name + '.service'] is defined
+      - ansible_facts.services[netbird_service_name + '.service'].state == 'running'
+    fail_msg: >-
+      Expected {{ netbird_service_name }}.service to be installed and running on '{{ inventory_hostname }}'.
+
+- name: Check /etc/resolv.conf link
+  ansible.builtin.stat:
+    path: /etc/resolv.conf
+    follow: false
+  register: netbird_resolvconf
+  when:
+    - netbird_manage_resolved_stub | bool
+    - "'resolved' in group_names"
+
+- name: Assert /etc/resolv.conf points at the systemd-resolved stub
+  ansible.builtin.assert:
+    that:
+      - netbird_resolvconf.stat.islnk
+      - netbird_resolvconf.stat.lnk_source == '/run/systemd/resolve/stub-resolv.conf'
+    fail_msg: >-
+      Expected /etc/resolv.conf to point at the systemd-resolved stub on '{{ inventory_hostname }}'.
+  when:
+    - netbird_manage_resolved_stub | bool
+    - "'resolved' in group_names"
+
+- name: Check netbird routing sysctl
+  ansible.builtin.command: sysctl -n net.ipv4.ip_forward
+  register: netbird_ip_forward
+  changed_when: false
+  when: netbird_enable_ip_forward_by_host.get(inventory_hostname, false)
+
+- name: Assert netbird routing sysctl is enabled
+  ansible.builtin.assert:
+    that:
+      - netbird_ip_forward.stdout == '1'
+    fail_msg: >-
+      Expected net.ipv4.ip_forward=1 on '{{ inventory_hostname }}'.
+  when: netbird_enable_ip_forward_by_host.get(inventory_hostname, false)

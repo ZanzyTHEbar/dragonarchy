@@ -1,0 +1,43 @@
+---
+- name: Assert v4l2loopback tranche metadata exists
+  ansible.builtin.assert:
+    that:
+      - v4l2loopback_enabled | bool
+      - host_platform_family is defined
+      - host_platform_family in v4l2loopback_required_paru_packages_by_platform
+      - host_capabilities is defined
+      - "'v4l2loopback' in host_capabilities"
+      - v4l2loopback_managed_paths is defined
+      - v4l2loopback_managed_paths | length > 0
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the v4l2loopback contract.
+
+- name: Assert v4l2loopback package plan declares required AUR packages
+  ansible.builtin.assert:
+    that:
+      - packages_pending_paru is defined
+      - item in packages_pending_paru
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' requires '{{ item }}' for v4l2loopback, but the
+      manifest-backed package plan did not declare it in the pending paru tier.
+      Run through site.yml so the packages role resolves the plan, and keep the
+      package declared in scripts/install/deps.manifest.toml.
+  loop: "{{ v4l2loopback_required_paru_packages_by_platform[host_platform_family] }}"
+
+- name: Check v4l2loopback role-local payload sources
+  ansible.builtin.stat:
+    path: "{{ item.src }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop: "{{ v4l2loopback_managed_paths }}"
+  register: v4l2loopback_source_files
+
+- name: Assert v4l2loopback role-local payload sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Missing v4l2loopback role-local payload source for {{ inventory_hostname }}:
+      {{ item.item.src }}
+  loop: "{{ v4l2loopback_source_files.results }}"

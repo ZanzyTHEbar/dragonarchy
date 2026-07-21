@@ -1,0 +1,112 @@
+---
+- name: Assert AMD GPU tranche-4 metadata exists
+  ansible.builtin.assert:
+    that:
+      - amd_gpu_enabled | bool
+      - host_platform_family is defined
+      - host_platform_family in amd_gpu_packages_by_platform
+      - host_gpu_stack is defined
+      - "'amd-gpu' in host_gpu_stack"
+      - inventory_hostname in amd_gpu_packages_by_platform[host_platform_family]
+      - inventory_hostname in amd_gpu_managed_files_by_host
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the AMD GPU tranche-4 contract.
+
+- name: Set AMD GPU host payload root
+  ansible.builtin.set_fact:
+    amd_gpu_role_files_root: "{{ amd_gpu_host_source_dir }}/{{ inventory_hostname }}"
+    amd_gpu_managed_files: "{{ amd_gpu_managed_files_by_host[inventory_hostname] }}"
+
+- name: Assert AMD GPU declares at least one modprobe source
+  ansible.builtin.assert:
+    that:
+      - amd_gpu_managed_files.modprobe | length > 0
+    fail_msg: "Host '{{ inventory_hostname }}' must declare at least one AMD GPU modprobe source."
+
+- name: Check declared AMD GPU modprobe sources
+  ansible.builtin.stat:
+    path: "{{ amd_gpu_role_files_root }}/etc/modprobe.d/{{ item }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop: "{{ amd_gpu_managed_files.modprobe }}"
+  register: amd_gpu_modprobe_source_stats
+
+- name: Assert declared AMD GPU modprobe sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing declared AMD GPU modprobe source
+      '{{ amd_gpu_role_files_root }}/etc/modprobe.d/{{ item.item }}'.
+  loop: "{{ amd_gpu_modprobe_source_stats.results }}"
+
+- name: Set AMD GPU modprobe sources
+  ansible.builtin.set_fact:
+    amd_gpu_modprobe_sources: >-
+      {{
+        amd_gpu_modprobe_source_stats.results
+        | map(attribute='item')
+        | map('regex_replace', '^(.*)$', amd_gpu_role_files_root ~ '/etc/modprobe.d/\\1')
+        | list
+      }}
+
+- name: Check declared AMD GPU systemd service sources
+  ansible.builtin.stat:
+    path: "{{ amd_gpu_role_files_root }}/etc/systemd/system/{{ item }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop: "{{ amd_gpu_managed_files.services }}"
+  register: amd_gpu_service_source_stats
+  when: amd_gpu_managed_files.services | length > 0
+
+- name: Assert declared AMD GPU systemd service sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing declared AMD GPU systemd service source
+      '{{ amd_gpu_role_files_root }}/etc/systemd/system/{{ item.item }}'.
+  loop: "{{ amd_gpu_service_source_stats.results }}"
+  when: amd_gpu_managed_files.services | length > 0
+
+- name: Check declared AMD GPU polkit rule sources
+  ansible.builtin.stat:
+    path: "{{ amd_gpu_role_files_root }}/etc/polkit-1/rules.d/{{ item }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop: "{{ amd_gpu_managed_files.polkit_rules }}"
+  register: amd_gpu_polkit_source_stats
+  when: amd_gpu_managed_files.polkit_rules | length > 0
+
+- name: Assert declared AMD GPU polkit rule sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing declared AMD GPU polkit rule source
+      '{{ amd_gpu_role_files_root }}/etc/polkit-1/rules.d/{{ item.item }}'.
+  loop: "{{ amd_gpu_polkit_source_stats.results }}"
+  when: amd_gpu_managed_files.polkit_rules | length > 0
+
+- name: Check declared AMD GPU bootloader drop-in sources
+  ansible.builtin.stat:
+    path: "{{ amd_gpu_role_files_root }}/etc/limine-entry-tool.d/{{ item }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop: "{{ amd_gpu_managed_files.bootloader_dropins }}"
+  register: amd_gpu_bootloader_dropin_source_stats
+  when: amd_gpu_managed_files.bootloader_dropins | length > 0
+
+- name: Assert declared AMD GPU bootloader drop-in sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing declared AMD GPU bootloader drop-in source
+      '{{ amd_gpu_role_files_root }}/etc/limine-entry-tool.d/{{ item.item }}'.
+  loop: "{{ amd_gpu_bootloader_dropin_source_stats.results }}"
+  when: amd_gpu_managed_files.bootloader_dropins | length > 0

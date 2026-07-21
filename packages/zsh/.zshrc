@@ -6,7 +6,7 @@
 unsetopt nounset 2>/dev/null
 
 ZSH_TTY_UI=false
-if [[ -o interactive ]]; then
+if [[ -o interactive && -t 0 && -t 1 ]]; then
     ZSH_TTY_UI=true
 fi
 
@@ -17,6 +17,9 @@ fi
 
 # Load core configuration modules FIRST (order matters)
 [[ -r ~/.config/zsh/profile.zsh ]] && source ~/.config/zsh/profile.zsh         # Platform detection, environment variables, path functions
+if [[ -o interactive && -f "$HOME/.config/zsh/hosts/$HOSTNAME.env.zsh" ]]; then
+    source "$HOME/.config/zsh/hosts/$HOSTNAME.env.zsh"
+fi
 [[ -r ~/.config/zsh/init.zsh ]] && source ~/.config/zsh/init.zsh               # Shell options, keybindings, completion, FZF
 
 # Zinit plugin manager setup
@@ -52,7 +55,6 @@ if [[ "$ZSH_TTY_UI" == "true" ]] && command -v zinit >/dev/null 2>&1; then
     zinit snippet OMZP::git
     zinit snippet OMZP::sudo
     zinit snippet OMZP::zoxide
-    zinit snippet OMZP::direnv
     zinit snippet OMZP::nvm
     zinit snippet OMZP::npm
     zinit snippet OMZP::docker-compose
@@ -86,8 +88,8 @@ if [[ "$ZSH_TTY_UI" == "true" ]]; then
     done
 fi
 
-if [[ "$ZSH_TTY_UI" == "true" && -f ~/.config/zsh/hosts/$HOSTNAME.zsh ]]; then
-    source ~/.config/zsh/hosts/$HOSTNAME.zsh
+if [[ "$ZSH_TTY_UI" == "true" && -f "$HOME/.config/zsh/hosts/$HOSTNAME.zsh" ]]; then
+    source "$HOME/.config/zsh/hosts/$HOSTNAME.zsh"
 fi
 
 # Powerlevel10k configuration
@@ -108,17 +110,3 @@ fi
 # Unalias zi from zinit to avoid conflicts with zoxide zi command
 unalias zi 2>/dev/null
 
-
-# pnpm
-export PNPM_HOME="$HOME/.local/share/pnpm"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
-# pnpm end
-
-# >>> cursor-installer path >>>
-if [ -f "$HOME/.local/share/cursor-installer/shell-path.sh" ]; then
-  . "$HOME/.local/share/cursor-installer/shell-path.sh"
-fi
-# <<< cursor-installer path <<<

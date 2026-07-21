@@ -4,11 +4,11 @@
 
 On Arch-family installs, `scripts/install/install-deps.sh --host dragon` installs `platforms.arch.pacman.host_dragon_workstation` from `scripts/install/deps.manifest.toml`, including:
 
-- **Vulkan/Mesa tooling**: `vulkan-tools`, `mesa-utils`, `vulkan-radeon`, `libva-mesa-driver`, `mesa-vdpau`
+- **Vulkan/Mesa tooling**: `vulkan-tools`, `mesa-utils`, `vulkan-radeon`, `libva-mesa-driver`
 - **Monitoring/tuning**: `radeontop`, `lm_sensors`, `corectrl`
 - **Microcode**: `amd-ucode`
 
-`hosts/dragon/setup.sh` also attempts to install a small subset of these packages in a best-effort way (useful if you run it standalone).
+`hosts/dragon/setup.sh` is now legacy/reference for package installation; packages are owned by `deps.manifest.toml` and the Ansible `packages` role.
 
 ### Verify GPU driver + Vulkan
 
@@ -40,4 +40,3 @@ If you need advanced tuning features, there’s an **opt-in** example config:
 - `hosts/dragon/etc/modprobe.d/amdgpu-dragon.conf`
 
 It is **commented out** by default. Only enable settings you understand, and reboot after changes.
-

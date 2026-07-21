@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 
 # Main Setup Script for Traditional Dotfiles Management
+#
+# DEPRECATED: managed hosts now use ./install (Ansible + chezmoi).
+# This legacy GNU Stow/bash installer is retained only for historical recovery
+# and unmanaged profiles. Set DOTFILES_LEGACY_INSTALL=1 to run it deliberately
+# against a managed inventory host.
 
 set -euo pipefail
 
@@ -22,11 +27,15 @@ source "${SCRIPT_DIR}/scripts/lib/stow-helpers.sh"
 source "${SCRIPT_DIR}/scripts/lib/icons.sh"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/scripts/lib/fresh-mode.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/scripts/lib/control-plane-mode.sh"
 
 CONFIG_DIR="$SCRIPT_DIR"
 PACKAGES_DIR="$CONFIG_DIR/packages"
 SCRIPTS_DIR="$CONFIG_DIR/scripts"
 HOSTS_DIR="$CONFIG_DIR/hosts"
+ANSIBLE_HOST_VARS_DIR="$CONFIG_DIR/infra/ansible/inventory/host_vars"
+ANSIBLE_INVENTORY="$CONFIG_DIR/infra/ansible/inventory/hosts.yml"
 
 # Default options
 INSTALL_PACKAGES=true
@@ -63,6 +72,11 @@ Usage: $0 [OPTIONS]
 
 Traditional Dotfiles Management Setup Script
 
+DEPRECATED for managed hosts. Use ./install --host <host> instead.
+
+To force this legacy installer for a managed inventory host, set:
+    DOTFILES_LEGACY_INSTALL=1
+
 OPTIONS:
     -h, --help              Show this help message
     -v, --verbose           Enable verbose output
@@ -92,18 +106,46 @@ OPTIONS:
     --vendor-creative       Enable official vendor installers for opt-in creative apps
 
 EXAMPLES:
-    $0                      # Complete setup for current machine
-    $0 --fresh              # Fresh machine setup (purge conflicting dotfiles before stow)
-    $0 --host dragon        # Setup for specific host
-    $0 --packages-only      # Only install packages
-    $0 --dotfiles-only      # Only setup dotfiles
-    $0 --no-secrets         # Skip secrets setup
-    $0 --headless           # Terminal-only install (defaults to minimal bundle)
-    $0 --bundle minimal     # CLI-only package bundle
-    $0 --sddm-theme sugar-dark  # Set a specific SDDM theme
-    $0 --reset              # Clear state and force full re-run
+    ./install --host dragon             # Managed-host setup (canonical)
+    DOTFILES_LEGACY_INSTALL=1 $0 --host headless --headless
+    DOTFILES_LEGACY_INSTALL=1 $0 --packages-only
+    DOTFILES_LEGACY_INSTALL=1 $0 --dotfiles-only
+    DOTFILES_LEGACY_INSTALL=1 $0 --no-secrets
+    DOTFILES_LEGACY_INSTALL=1 $0 --bundle minimal
+    DOTFILES_LEGACY_INSTALL=1 $0 --reset
 
 EOF
+}
+
+guard_managed_host_legacy_install() {
+    local target_host="${HOST}"
+
+    if [[ -z "${target_host}" ]]; then
+        target_host="$(hostname -s)"
+    fi
+
+    if [[ "${DOTFILES_LEGACY_INSTALL:-}" == "1" ]]; then
+        log_warning "DOTFILES_LEGACY_INSTALL=1 set; running deprecated legacy installer for '${target_host}'."
+        return 0
+    fi
+
+    local is_managed_host=false
+    if [[ -f "${ANSIBLE_HOST_VARS_DIR}/${target_host}.yml" ]]; then
+        is_managed_host=true
+    elif command -v ansible-inventory >/dev/null 2>&1 && [[ -f "${ANSIBLE_INVENTORY}" ]]; then
+        if ansible-inventory -i "${ANSIBLE_INVENTORY}" --host "${target_host}" >/dev/null 2>&1; then
+            is_managed_host=true
+        fi
+    fi
+
+    if [[ "${is_managed_host}" == "true" ]]; then
+        log_error "Legacy ./install.sh is disabled for managed host '${target_host}'."
+        log_info "Use the declarative entrypoint instead:"
+        log_info "  ./install --host ${target_host}"
+        log_info "If you intentionally need the deprecated legacy path, rerun with:"
+        log_info "  DOTFILES_LEGACY_INSTALL=1 ./install.sh --host ${target_host}"
+        exit 1
+    fi
 }
 
 # Parse command line arguments
@@ -271,6 +313,10 @@ packages_sanity_ok() {
             command -v hyprland >/dev/null 2>&1 || return 1
         fi
     fi
+
+    if [[ -n "${host:-}" ]] && is_sddm_host "$HOSTS_DIR" "$host" >/dev/null 2>&1; then
+        command -v sddm >/dev/null 2>&1 || return 1
+    fi
     return 0
 }
 
@@ -346,6 +392,12 @@ install_packages() {
         feature_fingerprint="nohypr-${provider_track}"
     fi
 
+    if [[ -n "${HOST:-}" ]] && is_sddm_host "$HOSTS_DIR" "$HOST"; then
+        feature_fingerprint+="-sddm"
+    else
+        feature_fingerprint+="-nosddm"
+    fi
+
     if [[ " ${INSTALL_DEPS_FLAGS[*]} " == *" --vendor-creative "* ]]; then
         feature_fingerprint+="-vendorcreative"
     fi
@@ -409,10 +461,19 @@ setup_utilities() {
     
     log_step "Setting up utilities (symlinking into ~/.local/bin)..."
     mkdir -p "$HOME/.local/bin"
-    
+
+    local retired_netbird_link="$HOME/.local/bin/netbird-install"
+    local retired_netbird_target
+    if [[ -L "$retired_netbird_link" ]]; then
+        retired_netbird_target=$(readlink "$retired_netbird_link" || true)
+        if [[ "$retired_netbird_target" == "$SCRIPTS_DIR/utilities/netbird-install.sh" ]]; then
+            rm -f "$retired_netbird_link"
+            log_info "Removed retired netbird-install utility symlink; NetBird is Ansible-owned."
+        fi
+    fi
+
     declare -A util_map=(
         ["launch-clipse.sh"]="launch-clipse"
-        ["netbird-install.sh"]="netbird-install"
         ["web-apps.sh"]="web-apps"
         ["docker-dbs.sh"]="docker-dbs"
         ["nfs.sh"]="nfs-utils"
@@ -434,6 +495,11 @@ setup_utilities() {
 # Setup dotfiles with stow
 setup_dotfiles() {
     if [[ "$INSTALL_DOTFILES" != "true" ]]; then
+        return 0
+    fi
+
+    if dotfiles_user_owner_is_chezmoi; then
+        log_info "Skipping legacy user Stow because DOTFILES_USER_OWNER=chezmoi"
         return 0
     fi
     
@@ -531,7 +597,8 @@ setup_dotfiles() {
                     link_target=$(readlink "$symlink_path")
                     # If it's an absolute symlink pointing outside the package, temporarily remove it
                     if [[ "$link_target" == /* ]]; then
-                        local pkg_abs="$(readlink -f "$package")"
+                        local pkg_abs
+                        pkg_abs="$(readlink -f "$package")"
                         local link_target_abs
                         link_target_abs=$(readlink -f "$link_target" 2>/dev/null || echo "$link_target")
                         
@@ -545,8 +612,10 @@ setup_dotfiles() {
                         fi
                         
                         # Target is inside package - try to make it relative
-                        local symlink_abs="$(readlink -f "$symlink_path")"
-                        local symlink_dir="$(dirname "$symlink_abs")"
+                        local symlink_abs
+                        local symlink_dir
+                        symlink_abs="$(readlink -f "$symlink_path")"
+                        symlink_dir="$(dirname "$symlink_abs")"
                         local rel_target
                         if rel_target=$(realpath --relative-to="$symlink_dir" "$link_target" 2>/dev/null); then
                             log_info "Resolving absolute symlink in $package: $(basename "$symlink_path") -> $rel_target"
@@ -568,12 +637,17 @@ setup_dotfiles() {
             #
             # So we stow `zsh` with --no-folding (file-by-file) and do a one-time clean unstow/restow
             # to migrate away from an existing folded directory link.
+            #
+            # Several theme/runtime-managed packages also need --no-folding so writes under $HOME`
+            # stay local instead of traversing a folded directory symlink back into the repo checkout.
             local stow_args=(--restow -t "$HOME")
-            if [[ "$package" == "zsh" ]]; then
+            case "$package" in
+                zsh|hyprland|kitty|gtk-3.0|gtk-4.0|wlogout)
                 stow_args=(--no-folding --restow -t "$HOME")
                 # Best-effort remove any previous folded layout so we can recreate file-by-file links.
                 stow -D -t "$HOME" "$package" >/dev/null 2>&1 || true
-            fi
+                ;;
+            esac
             local stow_ec=0
             local stow_tmpfile stow_retry_tmpfile
             stow_tmpfile=$(mktemp /tmp/stow_output.XXXXXX)
@@ -674,6 +748,11 @@ setup_dotfiles() {
 
 # Stow system packages
 stow_system_packages() {
+    if dotfiles_system_owner_is_ansible; then
+        log_info "Skipping system Stow because DOTFILES_SYSTEM_OWNER=ansible"
+        return 0
+    fi
+
     log_step "Stowing system packages..."
     local stow_script="$SCRIPTS_DIR/install/stow-system.sh"
     if [[ -f "$stow_script" ]]; then
@@ -711,7 +790,7 @@ stow_host_dotfiles() {
     # we fail fast so the user can resolve it intentionally.
     local src rel dst
     while IFS= read -r -d '' src; do
-        rel="${src#${dotfiles_dir}/}"
+        rel="${src#"${dotfiles_dir}"/}"
         [[ -z "$rel" || "$rel" == "$src" ]] && continue
 
         dst="$HOME/$rel"
@@ -798,23 +877,31 @@ setup_host_config() {
     
     if [[ -d "$host_config_dir" ]]; then
         log_info "Loading host-specific configuration from $host_config_dir"
-        
-        # Stow host-specific system files first
-        stow_system_packages
-        
-        # Source host-specific setup script if it exists
-        if [[ -f "$host_config_dir/setup.sh" ]]; then
-            log_info "Running host-specific setup script..."
-            if [[ "$RESET_STATE" == "true" ]]; then
-                bash "$host_config_dir/setup.sh" --reset
-            else
-                bash "$host_config_dir/setup.sh"
+
+        if dotfiles_system_owner_is_ansible; then
+            log_info "Skipping legacy host system writers because DOTFILES_SYSTEM_OWNER=ansible"
+        else
+            # Stow host-specific system files first
+            stow_system_packages
+
+            # Source host-specific setup script if it exists
+            if [[ -f "$host_config_dir/setup.sh" ]]; then
+                log_info "Running host-specific setup script..."
+                if [[ "$RESET_STATE" == "true" ]]; then
+                    bash "$host_config_dir/setup.sh" --reset
+                else
+                    bash "$host_config_dir/setup.sh"
+                fi
             fi
         fi
-        
+
         # Install host-specific dotfiles if they exist
         if [[ -d "$host_config_dir/dotfiles" ]]; then
-            stow_host_dotfiles "$host_config_dir/dotfiles" "$HOST"
+            if dotfiles_user_owner_is_chezmoi; then
+                log_info "Skipping host dotfile Stow because DOTFILES_USER_OWNER=chezmoi"
+            else
+                stow_host_dotfiles "$host_config_dir/dotfiles" "$HOST"
+            fi
         fi
         
         log_success "Host-specific configuration completed"
@@ -852,9 +939,14 @@ configure_shell() {
     # Set zsh as default shell if not already
     if [[ "$SHELL" != */zsh ]]; then
         if command -v zsh >/dev/null 2>&1; then
+            local zsh_path
+            zsh_path="$(command -v zsh)"
             log_info "Setting zsh as default shell..."
-            sudo chsh -s "$(which zsh)" "$current_user"
-            log_success "Default shell changed to zsh"
+            if sudo chsh -s "$zsh_path" "$current_user"; then
+                log_success "Default shell changed to zsh"
+            else
+                log_warning "Failed to change default shell to zsh"
+            fi
         else
             log_warning "zsh not found, cannot change default shell"
         fi
@@ -871,6 +963,7 @@ configure_shell() {
 # Post-setup tasks
 post_setup() {
     log_step "Running post-setup tasks..."
+    local should_reload_hyprland="false"
     
     # Create symlinks for compatibility
     if [[ ! -L "$HOME/.zshrc" && -f "$HOME/.zshrc" ]]; then
@@ -893,8 +986,24 @@ post_setup() {
     
     
     #bash "$SCRIPTS_DIR/theme-manager/theme-set" "tokyo-night"
+    if command -v hyprctl >/dev/null 2>&1 && [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
+        should_reload_hyprland="true"
+    fi
+
     bash "$SCRIPTS_DIR/install/setup/keyboard.sh"
-    
+
+    # keyboard.sh writes a runtime-owned include file. If install runs from inside
+    # an existing Hyprland session, reload so the compositor picks up the new file
+    # and clears any stale "source ... found no match" parse error.
+    if [[ "$should_reload_hyprland" == "true" ]]; then
+        log_info "Reloading Hyprland configuration..."
+        if hyprctl reload >/dev/null 2>&1; then
+            log_success "Hyprland configuration reloaded"
+        else
+            log_warning "Failed to reload Hyprland configuration"
+        fi
+    fi
+     
     log_success "Post-setup tasks completed"
 }
 
@@ -1014,61 +1123,67 @@ main() {
         bash "$SCRIPTS_DIR/theme-manager/refresh-plymouth" -y
         
         # Setup SDDM themes if SDDM is installed
-        if command -v sddm >/dev/null 2>&1; then
-            log_info "Setting up SDDM themes..."
-            if [[ -x "$SCRIPTS_DIR/theme-manager/refresh-sddm" ]]; then
-                bash "$SCRIPTS_DIR/theme-manager/refresh-sddm" -y
-                
-                if [[ -x "$SCRIPTS_DIR/theme-manager/sddm-set" ]]; then
-                    local sddm_theme_to_set="$SDDM_THEME"
-                    local sddm_themes_dir="$PACKAGES_DIR/sddm/usr/share/sddm/themes"
+        if [[ -n "${HOST:-}" ]] && is_sddm_host "$HOSTS_DIR" "$HOST" && command -v sddm >/dev/null 2>&1; then
+            if dotfiles_system_owner_is_ansible; then
+                log_info "Skipping legacy SDDM theme writes because DOTFILES_SYSTEM_OWNER=ansible"
+            else
+                log_info "Setting up SDDM themes..."
+                if [[ -x "$SCRIPTS_DIR/theme-manager/refresh-sddm" ]]; then
+                    bash "$SCRIPTS_DIR/theme-manager/refresh-sddm" -y
 
-                    # If --sddm-theme was given, validate it
-                    if [[ -n "$sddm_theme_to_set" ]]; then
-                        if [[ ! -d "$sddm_themes_dir/$sddm_theme_to_set" ]]; then
-                            log_error "SDDM theme '$sddm_theme_to_set' not found in $sddm_themes_dir"
-                            log_info "Available themes:"
-                            find "$sddm_themes_dir" -mindepth 1 -maxdepth 1 -type d -printf "  %f\n" 2>/dev/null | sort
-                            log_warning "Falling back to default SDDM theme: catppuccin-mocha-sky-sddm"
-                            sddm_theme_to_set="catppuccin-mocha-sky-sddm"
-                        fi
-                    fi
+                    if [[ -x "$SCRIPTS_DIR/theme-manager/sddm-set" ]]; then
+                        local sddm_theme_to_set="$SDDM_THEME"
+                        local sddm_themes_dir="$PACKAGES_DIR/sddm/usr/share/sddm/themes"
 
-                    # Interactive selection if no theme specified and gum is available
-                    if [[ -z "$sddm_theme_to_set" ]] && [[ -t 0 ]] && command -v gum >/dev/null 2>&1; then
-                        local -a available_themes=()
-                        while IFS= read -r d; do
-                            available_themes+=("$(basename "$d")")
-                        done < <(find "$sddm_themes_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
-
-                        if [[ ${#available_themes[@]} -gt 0 ]]; then
-                            log_info "Select an SDDM theme (or press Ctrl-C to keep current):"
-                            local chosen
-                            chosen=$(printf '%s\n' "${available_themes[@]}" | gum choose --header="Select SDDM theme") || true
-                            if [[ -n "$chosen" ]]; then
-                                sddm_theme_to_set="$chosen"
+                        # If --sddm-theme was given, validate it
+                        if [[ -n "$sddm_theme_to_set" ]]; then
+                            if [[ ! -d "$sddm_themes_dir/$sddm_theme_to_set" ]]; then
+                                log_error "SDDM theme '$sddm_theme_to_set' not found in $sddm_themes_dir"
+                                log_info "Available themes:"
+                                find "$sddm_themes_dir" -mindepth 1 -maxdepth 1 -type d -printf "  %f\n" 2>/dev/null | sort
+                                log_warning "Falling back to default SDDM theme: catppuccin-mocha-sky-sddm"
+                                sddm_theme_to_set="catppuccin-mocha-sky-sddm"
                             fi
                         fi
-                    fi
 
-                    # Fall back to default if still unset and no theme configured
-                    if [[ -z "$sddm_theme_to_set" ]] && [[ ! -f /etc/sddm.conf.d/10-theme.conf ]]; then
-                        sddm_theme_to_set="catppuccin-mocha-sky-sddm"
-                        log_info "No SDDM theme specified; using default: $sddm_theme_to_set"
-                    fi
+                        # Interactive selection if no theme specified and gum is available
+                        if [[ -z "$sddm_theme_to_set" ]] && [[ -t 0 ]] && command -v gum >/dev/null 2>&1; then
+                            local -a available_themes=()
+                            while IFS= read -r d; do
+                                available_themes+=("$(basename "$d")")
+                            done < <(find "$sddm_themes_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
 
-                    if [[ -n "$sddm_theme_to_set" ]]; then
-                        log_info "Setting SDDM theme to $sddm_theme_to_set..."
-                        bash "$SCRIPTS_DIR/theme-manager/sddm-set" "$sddm_theme_to_set"
-                    else
-                        log_info "SDDM theme already configured, skipping..."
+                            if [[ ${#available_themes[@]} -gt 0 ]]; then
+                                log_info "Select an SDDM theme (or press Ctrl-C to keep current):"
+                                local chosen
+                                chosen=$(printf '%s\n' "${available_themes[@]}" | gum choose --header="Select SDDM theme") || true
+                                if [[ -n "$chosen" ]]; then
+                                    sddm_theme_to_set="$chosen"
+                                fi
+                            fi
+                        fi
+
+                        # Fall back to default if still unset and no theme configured
+                        if [[ -z "$sddm_theme_to_set" ]] && [[ ! -f /etc/sddm.conf.d/10-theme.conf ]]; then
+                            sddm_theme_to_set="catppuccin-mocha-sky-sddm"
+                            log_info "No SDDM theme specified; using default: $sddm_theme_to_set"
+                        fi
+
+                        if [[ -n "$sddm_theme_to_set" ]]; then
+                            log_info "Setting SDDM theme to $sddm_theme_to_set..."
+                            bash "$SCRIPTS_DIR/theme-manager/sddm-set" "$sddm_theme_to_set"
+                        else
+                            log_info "SDDM theme already configured, skipping..."
+                        fi
                     fi
+                else
+                    log_warning "refresh-sddm script not found, skipping SDDM theme setup"
                 fi
-            else
-                log_warning "refresh-sddm script not found, skipping SDDM theme setup"
             fi
-        else
+        elif [[ -n "${HOST:-}" ]] && is_sddm_host "$HOSTS_DIR" "$HOST"; then
             log_info "SDDM not installed, skipping SDDM theme setup"
+        else
+            log_info "Host is not opted into SDDM, skipping SDDM theme setup"
         fi
     else
         log_info "Skipping theme refresh (--no-theme)"
@@ -1096,25 +1211,29 @@ main() {
     
     # System configuration (requires root)
     if [[ "$NO_SYSTEM_CONFIG" != "true" && "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
-        log_info "Setting up system-level configuration..."
-        if [[ $EUID -eq 0 ]]; then
-            log_info "Running system configuration as root..."
-            "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
+        if dotfiles_system_owner_is_ansible; then
+            log_info "Skipping legacy system configuration because DOTFILES_SYSTEM_OWNER=ansible"
         else
-            log_info "System configuration requires root privileges. You will be prompted for your password..."
-            if sudo -v 2>/dev/null; then
-                log_info "Running system configuration with sudo..."
-                sudo bash "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
+            log_info "Setting up system-level configuration..."
+            if [[ $EUID -eq 0 ]]; then
+                log_info "Running system configuration as root..."
+                "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
             else
-                log_error "Failed to authenticate with sudo. System configuration will be skipped."
-                log_info "To install system configurations later, run:"
-                log_info "  sudo bash $SCRIPTS_DIR/install/system-config.sh"
-                log_info ""
-                log_info "Or install PAM configuration separately:"
-                log_info "  sudo bash $SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"
+                log_info "System configuration requires root privileges. You will be prompted for your password..."
+                if sudo -v 2>/dev/null; then
+                    log_info "Running system configuration with sudo..."
+                    sudo bash "$SCRIPTS_DIR/install/system-config.sh" || log_warning "System configuration failed"
+                else
+                    log_error "Failed to authenticate with sudo. System configuration will be skipped."
+                    log_info "To install system configurations later, run:"
+                    log_info "  sudo bash $SCRIPTS_DIR/install/system-config.sh"
+                    log_info ""
+                    log_info "Or install PAM configuration separately:"
+                    log_info "  sudo bash $SCRIPTS_DIR/install/setup/install-pam-hyprlock.sh"
+                fi
             fi
+            echo
         fi
-        echo
     else
         if [[ "$PACKAGES_ONLY" != "true" && "$DOTFILES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
             log_warning "System configuration skipped due to --no-system-config flag"
@@ -1145,13 +1264,13 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Parse arguments
     parse_args "$@"
-    
+    guard_managed_host_legacy_install
+
     # Enable verbose mode if requested
     if [[ "$VERBOSE" == "true" ]]; then
         set -x
     fi
-    
+
     # Run main function
     main "$@"
 fi
-

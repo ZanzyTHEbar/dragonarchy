@@ -21,9 +21,16 @@
 --ignore=\\.config/btop/themes/current\\.theme$
 --ignore=\\.config/walker/themes/current/style\\.css$
 --ignore=\\.config/kitty/colors\\.conf$
+--ignore=\\.config/gtk-3\\.0/(gtk\\.css|settings\\.ini)$
+--ignore=\\.config/gtk-4\\.0/(gtk\\.css|settings\\.ini)$
+--ignore=\\.config/hypr/config/keyboard\\.local\\.conf$
+--ignore=\\.config/hypr/config/monitor\\.local\\.conf$
+--ignore=\\.config/swaync/style\\.css$
+--ignore=\\.config/clipse/theme\\.toml$
+--ignore=\\.config/wlogout/wlogout\\.css$
 
-# Systemd wants symlinks (created by systemd when enabling services, should not be stowed)
---ignore=\\.config/systemd/user/.*\\.target\\.wants/.*\\.service$
+# Systemd wants symlinks (created by systemd when enabling units, should not be stowed)
+--ignore=\\.config/systemd/user/.*\\.target\\.wants/.*$
 
 # Never stow a user-level hicolor theme definition; it overrides /usr/share/icons/hicolor/index.theme
 # and can break scalable/symbolic icon lookup across GTK apps (Waybar tray, Walker, notifications).

@@ -1,0 +1,6 @@
+---
+- name: Validate base role inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Apply base system state
+  ansible.builtin.import_tasks: configure.yml

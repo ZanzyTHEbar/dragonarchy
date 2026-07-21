@@ -1,0 +1,26 @@
+---
+host_timezone: Europe/Lisbon
+host_role: desktop
+host_platform_family: arch
+host_desktop_stack: hyprland
+host_gpu_stack:
+  - amd-gpu
+host_capabilities:
+  - aio-cooler
+  - netbird
+  - v4l2loopback
+  - power_sleep
+
+# Overrides desktop group; AMD workstation packages live in deps.manifest.toml (host_dragon_workstation)
+host_profile_packages:
+  - core_cli
+  - dev
+  - host_dragon_workstation
+  - hyprland_session
+
+managed_users:
+  - name: daofficialwizard
+    groups:
+      - wheel
+
+legacy_host_directory: hosts/dragon

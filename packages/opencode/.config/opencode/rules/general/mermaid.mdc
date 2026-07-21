@@ -1,6 +1,11 @@
 ---
-description: How and When to use Mermaid Diagrams
-alwaysApply: true
+keywords:
+  - mermaid
+  - flowchart
+  - sequence diagram
+  - architecture diagram
+  - state diagram
+match: any
 ---
 
 If at any point a mermaid diagram would make your plan or point clearer to help the user, or yourself, quickly see the structure, you are encouraged to include a Mermaid code block in the response.

@@ -1,0 +1,11 @@
+---
+- name: Install fingerprint packages (legacy override; default is manifest via packages role)
+  ansible.builtin.package:
+    name: "{{ fingerprint_packages_by_platform[host_platform_family] }}"
+    state: present
+  when: fingerprint_packages_by_platform[host_platform_family] | default([]) | length > 0
+
+- name: Start fprintd service
+  ansible.builtin.service:
+    name: fprintd.service
+    state: started

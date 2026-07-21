@@ -1,0 +1,14 @@
+---
+acpi_wakeup_enabled: true
+acpi_wakeup_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
+acpi_wakeup_sleep_hook_path: /etc/systemd/system-sleep/98-acpi-wakeup.sh
+acpi_wakeup_service_name: disable-acpi-wakeup.service
+
+acpi_wakeup_managed_paths_by_host:
+  goldendragon:
+    - src: "{{ acpi_wakeup_host_source_dir }}/goldendragon/etc/acpi/disable-wakeup.sh"
+      dest: /etc/acpi/disable-wakeup.sh
+      mode: "0755"
+    - src: "{{ acpi_wakeup_host_source_dir }}/goldendragon/etc/systemd/system/disable-acpi-wakeup.service"
+      dest: /etc/systemd/system/disable-acpi-wakeup.service
+      mode: "0644"

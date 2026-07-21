@@ -1,0 +1,15 @@
+---
+- name: Download netbird installer
+  ansible.builtin.get_url:
+    url: "{{ netbird_install_script_url }}"
+    dest: "{{ netbird_install_script_path }}"
+    mode: "0755"
+
+- name: Install netbird using upstream installer
+  ansible.builtin.shell: "{{ netbird_install_script_path }}"
+  args:
+    executable: /bin/bash
+    creates: /usr/bin/netbird
+  environment:
+    SKIP_UI_APP: "true"
+    USE_BIN_INSTALL: "{{ 'true' if host_platform_family == 'arch' and netbird_use_bin_install_on_arch else 'false' }}"

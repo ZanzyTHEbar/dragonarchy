@@ -1,0 +1,32 @@
+---
+- name: Assert hibernation role contract exists
+  ansible.builtin.assert:
+    that:
+      - hibernation_enabled | bool
+      - host_platform_family is defined
+      - host_platform_family == 'arch'
+      - host_role is defined
+      - host_role == 'laptop'
+      - host_capabilities is defined
+      - "'hibernation' in host_capabilities"
+      - inventory_hostname in hibernation_settings_by_host
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the hibernation role contract.
+
+- name: Set hibernation host settings
+  ansible.builtin.set_fact:
+    hibernation_settings: "{{ hibernation_settings_by_host[inventory_hostname] }}"
+
+- name: Assert shared bootloader helper source exists on controller
+  ansible.builtin.stat:
+    path: "{{ hibernation_bootloader_helper_src }}"
+  delegate_to: localhost
+  become: false
+  register: hibernation_bootloader_helper_src_stat
+
+- name: Assert shared bootloader helper source is present
+  ansible.builtin.assert:
+    that:
+      - hibernation_bootloader_helper_src_stat.stat.exists
+    fail_msg: >-
+      Shared bootloader helper '{{ hibernation_bootloader_helper_src }}' was not found on the controller.

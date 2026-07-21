@@ -19,3 +19,7 @@ What it does not yet prove:
 - Hyprland / desktop login behavior
 - hardware-specific host traits
 - bootloader / initramfs behavior unless `--with-system-config` is used manually
+
+For the stronger Proxmox-backed disposable machine path used for desktop and cutover rehearsal, see:
+
+- `tests/vm/proxmox-validation/README.md`

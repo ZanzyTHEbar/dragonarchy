@@ -1,0 +1,51 @@
+---
+- name: Ensure systemd system-sleep directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system-sleep
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install dynamic_led.py
+  ansible.builtin.copy:
+    src: "{{ aio_cooler_role_files_root }}/dynamic_led.py"
+    dest: /usr/local/bin/dynamic_led.py
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install dynamic_led.service
+  ansible.builtin.copy:
+    src: "{{ aio_cooler_role_files_root }}/dynamic_led.service"
+    dest: /etc/systemd/system/dynamic_led.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install liquidctl-dragon.service
+  ansible.builtin.copy:
+    src: "{{ aio_cooler_role_files_root }}/liquidctl-dragon.service"
+    dest: /etc/systemd/system/liquidctl-dragon.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install liquidctl-suspend.sh
+  ansible.builtin.copy:
+    src: "{{ aio_cooler_role_files_root }}/etc/systemd/system-sleep/liquidctl-suspend.sh"
+    dest: /etc/systemd/system-sleep/liquidctl-suspend.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Enable aio-cooler services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: "{{ aio_cooler_services }}"

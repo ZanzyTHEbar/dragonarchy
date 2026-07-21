@@ -1,6 +1,6 @@
 ---
-alwaysApply: true
-description: Rules for the Architect Mode, how to design a system
+agent:
+  - architect-designer
 ---
 
 # Architect Mode

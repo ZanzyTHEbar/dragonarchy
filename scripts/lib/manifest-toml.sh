@@ -75,7 +75,7 @@ manifest_yq_resolve_bin() {
 # Bootstrap yq so we can parse the manifest.
 # Args: canonical_platform_key
 manifest_ensure_yq() {
-    local platform_key="$1"
+    local _platform_key="$1"
 
     if manifest_yq_resolve_bin >/dev/null 2>&1; then
         return 0

@@ -11,8 +11,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../lib/logging.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/control-plane-mode.sh"
 
 PACKAGES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../packages" && pwd)"
+
+if dotfiles_system_owner_is_ansible; then
+    log_info "Skipping system Stow because DOTFILES_SYSTEM_OWNER=ansible"
+    exit 0
+fi
 
 is_system_scoped_package() {
     local pkg_dir="$1"

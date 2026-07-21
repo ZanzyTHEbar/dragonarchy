@@ -1,0 +1,59 @@
+---
+# Edge-case roles are normally reached through site.yml after foundation and
+# package-plan facts are resolved. Roles that need those facts assert them
+# instead of recomputing package ownership inside this playbook.
+- name: Edge-case ASUS laptop platform
+  hosts: asus
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: asus_laptop
+
+- name: Edge-case hibernation plumbing
+  hosts: hibernation
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: hibernation
+
+- name: Edge-case v4l2loopback kernel module
+  hosts: v4l2loopback
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: v4l2loopback
+
+- name: Edge-case systemd power and sleep policy
+  hosts: power_sleep
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: power_sleep
+
+- name: Edge-case iwd configuration
+  hosts: iwd
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: iwd
+
+- name: Edge-case NetworkManager configuration
+  hosts: networkmanager
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: networkmanager
+
+- name: Edge-case ACPI wakeup policy
+  hosts: acpi_wakeup
+  gather_facts: true
+  any_errors_fatal: true
+
+  roles:
+    - role: acpi_wakeup

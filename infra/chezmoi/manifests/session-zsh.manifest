@@ -1,0 +1,7 @@
+# mode|source|dest
+required|packages/zsh/.zshrc|dot_zshrc
+required|packages/zsh/.zshenv|dot_zshenv
+required|packages/zsh/.config/zsh|dot_config/zsh
+optional|hosts/__HOST__/dotfiles/.config/zsh/hosts/__HOST__.env.zsh|dot_config/zsh/hosts/__HOST__.env.zsh
+optional|hosts/__HOST__/dotfiles/.config/zsh/hosts/__HOST__.zsh|dot_config/zsh/hosts/__HOST__.zsh
+optional|hosts/__HOST__/dotfiles/.config/zsh/functions/__HOST__.zsh|dot_config/zsh/functions/__HOST__.zsh

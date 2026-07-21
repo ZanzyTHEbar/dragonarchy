@@ -18,6 +18,7 @@
 
 [platforms.arch.pacman.core_cli]
 packages = [
+    "xdg-utils",
     "vim",
     "kitty",
     "neovim",
@@ -61,11 +62,74 @@ packages = [
     "gum",
     "img2pdf",
     "cronie",
+    "feh",
+    "perl-file-mimeinfo",
 ]
 
 [platforms.arch.pacman.host_firedragon_laptop]
 requires_hosts = ["firedragon"]
-packages = ["asusctl"]
+packages = [
+    "asusctl",
+    "networkmanager",
+    "powertop",
+    "acpid",
+    "acpi",
+    "acpi_call",
+    "lm_sensors",
+    "thermald",
+    "brightnessctl",
+    "laptop-detect",
+    "libinput",
+    "amd-ucode",
+    "corectrl",
+    "radeontop",
+    "glm",
+    "cmake",
+    "meson",
+    "ninja",
+    # AMD GPU (repo); aligns with former amd_gpu role for this host
+    "mesa",
+    "vulkan-radeon",
+    "libva-mesa-driver",
+    "xf86-video-amdgpu",
+    "vulkan-tools",
+    "mesa-utils",
+]
+
+# AUR-only laptop tools for firedragon (explicit tier; not installed by ansible.builtin.package)
+[platforms.arch.paru.host_firedragon_laptop]
+requires_hosts = ["firedragon"]
+packages = ["libinput-gestures"]
+
+# Shared laptop power management (TLP); hosts that use the Ansible `tlp` role
+[platforms.arch.pacman.laptop_power_tlp]
+requires_hosts = ["firedragon", "goldendragon"]
+packages = ["tlp", "tlp-rdw"]
+
+# NVIDIA proprietary stack for goldendragon (replaces role-local list)
+[platforms.arch.pacman.host_goldendragon_nvidia]
+requires_hosts = ["goldendragon"]
+packages = ["nvidia-dkms", "nvidia-utils"]
+
+[platforms.arch.pacman.host_goldendragon_laptop]
+requires_hosts = ["goldendragon"]
+packages = [
+    "networkmanager",
+    "powertop",
+    "thermald",
+    "lm_sensors",
+    "acpid",
+    "fwupd",
+    "iwd",
+    "intel-media-driver",
+    "libva-utils",
+    "vulkan-intel",
+    "intel-gpu-tools",
+]
+
+[platforms.arch.paru.host_goldendragon_laptop]
+requires_hosts = ["goldendragon"]
+packages = ["v4l2loopback-dkms"]
 
 [platforms.arch.pacman.dev]
 packages = [
@@ -110,7 +174,6 @@ packages = [
     "vulkan-tools",
     "mesa-utils",
     "libva-mesa-driver",
-    "mesa-vdpau",
     "radeontop",
 
     # AMD CPU microcode
@@ -123,6 +186,43 @@ packages = [
     # Hardware control
     "liquidctl",
 ]
+
+[platforms.arch.paru.host_dragon_workstation]
+requires_hosts = ["dragon"]
+packages = ["v4l2loopback-dkms"]
+
+# Display/session package groups owned by Ansible roles but installed through
+# the manifest-backed packages role.
+[platforms.arch.pacman.hyprland_session]
+requires_features = ["hyprland"]
+packages = [
+    "hyprland",
+    "hypridle",
+    "hyprlock",
+    "hyprpicker",
+    "hyprshot",
+    "polkit",
+    "uwsm",
+    "xdg-desktop-portal-gtk",
+    "xdg-desktop-portal-hyprland",
+    "polkit-gnome",
+]
+
+[platforms.arch.pacman.sddm]
+requires_features = ["sddm"]
+packages = ["sddm", "qt6-svg", "qt6-declarative"]
+
+[platforms.debian.apt.sddm]
+requires_features = ["sddm"]
+packages = ["sddm"]
+
+[platforms.arch.pacman.fingerprint]
+requires_hosts = ["goldendragon"]
+packages = ["fprintd", "libfprint", "usbutils"]
+
+[platforms.arch.pacman.openfortivpn]
+requires_hosts = ["goldendragon"]
+packages = ["openfortivpn"]
 
 # Hyprland groups (Arch-family only)
 [platforms.arch.pacman.hyprland_base]
@@ -180,6 +280,7 @@ packages = [
     "pipewire-pulse",
     "plocate",
     "playerctl",
+    "polkit",
     "polkit-gnome",
     "power-profiles-daemon",
     "qt6-svg",
@@ -322,6 +423,7 @@ packages = [
     "tree",
     "rsync",
     "git",
+    "sqlite3",
     "zsh-autosuggestions",
     "zsh-syntax-highlighting",
     "kitty",

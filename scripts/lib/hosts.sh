@@ -20,11 +20,26 @@ get_available_hosts() {
 # Note: returns the system hostname even if there is no matching hosts/ directory.
 detect_host() {
     local _hosts_dir="$1"
-    local hostname
-    hostname=$(hostname 2>/dev/null | cut -d. -f1)
+    local hostname=""
+
+    if command -v hostname >/dev/null 2>&1; then
+        hostname="$(hostname 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$hostname" && -r /etc/hostname ]]; then
+        hostname="$(tr -d '\n' </etc/hostname 2>/dev/null || true)"
+    fi
 
     if [[ -z "$hostname" ]]; then
-        __hosts_log_info "Warning: hostname command returned empty" >&2
+        hostname="$(uname -n 2>/dev/null || true)"
+    fi
+
+    if [[ -n "$hostname" ]]; then
+        hostname="${hostname%%.*}"
+    fi
+
+    if [[ -z "$hostname" ]]; then
+        __hosts_log_info "Warning: unable to determine hostname from hostname, /etc/hostname, or uname -n" >&2
         hostname="unknown"
     fi
 
@@ -85,6 +100,19 @@ is_hyprland_host() {
     method=$(hyprland_detection_method "$hosts_dir" "$hostname") || return 1
     __hosts_log_info "Host '$hostname' detected as Hyprland ($method)" >&2
     return 0
+}
+
+# Args: hosts_dir hostname
+is_sddm_host() {
+    local hosts_dir="$1"
+    local hostname="$2"
+
+    if host_has_trait "$hosts_dir" "$hostname" "sddm"; then
+        __hosts_log_info "Host '$hostname' detected as SDDM (trait)" >&2
+        return 0
+    fi
+
+    return 1
 }
 
 # ─── Trait system ───────────────────────────────────────────────

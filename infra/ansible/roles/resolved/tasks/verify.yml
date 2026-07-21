@@ -1,0 +1,27 @@
+---
+- name: Check resolved managed files
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+  loop: "{{ resolved_managed_paths }}"
+  register: resolved_installed_files
+
+- name: Assert resolved managed files exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.pw_name == 'root'
+      - item.stat.gr_name == 'root'
+      - item.stat.mode == item.item.mode
+    fail_msg: "Expected resolved managed file {{ item.item.dest }} to exist."
+  loop: "{{ resolved_installed_files.results }}"
+
+- name: Gather service facts for resolved
+  ansible.builtin.service_facts:
+
+- name: Assert systemd-resolved service is enabled and running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[resolved_service_name] is defined
+      - ansible_facts.services[resolved_service_name].status == 'enabled'
+      - ansible_facts.services[resolved_service_name].state == 'running'
+    fail_msg: "Expected {{ resolved_service_name }} to be installed, enabled, and running."

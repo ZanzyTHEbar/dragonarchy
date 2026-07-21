@@ -1,0 +1,9 @@
+---
+- name: Validate Hyprland role inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Install Hyprland session packages
+  ansible.builtin.import_tasks: install.yml
+
+- name: Validate Hyprland session state
+  ansible.builtin.import_tasks: verify.yml

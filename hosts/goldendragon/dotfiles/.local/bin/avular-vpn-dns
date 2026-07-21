@@ -15,12 +15,19 @@ if [[ $EUID -ne 0 ]]; then
   exec sudo "$0" "$@"
 fi
 
-VPN_DOMAIN="${VPN_DOMAIN:-avular.dev}"
-VPN_DNS_SERVERS="${VPN_DNS_SERVERS:-10.10.100.50 10.10.100.11}"
-VPN_LINK="${VPN_LINK:-}"
-WAIT_SECS="${WAIT_SECS:-30}"
-SLEEP_SECS="${SLEEP_SECS:-1}"
 RESET=0
+
+# Load host-specific defaults if present
+if [ -f /etc/openfortivpn/dns-helper.env ]; then
+  # shellcheck source=/dev/null
+  source /etc/openfortivpn/dns-helper.env
+fi
+
+: "${VPN_DOMAIN:=avular.dev}"
+: "${VPN_DNS_SERVERS:=10.10.100.50 10.10.100.11}"
+: "${VPN_LINK:=}"
+: "${WAIT_SECS:=10}"
+: "${SLEEP_SECS:=1}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

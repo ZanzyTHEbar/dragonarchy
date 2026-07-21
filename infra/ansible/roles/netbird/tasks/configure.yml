@@ -1,0 +1,64 @@
+---
+- name: Ensure netbird service is enabled and started
+  ansible.builtin.service:
+    name: "{{ netbird_service_name }}"
+    enabled: true
+    state: started
+
+- name: Check systemd-resolved stub resolver path
+  ansible.builtin.stat:
+    path: /run/systemd/resolve/stub-resolv.conf
+  register: netbird_resolved_stub
+  when:
+    - netbird_manage_resolved_stub | bool
+    - "'resolved' in group_names"
+
+- name: Assert systemd-resolved stub exists before linking resolv.conf
+  ansible.builtin.assert:
+    that:
+      - netbird_resolved_stub.stat.exists
+    fail_msg: >-
+      systemd-resolved stub resolver is missing on '{{ inventory_hostname }}'; run the resolved role first.
+  when:
+    - netbird_manage_resolved_stub | bool
+    - "'resolved' in group_names"
+
+- name: Ensure /etc/resolv.conf points at the systemd-resolved stub
+  ansible.builtin.shell: |
+    set -euo pipefail
+    target="/run/systemd/resolve/stub-resolv.conf"
+    current="$(readlink -f /etc/resolv.conf 2>/dev/null || true)"
+
+    if [ "$current" = "$target" ]; then
+      exit 0
+    fi
+
+    if [ -e /etc/resolv.conf ] && [ ! -L /etc/resolv.conf ] && [ ! -e /etc/resolv.conf.bak ]; then
+      cp -a /etc/resolv.conf /etc/resolv.conf.bak
+    fi
+
+    ln -sf "$target" /etc/resolv.conf
+    echo linked
+  args:
+    executable: /bin/bash
+  register: netbird_resolvconf_link
+  changed_when: "'linked' in netbird_resolvconf_link.stdout"
+  notify: Restart netbird
+  when:
+    - netbird_manage_resolved_stub | bool
+    - "'resolved' in group_names"
+
+- name: Persist netbird routing sysctl
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-netbird.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      net.ipv4.ip_forward=1
+  when: netbird_enable_ip_forward_by_host.get(inventory_hostname, false)
+
+- name: Enable netbird routing sysctl immediately
+  ansible.builtin.command: sysctl -w net.ipv4.ip_forward=1
+  changed_when: false
+  when: netbird_enable_ip_forward_by_host.get(inventory_hostname, false)

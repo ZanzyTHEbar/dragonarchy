@@ -1,0 +1,13 @@
+# mode|source|dest
+required|packages/nvim/.config/nvim|dot_config/nvim
+required|packages/opencode/.config/opencode|dot_config/opencode
+required|packages/opencode-projects/.config/opencode-projects|dot_config/opencode-projects
+required|packages/kitty/.config/kitty|dot_config/kitty
+exclude||dot_config/kitty/colors.conf
+required|packages/tmux/.tmux.conf|dot_tmux.conf
+required|packages/zed/.config/zed|dot_config/zed
+required|packages/lazygit/.config/config.yml|dot_config/lazygit/config.yml
+required|packages/yazi/.config/yazi|dot_config/yazi
+required|packages/alacritty/.config/alacritty|dot_config/alacritty
+required|packages/fastfetch/.config/fastfetch|dot_config/fastfetch
+required|packages/fcitx5/.config/fcitx5|dot_config/fcitx5

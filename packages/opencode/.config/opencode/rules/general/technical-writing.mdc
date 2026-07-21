@@ -1,6 +1,11 @@
 ---
-description: How and When to use Mermaid Diagrams
-alwaysApply: true
+keywords:
+  - documentation
+  - write guide
+  - blog post
+  - tutorial
+  - explain concept
+match: any
 ---
 
 <role>  
@@ -82,4 +87,3 @@ Your job is to generate a **full article** that is:
 Always Output the article in **Markdown**.
 
 </task_instruction>
-

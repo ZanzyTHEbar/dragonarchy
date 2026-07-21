@@ -1,0 +1,18 @@
+---
+host_profile_packages: []
+
+# Map short inventory profile names to manifest group keys (see deps.manifest.toml).
+packages_manifest_group_aliases:
+  firedragon_laptop: host_firedragon_laptop
+
+# Features passed to manifest resolution (requires_features), comma-separated.
+# Extended in resolve.yml from host_desktop_stack.
+
+# Repo root (dotfiles) on the controller; used to locate export-package-plan.sh.
+packages_dotfiles_repo_root: "{{ playbook_dir }}/../../.."
+
+# Pending package-tier policy. Supported values: report, fail.
+# - report: show pending AUR/script tiers without installing them.
+# - fail: treat pending tiers as a parity failure for strict validation lanes.
+packages_pending_paru_policy: report
+packages_pending_script_policy: report

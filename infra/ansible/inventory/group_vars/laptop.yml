@@ -1,0 +1,4 @@
+---
+host_profile_packages:
+  - core_cli
+  - dev

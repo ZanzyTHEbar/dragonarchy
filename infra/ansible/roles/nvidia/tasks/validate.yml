@@ -1,0 +1,47 @@
+---
+- name: Assert NVIDIA tranche-4 metadata exists
+  ansible.builtin.assert:
+    that:
+      - nvidia_enabled | bool
+      - host_platform_family is defined
+      - host_platform_family in nvidia_packages_by_platform
+      - host_gpu_stack is defined
+      - "'nvidia' in host_gpu_stack"
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the NVIDIA tranche-4 contract.
+
+- name: Set NVIDIA host payload root
+  ansible.builtin.set_fact:
+    nvidia_role_files_root: "{{ nvidia_host_source_dir }}/{{ inventory_hostname }}"
+
+- name: Gather installed package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Assert conflicting NVIDIA open kernel packages are absent
+  ansible.builtin.assert:
+    that:
+      - item not in ansible_facts.packages
+    fail_msg: >-
+      Conflicting package '{{ item }}' is installed on '{{ inventory_hostname }}'; remove it before using the proprietary NVIDIA role.
+  loop: "{{ nvidia_conflicting_arch_packages }}"
+  when: host_platform_family == 'arch'
+
+- name: Check host-specific NVIDIA modprobe sources
+  ansible.builtin.stat:
+    path: "{{ nvidia_role_files_root }}/etc/modprobe.d/{{ item }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop:
+    - nvidia.conf
+    - nvidia-drm.conf
+  register: nvidia_modprobe_sources
+
+- name: Assert host-specific NVIDIA modprobe sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing the NVIDIA source file '{{ item.item }}'.
+  loop: "{{ nvidia_modprobe_sources.results }}"

@@ -313,8 +313,8 @@ check_git_config() {
     
     # Check Git user configuration
     local git_user_name git_user_email
-    git_user_name=$(git config --global user.name 2>/dev/null || echo "")
-    git_user_email=$(git config --global user.email 2>/dev/null || echo "")
+    git_user_name=$(git config --global --includes user.name 2>/dev/null || echo "")
+    git_user_email=$(git config --global --includes user.email 2>/dev/null || echo "")
     
     if [[ -n "$git_user_name" ]]; then
         check_pass "Git user.name is set: $git_user_name"
@@ -780,6 +780,24 @@ check_host_config() {
     if host_has_trait "$hosts_dir" "$host" "hyprland"; then
         check_pass "Host '${host}' has Hyprland trait"
 
+        if [[ -x "$HOME/.local/bin/start-polkit-agent" ]]; then
+            check_pass "Polkit launcher helper present: ~/.local/bin/start-polkit-agent"
+        else
+            check_fail "Polkit launcher helper missing: ~/.local/bin/start-polkit-agent"
+        fi
+
+        if [[ -f "$HOME/.config/systemd/user/polkit-agent.service" ]]; then
+            check_pass "Polkit user service present: ~/.config/systemd/user/polkit-agent.service"
+        else
+            check_warn "Polkit user service missing: ~/.config/systemd/user/polkit-agent.service"
+        fi
+
+        if command_exists pkexec; then
+            check_pass "pkexec is available"
+        else
+            check_fail "pkexec is missing"
+        fi
+
         local provider_track
         provider_track="$(validation_provider_track)"
         if platform_track_supports_hyprland_archive "$provider_track"; then
@@ -811,6 +829,21 @@ check_host_config() {
                     check_warn "Hyprland component: $hyprland_tool is deferred on track ${provider_track}"
                 fi
             done
+        fi
+    fi
+
+    # ── Trait: sddm ──
+    if host_has_trait "$hosts_dir" "$host" "sddm"; then
+        if command_exists sddm; then
+            check_pass "SDDM is available"
+        else
+            check_fail "SDDM is missing for SDDM host '${host}'"
+        fi
+
+        if [[ -f /etc/sddm.conf.d/10-theme.conf ]]; then
+            check_pass "SDDM theme config exists"
+        else
+            check_warn "SDDM theme config missing: /etc/sddm.conf.d/10-theme.conf"
         fi
     fi
 
@@ -863,7 +896,7 @@ check_host_config() {
     if [[ -d "${hosts_dir}/${host}/etc" ]]; then
         local etc_files=()
         while IFS= read -r -d '' f; do
-            local rel="${f#${hosts_dir}/${host}/etc/}"
+            local rel="${f#"${hosts_dir}"/"${host}"/etc/}"
             [[ -n "$rel" ]] && etc_files+=("$rel")
         done < <(find "${hosts_dir}/${host}/etc" -type f -print0 2>/dev/null)
 

@@ -7,9 +7,11 @@ Complete guide for fingerprint authentication setup, troubleshooting, and mainte
 ### Initial Setup
 
 ```bash
-cd ~/dotfiles/hosts/goldendragon
-bash ./setup.sh  # Automatically configures fingerprint if hardware detected
+cd ~/dotfiles
+./infra/ansible/run-playbook.sh infra/ansible/playbooks/site.yml --limit goldendragon
 ```
+
+The legacy `hosts/goldendragon/setup.sh` path no longer owns fingerprint package installation; packages are owned by `scripts/install/deps.manifest.toml` plus the Ansible `packages` and `fingerprint` roles.
 
 ### Enroll Your Fingerprint
 

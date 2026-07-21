@@ -107,5 +107,5 @@ sudo systemctl restart sddm
 
 - The SDDM setup respects the `--no-theme` flag — if used, SDDM setup is skipped
 - SDDM setup only runs if SDDM is actually installed on the system
-- Host-specific setup scripts (like `hosts/firedragon/setup.sh`) can still override the default theme
+- In the Ansible control plane, SDDM theme ownership belongs to `infra/ansible/roles/sddm`; host `setup.sh` paths are legacy/manual only
 - Theme changes apply on next login unless `--restart` is passed to `sddm-set`

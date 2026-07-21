@@ -1,0 +1,9 @@
+---
+- name: Install aio-cooler packages (legacy override; default is manifest via packages role)
+  ansible.builtin.package:
+    name: "{{ aio_cooler_packages_by_platform[host_platform_family][inventory_hostname] }}"
+    state: present
+  when: >-
+    aio_cooler_packages_by_platform[host_platform_family] is defined
+    and aio_cooler_packages_by_platform[host_platform_family][inventory_hostname] is defined
+    and aio_cooler_packages_by_platform[host_platform_family][inventory_hostname] | length > 0

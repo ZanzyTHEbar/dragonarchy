@@ -24,28 +24,8 @@
     "custom/idle",
     "custom/session",
     "bluetooth",
-    "network",
     "battery"
   ],
-  "network": {
-    "format-icons": [
-      "󰤯",
-      "󰤟",
-      "󰤢",
-      "󰤥",
-      "󰤨"
-    ],
-    "format": "{icon}",
-    "format-wifi": "{icon}",
-    "format-ethernet": "󰀂",
-    "format-disconnected": "󰖪",
-    "tooltip-format-wifi": "{essid} ({frequency} GHz)\n⇣{bandwidthDownBytes}  ⇡{bandwidthUpBytes}",
-    "tooltip-format-ethernet": "⇣{bandwidthDownBytes}  ⇡{bandwidthUpBytes}",
-    "tooltip-format-disconnected": "Disconnected",
-    "interval": 3,
-    "nospacing": 1,
-    "on-click": "bash -lc 'impala || $HOME/dotfiles/scripts/theme-manager/network-menu'"
-  },
   "hyprland/workspaces": {
     "on-click": "activate",
     "format": "{icon}",

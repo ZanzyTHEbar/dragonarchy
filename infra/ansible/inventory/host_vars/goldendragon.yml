@@ -1,0 +1,35 @@
+---
+host_timezone: Europe/Lisbon
+host_role: laptop
+host_platform_family: arch
+host_desktop_stack: hyprland
+host_gpu_stack:
+  - intel
+  - nvidia
+host_capabilities:
+  - tlp
+  - fingerprint
+  - fortinet_vpn
+  - v4l2loopback
+  - power_sleep
+  - iwd
+  - networkmanager
+  - acpi_wakeup
+
+host_profile_packages:
+  - core_cli
+  - dev
+  - host_goldendragon_laptop
+  - laptop_power_tlp
+  - host_goldendragon_nvidia
+  - hyprland_session
+  - fingerprint
+  - openfortivpn
+
+managed_users:
+  - name: daofficialwizard
+    groups:
+      - wheel
+
+fingerprint_usb_id: "06cb:00f9"
+legacy_host_directory: hosts/goldendragon

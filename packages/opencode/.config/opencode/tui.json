@@ -91,5 +91,9 @@
     "terminal_title_toggle": "none",
     "tips_toggle": "<leader>h",
     "display_thinking": "none"
-  }
+  },
+  "plugin": [
+    "@tarquinen/opencode-dcp@beta",
+    "opencode-rules@latest"
+  ]
 }

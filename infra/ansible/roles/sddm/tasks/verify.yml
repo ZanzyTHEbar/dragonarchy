@@ -1,0 +1,24 @@
+---
+- name: Check configured SDDM theme file
+  ansible.builtin.stat:
+    path: /etc/sddm.conf.d/10-theme.conf
+  register: sddm_theme_config_stat
+
+- name: Assert configured SDDM theme file exists
+  ansible.builtin.assert:
+    that:
+      - sddm_theme_config_stat.stat.exists
+    fail_msg: "Expected /etc/sddm.conf.d/10-theme.conf to exist."
+
+- name: Check selected SDDM theme main file
+  ansible.builtin.stat:
+    path: "/usr/share/sddm/themes/{{ sddm_theme }}/Main.qml"
+  register: sddm_theme_main_stat
+
+- name: Assert selected SDDM theme exists
+  ansible.builtin.assert:
+    that:
+      - sddm_theme_main_stat.stat.exists
+      - not sddm_theme_main_stat.stat.islnk
+    fail_msg: >-
+      Expected SDDM theme '{{ sddm_theme }}' to be a real readable file under /usr/share/sddm/themes.

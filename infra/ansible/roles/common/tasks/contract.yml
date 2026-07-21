@@ -1,0 +1,83 @@
+---
+- name: Assert supported operating system family
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family in dotfiles_supported_os_families
+    fail_msg: >-
+      Unsupported operating system family '{{ ansible_os_family }}'.
+      Foundation currently supports only {{ dotfiles_supported_os_families | join(', ') }}.
+
+- name: Assert core host variables are defined
+  ansible.builtin.assert:
+    that:
+      - host_role is defined
+      - host_platform_family is defined
+      - host_desktop_stack is defined
+      - host_gpu_stack is defined
+      - host_capabilities is defined
+      - legacy_host_directory is defined
+    fail_msg: >-
+      Inventory host '{{ inventory_hostname }}' is missing one or more required foundation variables.
+
+- name: Assert host role is allowed
+  ansible.builtin.assert:
+    that:
+      - host_role in dotfiles_allowed_host_roles
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' has unsupported host_role '{{ host_role }}'.
+
+- name: Assert platform family is allowed
+  ansible.builtin.assert:
+    that:
+      - host_platform_family in dotfiles_allowed_platform_families
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' has unsupported host_platform_family '{{ host_platform_family }}'.
+
+- name: Assert desktop stack is allowed
+  ansible.builtin.assert:
+    that:
+      - host_desktop_stack in dotfiles_allowed_desktop_stacks
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' has unsupported host_desktop_stack '{{ host_desktop_stack }}'.
+
+- name: Assert host identity groups are aligned with host metadata
+  ansible.builtin.assert:
+    that:
+      - host_role in group_names
+      - host_platform_family in group_names
+      - host_desktop_stack == 'none' or host_desktop_stack in group_names
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' inventory group placement is not aligned with its declared role/platform/desktop metadata.
+
+- name: Assert SDDM group is aligned with display-manager metadata
+  ansible.builtin.assert:
+    that:
+      - ((display_manager | default('none')) == 'sddm') == ('sddm' in group_names)
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' has SDDM display-manager/group drift.
+
+- name: Assert capability groups are aligned with host_capabilities
+  ansible.builtin.assert:
+    that:
+      - ((item.key in host_capabilities) == (item.value in group_names))
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' has capability/group drift for '{{ item.key }}' and inventory group '{{ item.value }}'.
+  loop: "{{ dotfiles_group_capability_map | dict2items }}"
+
+- name: Assert GPU groups are aligned with host_gpu_stack
+  ansible.builtin.assert:
+    that:
+      - ((item.key in host_gpu_stack) == (item.value in group_names))
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' has gpu-stack/group drift for '{{ item.key }}' and inventory group '{{ item.value }}'.
+  loop: "{{ dotfiles_group_gpu_map | dict2items }}"
+
+- name: Assert ownership boundaries are pinned
+  ansible.builtin.assert:
+    that:
+      - dotfiles_architecture.system_owner == 'ansible'
+      - dotfiles_architecture.user_owner == 'chezmoi'
+      - dotfiles_architecture.migration_stage == 'hot_paths'
+      - dotfiles_architecture.no_fallbacks | bool
+    fail_msg: >-
+      The global architecture contract is not aligned with the approved Ansible + chezmoi migration state.

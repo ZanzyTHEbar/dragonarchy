@@ -36,3 +36,13 @@ Make it easy to resume the task with minimal re-discovery.
 - Turning the checkpoint into a full changelog
 - Hiding unresolved uncertainty
 - Ending with a vague "continue later" note instead of a real next step
+
+## Post-save protocol
+
+Next logical steps and backlog?
+
+Given this breakdown, using your todo tooling decompose into a set of atomic tasks to address the feedback properly and correctly, fully. 
+
+Ensure that you execute in sequential priority order. Utilize subagents to parallelize work where possible. Proceed with extreme expertise and professionalism. Ensure that we actually resolve each and every issue. Proceed in batches. Review all work as you go. 
+
+Run a full audit the the work already compelted. Look for edge cases, incorrect logic, partial implementations, placeholders, todo, fixme, etc etc. 

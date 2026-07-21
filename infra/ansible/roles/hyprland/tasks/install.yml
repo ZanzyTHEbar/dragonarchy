@@ -1,0 +1,6 @@
+---
+- name: Install Hyprland system-session packages (legacy override; default is manifest via packages role)
+  ansible.builtin.package:
+    name: "{{ hyprland_session_packages_by_platform[host_platform_family] }}"
+    state: present
+  when: hyprland_session_packages_by_platform[host_platform_family] | default([]) | length > 0

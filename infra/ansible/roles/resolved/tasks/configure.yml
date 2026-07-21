@@ -1,0 +1,32 @@
+---
+- name: Ensure resolved parent directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: >-
+    {{
+      resolved_managed_paths
+      | map(attribute='dest')
+      | map('dirname')
+      | unique
+      | list
+    }}
+
+- name: Install resolved managed files
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  notify: Restart systemd-resolved
+  loop: "{{ resolved_managed_paths }}"
+
+- name: Ensure systemd-resolved is enabled and started
+  ansible.builtin.systemd_service:
+    name: "{{ resolved_service_name }}"
+    enabled: true
+    state: started

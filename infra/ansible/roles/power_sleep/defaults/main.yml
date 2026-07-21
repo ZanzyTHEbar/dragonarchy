@@ -1,0 +1,24 @@
+---
+power_sleep_enabled: true
+power_sleep_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
+
+power_sleep_managed_services_by_host:
+  goldendragon:
+    - acpid.service
+    - thermald.service
+
+power_sleep_managed_paths_by_host:
+  dragon:
+    - src: "{{ power_sleep_host_source_dir }}/dragon/etc/systemd/logind.conf.d/dragon-power.conf"
+      dest: /etc/systemd/logind.conf.d/dragon-power.conf
+      mode: "0644"
+    - src: "{{ power_sleep_host_source_dir }}/dragon/etc/systemd/sleep.conf.d/dragon-sleep.conf"
+      dest: /etc/systemd/sleep.conf.d/dragon-sleep.conf
+      mode: "0644"
+  goldendragon:
+    - src: "{{ power_sleep_host_source_dir }}/goldendragon/etc/systemd/logind.conf.d/10-goldendragon-lid.conf"
+      dest: /etc/systemd/logind.conf.d/10-goldendragon-lid.conf
+      mode: "0644"
+    - src: "{{ power_sleep_host_source_dir }}/goldendragon/etc/systemd/sleep.conf.d/10-goldendragon-sleep.conf"
+      dest: /etc/systemd/sleep.conf.d/10-goldendragon-sleep.conf
+      mode: "0644"

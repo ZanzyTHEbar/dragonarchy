@@ -9,3 +9,18 @@
 [credential "https://gist.github.com"]
 	helper = 
 	helper = !/usr/bin/gh auth git-credential
+
+[safe]
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ai/picoclaw
+	directory = /mnt/common/projects/ui/zenwriter

@@ -1,0 +1,396 @@
+#!/usr/bin/env bash
+#
+# dynamic-monitors
+#
+# Apply a stable Hyprland monitor layout across changing docks/outputs.
+# Policy:
+# - the internal panel (eDP/LVDS/DSI) is always the primary display at x=0
+# - external monitors are appended to the right, left-to-right
+# - every monitor uses its preferred/native mode
+# - internal high-DPI panels prefer fractional scale over lower non-native modes
+# - scale is derived from panel DPI when physical dimensions are available
+#
+set -euo pipefail
+IFS=$'\n\t'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES_ROOT="${DOTFILES_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+
+# shellcheck disable=SC1090
+if [[ -f "$DOTFILES_ROOT/scripts/lib/logging.sh" ]]; then
+  source "$DOTFILES_ROOT/scripts/lib/logging.sh"
+else
+  log_info() { echo "[INFO] $1"; }
+  log_success() { echo "[SUCCESS] $1"; }
+  log_warning() { echo "[WARNING] $1" >&2; }
+  log_error() { echo "[ERROR] $1" >&2; }
+  log_step() { echo "[STEP] $1"; }
+fi
+
+POLL_SECONDS="${MONITOR_LAYOUT_POLL_SECONDS:-2}"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dynamic-monitors"
+RUNTIME_MONITOR_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/config/monitor.local.conf"
+
+usage() {
+  cat <<'EOF'
+dynamic-monitors - Hyprland monitor layout helper
+
+Commands:
+  --dry-run   Print the monitor commands that would be applied
+  --apply     Apply the current layout once
+  --watch     Watch for monitor topology changes and re-apply
+  --status    Validate dependencies and print the current topology signature
+
+Environment:
+  MONITOR_LAYOUT_POLL_SECONDS   Poll interval for --watch (default: 2)
+EOF
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+require_deps() {
+  local ok=0
+  if ! have_cmd hyprctl; then
+    log_error "hyprctl is required"
+    ok=1
+  fi
+  if ! have_cmd jq; then
+    log_error "jq is required"
+    ok=1
+  fi
+  return "$ok"
+}
+
+is_internal_name() {
+  [[ "$1" =~ ^(eDP|LVDS|DSI) ]]
+}
+
+scale_for_monitor() {
+  local name="$1"
+  local width="$2"
+  local physical_width_mm="$3"
+  local dpi=""
+
+  if [[ "$physical_width_mm" =~ ^[0-9]+$ ]] && (( physical_width_mm > 0 )); then
+    dpi="$(awk -v px="$width" -v mm="$physical_width_mm" 'BEGIN { printf "%.2f", px / (mm / 25.4) }')"
+    if is_internal_name "$name"; then
+      if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 240) }'; then
+        echo "2"
+        return 0
+      fi
+      if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 170) }'; then
+        echo "1.5"
+        return 0
+      fi
+      if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 135) }'; then
+        echo "1.25"
+        return 0
+      fi
+    else
+      if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 170) }'; then
+        echo "2"
+        return 0
+      fi
+      if awk -v dpi="$dpi" 'BEGIN { exit !(dpi >= 140) }'; then
+        echo "1.5"
+        return 0
+      fi
+    fi
+  fi
+
+  if is_internal_name "$name"; then
+    if (( width >= 3200 )); then
+      echo "2"
+    elif (( width >= 2560 )); then
+      echo "1.5"
+    elif (( width >= 1920 )); then
+      echo "1.25"
+    else
+      echo "1"
+    fi
+    return 0
+  fi
+
+  echo "1"
+}
+
+native_dimensions_for_modes() {
+  local fallback_width="$1"
+  local fallback_height="$2"
+  local available_modes_b64="${3:-}"
+  local modes_json="[]"
+
+  if [[ -n "$available_modes_b64" ]]; then
+    modes_json="$(printf '%s' "$available_modes_b64" | base64 -d 2>/dev/null || echo '[]')"
+  fi
+
+  printf '%s' "$modes_json" | jq -r \
+    --argjson fallback_width "$fallback_width" \
+    --argjson fallback_height "$fallback_height" '
+    map(
+      (capture("^(?<w>[0-9]+)x(?<h>[0-9]+)@(?<hz>[0-9.]+)Hz$")?)
+      | select(.)
+      | {
+          width: (.w | tonumber),
+          height: (.h | tonumber)
+        }
+    )
+    | sort_by(.width * .height)
+    | last as $best
+    | if $best then
+        "\($best.width)\t\($best.height)"
+      else
+        "\($fallback_width)\t\($fallback_height)"
+      end
+  '
+}
+
+choose_mode_for_monitor() {
+  local _name="${1:-}"
+  local _native_width="${2:-}"
+  local _native_height="${3:-}"
+  local _physical_width_mm="${4:-}"
+  local _available_modes_b64="${5:-}"
+  echo "preferred"
+}
+
+scale_for_selected_mode() {
+  local name="$1"
+  local native_width="$2"
+  local physical_width_mm="$3"
+  local mode="$4"
+
+  scale_for_monitor "$name" "$native_width" "$physical_width_mm"
+}
+
+width_for_mode() {
+  local fallback_width="$1"
+  local mode="$2"
+
+  if [[ "$mode" =~ ^([0-9]+)x([0-9]+)@ ]]; then
+    echo "${BASH_REMATCH[1]}"
+    return 0
+  fi
+
+  echo "$fallback_width"
+}
+
+logical_width_for_mode() {
+  local width="$1"
+  local scale="${2:-1}"
+
+  awk -v width="$width" -v scale="$scale" 'BEGIN {
+    scale_num = scale + 0
+    if (scale_num <= 0) {
+      scale_num = 1
+    }
+
+    logical_width = width / scale_num
+    printf "%d\n", int(logical_width + 0.5)
+  }'
+}
+
+write_runtime_monitor_conf() {
+  local specs=("$@")
+  local tmpfile
+
+  mkdir -p "$(dirname "$RUNTIME_MONITOR_CONF")"
+  if [[ -L "$RUNTIME_MONITOR_CONF" ]]; then
+    rm -f "$RUNTIME_MONITOR_CONF"
+  fi
+
+  tmpfile="$(mktemp)"
+  {
+    printf '# Auto-generated by dynamic-monitors. Do not edit.\n'
+    printf '# Updated: %s\n' "$(date --iso-8601=seconds)"
+    for spec in "${specs[@]}"; do
+      printf 'monitor=%s\n' "$spec"
+    done
+  } >"$tmpfile"
+
+  mv -f "$tmpfile" "$RUNTIME_MONITOR_CONF"
+}
+
+monitors_json() {
+  hyprctl monitors -j
+}
+
+topology_signature() {
+  monitors_json | jq -r '
+    sort_by(.name)
+    | map([
+        .name,
+        (.description // ""),
+        (.width | tostring),
+        (.height | tostring),
+        (.physicalWidth | tostring),
+        (.physicalHeight | tostring)
+      ] | join(":"))
+    | join("|")
+  '
+}
+
+current_layout_signature() {
+  monitors_json | jq -r '
+    sort_by(.name)
+    | map([
+        .name,
+        (.x | tostring),
+        (.y | tostring),
+        ((.scale // 1) | tostring | sub("\\.?0+$"; ""))
+      ] | join(":"))
+    | join("|")
+  '
+}
+
+layout_rows() {
+  monitors_json | jq -r '
+    sort_by((if (.name | test("^(eDP|LVDS|DSI)")) then 0 else 1 end), .x, .name)
+    | .[]
+    | [
+        .name,
+        (.width | tostring),
+        (.height | tostring),
+        (.physicalWidth | tostring),
+        (.physicalHeight | tostring),
+        ((.availableModes // []) | tojson | @base64),
+        (if (.name | test("^(eDP|LVDS|DSI)")) then "1" else "0" end)
+      ]
+    | @tsv
+  '
+}
+
+desired_layout_signature() {
+  local xpos=0
+  local rows=()
+  local parts=()
+
+  mapfile -t rows < <(layout_rows)
+  if (( ${#rows[@]} == 0 )); then
+    return 1
+  fi
+
+  for row in "${rows[@]}"; do
+    local name width height physical_width physical_height available_modes internal native_width native_height selected_mode scale effective_width logical_width
+    IFS=$'\t' read -r name width height physical_width physical_height available_modes internal <<<"$row"
+    IFS=$'\t' read -r native_width native_height <<<"$(native_dimensions_for_modes "$width" "$height" "$available_modes")"
+    selected_mode="$(choose_mode_for_monitor "$name" "$native_width" "$native_height" "$physical_width" "$available_modes")"
+    scale="$(scale_for_selected_mode "$name" "$native_width" "$physical_width" "$selected_mode")"
+    effective_width="$(width_for_mode "$width" "$selected_mode")"
+    logical_width="$(logical_width_for_mode "$effective_width" "$scale")"
+
+    parts+=("$name:$xpos:0:$scale")
+    xpos=$((xpos + logical_width))
+  done
+
+  printf '%s\n' "${parts[@]}" | sort | paste -sd'|' -
+}
+
+apply_layout() {
+  local action="${1:-apply}"
+  local xpos=0
+  local rows=()
+  local specs=()
+
+  mapfile -t rows < <(layout_rows)
+  if (( ${#rows[@]} == 0 )); then
+    log_warning "No active monitors detected"
+    return 1
+  fi
+
+  for row in "${rows[@]}"; do
+    local name width height physical_width physical_height available_modes internal native_width native_height selected_mode scale spec effective_width logical_width
+    IFS=$'\t' read -r name width height physical_width physical_height available_modes internal <<<"$row"
+    IFS=$'\t' read -r native_width native_height <<<"$(native_dimensions_for_modes "$width" "$height" "$available_modes")"
+    selected_mode="$(choose_mode_for_monitor "$name" "$native_width" "$native_height" "$physical_width" "$available_modes")"
+    scale="$(scale_for_selected_mode "$name" "$native_width" "$physical_width" "$selected_mode")"
+    spec="$name,${selected_mode},${xpos}x0,${scale}"
+    effective_width="$(width_for_mode "$width" "$selected_mode")"
+    logical_width="$(logical_width_for_mode "$effective_width" "$scale")"
+    specs+=("$spec")
+
+    if [[ "$action" == "dry-run" ]]; then
+      printf 'hyprctl keyword monitor %q\n' "$spec"
+    else
+      log_info "Applying monitor layout: $spec"
+      hyprctl keyword monitor "$spec" >/dev/null
+    fi
+
+    xpos=$((xpos + logical_width))
+  done
+
+  if [[ "$action" != "dry-run" ]]; then
+    write_runtime_monitor_conf "${specs[@]}"
+  fi
+}
+
+watch_layout() {
+  mkdir -p "$CACHE_DIR"
+  if have_cmd flock; then
+    exec 9>"$CACHE_DIR/lock"
+    if ! flock -n 9; then
+      log_info "dynamic-monitors is already running"
+      return 0
+    fi
+  fi
+
+  local last_signature=""
+  while true; do
+    local signature=""
+    local desired_signature=""
+    local current_signature=""
+    signature="$(topology_signature 2>/dev/null || true)"
+    desired_signature="$(desired_layout_signature 2>/dev/null || true)"
+    current_signature="$(current_layout_signature 2>/dev/null || true)"
+
+    if [[ -n "$signature" && "$signature" != "$last_signature" ]]; then
+      log_step "Monitor topology changed; recalculating layout"
+      apply_layout apply || log_warning "Failed to apply dynamic monitor layout"
+      last_signature="$signature"
+    elif [[ -n "$desired_signature" && -n "$current_signature" && "$current_signature" != "$desired_signature" ]]; then
+      log_step "Monitor layout drifted; reapplying layout"
+      apply_layout apply || log_warning "Failed to apply dynamic monitor layout"
+    fi
+    sleep "$POLL_SECONDS"
+  done
+}
+
+status() {
+  require_deps
+  log_success "hyprctl and jq are available"
+  printf 'topology=%s\n' "$(topology_signature)"
+}
+
+main() {
+  local cmd="${1:---watch}"
+
+  case "$cmd" in
+    -h|--help)
+      usage
+      ;;
+    --dry-run)
+      require_deps
+      apply_layout dry-run
+      ;;
+    --apply)
+      require_deps
+      apply_layout apply
+      ;;
+    --watch)
+      require_deps
+      watch_layout
+      ;;
+    --status)
+      status
+      ;;
+    *)
+      log_error "Unknown option: $cmd"
+      usage >&2
+      return 2
+      ;;
+  esac
+}
+
+main "$@"

@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  author: dragonarchy
+  description: Shared foundation contract for the Ansible control plane.
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: ArchLinux
+      versions:
+        - all
+    - name: Debian
+      versions:
+        - all
+
+dependencies: []

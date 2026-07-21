@@ -1,0 +1,70 @@
+---
+keywords:
+  - jj
+  - jujutsu
+  - jujutsu vcs
+  - stacked commits
+  - stacked prs
+  - jjpr
+  - jj-spr
+  - jj-stack
+  - split commit
+  - squash commit
+match: any
+---
+
+# jj-First Stacked Workflow
+
+Prefer Jujutsu (`jj`) for local version-control work when the repository supports it. `jj` is a Git-compatible VCS, not just a Git wrapper: use changes as the local unit of work and bookmarks/branches as the GitHub compatibility layer.
+
+## Repository Mode
+
+- If the repo already has `.jj`, use `jj` directly.
+- If the repo is Git-only and the user wants stacked-agent workflow, propose colocated mode: `jj git init --colocate`.
+- Do not initialize colocated mode without user approval.
+- Fall back to `git` when `jj` is unavailable or the repo is not a Jujutsu workspace.
+
+## Local Inspection
+
+- Use `jj status`, `jj diff`, `jj log`, and `jj show` for status, diffs, and history.
+- Use `jj op log` and `jj undo` when recovering from mistaken local operations.
+- Inspect git-compatible state before push or PR because GitHub and CI are Git-based.
+
+## Change Construction
+
+- Use `jj new` to create each stack layer from its parent.
+- Use `jj describe` for Conventional Commit descriptions.
+- Use `jj split`, `jj squash`, and `jj rebase` to keep each change an atomic causal unit.
+- Prefer editing directly in the needed stack layer; downstream changes should remain in the stack instead of manual rebase churn.
+- Do not rewrite, split, squash, reorder, abandon, or rebase user-created changes without explicit approval.
+
+## Bookmark Mapping
+
+- Create clear bookmarks for changes that need GitHub PRs, for example `feat/base`, `feat/api`, `fix/parser`.
+- Keep bookmark names stable while a PR is open.
+- Before pushing, verify which bookmark maps to which PR and ensure only intended changes are exported.
+
+## Stacked PR Automation
+
+Use a companion CLI when available and appropriate:
+
+- `jjpr`: preferred for production agent workflows when installed; use for push bookmarks, create/update dependent PRs, merge, and stack sync.
+- `jj-spr`: good for non-interactive Super Pull Request flows and amend-friendly single-commit PRs with dependent stacks.
+- `jj-stack`: acceptable for simple bookmark-to-stacked-PR mapping, dry runs, and navigation comments.
+
+Detection order:
+
+1. If the repo documents a required tool, use that tool.
+2. Else prefer `jjpr` when installed.
+3. Else use `jj-spr` when installed.
+4. Else use `jj-stack` when installed.
+5. Else fall back to explicit `git`/`gh` operations and report that stacked PR automation is unavailable.
+
+Never install a companion CLI without user approval.
+
+## GitHub Safety
+
+- Use companion tools non-interactively where possible; prefer dry-run or preview flags when available before creating/updating multiple PRs.
+- If falling back to `gh`, derive repo, remote, base branch, and head dynamically.
+- Do not force-push or rewrite public history without explicit approval.
+- Each PR in a stack must include validation status and its dependency on the previous layer.

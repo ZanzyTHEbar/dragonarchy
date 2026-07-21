@@ -1,0 +1,68 @@
+---
+- name: Ensure NVIDIA modules-load directory exists
+  ansible.builtin.file:
+    path: /etc/modules-load.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure shared helper directory exists for NVIDIA role
+  ansible.builtin.file:
+    path: "{{ nvidia_bootloader_helper_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install shared bootloader helper for NVIDIA role
+  ansible.builtin.copy:
+    src: "{{ nvidia_bootloader_helper_src }}"
+    dest: "{{ nvidia_bootloader_helper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install NVIDIA modules-load configuration
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/nvidia.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {% for module in nvidia_modules %}
+      {{ module }}
+      {% endfor %}
+
+- name: Ensure NVIDIA modprobe directory exists
+  ansible.builtin.file:
+    path: /etc/modprobe.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install NVIDIA modprobe configuration
+  ansible.builtin.copy:
+    src: "{{ nvidia_role_files_root }}/etc/modprobe.d/{{ item }}"
+    dest: "/etc/modprobe.d/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - nvidia.conf
+    - nvidia-drm.conf
+
+- name: Persist NVIDIA kernel parameters
+  ansible.builtin.shell: |
+    set -euo pipefail
+    source "{{ nvidia_bootloader_helper_path }}"
+    boot_append_kernel_params "{{ nvidia_kernel_params | join(' ') }}"
+    boot_rebuild_if_changed
+    if [[ "$BOOT_PARAMS_CHANGED" == "true" ]]; then
+      echo "BOOT_PARAMS_CHANGED=true"
+    fi
+  args:
+    executable: /bin/bash
+  register: nvidia_kernel_params_result
+  changed_when: "'BOOT_PARAMS_CHANGED=true' in nvidia_kernel_params_result.stdout"

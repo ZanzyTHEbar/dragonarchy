@@ -1,0 +1,12 @@
+# mode|source|dest
+required|packages/hyprland/.config/autostart|dot_config/autostart
+required|packages/hyprland/.config/clipse|dot_config/clipse
+required|packages/hyprland/.config/swaync|dot_config/swaync
+required|packages/hyprland/.config/swayosd|dot_config/swayosd
+# Host-specific fingerprint watchdog (goldendragon only)
+optional|hosts/__HOST__/dotfiles/.local/bin/fprintd-watchdog|dot_local/bin/fprintd-watchdog
+optional|hosts/__HOST__/dotfiles/.config/systemd/user/fprintd-watchdog.service|dot_config/systemd/user/fprintd-watchdog.service
+optional|hosts/__HOST__/dotfiles/.config/systemd/user/fprintd-watchdog.timer|dot_config/systemd/user/fprintd-watchdog.timer
+exclude||dot_config/clipse/theme.toml
+exclude||dot_config/clipse/clipboard_history.json
+exclude||dot_config/swaync/style.css

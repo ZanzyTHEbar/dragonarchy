@@ -1,18 +1,26 @@
 #!/bin/bash
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLYMOUTH_THEME_SRC="$SCRIPT_DIR/plymouth/dragon"
+
+if [[ ! -d "/usr/share/plymouth/themes" ]] || ! command -v plymouth-set-default-theme >/dev/null 2>&1; then
+  echo "Plymouth tooling not present, skipping refresh."
+  exit 0
+fi
+
 # Detect if theme is already installed
 if [[ -d "/usr/share/plymouth/themes/dragon" ]]; then
   echo "Plymouth theme is already installed, Refreshing..."
   
    if [[ "$1" == "-y" ]] || gum confirm "Refresh Plymouth theme? This will replace your current startup screen with Dragon defaults."; then
-     sudo cp ~/dotfiles/scripts/theme-manager/plymouth/dragon/* /usr/share/plymouth/themes/dragon/
+     sudo cp "$PLYMOUTH_THEME_SRC"/* /usr/share/plymouth/themes/dragon/
      sudo plymouth-set-default-theme -R dragon
    fi
 
   exit 0
 else
   echo "Plymouth theme is not installed, Installing..."
-  sudo cp -r ~/dotfiles/scripts/theme-manager/plymouth/dragon /usr/share/plymouth/themes/
+  sudo cp -r "$PLYMOUTH_THEME_SRC" /usr/share/plymouth/themes/
   sudo plymouth-set-default-theme -R dragon
 fi
 

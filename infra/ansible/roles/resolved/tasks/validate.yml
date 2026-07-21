@@ -1,0 +1,34 @@
+---
+- name: Assert resolved tranche-5 metadata exists
+  ansible.builtin.assert:
+    that:
+      - resolved_enabled | bool
+      - "'resolved' in group_names"
+      - resolved_service_name is defined
+      - resolved_config_path is defined
+      - resolved_managed_paths_by_host is defined
+      - inventory_hostname in resolved_managed_paths_by_host
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the resolved tranche-5 contract.
+
+- name: Set resolved managed paths
+  ansible.builtin.set_fact:
+    resolved_managed_paths: "{{ resolved_managed_paths_by_host[inventory_hostname] }}"
+
+- name: Check resolved role-local payload sources
+  ansible.builtin.stat:
+    path: "{{ item.src }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop: "{{ resolved_managed_paths }}"
+  register: resolved_source_files
+
+- name: Assert resolved role-local payload sources exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing resolved role-local payload source
+      '{{ item.item.src }}'.
+  loop: "{{ resolved_source_files.results }}"

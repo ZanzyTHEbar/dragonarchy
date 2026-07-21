@@ -1,0 +1,65 @@
+---
+- name: Build manifest feature CSV for package resolution
+  ansible.builtin.set_fact:
+    packages_manifest_feature_csv: >-
+      {{
+        (
+          (
+            ['hyprland']
+            if (host_desktop_stack | default('none')) == 'hyprland'
+            else []
+          )
+          +
+          (
+            ['sddm']
+            if (display_manager | default('none')) == 'sddm'
+            else []
+          )
+        ) | join(',')
+      }}
+
+- name: Initialize manifest package group resolution
+  ansible.builtin.set_fact:
+    packages_manifest_resolved_groups: []
+
+- name: Map inventory profiles to manifest group keys
+  ansible.builtin.set_fact:
+    packages_manifest_resolved_groups: "{{ packages_manifest_resolved_groups | default([]) + [ (packages_manifest_group_aliases | default({}))[item] | default(item) ] }}"
+  loop: "{{ host_profile_packages }}"
+
+- name: Add SDDM package group for SDDM hosts
+  ansible.builtin.set_fact:
+    packages_manifest_resolved_groups: "{{ (packages_manifest_resolved_groups | default([]) + ['sddm']) | unique }}"
+  when: display_manager | default('none') == 'sddm'
+
+- name: Resolve package plan from canonical manifest (JSON)
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ packages_dotfiles_repo_root }}/scripts/install/export-package-plan.sh"
+      - --manifest
+      - "{{ packages_dotfiles_repo_root }}/scripts/install/deps.manifest.toml"
+      - --platform
+      - "{{ host_platform_family }}"
+      - --host
+      - "{{ inventory_hostname }}"
+      - --feature-csv
+      - "{{ packages_manifest_feature_csv }}"
+      - --groups
+      - "{{ packages_manifest_resolved_groups | join(',') }}"
+      - --format
+      - json
+  delegate_to: localhost
+  changed_when: false
+  register: packages_manifest_plan_cmd
+
+- name: Parse manifest package plan
+  ansible.builtin.set_fact:
+    packages_manifest_plan: "{{ packages_manifest_plan_cmd.stdout | from_json }}"
+
+- name: Set flat install lists from plan (repo-native tiers)
+  ansible.builtin.set_fact:
+    resolved_package_list_pacman: "{{ packages_manifest_plan.ansible_install.pacman | default([]) }}"
+    resolved_package_list_apt: "{{ packages_manifest_plan.ansible_install.apt | default([]) }}"
+    packages_pending_paru: "{{ packages_manifest_plan.pending.paru | default([]) }}"
+    packages_pending_script: "{{ packages_manifest_plan.pending.script | default([]) }}"

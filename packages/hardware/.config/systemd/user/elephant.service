@@ -10,7 +10,19 @@ Environment="ELEPHANT_RUNPREFIX=uwsm app -- "
 # Ensure desktopapplications provider finds .desktop files (native + Flatpak)
 Environment="XDG_DATA_DIRS=/usr/share:/usr/local/share:%h/.local/share:%h/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share"
 Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/bin
-ExecStartPre=/usr/bin/systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DESKTOP_SESSION
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_BACKEND=wayland
+Environment="GDK_BACKEND=wayland,x11,*"
+Environment="QT_QPA_PLATFORM=wayland;xcb"
+Environment=SDL_VIDEODRIVER=wayland
+Environment=ELECTRON_OZONE_PLATFORM_HINT=wayland
+Environment=OZONE_PLATFORM=wayland
+Environment=NIXOS_OZONE_WL=1
+Environment=XCURSOR_THEME=Bibata-Modern-Ice
+Environment=XCURSOR_SIZE=22
+Environment=HYPRCURSOR_THEME=Bibata-Modern-Ice
+Environment=HYPRCURSOR_SIZE=22
+ExecStartPre=/usr/bin/systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE DESKTOP_SESSION GDK_BACKEND QT_QPA_PLATFORM SDL_VIDEODRIVER ELECTRON_OZONE_PLATFORM_HINT OZONE_PLATFORM NIXOS_OZONE_WL XCURSOR_THEME XCURSOR_SIZE HYPRCURSOR_THEME HYPRCURSOR_SIZE
 ExecStartPre=/usr/bin/rm -f /tmp/elephant.sock
 ExecStartPre=/usr/bin/bash -lc 'for i in {1..50}; do [ -n "${WAYLAND_DISPLAY}" ] && [ -S "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" ] && exit 0; sleep 0.2; done; echo "WAYLAND socket not ready"; exit 1'
 ExecStart=/usr/bin/elephant

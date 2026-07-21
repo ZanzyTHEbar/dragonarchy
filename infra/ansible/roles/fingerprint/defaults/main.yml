@@ -1,0 +1,21 @@
+---
+fingerprint_enabled: true
+fingerprint_pam_line: "auth      sufficient pam_fprintd.so timeout=10"
+
+# Packages are owned by scripts/install/deps.manifest.toml (fingerprint) and
+# installed by the packages role.
+fingerprint_packages_by_platform:
+  arch: []
+
+fingerprint_pam_targets_base:
+  - /etc/pam.d/sudo
+  - /etc/pam.d/polkit-1
+  - /etc/pam.d/system-local-login
+
+fingerprint_pam_targets_by_display_manager: {}
+
+fingerprint_pam_excluded_targets_by_display_manager:
+  sddm:
+    - /etc/pam.d/sddm
+
+fingerprint_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"

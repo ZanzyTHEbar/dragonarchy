@@ -1,0 +1,9 @@
+---
+- name: Validate user role inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Ensure managed groups exist
+  ansible.builtin.import_tasks: groups.yml
+
+- name: Ensure managed users exist
+  ansible.builtin.import_tasks: accounts.yml

@@ -1,0 +1,26 @@
+---
+- name: Assert Intel GPU tranche-4 metadata exists
+  ansible.builtin.assert:
+    that:
+      - intel_gpu_enabled | bool
+      - host_platform_family is defined
+      - host_platform_family in intel_gpu_packages_by_platform
+      - host_gpu_stack is defined
+      - "'intel' in host_gpu_stack"
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' does not satisfy the Intel GPU tranche-4 contract.
+
+- name: Check bootloader helper source exists
+  ansible.builtin.stat:
+    path: "{{ intel_gpu_bootloader_helper_src }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: intel_gpu_bootloader_helper_source
+
+- name: Assert bootloader helper source exists
+  ansible.builtin.assert:
+    that:
+      - intel_gpu_bootloader_helper_source.stat.exists
+    fail_msg: >-
+      Bootloader helper source '{{ intel_gpu_bootloader_helper_src }}' is missing.

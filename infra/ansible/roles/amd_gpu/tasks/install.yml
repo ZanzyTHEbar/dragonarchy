@@ -1,0 +1,6 @@
+---
+- name: Install AMD GPU packages (legacy override; default is manifest via packages role)
+  ansible.builtin.package:
+    name: "{{ amd_gpu_packages_by_platform[host_platform_family][inventory_hostname] }}"
+    state: present
+  when: amd_gpu_packages_by_platform[host_platform_family][inventory_hostname] | default([]) | length > 0

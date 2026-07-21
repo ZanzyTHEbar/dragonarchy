@@ -1,0 +1,34 @@
+---
+- name: Check Intel modules-load file
+  ansible.builtin.stat:
+    path: /etc/modules-load.d/intel.conf
+  register: intel_gpu_modules_load_file
+
+- name: Assert Intel modules-load file exists
+  ansible.builtin.assert:
+    that:
+      - intel_gpu_modules_load_file.stat.exists
+    fail_msg: "Expected /etc/modules-load.d/intel.conf to exist."
+
+- name: Check modules are listed in Intel modules-load file
+  ansible.builtin.shell: |
+    set -euo pipefail
+    {% for module in intel_gpu_modules %}
+    grep -q '^{{ module }}$' /etc/modules-load.d/intel.conf
+    {% endfor %}
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Check persisted Intel kernel parameter
+  ansible.builtin.shell: |
+    grep -qw 'i915.modeset=1' /proc/cmdline \
+      || grep -Rqs 'i915.modeset=1' /etc/kernel/cmdline /etc/default/grub /etc/limine-entry-tool.d /boot/loader/entries /boot/limine.conf /boot/limine.cfg /boot/limine/limine.conf /boot/limine/limine.cfg
+  register: intel_gpu_kernel_param_check
+  changed_when: false
+
+- name: Assert persisted Intel kernel parameter exists
+  ansible.builtin.assert:
+    that:
+      - intel_gpu_kernel_param_check.rc == 0
+    fail_msg: "Expected Intel kernel parameter i915.modeset=1 to be persisted."
