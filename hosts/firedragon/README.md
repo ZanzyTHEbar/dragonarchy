@@ -295,7 +295,7 @@ VDPAU_DRIVER=radeonsi          # VDPAU driver
 - `/etc/sysctl.d/99-laptop-*.conf` - Kernel parameters
 - `/etc/udev/rules.d/50-powersave.rules` - Device power management
 - `/etc/polkit-1/rules.d/90-corectrl.rules` - CoreCtrl permissions
-- `/etc/systemd/resolved.conf.d/dns.conf` - DNS configuration
+- `/etc/systemd/resolved.conf.d/dns.conf` - DNS configuration owned by Ansible `roles/resolved`
 - `/etc/NetworkManager/dispatcher.d/50-home-dns` - Home Wi-Fi DNS override for Pi-hole-first resolution
 
 ### User Configuration

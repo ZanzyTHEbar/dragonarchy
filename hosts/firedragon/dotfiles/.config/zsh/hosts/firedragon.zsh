@@ -10,15 +10,7 @@ export PATH=/home/daofficialwizard/bin:$PATH
 
 [[ -e "/home/daofficialwizard/lib/oracle-cli/lib/python3.14/site-packages/oci_cli/bin/oci_autocomplete.sh" ]] && source "/home/daofficialwizard/lib/oracle-cli/lib/python3.14/site-packages/oci_cli/bin/oci_autocomplete.sh"
 
-# >>> grok installer >>>
-export PATH="$HOME/.grok/bin:$PATH"
-fpath=(~/.grok/completions/zsh $fpath)
-autoload -Uz compinit && compinit -C
-# <<< grok installer <<<
-
 # bun completions
-[ -s "/home/daofficialwizard/.bun/_bun" ] && source "/home/daofficialwizard/.bun/_bun"
-
-# bun
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
+if [[ "${ZSH_TTY_UI:-false}" == "true" && -s "${BUN_INSTALL:-$HOME/.bun}/_bun" ]]; then
+    source "${BUN_INSTALL:-$HOME/.bun}/_bun"
+fi

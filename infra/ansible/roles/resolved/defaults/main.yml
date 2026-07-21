@@ -1,4 +1,18 @@
 ---
 resolved_enabled: true
+resolved_service_name: systemd-resolved.service
+resolved_config_path: /etc/systemd/resolved.conf.d/dns.conf
 
-resolved_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
+resolved_managed_paths_by_host:
+  dragon:
+    - src: "{{ role_path }}/files/hosts/dragon/etc/systemd/resolved.conf.d/dns.conf"
+      dest: "{{ resolved_config_path }}"
+      mode: "0644"
+  firedragon:
+    - src: "{{ role_path }}/files/hosts/firedragon/etc/systemd/resolved.conf.d/dns.conf"
+      dest: "{{ resolved_config_path }}"
+      mode: "0644"
+  goldendragon:
+    - src: "{{ role_path }}/files/hosts/goldendragon/etc/systemd/resolved.conf.d/dns.conf"
+      dest: "{{ resolved_config_path }}"
+      mode: "0644"

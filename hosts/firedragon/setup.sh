@@ -255,13 +255,12 @@ setup_networking() {
         fi
     fi
     
-    # Install NetBird for secure networking
+    # NetBird is owned by the Ansible netbird role on managed hosts.
     if ! is_step_completed "firedragon-install-netbird"; then
-        log_info "Installing NetBird VPN..."
-        bash "$PROJECT_ROOT/scripts/utilities/netbird-install.sh"
+        log_warning "NetBird is now managed by the Ansible netbird role; legacy setup skips it."
         mark_step_completed "firedragon-install-netbird"
     else
-        log_info "NetBird already installed"
+        log_info "NetBird legacy setup step already skipped"
     fi
     
     # Copy host-specific system configs (DNS)
@@ -372,7 +371,7 @@ setup_networking() {
         fi
     fi
     
-    log_success "Networking configured (NetBird VPN + Custom DNS)"
+    log_success "Networking configured (DNS); NetBird is managed by the Ansible netbird role"
 }
 
 # Setup display and touchpad

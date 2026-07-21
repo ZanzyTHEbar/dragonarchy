@@ -41,14 +41,12 @@ if [[ "${1:-}" == "--reset" ]]; then
     echo
 fi
 
-# Install NetBird
+# NetBird is owned by the Ansible netbird role on managed hosts.
 if ! is_step_completed "microdragon-install-netbird"; then
-    log_step "Installing NetBird..."
-    if bash "$HOME/dotfiles/scripts/utilities/netbird-install.sh"; then
-        mark_step_completed "microdragon-install-netbird"
-    fi
+    log_warning "NetBird is now managed by the Ansible netbird role; legacy setup skips it."
+    mark_step_completed "microdragon-install-netbird"
 else
-    log_info "✓ NetBird already installed (skipped)"
+    log_info "✓ NetBird legacy setup step already skipped"
 fi
 echo
 
