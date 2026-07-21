@@ -43,3 +43,4 @@ export OPENCODE_EXPERIMENTAL_LSP_TOOL=true            # Model-facing LSP tool su
 export OPENCODE_EXPERIMENTAL_PLAN_MODE=true           # Enhanced plan mode behavior
 export OPENCODE_EXPERIMENTAL_FILEWATCHER=true         # Full directory file watching
 export OPENCODE_EXPERIMENTAL_NATIVE_LLM=false
+. "$HOME/.cargo/env"

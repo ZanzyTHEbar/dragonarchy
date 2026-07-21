@@ -129,6 +129,7 @@ Request: $request"
   script=$(opencode run "$prompt" \
     --log-level ERROR \
     --format json \
+    --model openrouter/cohere/north-mini-code:free \
     --agent ask \
     "${opencode_args[@]}" \
     | jq -r 'if .type == "text" then .part.text elif .type == "error" then "opencode error: \(.error.data.message // .error.message // .error.name // "unknown error")" | halt_error(1) else empty end')
