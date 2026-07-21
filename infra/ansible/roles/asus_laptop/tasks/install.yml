@@ -1,16 +1,4 @@
 ---
-- name: Gather service facts before ASUS laptop conflict handling
-  ansible.builtin.service_facts:
-
-- name: Disable Wi-Fi stack services that conflict with NetworkManager
-  ansible.builtin.systemd_service:
-    name: "{{ item }}"
-    state: stopped
-    enabled: false
-    masked: true
-  loop: "{{ asus_laptop_disabled_services }}"
-  when: item in ansible_facts.services
-
 - name: Ensure ASUS laptop platform services are enabled
   ansible.builtin.systemd_service:
     name: "{{ item }}"

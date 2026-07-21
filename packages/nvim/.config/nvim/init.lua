@@ -195,6 +195,10 @@ vim.o.scrolloff = 10
 -- See `:help 'confirm'`
 vim.o.confirm = true
 
+-- Skip backup (and thus xattr preservation) on NFS mounts where user xattr is
+-- unsupported — avoids E1509 on every save. NFS4 server-side writes are atomic.
+vim.opt.backupskip:append('/mnt/common/*')
+
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
 
@@ -899,30 +903,32 @@ require('lazy').setup({
     end,
   },
   { -- Highlight, edit, and navigate code
+    -- ponytail: migrated master -> main. master is archived (Nvim 0.11 only); on
+    -- Nvim 0.12 its query_predicates broke markdown injections (node:range() nil).
+    -- `main` is a parser manager only; highlighting is native vim.treesitter.
     'nvim-treesitter/nvim-treesitter',
-    branch = 'master',
+    branch = 'main',
+    lazy = false,
     build = ':TSUpdate',
-    main = 'nvim-treesitter.configs', -- Sets main module to use for opts
-    -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
-    opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
-      -- Autoinstall languages that are not installed
-      auto_install = true,
-      highlight = {
-        enable = true,
-        -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
-        --  If you are experiencing weird indenting issues, add the language to
-        --  the list of additional_vim_regex_highlighting and disabled languages for indent.
-        additional_vim_regex_highlighting = { 'ruby' },
-      },
-      indent = { enable = true, disable = { 'ruby' } },
-    },
-    -- There are additional nvim-treesitter modules that you can use to interact
-    -- with nvim-treesitter. You should go explore a few and see what interests you:
-    --
-    --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
-    --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
-    --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+    config = function()
+      -- Install parsers/queries to stdpath('data')/site and prepend it to rtp so
+      -- the fresh `main`-branch parsers/queries take priority over stale artifacts.
+      require('nvim-treesitter').setup { install_dir = vim.fn.stdpath('data') .. '/site' }
+      -- Install parsers (async, no-op when already installed).
+      require('nvim-treesitter').install { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' }
+      local gid = vim.api.nvim_create_augroup('nvim-treesitter-native', { clear = true })
+      vim.api.nvim_create_autocmd('FileType', {
+        group = gid,
+        callback = function(ev)
+          -- Start native treesitter highlighting; no-op (pcall) when no parser.
+          if not pcall(vim.treesitter.start, ev.buf) then
+            return
+          end
+          -- Treesitter indentexpr (replaces the removed legacy `indent` module).
+          vim.bo[ev.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+        end,
+      })
+    end,
   },
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
