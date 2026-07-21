@@ -63,41 +63,36 @@
    "jira_rovo": {
       "type": "remote",
       "url": "https://mcp.atlassian.com/v1/mcp",
-      "enabled": false,
       "timeout": 20000
     },
-    "actualbudget": {
-      "type": "remote",
-      "url": "https://mcp.zacariahheim.com/actualbudget/mcp",
-      "oauth": {
-        "scope": "mcp:actualbudget"
-      },
-      "enabled": false
-    },
-    "mealie": {
-      "type": "remote",
-      "url": "https://mcp.zacariahheim.com/mealie/mcp",
-      "oauth": {
-        "scope": "mcp:mealie"
-      },
-      "enabled": false
-    },
-    "memory-kg": {
-      "type": "remote",
-      "url": "https://mcp.zacariahheim.com/memory/mcp",
-      "oauth": {
-        "scope": "mcp:memory"
-      },
-      "enabled": false,
-      "timeout": 20000
-    },
+    //dev"actualbudget": {
+    //  "type": "remote",
+    //  "url": "https://mcp.zacariahheim.com/actualbudget/mcp",
+    //  "oauth": {
+    //    "scope": "mcp:actualbudget"
+    //  }
+    //},
+    //"mealie": {
+    //  "type": "remote",
+    //  "url": "https://mcp.zacariahheim.com/mealie/mcp",
+    //  "oauth": {
+    //    "scope": "mcp:mealie"
+    //  }
+    //},
+    //"memory-kg": {
+    //  "type": "remote",
+    //  "url": "https://mcp.zacariahheim.com/memory/mcp",
+    //  "oauth": {
+    //    "scope": "mcp:memory"
+    //  },
+    //  "timeout": 20000
+    //},
     "allpepper-memory-bank": {
       "type": "remote",
       "url": "https://mcp.zacariahheim.com/allpepper-memory-bank/mcp",
       "oauth": {
         "scope": "mcp:allpepper-memory-bank"
       },
-      "enabled": true,
       "timeout": 20000
     },
     "saga": {
@@ -106,7 +101,6 @@
       "oauth": {
         "scope": "mcp:saga"
       },
-      "enabled": true,
       "timeout": 20000
     },
     "penpot": {
@@ -115,7 +109,6 @@
       "oauth": {
         "scope": "mcp:penpot"
       },
-      "enabled": false,
       "timeout": 20000
     },
     "codebase-memory": {
@@ -132,8 +125,8 @@
     },
     "browser-use": {
       "type": "local",
-      "command": ["uvx", "--from", "browser-use[cli]", "browser-use", "--mcp"],
       "enabled": true,
+      "command": ["uvx", "--from", "browser-use[cli]", "browser-use", "--mcp"],
       "timeout": 60000
     }
   },
@@ -148,21 +141,6 @@
     ]
   },
   "permission": {
-    "read": "allow",
-    "edit": "allow",
-    "glob": "allow",
-    "grep": "allow",
-    "list": "allow",
-    "bash": "allow",
-    "task": "allow",
-    "external_directory": "allow",
-    "todowrite": "allow",
-    "question": "allow",
-    "webfetch": "allow",
-    "websearch": "allow",
-    "repo_clone": "allow",
-    "repo_overview": "allow",
-    "lsp": "allow",
-    "skill": "allow"
+   "lsp": "allow"
   }
 }

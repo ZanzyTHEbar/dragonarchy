@@ -1,50 +1,47 @@
-# Hyprland Host Auto-Detection
+# Hyprland Host Detection Contract
 
 ## Overview
 
-The package installation system now **automatically detects** which hosts need Hyprland packages, eliminating the need to manually maintain a hardcoded list in `install-deps.sh`.
+Managed hosts declare Hyprland through inventory, host vars, and chezmoi manifests. Marker files document host intent only; the Ansible + chezmoi control plane does not infer host behavior from marker files, setup scripts, or documentation text.
 
 ## Problem Solved
 
-**Before:** You had to remember to add new hostnames to the `hyprland_hosts` array in `install-deps.sh`:
+**Before:** the legacy installer required adding new hostnames to the `hyprland_hosts` array in `install-deps.sh`:
 
 ```bash
 local hyprland_hosts=("dragon" "spacedragon" "goldendragon")  # Easy to forget!
 ```
 
-**After:** The script automatically detects Hyprland hosts using multiple detection methods.
+**After:** managed hosts declare Hyprland explicitly through inventory and host metadata.
 
-## Detection Methods
+## Declaration Inputs
 
-The system checks hosts in this priority order:
+Managed hosts use these explicit inputs:
 
-### 1. Marker File (Recommended) ⭐
+### 1. Inventory and host vars
 
-Create a `.hyprland` file in your host directory:
+Managed hosts must be declared explicitly in `infra/ansible/inventory/hosts.yml`
+and matching `host_vars`. This is the runtime source of truth for the Ansible
+control plane.
+
+### 2. Chezmoi manifest coverage
+
+User-state rendering must be represented through the appropriate chezmoi
+manifest entries before a host is considered ready for managed user-state sync.
+
+### 3. Marker file
+
+Create a `.hyprland` file in your host directory as a checked-in intent marker:
 
 ```bash
 touch hosts/YOUR_HOST/.hyprland
 ```
 
-**Why this is best:**
+**What it means:**
 
-- ✅ Explicit and clear
-- ✅ Fast detection
-- ✅ Version controlled
-- ✅ No parsing required
-
-### 2. Auto-Detection from setup.sh
-
-If `setup.sh` mentions these keywords, Hyprland packages are auto-installed:
-
-- `hyprland`
-- `hyprlock`
-- `hypridle`
-- `waybar`
-
-### 3. Auto-Detection from Documentation
-
-If documentation in `hosts/YOUR_HOST/docs/*.md` mentions Hyprland.
+- Documents that the host is intended to run Hyprland.
+- Does not make Ansible or chezmoi infer host behavior.
+- Does not replace inventory, host vars, or manifest coverage.
 
 ## Quick Start
 
@@ -54,18 +51,10 @@ If documentation in `hosts/YOUR_HOST/docs/*.md` mentions Hyprland.
 # Create host directory
 mkdir -p hosts/$(hostname)
 
-# Create Hyprland marker
+# Create Hyprland marker as host documentation
 touch hosts/$(hostname)/.hyprland
 
-# Create setup script
-cat > hosts/$(hostname)/setup.sh <<'EOF'
-#!/bin/bash
-set -e
-echo "Setting up $(hostname)..."
-# Your host-specific setup here
-EOF
-
-chmod +x hosts/$(hostname)/setup.sh
+# Add inventory and host_vars entries before managed bring-up
 ```
 
 ### For Existing Hosts
@@ -75,36 +64,28 @@ All existing Hyprland hosts already have marker files:
 - ✅ `dragon/.hyprland`
 - ✅ `firedragon/.hyprland`
 - ✅ `goldendragon/.hyprland`
-- ✅ `spacedragon/.hyprland`
 
 ## Verification
 
-Check which hosts will receive Hyprland packages:
+Check inventory and task graph for a managed host:
 
 ```bash
-bash scripts/utilities/verify-hyprland-detection.sh
+ansible-inventory -i infra/ansible/inventory/hosts.yml --host dragon
+cd infra/ansible
+ansible-playbook -i inventory/hosts.yml playbooks/site.yml --limit dragon --list-tasks
 ```
 
 **Output example:**
 
 ```bash
-HOST                 HYPRLAND        DETECTION METHOD                        
-----                 --------        ----------------                        
-dragon               ✓ Yes           marker                                  
-firedragon           ✓ Yes           marker                                  
-goldendragon         ✓ Yes           marker                                  
-microdragon          ✗ No            not detected                            
-spacedragon          ✓ Yes           marker                                  
-
-Summary:
-  Total hosts: 5
-  Hyprland hosts: 4
-  Non-Hyprland hosts: 1
+play #4 (hyprland): Hot-path tranche 3
+  hyprland : Assert Hyprland tranche-3 metadata exists
+  hyprland : Install Hyprland system-session packages
 ```
 
 ## What Gets Installed for Hyprland Hosts
 
-When auto-detected, these packages are installed:
+When declared through inventory and host vars, these packages are installed by the Ansible package plan:
 
 ### Desktop Environment (~70 packages)
 
@@ -138,181 +119,121 @@ When auto-detected, these packages are installed:
 mkdir -p hosts/newmachine
 touch hosts/newmachine/.hyprland
 
-# 2. Create setup script
-cat > hosts/newmachine/setup.sh <<'EOF'
-#!/bin/bash
-set -e
+# 2. Add the host to infra/ansible/inventory/hosts.yml and host_vars.
+# Hyprland, NetBird, and system DNS state are Ansible-owned on managed hosts.
 
-echo "Setting up newmachine..."
+# 3. Verify inventory membership and task graph from repo root
+ansible-inventory -i infra/ansible/inventory/hosts.yml --host newmachine
+infra/ansible/run-playbook.sh infra/ansible/playbooks/site.yml --limit newmachine --list-tasks
 
-# Install NetBird
-bash "$HOME/dotfiles/scripts/utilities/netbird-install.sh"
-
-# Copy host-specific configs
-sudo cp -rT "$HOME/dotfiles/hosts/newmachine/etc/" /etc/
-
-# Restart services
-sudo systemctl restart systemd-resolved
-
-echo "Setup complete!"
-EOF
-
-chmod +x hosts/newmachine/setup.sh
-
-# 3. Verify detection
-bash scripts/utilities/verify-hyprland-detection.sh
-
-# 4. Run installation
-./setup.sh --host newmachine
+# 4. Run managed system bring-up
+infra/ansible/run-playbook.sh infra/ansible/playbooks/site.yml --limit newmachine
 ```
 
 ### Creating a Non-Hyprland Machine
 
-Simply omit the `.hyprland` marker file:
+Keep the host out of the Hyprland inventory group and omit Hyprland user-state
+manifest coverage:
 
 ```bash
 # Server/minimal setup - no Hyprland needed
 mkdir -p hosts/server
-cat > hosts/server/setup.sh <<'EOF'
-#!/bin/bash
-set -e
-echo "Setting up server..."
-# Server-specific setup only
-EOF
-chmod +x hosts/server/setup.sh
 ```
 
 ## Benefits
 
-### ✅ Zero Maintenance
+### ✅ Low Maintenance
 
 - No hardcoded arrays to update
-- Add hosts by creating directories
-- Detection is automatic
+- Add hosts by updating inventory and host vars
+- Validation fails when declarations are missing
 
 ### ✅ Self-Documenting
 
-- Marker files clearly indicate Hyprland support
-- Verification script shows what will be installed
+- Marker files document intended Hyprland support
+- Ansible list-task output shows what will run
 - Documentation explains the system
 
-### ✅ Flexible
+### ✅ Explicit
 
-- Multiple detection methods
-- Fallback to auto-detection if marker missing
-- Easy to override
+- Inventory and host vars are the source of truth
+- Marker files document intent, not runtime fallback behavior
+- Missing declarations fail validation instead of silently guessing
 
 ### ✅ Safe
 
-- Explicit marker files prevent accidents
-- Verification before installation
-- Clear logging during detection
+- Explicit inventory and host vars prevent accidental role selection
+- Verification before installation through inventory and list-task checks
+- Clear ownership through Ansible groups and host vars
 
 ## Troubleshooting
 
-### Host Not Detected as Hyprland
+### Host Not Declared as Hyprland
 
-**Check detection:**
+**Check inventory and task graph:**
 
 ```bash
-bash scripts/utilities/verify-hyprland-detection.sh
+ansible-inventory -i infra/ansible/inventory/hosts.yml --host YOUR_HOST
+cd infra/ansible
+ansible-playbook -i inventory/hosts.yml playbooks/site.yml --limit YOUR_HOST --list-tasks
 ```
 
 **Fix:**
 
 ```bash
-# Add marker file
+# Add marker file as documentation
 touch hosts/YOUR_HOST/.hyprland
 
-# Verify
-bash scripts/utilities/verify-hyprland-detection.sh
+# Add or correct inventory and host vars, then verify task graph
+ansible-inventory -i infra/ansible/inventory/hosts.yml --host YOUR_HOST
 ```
 
 ### Getting Hyprland Packages When You Don't Want Them
 
-**Remove marker file:**
+**Remove Hyprland inventory/host-var declarations and manifest coverage:**
 
 ```bash
+# Optionally also remove the documentation marker.
 rm hosts/YOUR_HOST/.hyprland
 ```
 
-#### **Or remove Hyprland mentions from setup.sh**
-
-### Detection Not Working
+### Declaration Not Working
 
 **Debug:**
 
 ```bash
-# Check marker file
-ls -la hosts/YOUR_HOST/.hyprland
-
-# Check setup.sh content
-grep -i hyprland hosts/YOUR_HOST/setup.sh
-
-# Check docs
-find hosts/YOUR_HOST/docs -name "*.md" -exec grep -i hyprland {} +
+# Check inventory and host vars
+grep -n "YOUR_HOST" infra/ansible/inventory/hosts.yml
+test -f infra/ansible/inventory/host_vars/YOUR_HOST.yml
 ```
 
 ## Technical Details
 
-### Detection Function
+### Detection Contract
 
-The `is_hyprland_host()` function in `install-deps.sh`:
-
-```bash
-is_hyprland_host() {
-    local hostname="$1"
-    local host_dir="$HOSTS_DIR/$hostname"
-    
-    # Check marker files
-    if [[ -f "$host_dir/.hyprland" ]] || [[ -f "$host_dir/HYPRLAND" ]]; then
-        return 0  # Hyprland host
-    fi
-    
-    # Check setup.sh
-    if [[ -f "$host_dir/setup.sh" ]]; then
-        if grep -qi "hyprland\|hyprlock\|hypridle\|waybar" "$host_dir/setup.sh"; then
-            return 0  # Hyprland host
-        fi
-    fi
-    
-    # Check documentation
-    if [[ -d "$host_dir/docs" ]]; then
-        if find "$host_dir/docs" -type f -name "*.md" -exec grep -qi "hyprland" {} \; 2>/dev/null; then
-            return 0  # Hyprland host
-        fi
-    fi
-    
-    return 1  # Not a Hyprland host
-}
-```
+The managed-host control plane does not infer Hyprland from setup scripts or
+documentation. A host is Hyprland-capable only when inventory/host vars declare
+that desktop stack and the relevant chezmoi manifests cover its user state.
 
 ### Integration
 
-Used in `install_for_arch()`:
-
-```bash
-# Old way (manual list):
-local hyprland_hosts=("dragon" "spacedragon" "goldendragon")
-if [[ " ${hyprland_hosts[*]} " =~ ${host} ]]; then
-
-# New way (automatic):
-if is_hyprland_host "$host"; then
-```
+Ansible inventory and `infra/chezmoi/manifests/*.manifest` are the runtime
+sources for managed hosts. Legacy installer detection remains historical
+context only.
 
 ## Migration Checklist
 
 - [x] Create `.hyprland` marker files for existing hosts
-- [x] Update `install-deps.sh` to use auto-detection
-- [x] Create verification script
+- [x] Move managed-host detection to inventory and host vars
+- [x] Document inventory/list-task verification path
 - [x] Document the system
 - [x] Test detection logic
 
 ## See Also
 
 - [Host Configuration README](../hosts/README.md) - General host setup guide
-- [Verification Script](../scripts/utilities/verify-hyprland-detection.sh) - Test detection
-- [Installation Script](../scripts/install/install-deps.sh) - Main installer
+- [Host model](architecture/host-model.md) - Inventory and capability ownership model
+- [Ansible roles](../infra/ansible/roles/README.md) - Managed system-state roles
 
 ## References
 

@@ -54,7 +54,6 @@ Available SDDM themes:
 - **Docker DBs**: Database container management
 - **Secrets**: Age-encrypted secrets management
 - **Add Migration**: Migration script generator
-- **Netbird**: VPN client installation
 
 ### System Management
 - **Update**: Update packages and system
@@ -239,8 +238,7 @@ Main Menu
 │   ├── Web Apps
 │   ├── Docker DBs
 │   ├── Secrets
-│   ├── Add Migration
-│   └── Netbird
+│   └── Add Migration
 ├── Update
 ├── Setup
 ├── Power Menu
@@ -358,4 +356,3 @@ dragon-cli sddm → Refresh/Update Themes
 ## License
 
 Part of the personal dotfiles collection. Use freely for your own dotfiles setup.
-

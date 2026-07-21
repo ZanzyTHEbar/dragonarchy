@@ -461,10 +461,19 @@ setup_utilities() {
     
     log_step "Setting up utilities (symlinking into ~/.local/bin)..."
     mkdir -p "$HOME/.local/bin"
-    
+
+    local retired_netbird_link="$HOME/.local/bin/netbird-install"
+    local retired_netbird_target
+    if [[ -L "$retired_netbird_link" ]]; then
+        retired_netbird_target=$(readlink "$retired_netbird_link" || true)
+        if [[ "$retired_netbird_target" == "$SCRIPTS_DIR/utilities/netbird-install.sh" ]]; then
+            rm -f "$retired_netbird_link"
+            log_info "Removed retired netbird-install utility symlink; NetBird is Ansible-owned."
+        fi
+    fi
+
     declare -A util_map=(
         ["launch-clipse.sh"]="launch-clipse"
-        ["netbird-install.sh"]="netbird-install"
         ["web-apps.sh"]="web-apps"
         ["docker-dbs.sh"]="docker-dbs"
         ["nfs.sh"]="nfs-utils"

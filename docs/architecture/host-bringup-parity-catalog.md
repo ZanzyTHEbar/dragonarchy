@@ -193,9 +193,9 @@ If legacy shell, Stow, or host trees can still write or source the same concern,
 | AMD GPU kernel, module, polkit, and service state | `scripts/install/system-config.sh`, `hosts/dragon/etc/**`, `hosts/firedragon/etc/**`                                                                   | `infra/ansible/roles/amd_gpu/*`                                                                                     | partial overlap  | Ansible `amd_gpu` role                                                                     | keep host tree as payload source, not runtime writer                                                                                          |
 | Intel GPU kernel and module state                 | `scripts/install/system-config.sh`                                                                                                                     | `infra/ansible/roles/intel_gpu/*`                                                                                   | resolved         | Ansible `intel_gpu` role                                                                   | validate on goldendragon hardware                                                                                                             |
 | laptop power policy                               | `scripts/install/setup/power-management.sh`, host TLP config under `hosts/*/etc/tlp.d/*`                                                               | `infra/ansible/roles/tlp/*`, `infra/ansible/roles/tlp/files/hosts/*`                                                | partial overlap  | Ansible `tlp` role                                                                         | retire shell-side service toggles for managed hosts and eventually delete or archive the legacy reference copy                                |
-| resolved DNS drop-ins                             | `hosts/<host>/etc/systemd/resolved.conf.d/dns.conf`                                                                                                    | `infra/ansible/roles/resolved/*`, `infra/ansible/roles/resolved/files/hosts/*`                                      | partial overlap  | Ansible `resolved` role                                                                    | stop treating host `etc/` as a live source for this role and eventually delete or archive the legacy reference copy                           |
+| resolved DNS drop-ins                             | legacy host-tree DNS copies                                                                                                                            | `infra/ansible/roles/resolved/*`, `infra/ansible/roles/resolved/files/hosts/*`                                      | **resolved**     | Ansible `resolved` role                                                                    | keep DNS payloads role-local; do not reintroduce host-tree runtime sources                                                                    |
 | OpenFortiVPN units and helper                     | `hosts/goldendragon/etc/systemd/system/openfortivpn*.service`, `hosts/goldendragon/dotfiles/.local/bin/avular-vpn-dns`                                 | `infra/ansible/roles/openfortivpn/*`, `infra/ansible/roles/openfortivpn/files/hosts/goldendragon/*`                 | partial overlap  | Ansible `openfortivpn` role                                                                | stop treating host files as a live source and eventually delete or archive the legacy reference copy                                          |
-| NetBird capability                                | `scripts/utilities/netbird-install.sh`, `hosts/*/setup.sh`                                                                                             | `infra/ansible/roles/netbird/*`                                                                                     | partial overlap  | Ansible `netbird` role                                                                     | retire host setup logic and finish any host-specific DNS or routing parity that still lives outside the role                                  |
+| NetBird capability                                | legacy host setup NetBird paths                                                                                                                        | `infra/ansible/roles/netbird/*`                                                                                     | partial overlap  | Ansible `netbird` role                                                                     | retire host setup logic and finish any host-specific DNS or routing parity that still lives outside the role                                  |
 | declared system service enablement                | `scripts/install/setup/system-services.sh`, `hosts/<host>/setup.sh`                                                                                    | owning Ansible roles (`iwd`, `networkmanager`, `acpi_wakeup`, `power_sleep`, `asus_laptop`, `tlp`, `resolved`, …)    | partial overlap  | owning Ansible role                                                                        | do not port legacy opportunistic service detection; add explicit capabilities before owning generic Bluetooth, CUPS, Docker, or power-profile services |
 | timezone policy                                   | `scripts/install/first-run.sh`                                                                                                                         | `infra/ansible/roles/base/tasks/configure.yml`                                                                      | partial overlap  | Ansible `base` role                                                                        | set real per-host timezone vars and stop relying on first-run mutation for managed hosts                                                      |
 | secrets flow                                      | `scripts/utilities/secrets.sh`, `install.sh` secrets setup                                                                                             | no new-system replacement yet                                                                                       | migration seam   | explicit product decision required                                                         | choose out-of-band secrets, Ansible Vault, or chezmoi-backed secret rendering and document it                                                 |
@@ -261,14 +261,14 @@ Current progress:
 
 Current progress:
 
-- `fingerprint`, `resolved`, `tlp`, `openfortivpn`, `nvidia`, and `amd_gpu` have explicit Ansible runtime owners, but still source some managed payloads from legacy host trees
-- `power_sleep`, `iwd`, `networkmanager`, and `acpi_wakeup` now own their declared `/etc` files and service state, but also still source their payloads from legacy host trees
-- moving those payloads into role-local `files/` or `templates/` remains required before calling any of these concerns fully pivoted under the definition below
+- `resolved`, `v4l2loopback`, `iwd`, and `networkmanager` now source their Batch-2/3 managed payloads from role-local `files/` paths
+- `fingerprint`, `tlp`, `openfortivpn`, `nvidia`, `amd_gpu`, `power_sleep`, and `acpi_wakeup` have explicit Ansible runtime owners, but still source some managed payloads from legacy host trees
+- moving the remaining role-owned payloads into role-local `files/` or `templates/` remains required before calling those concerns fully pivoted under the definition below
 
 Batch-9 progress:
 
-- completed for the firedragon ASUS laptop edge stack via `roles/asus_laptop`
-- vendored firedragon NetworkManager dispatcher, lid/sleep drop-ins, system-sleep hooks, and AX210 udev rules into role-local payloads
+- explicit Ansible runtime owner exists for the firedragon ASUS laptop edge stack via `roles/asus_laptop`
+- some ASUS laptop payloads are role-local; the NetworkManager dispatcher, lid/sleep drop-ins, system-sleep hooks, and AX210 udev rule still need a later payload-source pivot
 
 Batch-11 progress:
 
@@ -283,8 +283,8 @@ Batch-12 progress:
 
 #### Stage 3. Close capability gaps
 
-- add a real `netbird` role
-- add explicit owners for `aio-cooler`, ASUS/Vivobook behavior, secure boot, and remaining laptop/runtime PM surfaces if they are part of parity
+- finish real-host parity verification for the `netbird` role
+- add explicit owners for secure boot and remaining laptop/runtime PM surfaces if they are part of parity
 - decide and implement ownership for fingerprint watchdog and other still-unowned host behavior
 
 Current progress:
@@ -348,14 +348,11 @@ Host-specific sources:
 - `hosts/dragon/dynamic_led.py`
 - `hosts/dragon/dynamic_led.service`
 - `hosts/dragon/liquidctl-dragon.service`
-- `hosts/dragon/etc/systemd/resolved.conf.d/dns.conf`
 - `hosts/dragon/etc/systemd/logind.conf.d/dragon-power.conf`
 - `hosts/dragon/etc/systemd/sleep.conf.d/dragon-sleep.conf`
 - `hosts/dragon/etc/systemd/system-sleep/liquidctl-suspend.sh`
 - `hosts/dragon/etc/polkit-1/rules.d/90-corectrl.rules`
 - `hosts/dragon/etc/modprobe.d/amdgpu-dragon.conf`
-- `hosts/dragon/etc/modprobe.d/v4l2loopback.conf`
-- `hosts/dragon/etc/modules-load.d/v4l2loopback.conf`
 - `hosts/dragon/pipewire/20-stereo-audient.conf`
 - `hosts/dragon/pipewire/90-audient-defaults.conf`
 - `hosts/dragon/pipewire/README.md`
@@ -366,7 +363,6 @@ Related legacy shared sources:
 
 - `scripts/install/deps.manifest.toml`
 - `scripts/utilities/audio-setup.sh`
-- `scripts/utilities/netbird-install.sh`
 - `scripts/install/validate.sh`
 
 ### Current new-architecture mapping
@@ -385,8 +381,11 @@ Roles currently applied to `dragon`:
 - `sddm`
 - `hyprland`
 - `amd_gpu`
+- `aio-cooler`
 - `resolved`
 - `netbird`
+- `v4l2loopback`
+- `power_sleep`
 
 Chezmoi:
 
@@ -395,11 +394,11 @@ Chezmoi:
 
 ### Already covered or strongly represented
 
-- resolved DNS via `roles/resolved`
+- resolved DNS via `roles/resolved` and role-local `roles/resolved/files/hosts/dragon/`
 - AMD GPU core role coverage via `roles/amd_gpu`
 - CoreCtrl polkit rule copied from legacy root by `roles/amd_gpu`
 - AIO cooler services and resume hook via `roles/aio-cooler`
-- v4l2loopback pending AUR package plus modprobe and modules-load state via `roles/packages` and `roles/v4l2loopback`
+- v4l2loopback pending AUR package plus role-local modprobe and modules-load state via `roles/packages` and `roles/v4l2loopback`
 - `etc/systemd/logind.conf.d/dragon-power.conf` via `roles/power_sleep`
 - `etc/systemd/sleep.conf.d/dragon-sleep.conf` via `roles/power_sleep`
 - desktop user account and admin group via `roles/users`
@@ -408,13 +407,13 @@ Chezmoi:
 ### Missing or only partially represented
 
 - PipeWire host audio drop-ins under `hosts/dragon/pipewire/`
-- NetBird installation and convergence
+- live NetBird convergence proof on `dragon`
 - generic desktop service enablement from `system-services.sh` still needs explicit capability decisions for Bluetooth, CUPS, Docker, and `power-profiles-daemon`
 
 ### `dragon` parity checklist
 
 - decide whether PipeWire host audio stays script-owned or moves to chezmoi
-- retire legacy NetBird setup calls once the new role is the only supported path
+- verify the `netbird` role against real Dragon behavior; legacy setup now skips NetBird
 - decide whether generic desktop services become explicit role-owned capabilities for `dragon`
 
 ## `firedragon`
@@ -437,7 +436,6 @@ Host-specific sources:
 - `hosts/firedragon/etc/modprobe.d/amdgpu.conf`
 - `hosts/firedragon/etc/NetworkManager/dispatcher.d/50-home-dns`
 - `hosts/firedragon/etc/systemd/logind.conf.d/10-firedragon-lid.conf`
-- `hosts/firedragon/etc/systemd/resolved.conf.d/dns.conf`
 - `hosts/firedragon/etc/systemd/sleep.conf.d/10-firedragon-sleep.conf`
 - `hosts/firedragon/etc/systemd/system/amdgpu-console-restore.service`
 - `hosts/firedragon/etc/systemd/system/amdgpu-resume.service`
@@ -451,7 +449,6 @@ Host-specific sources:
 - `hosts/firedragon/docs/GESTURES_QUICKSTART.md`
 - `hosts/firedragon/docs/LID_CLOSE_FREEZE_FIX.md`
 - `hosts/firedragon/docs/LIMINE_SETUP.md`
-- `hosts/firedragon/docs/NETBIRD_DNS_INTEGRATION.md`
 - `hosts/firedragon/docs/SUSPEND_RESUME_COMPLETE_FIX.md`
 
 Related legacy shared sources:
@@ -506,7 +503,7 @@ Chezmoi:
 - firedragon laptop package parity from `setup_firedragon_packages()` via manifest-backed `roles/packages`
 - ASUS platform services via `roles/asus_laptop`
 - hibernation and swap/resume plumbing from `enable-sleep-hibernate.sh` via `roles/hibernation`
-- `etc/systemd/resolved.conf.d/dns.conf` via `roles/resolved`
+- `etc/systemd/resolved.conf.d/dns.conf` via `roles/resolved` and role-local `roles/resolved/files/hosts/firedragon/`
 - NetBird installation and service ownership via `roles/netbird`
 - Hyprland and SDDM session substrate via `roles/hyprland` and `roles/sddm`
 
@@ -542,16 +539,11 @@ Host-specific sources:
 - `hosts/goldendragon/dotfiles/.config/zsh/hosts/goldendragon.zsh`
 - `hosts/goldendragon/dotfiles/.local/bin/avular-vpn-dns`
 - `hosts/goldendragon/etc/acpi/disable-wakeup.sh`
-- `hosts/goldendragon/etc/iwd/main.conf`
 - `hosts/goldendragon/etc/modprobe.d/nvidia.conf`
 - `hosts/goldendragon/etc/modprobe.d/nvidia-drm.conf`
-- `hosts/goldendragon/etc/modprobe.d/v4l2loopback.conf`
-- `hosts/goldendragon/etc/modules-load.d/v4l2loopback.conf`
-- `hosts/goldendragon/etc/NetworkManager/conf.d/10-unmanage-wlan0.conf`
 - `hosts/goldendragon/etc/pam.d/hyprlock`
 - `hosts/goldendragon/etc/pam.d/polkit-1`
 - `hosts/goldendragon/etc/systemd/logind.conf.d/10-goldendragon-lid.conf`
-- `hosts/goldendragon/etc/systemd/resolved.conf.d/dns.conf`
 - `hosts/goldendragon/etc/systemd/sleep.conf.d/10-goldendragon-sleep.conf`
 - `hosts/goldendragon/etc/systemd/system/disable-acpi-wakeup.service`
 - `hosts/goldendragon/etc/systemd/system/openfortivpn-cleanup.service`
@@ -602,21 +594,21 @@ Chezmoi:
 ### Already covered or strongly represented
 
 - `etc/tlp.d/01-goldendragon.conf` via `roles/tlp`
-- `etc/systemd/resolved.conf.d/dns.conf` via `roles/resolved`
+- `etc/systemd/resolved.conf.d/dns.conf` via `roles/resolved` and role-local `roles/resolved/files/hosts/goldendragon/`
 - `etc/modprobe.d/nvidia.conf` and `nvidia-drm.conf` via `roles/nvidia`
 - `nvidia-drm.modeset=1` kernel parameter via `roles/nvidia`
 - fingerprint udev and PAM behavior via `roles/fingerprint`
 - `etc/pam.d/hyprlock` via `roles/fingerprint`
 - OpenFortiVPN service units and `/usr/local/bin/avular-vpn-dns` via `roles/openfortivpn`
-- `etc/modprobe.d/v4l2loopback.conf` via `roles/v4l2loopback`
-- `etc/modules-load.d/v4l2loopback.conf` via `roles/v4l2loopback`
+- `etc/modprobe.d/v4l2loopback.conf` via role-local `roles/v4l2loopback/files/`
+- `etc/modules-load.d/v4l2loopback.conf` via role-local `roles/v4l2loopback/files/`
 - `v4l2loopback-dkms` pending AUR package via manifest-backed `roles/packages`
 - `etc/systemd/logind.conf.d/10-goldendragon-lid.conf` via `roles/power_sleep`
 - `etc/systemd/sleep.conf.d/10-goldendragon-sleep.conf` via `roles/power_sleep`
 - `acpid.service` and `thermald.service` via `roles/power_sleep`
-- `etc/iwd/main.conf` via `roles/iwd`
+- `etc/iwd/main.conf` via role-local `roles/iwd/files/hosts/goldendragon/`
 - `iwd.service` via `roles/iwd`
-- `etc/NetworkManager/conf.d/10-unmanage-wlan0.conf` via `roles/networkmanager`
+- `etc/NetworkManager/conf.d/10-unmanage-wlan0.conf` via role-local `roles/networkmanager/files/hosts/goldendragon/`
 - `NetworkManager.service` via `roles/networkmanager`
 - `etc/acpi/disable-wakeup.sh` via `roles/acpi_wakeup`
 - `etc/systemd/system/disable-acpi-wakeup.service` via `roles/acpi_wakeup`
@@ -651,7 +643,6 @@ Host-specific sources:
 
 Related legacy shared sources:
 
-- `scripts/utilities/netbird-install.sh`
 - `scripts/lib/install-state.sh`
 - `install.sh`
 
@@ -692,12 +683,12 @@ Chezmoi:
 
 - NetBird parity verification on Debian beyond the new role contract
 - any host-specific user-state
-- legacy `setup.sh` Debian mismatch around `scripts/utilities/netbird-install.sh`
+- legacy Debian setup mismatch has been superseded by the Ansible `netbird` role, but still needs real-host proof
 
 ### `microdragon` parity checklist
 
 - verify the new `netbird` role against real Debian behavior on `microdragon`
-- replace or branch the legacy NetBird installer for Debian if it remains in use
+- keep legacy setup's NetBird skip until the setup script is fully retired
 - decide whether `microdragon` should gain a `.traits` file and/or host dotfiles source
 
 ## Cross-host implementation checklist

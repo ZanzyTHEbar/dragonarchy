@@ -3,4 +3,11 @@ v4l2loopback_enabled: true
 v4l2loopback_required_paru_packages_by_platform:
   arch:
     - v4l2loopback-dkms
-v4l2loopback_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
+
+v4l2loopback_managed_paths:
+  - src: "{{ role_path }}/files/etc/modprobe.d/v4l2loopback.conf"
+    dest: /etc/modprobe.d/v4l2loopback.conf
+    mode: "0644"
+  - src: "{{ role_path }}/files/etc/modules-load.d/v4l2loopback.conf"
+    dest: /etc/modules-load.d/v4l2loopback.conf
+    mode: "0644"

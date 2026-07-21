@@ -1,31 +1,19 @@
 ---
-- name: Check v4l2loopback modprobe file
+- name: Check v4l2loopback managed files
   ansible.builtin.stat:
-    path: /etc/modprobe.d/v4l2loopback.conf
-  register: v4l2loopback_modprobe_stat
+    path: "{{ item.dest }}"
+  loop: "{{ v4l2loopback_managed_paths }}"
+  register: v4l2loopback_installed_files
 
-- name: Assert v4l2loopback modprobe file exists
+- name: Assert v4l2loopback managed files exist
   ansible.builtin.assert:
     that:
-      - v4l2loopback_modprobe_stat.stat.exists
-      - v4l2loopback_modprobe_stat.stat.pw_name == 'root'
-      - v4l2loopback_modprobe_stat.stat.gr_name == 'root'
-      - v4l2loopback_modprobe_stat.stat.mode == '0644'
-    fail_msg: "Expected /etc/modprobe.d/v4l2loopback.conf to exist."
-
-- name: Check v4l2loopback modules-load file
-  ansible.builtin.stat:
-    path: /etc/modules-load.d/v4l2loopback.conf
-  register: v4l2loopback_modules_load_stat
-
-- name: Assert v4l2loopback modules-load file exists
-  ansible.builtin.assert:
-    that:
-      - v4l2loopback_modules_load_stat.stat.exists
-      - v4l2loopback_modules_load_stat.stat.pw_name == 'root'
-      - v4l2loopback_modules_load_stat.stat.gr_name == 'root'
-      - v4l2loopback_modules_load_stat.stat.mode == '0644'
-    fail_msg: "Expected /etc/modules-load.d/v4l2loopback.conf to exist."
+      - item.stat.exists
+      - item.stat.pw_name == 'root'
+      - item.stat.gr_name == 'root'
+      - item.stat.mode == item.item.mode
+    fail_msg: "Expected v4l2loopback managed file {{ item.item.dest }} to exist."
+  loop: "{{ v4l2loopback_installed_files.results }}"
 
 - name: Verify v4l2loopback kernel module is available
   ansible.builtin.command:
