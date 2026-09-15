@@ -4,7 +4,9 @@
 # Safe to source from any script.
 
 __hosts_log_info() {
-    command -v log_info >/dev/null 2>&1 && log_info "$@" || true
+    if command -v log_info >/dev/null 2>&1; then
+        log_info "$@"
+    fi
 }
 
 # Args: hosts_dir

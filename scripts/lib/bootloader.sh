@@ -137,7 +137,9 @@ boot__append_systemd_boot() {
   local changed=0
   if [[ -d /boot/loader/entries ]]; then
     while IFS= read -r entry; do
-      boot__append_systemd_boot_entry "$entry" "$params" && changed=1 || true
+      if boot__append_systemd_boot_entry "$entry" "$params"; then
+        changed=1
+      fi
     done < <(find /boot/loader/entries -name '*.conf' 2>/dev/null || true)
   fi
   return $changed

@@ -8,15 +8,21 @@
 __manifest_yq_bin=""
 
 __manifest_log_info() {
-    command -v log_info >/dev/null 2>&1 && log_info "$@" || true
+    if command -v log_info >/dev/null 2>&1; then
+        log_info "$@"
+    fi
 }
 
 __manifest_log_warning() {
-    command -v log_warning >/dev/null 2>&1 && log_warning "$@" || true
+    if command -v log_warning >/dev/null 2>&1; then
+        log_warning "$@"
+    fi
 }
 
 __manifest_log_error() {
-    command -v log_error >/dev/null 2>&1 && log_error "$@" || true
+    if command -v log_error >/dev/null 2>&1; then
+        log_error "$@"
+    fi
 }
 
 manifest_yq_query() {
