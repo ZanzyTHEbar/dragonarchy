@@ -19,7 +19,7 @@ Inspect `package.json` scripts before running commands. Prefer project-local scr
 
 If the user wants a new workspace, suggest package-manager scaffolding such as `pnpm dlx @open-slide/cli init <dir>` or the equivalent for their package manager. Do not scaffold unless asked.
 
-Known local context: the observed global CLI is `@open-slide/cli@1.0.2` at `/home/daofficialwizard/.local/share/pnpm/global/5/.pnpm/@open-slide+cli@1.0.2/node_modules/@open-slide/cli`, with shim `/home/daofficialwizard/.local/share/pnpm/open-slide`. Upstream is `https://github.com/1weiho/open-slide`, a pnpm/Turbo monorepo with `packages/cli`, `packages/core`, `apps/demo`, and `apps/web`. Observed upstream versions were CLI `1.2.4` and core `1.6.0`.
+The `open-slide` CLI should be available on `PATH`. Upstream is `https://github.com/1weiho/open-slide`, a pnpm/Turbo monorepo with `packages/cli`, `packages/core`, `apps/demo`, and `apps/web`.
 
 ## Authority Order
 
@@ -189,7 +189,7 @@ For a deck validation pass, check that `slides/<id>/index.tsx` exists, imports r
 
 ## Safety Rules
 
-Do not edit global pnpm package installs under `/home/daofficialwizard/.local/share/pnpm/global/...` unless explicitly requested.
+Do not edit global pnpm package installs under `${XDG_DATA_HOME:-$HOME/.local/share}/pnpm/global/...` unless explicitly requested.
 
 Do not modify `package.json`, `open-slide.config.ts`, other decks, generated build/export artifacts, or dependency versions during normal slide authoring unless explicitly requested.
 

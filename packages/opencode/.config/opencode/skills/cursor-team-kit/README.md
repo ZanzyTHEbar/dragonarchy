@@ -6,7 +6,7 @@ OpenCode-normalized import of Cursor Team Kit. Internal-style workflows for CI, 
 
 - Skills live under `skills/<name>/SKILL.md`.
 - Agents live under `agent/<name>.md`; imported Team Kit agents use `mode: all` so they are selectable and available as Task subagents.
-- Rules live under `rules/cursor-team-kit/*.mdc` and are referenced by `opencode.json` instructions as global defaults after OpenCode restart.
+- Contextual TypeScript policies live in the global `AGENTS.md` guidance after OpenCode restart.
 - PR Review Canvas static resources live next to `skills/pr-review-canvas/SKILL.md`.
 
 ## Upstream

@@ -26,7 +26,7 @@ Maintain one clear creative direction. Do not mix unrelated visual languages. Av
 
 If the work involves an Open Slide deck, load or consult the `open-slide` skill first. In an Open Slide project, project-bundled skills under `.agents/skills/` or `.claude/skills/` are authoritative over this global skill.
 
-If the work involves prose quality, structure, docs, or long-form technical writing, consult the `Technical Writing` skill.
+If the work involves prose quality, structure, docs, or long-form technical writing, consult the `technical-writing` skill.
 
 If the work involves an existing brand/design system, read its local files first and preserve its vocabulary, typography, palette, spacing, and component patterns.
 

@@ -2,7 +2,7 @@
   "name": "cursor-team-kit",
   "displayName": "Cursor Team Kit",
   "version": "1.1.0",
-  "description": "Internal workflows used by Cursor developers for CI, code review, shipping, control-cli, control-ui, verify-this, test reliability, code cleanup, and work summaries. Normalized for OpenCode skill, agent, and rule directories.",
+  "description": "Internal workflows used by Cursor developers for CI, code review, shipping, control-cli, control-ui, verify-this, test reliability, code cleanup, and work summaries. Normalized for OpenCode skills and agents.",
   "author": {
     "name": "Cursor",
     "email": "plugins@cursor.com"
@@ -53,10 +53,6 @@
     "agents": [
       "ci-watcher (mode: all)",
       "thermo-nuclear-code-quality-review (mode: all)"
-    ],
-    "rules": [
-      "cursor-team-kit/no-inline-imports.mdc",
-      "cursor-team-kit/typescript-exhaustive-switch.mdc"
     ]
   }
 }

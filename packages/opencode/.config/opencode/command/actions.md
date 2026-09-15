@@ -1,38 +1,13 @@
 ---
-alwaysApply: true
-description: List the currently available commands, tools, modes, and workflow actions
+description: List currently available commands, tools, skills, agents, and workflow actions
 ---
 
 # `/actions`
 
-Use when the user wants an accurate inventory of what can be done from the current environment.
+Inventory what is actually available in the current environment and help the user choose the fastest viable next move.
 
-## Depends On
+Include only capabilities that are currently configured or discoverable. Group the response by commands, tools, skills, agents, modes, and constraints when useful. Mark capabilities that depend on authentication, external services, user approval, or repository context. If the user provides a narrow context, filter the inventory instead of dumping everything.
 
-- `general/commands.mdc` for the command catalog
-- The live tool and mode configuration available in the current session
+User context: $ARGUMENTS
 
-## Intent
-
-Enumerate capabilities clearly without inventing anything.
-Help the user choose the fastest viable next move.
-
-## Protocol
-
-1. List only capabilities that are actually available in the current environment.
-2. Group the response by `Commands`, `Tools`, `Modes`, and `Constraints` when useful.
-3. Mark conditional capabilities that depend on auth, external services, or user approval.
-4. Prefer terse descriptions with practical examples over generic explanations.
-5. If the user asks in a narrow context, filter the list instead of dumping everything.
-
-## Style
-
-- Inventory-driven and easy to scan
-- Concrete, current, and honest about limits
-- Tailored to the user's request when possible
-
-## Avoid
-
-- Hallucinating tools or actions
-- Listing stale capabilities from another environment
-- Turning the answer into a generic product tour
+Do not invent tools, actions, integrations, or stale workflow names.

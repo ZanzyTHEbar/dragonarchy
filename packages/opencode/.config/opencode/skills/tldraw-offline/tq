@@ -1,0 +1,28 @@
+#!/bin/sh
+# <!-- installed-by:tldraw-desktop-agent-skills -->
+# tq — tldraw canvas-api helper. Usage:
+#   sh tq GET  /api/doc/DOC/script-status
+#   sh tq POST /api/search '{"code":"return await api.getDocs()"}'                # JSON body
+#   sh tq POST /api/doc/DOC/exec 'return editor.getCurrentPageShapes().length'    # raw JS body
+set -e
+sj="${XDG_CONFIG_HOME:-$HOME/.config}/tldraw/server.json"
+if [ ! -f "$sj" ]; then
+  printf '%s\n' 'tldraw server metadata is missing; the app is not running.' >&2
+  exit 1
+fi
+port=$(jq -r .port "$sj"); token=$(jq -r .token "$sj"); pid=$(jq -r .pid "$sj")
+if [ -z "$port" ] || [ -z "$token" ] || [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+  printf '%s\n' 'tldraw server metadata is stale; restart the app before retrying.' >&2
+  exit 1
+fi
+url="http://localhost:$port$2"
+auth="authorization: Bearer $token"
+if [ -z "$3" ]; then
+  curl -sS --fail --connect-timeout 2 --max-time 120 -X "$1" "$url" -H "$auth"
+else
+  case "$3" in
+    '{'*) ctype='content-type: application/json' ;;
+    *)    ctype='content-type: text/plain' ;;
+  esac
+  curl -sS --fail --connect-timeout 2 --max-time 120 -X "$1" "$url" -H "$auth" -H "$ctype" --data-binary "$3"
+fi

@@ -1,26 +1,8 @@
 ---
-description: Build the project
+description: Build the project and resolve build failures methodically
 agent: build
 ---
 
-Approved, execute in sequential priority order. 
+Build the project for the requested scope: $ARGUMENTS
 
-Utilize subagents to parallelize work where possible. 
-
-Proceed with extreme expertise and professionalism. 
-
-Ensure that we actually resolve each and every issue. 
-
-Proceed in batches. 
-
-Review all work as you go. 
-
-Proceed as a professional software engineer with expertise in clean and maintainable code. 
-
-Proceed methodically and surgically. 
-
-Utilize subagents and parallel work where possible. 
-
-Work in batched changesets. 
-
-Review the worktree after each changeset batch.
+Inspect the current state first. Work in focused batches, use parallel work only when changes are independent, review each batch, and run the closest validation after each substantive change. Resolve the actual failures rather than hiding them. Preserve unrelated worktree changes and report commands, results, blockers, and residual risk.

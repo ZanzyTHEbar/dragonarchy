@@ -9,11 +9,11 @@ metadata:
 
 # Cursor Team Kit for OpenCode
 
-This directory preserves the Cursor Team Kit plugin metadata as an OpenCode skill index. The original Cursor plugin bundles skills, agents, rules, a README, a license, and a logo. OpenCode loads the actionable parts from their native locations:
+This directory preserves the Cursor Team Kit plugin metadata as an OpenCode skill index. The original Cursor plugin bundles skills, agents, a README, a license, and a logo. OpenCode loads the actionable parts from their native locations:
 
 - Skills: `skills/<name>/SKILL.md`
 - Agents: `agent/<name>.md`
-- Rules: `rules/cursor-team-kit/*.mdc`, wired through `opencode.json` instructions as global defaults after OpenCode restart
+- Contextual TypeScript policies: covered by the global `AGENTS.md` guidance after OpenCode restart
 
 ## Source
 
@@ -55,11 +55,11 @@ This directory preserves the Cursor Team Kit plugin metadata as an OpenCode skil
 | `ci-watcher` | Monitor GitHub Actions and PR-attached checks. Available as a selectable agent and Task subagent. |
 | `thermo-nuclear-code-quality-review` | Apply the thermo-nuclear code quality rubric to a diff. Available as a selectable agent and Task subagent. |
 
-### Rules
+### Contextual Policies
 
-| Rule | Description |
+| Policy | Description |
 |:-----|:------------|
 | `typescript-exhaustive-switch` | Require exhaustive switch handling for unions/enums. |
 | `no-inline-imports` | Keep imports at module top-level for readability and consistency. |
 
-Because OpenCode `instructions` are global rather than Cursor-contextual, the imported rules are intentionally phrased as defaults with explicit exceptions instead of absolute bans.
+Because OpenCode `AGENTS.md` guidance is global rather than Cursor-contextual, these policies are intentionally phrased as defaults with explicit exceptions instead of absolute bans.

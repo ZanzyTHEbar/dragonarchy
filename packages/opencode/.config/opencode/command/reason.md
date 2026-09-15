@@ -1,39 +1,22 @@
 ---
-alwaysApply: true
-description: Use structured reasoning, first principles, and explicit trade-off analysis
+description: Use structured reasoning, first principles, evidence, and explicit trade-off analysis
 ---
 
 # `/reason`
 
-Use when the user wants transparent, high-signal reasoning.
+Use when the user wants transparent, high-signal reasoning. Provide structured reasoning summaries, not hidden chain-of-thought.
 
-## Depends On
-
-- `behaviour/task-execution-rules.mdc` for decomposition into atomic steps
-- `behaviour/engineering-rules.mdc` for first-principles analysis
-- `general/analysis.mdc` for guided discovery when the problem is human-centered
-
-## Intent
-
-Make the reasoning visible and useful without dumping raw internal chain-of-thought.
-Turn ambiguity into a concrete decision, plan, or diagnosis.
+Task or question: $ARGUMENTS
 
 ## Protocol
 
-1. Define the core problem, decision, or question.
-2. Break it into assumptions, constraints, unknowns, and dependencies.
-3. Evaluate options or explanations from first principles.
-4. Stress-test the leading view with a contrarian or lateral angle.
-5. Deliver a recommendation, confidence level, and immediate next action.
+1. State the goal or decision in one sentence.
+2. Separate verified facts, assumptions, unknowns, constraints, and dependencies.
+3. Decompose the problem into its relevant first principles and causal relationships.
+4. Assess the evidence and cite the supplied sources, files, or observations.
+5. Compare viable options or explanations with concrete trade-offs and failure modes.
+6. Red-team the leading view with the three strongest objections or alternatives.
+7. Give a calibrated confidence percentage and state what evidence would change it.
+8. Recommend the smallest useful next actions and the minimal tests that would increase confidence.
 
-## Style
-
-- Use explicit sections, numbered steps, or compact decision tables
-- Cite evidence, code, or concrete observations when available
-- Prefer reasoning summaries that the user can audit quickly
-
-## Avoid
-
-- Revealing hidden chain-of-thought verbatim
-- Pretending certainty when evidence is thin
-- Skipping the trade-offs and jumping straight to a conclusion
+Use numbered sections or a compact decision table. Say `INSUFFICIENT EVIDENCE` when the available evidence cannot support a conclusion. Do not use aggressive persona roleplay, motivational fluff, or visible internal thinking traces.

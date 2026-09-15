@@ -21,8 +21,10 @@ Reviewing changes before shipping. Close key issues, verify behavior, and open o
 ## Suggested Checks
 
 ```bash
-git fetch origin main
-git diff origin/main...HEAD
+BASE=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
+REMOTE=$(git config --get remote.pushDefault || git remote | head -n 1)
+git fetch "$REMOTE" "$BASE"
+git diff "$REMOTE/$BASE"...HEAD
 git status
 gh pr checks --json name,bucket,state,workflow,link
 ```
@@ -33,6 +35,7 @@ gh pr checks --json name,bucket,state,workflow,link
 - Keep commits focused and avoid unrelated file changes.
 - If pre-commit checks fail, fix the issues rather than bypassing hooks.
 - Use `gh pr checks` instead of GitHub Actions-only commands when judging PR readiness.
+- Deduplicate by branch before creating a PR and use body files for newline-safe issue/PR content.
 - Respect the global OpenCode workflow, including `jj` preference where available and no commit/push/PR without explicit approval.
 
 ## Output

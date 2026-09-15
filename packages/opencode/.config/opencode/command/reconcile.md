@@ -1,31 +1,12 @@
 ---
-description: Review the worktree to fully reconcile the state of the codebase against the work down, outstanding, goals, and end-product requirements.
+description: Reconcile the worktree against the stated work, goals, and end-product requirements
 agent: review-worktree
 ---
 
 # `/reconcile`
 
-Use when the user wants to fully reconcile the state of the codebase against the work down, outstanding, goals, and end-product requirements.
+Review the current worktree against the user's goal, completed work, outstanding work, and end-product requirements.
 
-## Depends On
+Inspect actual diffs and changed files. Trace important behavior, look for partial implementations, incorrect logic, placeholders, TODO/FIXME items, missing tests, security issues, and integration gaps. Use small review steps, validate findings where practical, and distinguish critical findings from warnings and residual risk. Do not modify files unless the user separately requests fixes.
 
-- `behaviour/task-execution-rules.mdc` for todo-backed progress tracking
-- `behaviour/baby-steps.mdc` for step-level completion and documentation
-
-## Intent
-
-Fully reconcile the state of the codebase against the work down, outstanding, goals, and end-product requirements.
-
-We want a full reconcile and perform an incredible deep dive update to properly reconcile the state of the codebase against the work down, outstanding, goals, and end-product requirements. 
-
-This will be a large task. You must approach it with a needle-in-a-haystack surgical methodical methodology. 
-
-We want to ensure that we properly scour with a fine-tooth-comb all previous work and truly get to a state of truth.
-
-The implementation needs to be reviewed. We need to perform an incredible deep dive into all of the previous work and implementation. 
-
-We want a full reconcile and update to properly reconcile the state of the codebase against the work down, outstanding, goals, and end-product requirements. 
-
-This will be a large task. You must approach it with a needle-in-a-haystack surgical methodical methodology. 
-
-We want to ensure that we properly scour with a fine-tooth-comb all previous work and truly get to a state of truth.
+Additional scope or requirements: $ARGUMENTS
