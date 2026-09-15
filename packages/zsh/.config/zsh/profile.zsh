@@ -176,3 +176,6 @@ export GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
 
 # Fix broken SSH_AUTH_SOCK (literal $UID from gnome-keyring on Hyprland)
 export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR}/gcr/ssh"
+
+# OMP Harness
+export PATH="${OMP_BUN_BIN_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/.bun/bin}:$PATH"

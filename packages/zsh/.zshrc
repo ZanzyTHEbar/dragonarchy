@@ -109,4 +109,8 @@ fi
 
 # Unalias zi from zinit to avoid conflicts with zoxide zi command
 unalias zi 2>/dev/null
-
+# Bun completion requires the interactive completion setup loaded above.
+BUN_INSTALL_DIR="${BUN_INSTALL:-$HOME/.bun}"
+if [[ "$ZSH_TTY_UI" == "true" && -s "$BUN_INSTALL_DIR/_bun" ]]; then
+    source "$BUN_INSTALL_DIR/_bun"
+fi
