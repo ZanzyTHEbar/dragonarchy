@@ -60,7 +60,10 @@
   "linked_edits": true,
   "show_edit_predictions": true,
   "agent_servers": {
-    },
+    "opencode": {
+      "type": "registry"
+    }
+  },
   "vim_mode": true,
   "session": {
     "trust_all_worktrees": true,
