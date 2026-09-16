@@ -1,0 +1,21 @@
+---
+host_timezone: Europe/Lisbon
+host_role: desktop
+host_platform_family: debian
+host_desktop_stack: hyprland
+host_gpu_stack: []
+host_capabilities: []
+base_polkit_admin_identities:
+  - unix-group:sudo
+
+host_profile_packages:
+  - core_cli
+  - dev
+  - hyprland_session
+
+managed_users:
+  - name: ubuntu
+    groups:
+      - sudo
+
+legacy_host_directory: hosts/ubuntu-mobile-dev

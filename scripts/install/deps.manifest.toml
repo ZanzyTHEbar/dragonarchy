@@ -216,6 +216,19 @@ packages = ["sddm", "qt6-svg", "qt6-declarative"]
 requires_features = ["sddm"]
 packages = ["sddm"]
 
+[platforms.debian.apt.hyprland_session]
+requires_features = ["hyprland"]
+packages = [
+    "hyprland",
+    "hypridle",
+    "hyprlock",
+    "hyprpicker",
+    "mate-polkit",
+    "uwsm",
+    "xdg-desktop-portal-gtk",
+    "xdg-desktop-portal-hyprland",
+]
+
 [platforms.arch.pacman.fingerprint]
 requires_hosts = ["goldendragon"]
 packages = ["fprintd", "libfprint", "usbutils"]

@@ -5,16 +5,25 @@ hyprland_enabled: true
 # and installed by the packages role.
 hyprland_session_packages_by_platform:
   arch: []
+  debian: []
 
 hyprland_required_commands:
   - uwsm
   - hypridle
   - hyprlock
 
-hyprland_required_paths:
-  - path: /usr/share/wayland-sessions/hyprland.desktop
-    description: Hyprland desktop entry
-  - path: /usr/lib/systemd/user/xdg-desktop-portal-hyprland.service
-    description: Hyprland portal user unit
-  - path: /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
-    description: Polkit authentication agent
+hyprland_required_paths_by_platform:
+  arch:
+    - path: /usr/share/wayland-sessions/hyprland.desktop
+      description: Hyprland desktop entry
+    - path: /usr/lib/systemd/user/xdg-desktop-portal-hyprland.service
+      description: Hyprland portal user unit
+    - path: /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+      description: Polkit authentication agent
+  debian:
+    - path: /usr/share/wayland-sessions/hyprland.desktop
+      description: Hyprland desktop entry
+    - path: /usr/lib/systemd/user/xdg-desktop-portal-hyprland.service
+      description: Hyprland portal user unit
+    - path: /usr/libexec/polkit-mate-authentication-agent-1
+      description: Polkit authentication agent

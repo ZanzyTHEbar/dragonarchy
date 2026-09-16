@@ -15,7 +15,7 @@
 - name: Check required Hyprland session files
   ansible.builtin.stat:
     path: "{{ item.path }}"
-  loop: "{{ hyprland_required_paths }}"
+  loop: "{{ hyprland_required_paths_by_platform[host_platform_family] }}"
   register: hyprland_path_checks
 
 - name: Assert required Hyprland session files exist
