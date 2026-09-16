@@ -214,7 +214,7 @@ packages = ["sddm", "qt6-svg", "qt6-declarative"]
 
 [platforms.debian.apt.sddm]
 requires_features = ["sddm"]
-packages = ["sddm"]
+packages = ["sddm", "xserver-xorg"]
 
 [platforms.debian.apt.hyprland_session]
 requires_features = ["hyprland"]
