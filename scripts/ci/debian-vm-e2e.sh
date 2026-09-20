@@ -2,11 +2,14 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname -- "$SCRIPT_PATH")" && pwd -P)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
 
 IMAGE_URL_DEFAULT="https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2"
 WORKDIR_DEFAULT="${TMPDIR:-/tmp}/dotfiles-debian-vm-e2e"
+WORKDIR_MARKER_NAME=".dotfiles-debian-vm-e2e-owned"
+WORKDIR_MARKER_CONTENT="dotfiles-debian-vm-e2e-workdir-v1"
 SSH_PORT_DEFAULT="2222"
 MEMORY_MB_DEFAULT="4096"
 CPUS_DEFAULT="2"
@@ -24,9 +27,12 @@ CPUS="$CPUS_DEFAULT"
 VM_NAME="$VM_NAME_DEFAULT"
 BOOT_TIMEOUT_SEC="$BOOT_TIMEOUT_SEC_DEFAULT"
 KEEP_VM=false
+CLEANUP_WORKDIR=false
 WITH_SYSTEM_CONFIG=false
 VM_BOOTED=false
 ARTIFACTS_COLLECTED=false
+WORKDIR_VALIDATED=false
+ARTIFACT_DIR_EXTERNAL=false
 HOST_NAME="$HOST_NAME_DEFAULT"
 BUNDLE_NAME="$BUNDLE_NAME_DEFAULT"
 VALIDATE_BUNDLE=""
@@ -56,7 +62,8 @@ Options:
   --install-extra-flag X   Extra flag to pass through to install.sh (repeatable)
   --skip-first-run-command Do not execute scripts/install/first-run.sh after install
   --with-system-config     Include install.sh system configuration step
-  --keep-vm                Do not clean up the VM process and working files on exit
+  --keep-vm                Do not clean up the VM process on exit
+  --cleanup-workdir        Remove a validated owned workdir on exit
   -h, --help               Show this help
 EOF
 }
@@ -74,6 +81,7 @@ parse_args() {
                 ;;
             --artifact-dir)
                 ARTIFACT_DIR="$2"
+                ARTIFACT_DIR_EXTERNAL=true
                 shift 2
                 ;;
             --ssh-port)
@@ -124,6 +132,10 @@ parse_args() {
                 KEEP_VM=true
                 shift
                 ;;
+            --cleanup-workdir)
+                CLEANUP_WORKDIR=true
+                shift
+                ;;
             -h|--help)
                 usage
                 exit 0
@@ -144,13 +156,186 @@ require_cmd() {
     }
 }
 
+normalize_path() {
+    local path="$1"
+    if [[ "$path" != /* ]]; then
+        path="$PWD/$path"
+    fi
+    readlink -m -- "$path"
+}
+
+path_has_symlink() {
+    local path="$1"
+    local current="/"
+    local component
+    local -a components
+
+    if [[ "$path" != /* ]]; then
+        path="$PWD/$path"
+    fi
+    IFS='/' read -r -a components <<< "${path#/}"
+    for component in "${components[@]}"; do
+        [[ -z "$component" || "$component" == "." ]] && continue
+        if [[ "$component" == ".." ]]; then
+            if [[ "$current" != "/" ]]; then
+                current="${current%/*}"
+                [[ -n "$current" ]] || current="/"
+            fi
+            continue
+        fi
+        if [[ "$current" == "/" ]]; then
+            current="/$component"
+        else
+            current="$current/$component"
+        fi
+        [[ -L "$current" ]] && return 0
+    done
+    return 1
+}
+
+path_is_same_or_below() {
+    [[ "$1" == "$2" || "$1" == "$2/"* ]]
+}
+
+unsafe_workdir_location() {
+    local path="$1"
+    local home_path=""
+
+    [[ "$path" == "/" ]] && return 0
+    if [[ -n "${HOME:-}" ]]; then
+        home_path="$(normalize_path "$HOME")" || return 0
+        path_is_same_or_below "$path" "$home_path" && return 0
+    fi
+    path_is_same_or_below "$path" "$PROJECT_ROOT" && return 0
+    return 1
+}
+
+current_user_owns() {
+    [[ "$(stat -c '%u' -- "$1")" == "$(id -u)" ]]
+}
+
+private_directory() {
+    local mode
+    mode="$(stat -c '%a' -- "$1")" || return 1
+    (( (8#$mode & 0022) == 0 ))
+}
+
+safe_existing_parent() {
+    local path="$1"
+    local owner mode
+
+    [[ -d "$path" && ! -L "$path" ]] || return 1
+    path="$(normalize_path "$path")" || return 1
+    path_has_symlink "$path" && return 1
+    [[ "$path" != "/" ]] || return 1
+
+    owner="$(stat -c '%u' -- "$path")" || return 1
+    mode="$(stat -c '%a' -- "$path")" || return 1
+    [[ "$owner" == "$(id -u)" || "$mode" == "1777" ]]
+}
+
+valid_workdir_marker() {
+    local marker="$1"
+    local marker_size
+
+    [[ -f "$marker" && ! -L "$marker" ]] || return 1
+    current_user_owns "$marker" || return 1
+    marker_size="$(stat -c '%s' -- "$marker")" || return 1
+    [[ "$marker_size" -eq "${#WORKDIR_MARKER_CONTENT}" ]] || return 1
+    [[ "$(<"$marker")" == "$WORKDIR_MARKER_CONTENT" ]]
+}
+
+validate_owned_workdir() {
+    local requested="$1"
+    local path marker
+
+    [[ -n "$requested" ]] || return 1
+    path_has_symlink "$requested" && return 1
+    path="$(normalize_path "$requested")" || return 1
+    unsafe_workdir_location "$path" && return 1
+    [[ -d "$path" && ! -L "$path" ]] || return 1
+    current_user_owns "$path" || return 1
+    private_directory "$path" || return 1
+    marker="$path/$WORKDIR_MARKER_NAME"
+    valid_workdir_marker "$marker"
+}
+
+create_owned_workdir() {
+    local requested="$1"
+    local path parent marker
+
+    [[ -n "$requested" ]] || return 1
+    path_has_symlink "$requested" && return 1
+    path="$(normalize_path "$requested")" || return 1
+    unsafe_workdir_location "$path" && return 1
+    if [[ -e "$path" || -L "$path" ]]; then
+        validate_owned_workdir "$path"
+        return $?
+    fi
+
+    parent="$(dirname -- "$path")"
+    safe_existing_parent "$parent" || return 1
+    mkdir -- "$path" || return 1
+    chmod 700 -- "$path" || return 1
+    marker="$path/$WORKDIR_MARKER_NAME"
+    printf '%s' "$WORKDIR_MARKER_CONTENT" >"$marker" || return 1
+    chmod 600 -- "$marker" || return 1
+    validate_owned_workdir "$path"
+}
+
+create_safe_directory_path() {
+    local target="$1"
+    local cursor="$target"
+    local parent
+    local -a missing=()
+    local index
+
+    while [[ ! -e "$cursor" ]]; do
+        [[ -L "$cursor" ]] && return 1
+        missing+=("$cursor")
+        parent="$(dirname -- "$cursor")"
+        [[ "$parent" != "$cursor" ]] || return 1
+        cursor="$parent"
+    done
+    [[ -d "$cursor" && ! -L "$cursor" ]] || return 1
+    safe_existing_parent "$cursor" || return 1
+
+    for ((index=${#missing[@]} - 1; index >= 0; index--)); do
+        mkdir -- "${missing[index]}" || return 1
+        chmod 700 -- "${missing[index]}" || return 1
+    done
+}
+
+prepare_artifact_dir() {
+    local requested="$1"
+    local path
+
+    [[ -n "$requested" ]] || return 1
+    path_has_symlink "$requested" && return 1
+    path="$(normalize_path "$requested")" || return 1
+    [[ "$path" != "/" ]] || return 1
+    [[ "$path" != "$(normalize_path "${HOME:-/}")" ]] || return 1
+    [[ "$path" != "$PROJECT_ROOT" ]] || return 1
+
+    if [[ -e "$path" || -L "$path" ]]; then
+        [[ -d "$path" && ! -L "$path" ]] || return 1
+    else
+        create_safe_directory_path "$path" || return 1
+    fi
+    [[ -d "$path" && ! -L "$path" ]] || return 1
+    current_user_owns "$path" || return 1
+    private_directory "$path" || return 1
+    safe_existing_parent "$path" || return 1
+    ARTIFACT_DIR="$path"
+}
+
 cleanup() {
     local rc=$?
-    if [[ "$VM_BOOTED" == "true" && "$ARTIFACTS_COLLECTED" != "true" ]]; then
+    if [[ "$VM_BOOTED" == "true" && "$ARTIFACTS_COLLECTED" != "true" && "$WORKDIR_VALIDATED" == "true" ]]; then
         collect_artifacts
     fi
     if [[ "$KEEP_VM" == "false" ]]; then
-        if [[ -f "${PID_FILE:-}" ]]; then
+        if [[ "$WORKDIR_VALIDATED" == "true" && -f "${PID_FILE:-}" && ! -L "${PID_FILE:-}" ]]; then
             local pid
             pid="$(<"$PID_FILE")"
             if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
@@ -159,7 +344,18 @@ cleanup() {
                 kill -9 "$pid" 2>/dev/null || true
             fi
         fi
-        [[ -n "${WORKDIR:-}" && -d "$WORKDIR" ]] && rm -rf "$WORKDIR"
+        if [[ "$CLEANUP_WORKDIR" == "true" && "$WORKDIR_VALIDATED" == "true" ]] && validate_owned_workdir "$WORKDIR"; then
+            local artifact_path workdir_path
+            artifact_path="$(normalize_path "$ARTIFACT_DIR")"
+            workdir_path="$(normalize_path "$WORKDIR")"
+            if [[ "$ARTIFACT_DIR_EXTERNAL" == "true" ]] && path_is_same_or_below "$artifact_path" "$workdir_path"; then
+                echo "Keeping workdir because external artifacts are inside it: $WORKDIR" >&2
+            else
+                rm -rf -- "$workdir_path" || echo "Unable to clean up workdir: $WORKDIR" >&2
+            fi
+        else
+            echo "Keeping VM artifacts in $WORKDIR" >&2
+        fi
     else
         echo "Keeping VM artifacts in $WORKDIR" >&2
     fi
@@ -167,20 +363,31 @@ cleanup() {
 }
 
 prepare_dirs() {
-    mkdir -p "$WORKDIR"
+    WORKDIR_VALIDATED=false
+    if ! create_owned_workdir "$WORKDIR"; then
+        echo "Refusing unsafe or unowned workdir: ${WORKDIR:-}" >&2
+        return 1
+    fi
+    WORKDIR="$(normalize_path "$WORKDIR")"
     if [[ -z "$ARTIFACT_DIR" ]]; then
         ARTIFACT_DIR="$WORKDIR/artifacts"
     fi
-    mkdir -p "$ARTIFACT_DIR"
+    if ! prepare_artifact_dir "$ARTIFACT_DIR"; then
+        echo "Refusing unsafe artifact directory: ${ARTIFACT_DIR:-}" >&2
+        return 1
+    fi
+    WORKDIR_VALIDATED=true
 
-    BASE_IMAGE="$WORKDIR/base-image.qcow2"
-    OVERLAY_IMAGE="$WORKDIR/overlay.qcow2"
-    SEED_IMAGE="$WORKDIR/seed.img"
-    SSH_KEY="$WORKDIR/id_ed25519"
-    PID_FILE="$WORKDIR/qemu.pid"
+    RUN_DIR="$(mktemp -d -- "$WORKDIR/run.XXXXXXXX")"
+    chmod 700 -- "$RUN_DIR"
+    BASE_IMAGE="$RUN_DIR/base-image.qcow2"
+    OVERLAY_IMAGE="$RUN_DIR/overlay.qcow2"
+    SEED_IMAGE="$RUN_DIR/seed.img"
+    SSH_KEY="$RUN_DIR/id_ed25519"
+    PID_FILE="$RUN_DIR/qemu.pid"
     SERIAL_LOG="$ARTIFACT_DIR/serial.log"
-    USER_DATA="$WORKDIR/user-data"
-    META_DATA="$WORKDIR/meta-data"
+    USER_DATA="$RUN_DIR/user-data"
+    META_DATA="$RUN_DIR/meta-data"
 }
 
 download_image() {
@@ -439,4 +646,6 @@ main() {
     collect_artifacts
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
