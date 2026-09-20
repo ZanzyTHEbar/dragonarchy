@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${1:-}" in
+  volume-up) remote_command='pactl set-sink-volume @DEFAULT_SINK@ +5% && volume=$(pactl get-sink-volume @DEFAULT_SINK@ | grep -oP "\d+(?=%)" | head -1); [ "$volume" -le 100 ] || pactl set-sink-volume @DEFAULT_SINK@ 100%' ;;
+  volume-down) remote_command='pactl set-sink-volume @DEFAULT_SINK@ -5%' ;;
+  mute) remote_command='pactl set-sink-mute @DEFAULT_SINK@ toggle' ;;
+  play-pause) remote_command='playerctl play-pause' ;;
+  next) remote_command='playerctl next' ;;
+  previous) remote_command='playerctl previous' ;;
+  *) exit 2 ;;
+esac
+
+if [[ $(hyprctl activewindow -j | jq -r .class) == com.moonlight_stream.Moonlight ]]; then
+  exec ssh -n -o BatchMode=yes -o ConnectTimeout=1 -i "$HOME/.ssh/spacedragon" ubuntu@192.168.0.141 "$remote_command"
+fi
+
+show_volume() {
+  local volume wob
+  volume=$(pactl get-sink-volume @DEFAULT_SINK@ | grep -oP '\d+(?=%)' | head -1)
+  wob="/tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob"
+  [[ -p $wob ]] && printf '%s\n' "$volume" >"$wob"
+}
+
+case "$1" in
+  volume-up)
+    pactl set-sink-volume @DEFAULT_SINK@ +5%
+    volume=$(pactl get-sink-volume @DEFAULT_SINK@ | grep -oP '\d+(?=%)' | head -1)
+    ((volume <= 100)) || pactl set-sink-volume @DEFAULT_SINK@ 100%
+    show_volume
+    ;;
+  volume-down)
+    pactl set-sink-volume @DEFAULT_SINK@ -5%
+    show_volume
+    ;;
+  mute)
+    pactl set-sink-mute @DEFAULT_SINK@ toggle
+    pactl get-sink-mute @DEFAULT_SINK@ | grep -q yes && { wob="/tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob"; [[ -p $wob ]] && printf '0\n' >"$wob"; } || show_volume
+    ;;
+  play-pause) playerctl play-pause ;;
+  next) playerctl next ;;
+  previous) playerctl previous ;;
+esac
