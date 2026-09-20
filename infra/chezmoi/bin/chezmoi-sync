@@ -12,7 +12,7 @@
 #
 # Design principles:
 #   - Idempotent: running twice produces the same result
-#   - Simple: <100 lines, no Stow awareness, no backup logic
+#   - Simple: no Stow awareness, no backup logic
 #   - Manifest-driven: source of truth is the manifest files
 #   - Direct: syncs to chezmoi's native source path
 
@@ -84,56 +84,810 @@ echo "==> Manifests: ${#MANIFEST_PATHS[@]} found"
 # Sync manifests to chezmoi source
 # ---------------------------------------------------------------------------
 
-mkdir -p "${CHEZMOI_SOURCE_DIR}"
+declare -a RECORD_MODES=()
+declare -a RECORD_SOURCES=()
+declare -a RECORD_DESTINATIONS=()
+declare -a RECORD_MANIFESTS=()
+declare -a COPY_SOURCES=()
+declare -a COPY_KINDS=()
+declare -a COPY_DESTINATIONS=()
+declare -a COPY_LOGICAL_DESTINATIONS=()
+declare -a COPY_RECORD_INDEXES=()
+declare -a EXCLUDE_DESTINATIONS=()
+declare -A EXCLUDED_DESTINATIONS=()
+declare -A OVERRIDE_LOGICAL_DESTINATIONS=()
 
-copy_entry() {
-    local mode="$1"
-    local source_rel="$2"
-    local dest_rel="$3"
+fail() {
+    echo "Error: $*" >&2
+    return 1
+}
+
+validate_relative_path() {
+    local kind="$1"
+    local path="$2"
+
+    if [[ -z "${path}" || "${path}" == /* || "${path}" == */ || "${path}" == *//* || "${path}" =~ (^|/)\.\.?(/|$) ]]; then
+        fail "Invalid manifest ${kind} path: ${path:-<empty>}"
+        return
+    fi
+    return 0
+}
+
+validate_source_path() {
+    local path="$1"
+
+    validate_relative_path source "${path}"
+    if [[ "${path}" != packages/* && "${path}" != "hosts/${HOST_NAME}/dotfiles/"* ]]; then
+        fail "Manifest source is outside the allowed roots: ${path}"
+        return
+    fi
+    return 0
+}
+
+validate_source_root() {
+    local source_root="$1"
+    local component current
+    local -a components
+
+    if [[ "${source_root}" != /* ]]; then
+        fail "--source-dir must be absolute: ${source_root:-<empty>}"
+        return
+    fi
+    if [[ "${source_root}" == / ]]; then
+        fail "--source-dir cannot be the filesystem root"
+        return
+    fi
+    if [[ "${source_root}" == */ || "${source_root}" == *//* || "${source_root}" =~ (^|/)\.\.?(/|$) ]]; then
+        fail "--source-dir must be canonical: ${source_root}"
+        return
+    fi
+
+    IFS='/' read -r -a components <<<"${source_root#/}"
+    current=""
+    for component in "${components[@]}"; do
+        current="${current}/${component}"
+        if [[ -L "${current}" ]]; then
+            fail "--source-dir contains a symlink: ${current}"
+            return
+        fi
+        if [[ -e "${current}" && ! -d "${current}" ]]; then
+            fail "--source-dir is not a directory: ${current}"
+            return
+        fi
+    done
+    return 0
+}
+
+validate_source_ancestors() {
+    local source_rel="$1"
+    local component current="${REPO_ROOT}"
+    local -a components
+    local index
+
+    IFS='/' read -r -a components <<<"${source_rel}"
+    for ((index = 0; index < ${#components[@]} - 1; index++)); do
+        current="${current}/${components[index]}"
+        if [[ -L "${current}" ]]; then
+            fail "Source path contains a symlink: ${current}"
+            return
+        fi
+        if [[ -e "${current}" && ! -d "${current}" ]]; then
+            fail "Source path ancestor is not a directory: ${current}"
+            return
+        fi
+    done
+    return 0
+}
+
+validate_destination_path() {
+    local destination="$1"
+    local source_root="${CHEZMOI_SOURCE_DIR}"
+    local relative component current
+    local -a components
+    local index
+
+    if [[ -L "${source_root}" ]]; then
+        fail "Destination path contains a symlink: ${source_root}"
+        return
+    fi
+    if [[ -e "${source_root}" && ! -d "${source_root}" ]]; then
+        fail "--source-dir is not a directory: ${source_root}"
+        return
+    fi
+    relative="${destination#"${source_root}/"}"
+    if [[ "${relative}" == "${destination}" || -z "${relative}" ]]; then
+        fail "Destination escapes --source-dir: ${destination}"
+        return
+    fi
+
+    IFS='/' read -r -a components <<<"${relative}"
+    current="${source_root}"
+    for ((index = 0; index < ${#components[@]}; index++)); do
+        component="${components[index]}"
+        current="${current}/${component}"
+        if (( index < ${#components[@]} - 1 )) && [[ -L "${current}" ]]; then
+            fail "Destination path contains a symlink: ${current}"
+            return
+        fi
+        if (( index < ${#components[@]} - 1 )) && [[ -e "${current}" && ! -d "${current}" ]]; then
+            fail "Destination path ancestor is not a directory: ${current}"
+            return
+        fi
+    done
+    return 0
+}
+
+parse_manifest_record() {
+    local manifest_path="$1"
+    local line_number="$2"
+    local record="$3"
+    local mode remainder source_rel dest_rel
+
+    if [[ "${record}" != *'|'* ]]; then
+        fail "Malformed manifest record at ${manifest_path}:${line_number}"
+        return
+    fi
+    mode="${record%%|*}"
+    remainder="${record#*|}"
+    if [[ "${remainder}" != *'|'* ]]; then
+        fail "Malformed manifest record at ${manifest_path}:${line_number}"
+        return
+    fi
+    source_rel="${remainder%%|*}"
+    dest_rel="${remainder#*|}"
+    if [[ "${dest_rel}" == *'|'* ]]; then
+        fail "Malformed manifest record at ${manifest_path}:${line_number}"
+        return
+    fi
 
     source_rel="${source_rel//__HOST__/${HOST_NAME}}"
     dest_rel="${dest_rel//__HOST__/${HOST_NAME}}"
+    case "${mode}" in
+        required|optional)
+            validate_source_path "${source_rel}"
+            validate_relative_path destination "${dest_rel}"
+            ;;
+        exclude)
+            if [[ -n "${source_rel}" ]]; then
+                fail "Exclude source field must be empty at ${manifest_path}:${line_number}"
+                return
+            fi
+            validate_relative_path destination "${dest_rel}"
+            ;;
+        *)
+            fail "Unknown manifest mode at ${manifest_path}:${line_number}: ${mode:-<empty>}"
+            return
+            ;;
+    esac
 
-    local source_abs="${REPO_ROOT}/${source_rel}"
-    local dest_abs="${CHEZMOI_SOURCE_DIR}/${dest_rel}"
+    RECORD_MODES+=("${mode}")
+    RECORD_SOURCES+=("${source_rel}")
+    RECORD_DESTINATIONS+=("${dest_rel}")
+    RECORD_MANIFESTS+=("${manifest_path}")
+    return 0
+}
 
-    if [[ ! -e "${source_abs}" ]]; then
-        if [[ "${mode}" == "optional" ]]; then
+parse_manifests() {
+    local manifest_path line line_number
+
+    for manifest_path in "${MANIFEST_PATHS[@]}"; do
+        line_number=0
+        while IFS= read -r line || [[ -n "${line}" ]]; do
+            ((line_number += 1))
+            if [[ "${line}" == *$'\r'* ]]; then
+                fail "Manifest record contains CR at ${manifest_path}:${line_number}"
+                return
+            fi
+            [[ -z "${line}" || "${line}" == \#* ]] && continue
+            parse_manifest_record "${manifest_path}" "${line_number}" "${line}"
+        done < "${manifest_path}"
+    done
+    return 0
+}
+
+is_reserved_name() {
+    case "$1" in
+        dot_*|executable_*|private_*|symlink_*|literal_*|empty_*|readonly_*|create_*|modify_*|remove_*|exact_*|run_*|once_*|encrypted_*|after_*|before_*|external_*|onchange_*|*.tmpl)
             return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+source_mode() {
+    stat -c '%a' -- "$1"
+}
+
+encode_name() {
+    local name="$1"
+    local encoded_name="$name"
+    local name_without_dot="$name"
+
+    if [[ "${name}" == .* ]]; then
+        name_without_dot="${name#.}"
+        encoded_name="dot_"
+        if is_reserved_name "${name_without_dot}"; then
+            encoded_name+="literal_"
         fi
-        echo "Error: Required source missing: ${source_rel}" >&2
-        exit 1
+        encoded_name+="${name_without_dot}"
+    elif is_reserved_name "${name}"; then
+        encoded_name="literal_${name}"
     fi
 
-    if [[ -d "${source_abs}" ]]; then
-        mkdir -p "${dest_abs}"
-        rsync -a --delete "${source_abs}/" "${dest_abs}/"
+    if [[ "${encoded_name}" == *.tmpl ]]; then
+        encoded_name+='.tmpl'
+    fi
+
+    printf '%s' "${encoded_name}"
+}
+
+entry_kind() {
+    local source_abs="$1"
+
+    if [[ -L "${source_abs}" ]]; then
+        printf '%s' symlink
+    elif [[ -d "${source_abs}" ]]; then
+        printf '%s' directory
+    elif [[ -f "${source_abs}" ]]; then
+        printf '%s' regular
     else
-        mkdir -p "$(dirname "${dest_abs}")"
-        cp -a "${source_abs}" "${dest_abs}"
+        echo "Error: Unsupported file type: ${source_abs}" >&2
+        return 1
     fi
 }
 
-exclude_entry() {
-    local dest_rel="$1"
-    dest_rel="${dest_rel//__HOST__/${HOST_NAME}}"
-    local dest_abs="${CHEZMOI_SOURCE_DIR}/${dest_rel}"
-    rm -rf "${dest_abs}"
+attribute_prefix() {
+    local kind="$1"
+    local source_abs="${2:-}"
+    local prefix=""
+    local mode_bits=0
+
+    case "${kind}" in
+        symlink)
+            prefix='symlink_'
+            ;;
+        regular|directory)
+            if [[ "${kind}" == regular ]]; then
+                # Chezmoi needs empty_ to retain a tracked zero-byte file.
+                mode_bits=$((8#$(source_mode "${source_abs}")))
+                if (( (mode_bits & 0077) == 0 )); then
+                    prefix+='private_'
+                fi
+                if (( (mode_bits & 0222) == 0 )); then
+                    prefix+='readonly_'
+                fi
+                if [[ "$(stat -c '%s' -- "${source_abs}")" == 0 ]]; then
+                    prefix+='empty_'
+                fi
+                if (( (mode_bits & 0111) != 0 )); then
+                    prefix+='executable_'
+                fi
+            else
+                mode_bits=$((8#$(source_mode "${source_abs}")))
+                if (( (mode_bits & 0077) == 0 )); then
+                    prefix+='private_'
+                fi
+                if (( (mode_bits & 0222) == 0 )); then
+                    prefix+='readonly_'
+                fi
+            fi
+            ;;
+        *)
+            echo "Error: Unsupported file type: ${source_abs}" >&2
+            return 1
+            ;;
+    esac
+
+    printf '%s' "${prefix}"
 }
 
-for manifest_path in "${MANIFEST_PATHS[@]}"; do
-    echo "    -> $(basename "${manifest_path}")"
-    while IFS='|' read -r mode source_rel dest_rel; do
-        [[ -z "${mode}" ]] && continue
-        [[ "${mode}" =~ ^# ]] && continue
+encoded_entry_name() {
+    local source_abs="$1"
+    local name="$2"
+    local kind="$3"
 
-        if [[ "${mode}" == "exclude" ]]; then
-            exclude_entry "${dest_rel}"
+    printf '%s%s' "$(attribute_prefix "${kind}" "${source_abs}")" "$(encode_name "${name}")"
+}
+
+encoded_direct_name() {
+    local name="$1"
+
+    if [[ "${name}" == dot_*.tmpl && "${name}" != dot_literal_*.tmpl ]]; then
+        printf 'dot_literal_%s.tmpl' "${name#dot_}"
+    elif [[ "${name}" == *.tmpl && "${name}" != literal_*.tmpl ]]; then
+        printf 'literal_%s.tmpl' "${name}"
+    else
+        printf '%s' "${name}"
+    fi
+}
+
+rendered_destination() {
+    local source_abs="$1"
+    local kind="$2"
+    local logical_destination="$3"
+    local destination_dir raw_name destination_name
+
+    destination_dir="$(dirname "${logical_destination}")"
+    raw_name="$(basename "${logical_destination}")"
+    destination_name="$(encoded_direct_name "${raw_name}")"
+    printf '%s/%s%s' "${destination_dir}" "$(attribute_prefix "${kind}" "${source_abs}")" "${destination_name}"
+}
+
+normalize_destination_component() {
+    local component="$1"
+
+    while :; do
+        case "${component}" in
+            private_*) component="${component#private_}" ;;
+            readonly_*) component="${component#readonly_}" ;;
+            empty_*) component="${component#empty_}" ;;
+            executable_*) component="${component#executable_}" ;;
+            symlink_*) component="${component#symlink_}" ;;
+            *) break ;;
+        esac
+    done
+    printf '%s' "${component}"
+}
+
+normalize_destination() {
+    local destination="$1"
+    local relative component normalized_relative=""
+    local -a components
+
+    [[ "${destination}" == "${CHEZMOI_SOURCE_DIR}" ]] && {
+        printf '%s' "${destination}"
+        return
+    }
+    relative="${destination#"${CHEZMOI_SOURCE_DIR}/"}"
+    IFS='/' read -r -a components <<<"${relative}"
+    for component in "${components[@]}"; do
+        [[ -n "${normalized_relative}" ]] && normalized_relative+='/'
+        normalized_relative+="$(normalize_destination_component "${component}")"
+    done
+    printf '%s/%s' "${CHEZMOI_SOURCE_DIR}" "${normalized_relative}"
+}
+
+destination_is_excluded() {
+    local destination
+
+    destination="$(normalize_destination "$1")"
+    [[ -n "${EXCLUDED_DESTINATIONS[${destination}]+present}" ]]
+}
+
+destination_contains_exclusion() {
+    local destination excluded normalized_excluded
+
+    destination="$(normalize_destination "$1")"
+
+    for excluded in "${EXCLUDE_DESTINATIONS[@]}"; do
+        normalized_excluded="$(normalize_destination "${excluded}")"
+        [[ "${normalized_excluded}" == "${destination}" || "${normalized_excluded}" == "${destination}/"* ]] && return 0
+    done
+    return 1
+}
+
+list_directory_children() {
+    local directory="$1"
+    local output_name="$2"
+    local dotglob_set=0
+    local nullglob_set=0
+    local -n output="${output_name}"
+
+    if [[ ! -r "${directory}" || ! -x "${directory}" ]]; then
+        fail "Directory is not readable/searchable: ${directory}"
+        return
+    fi
+    shopt -q dotglob && dotglob_set=1
+    shopt -q nullglob && nullglob_set=1
+    shopt -s dotglob nullglob
+    output=("${directory}"/*)
+    (( dotglob_set )) || shopt -u dotglob
+    (( nullglob_set )) || shopt -u nullglob
+    return 0
+}
+
+is_unsafe_distributable() {
+    local source_abs="$1"
+    local kind="$2"
+    local name lower_name
+
+    name="$(basename "${source_abs}")"
+    lower_name="${name,,}"
+    case "${lower_name}" in
+        .env*|.git|.gitmodules|.gitattributes|.gitkeep|.package|readme*|.vscode|.idea|.vs|.fleet|.project|.classpath|.settings|*.code-workspace|*.sublime-project|*.sublime-workspace|secret|secret.*|secrets|secrets.*|credential|credential.*|credentials|credentials.*|password|password.*|passwd|passwd.*|token|token.*|api_key|api_key.*|api-key|api-key.*|apikey|apikey.*|access_token|access_token.*|access-token|access-token.*|auth_token|auth_token.*|auth-token|auth-token.*|client_secret|client_secret.*|client-secret|client-secret.*|private_key|private_key.*|private-key|private-key.*|id_rsa|id_rsa-*|id_rsa_*|id_dsa|id_dsa-*|id_dsa_*|id_ecdsa|id_ecdsa-*|id_ecdsa_*|id_ed25519|id_ed25519-*|id_ed25519_*|id_xmss|id_xmss-*|id_xmss_*|identity|*.pem|*.key|*.crt|*.cer|*.der|*.p12|*.pfx|*.jks|*.keystore|*~|*.bak|*.backup|*.old|*.orig|*.rej|*.swp|*.swo|*.log|*.log.*|clipboard_history.json)
+            return 0
+            ;;
+    esac
+
+    if [[ "${kind}" == directory ]]; then
+        case "${lower_name}" in
+            .cache|node_modules|bower_components|vendor|build|dist|out|target|coverage|backup|backups|.next|.nuxt|.svelte-kit|.angular|.turbo|.parcel-cache|.vite|.webpack|.rollup.cache|.yarn|.pnpm-store|.terraform|.gradle|.m2|.venv|venv|env|__pycache__|.pytest_cache|.mypy_cache|.ruff_cache|.tox|.nox)
+                return 0
+                ;;
+        esac
+    fi
+
+    if [[ "${kind}" == regular ]] && LC_ALL=C grep -aqE -- '-----BEGIN ([A-Z0-9 ]+ )?PRIVATE KEY( BLOCK)?-----' "${source_abs}"; then
+        return 0
+    fi
+    if [[ "${kind}" == regular ]] &&
+        LC_ALL=C grep -aiE -- '^[[:space:]]*(export[[:space:]]+)?([[:alnum:]]+_)*(api[_-]?key|apikey|access[_-]?token|auth[_-]?token|bearer[_-]?token|client[_-]?secret|aws[_-]?access[_-]?key[_-]?id|aws[_-]?secret[_-]?access[_-]?key|database[_-]?url|db[_-]?password|password|passwd|secret|token|private[_-]?key|credentials?)[[:space:]]*[:=][[:space:]]*(['"'"'"][^$]|[[:alnum:]_+/-]+={0,2}([[:space:]]*(#.*)?$))' "${source_abs}" |
+        LC_ALL=C grep -avE -- '^[^:=]*[:=][[:space:]]*\$\{\{' >/dev/null; then
+        return 0
+    fi
+    if [[ "${kind}" == regular ]] &&
+        LC_ALL=C grep -aiE -- '"(api[_-]?key|apikey|access[_-]?token|auth[_-]?token|bearer[_-]?token|client[_-]?secret|aws[_-]?access[_-]?key[_-]?id|aws[_-]?secret[_-]?access[_-]?key|database[_-]?url|db[_-]?password|password|passwd|secret|token|private[_-]?key|credentials?)"[[:space:]]*:[[:space:]]*"[^${"]+"' "${source_abs}" >/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+validate_symlink_target() {
+    local source_abs="$1"
+    local destination="$2"
+    local link_target resolved_target
+
+    IFS= read -r -d '' link_target < <(readlink -z -- "${source_abs}")
+    # -m -s normalizes path components without resolving filesystem symlinks.
+    if [[ "${link_target}" == /* ]]; then
+        resolved_target="$(realpath -ms -- "${link_target}")"
+    else
+        resolved_target="$(realpath -ms -- "$(dirname "${destination}")/${link_target}")"
+    fi
+    case "${resolved_target}" in
+        "${CHEZMOI_SOURCE_DIR}"|"${CHEZMOI_SOURCE_DIR}"/*)
+            return 0
+            ;;
+        *)
+            fail "Symlink target escapes --source-dir: ${source_abs} -> ${link_target}"
+            return
+            ;;
+    esac
+}
+
+preflight_tree_entry() {
+    local source_abs="$1"
+    local kind="$2"
+    local destination="$3"
+    local child child_name child_kind child_destination
+    local -a children
+
+    validate_destination_path "${destination}"
+    destination_is_excluded "${destination}" && return 0
+    if is_unsafe_distributable "${source_abs}" "${kind}"; then
+        fail "Unsafe distributable artifact: ${source_abs}"
+        return
+    fi
+    if [[ "${kind}" == symlink ]]; then
+        validate_symlink_target "${source_abs}" "${destination}"
+    fi
+    [[ "${kind}" == directory ]] || return 0
+
+    list_directory_children "${source_abs}" children
+    for child in "${children[@]}"; do
+        child_name="$(basename "${child}")"
+        child_kind="$(entry_kind "${child}")"
+        child_destination="${destination}/$(encoded_entry_name "${child}" "${child_name}" "${child_kind}")"
+        preflight_tree_entry "${child}" "${child_kind}" "${child_destination}"
+    done
+    return 0
+}
+
+is_zsh_parent_record() {
+    local index="$1"
+
+    [[ "${RECORD_MANIFESTS[index]}" == "${MANIFEST_DIR}/session-zsh.manifest" &&
+        "${RECORD_MODES[index]}" == required &&
+        "${RECORD_SOURCES[index]}" == packages/zsh/.config/zsh &&
+        "${RECORD_DESTINATIONS[index]}" == dot_config/zsh ]]
+}
+
+is_zsh_override_record() {
+    local index="$1"
+    local source_rel="${RECORD_SOURCES[index]}"
+    local dest_rel="${RECORD_DESTINATIONS[index]}"
+
+    [[ "${RECORD_MANIFESTS[index]}" == "${MANIFEST_DIR}/session-zsh.manifest" &&
+        "${RECORD_MODES[index]}" == optional ]] || return 1
+    case "${source_rel}|${dest_rel}" in
+        "hosts/${HOST_NAME}/dotfiles/.config/zsh/hosts/${HOST_NAME}.env.zsh|dot_config/zsh/hosts/${HOST_NAME}.env.zsh"|\
+        "hosts/${HOST_NAME}/dotfiles/.config/zsh/hosts/${HOST_NAME}.zsh|dot_config/zsh/hosts/${HOST_NAME}.zsh"|\
+        "hosts/${HOST_NAME}/dotfiles/.config/zsh/functions/${HOST_NAME}.zsh|dot_config/zsh/functions/${HOST_NAME}.zsh")
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+is_path_parent() {
+    [[ "$2" == "$1/"* ]]
+}
+
+is_allowed_zsh_override_pair() {
+    local first="$1"
+    local second="$2"
+
+    (is_zsh_parent_record "${first}" && is_zsh_override_record "${second}") ||
+        (is_zsh_parent_record "${second}" && is_zsh_override_record "${first}")
+}
+
+validate_mapping_conflicts() {
+    local first second first_dest second_dest
+
+    for ((first = 0; first < ${#RECORD_MODES[@]}; first++)); do
+        [[ "${RECORD_MODES[first]}" == exclude ]] && continue
+        first_dest="${RECORD_DESTINATIONS[first]}"
+        for ((second = 0; second < first; second++)); do
+            [[ "${RECORD_MODES[second]}" == exclude ]] && continue
+            second_dest="${RECORD_DESTINATIONS[second]}"
+            if [[ "${first_dest}" == "${second_dest}" ]]; then
+                fail "Duplicate logical destination: ${first_dest}"
+                return
+            fi
+            if is_path_parent "${first_dest}" "${second_dest}" || is_path_parent "${second_dest}" "${first_dest}"; then
+                if ! is_allowed_zsh_override_pair "${first}" "${second}"; then
+                    fail "Mapped parent/child destination conflict: ${first_dest} and ${second_dest}"
+                    return
+                fi
+            fi
+        done
+    done
+    return 0
+}
+
+validate_rendered_mapping_conflicts() {
+    local first second first_destination second_destination
+
+    for ((first = 0; first < ${#COPY_DESTINATIONS[@]}; first++)); do
+        first_destination="${COPY_DESTINATIONS[first]}"
+        for ((second = 0; second < first; second++)); do
+            second_destination="${COPY_DESTINATIONS[second]}"
+            if [[ "${first_destination}" == "${second_destination}" ]]; then
+                fail "Duplicate rendered destination: ${first_destination}"
+                return
+            fi
+        done
+    done
+    return 0
+}
+
+preflight_records() {
+    local index mode source_rel dest_rel source_abs logical_destination kind destination
+
+    validate_source_root "${CHEZMOI_SOURCE_DIR}"
+    for ((index = 0; index < ${#RECORD_MODES[@]}; index++)); do
+        [[ "${RECORD_MODES[index]}" == exclude ]] || continue
+        destination="${CHEZMOI_SOURCE_DIR}/${RECORD_DESTINATIONS[index]}"
+        validate_destination_path "${destination}"
+        EXCLUDE_DESTINATIONS+=("${destination}")
+        EXCLUDED_DESTINATIONS["$(normalize_destination "${destination}")"]=1
+    done
+
+    for ((index = 0; index < ${#RECORD_MODES[@]}; index++)); do
+        mode="${RECORD_MODES[index]}"
+        [[ "${mode}" == exclude ]] && continue
+        source_rel="${RECORD_SOURCES[index]}"
+        dest_rel="${RECORD_DESTINATIONS[index]}"
+        source_abs="${REPO_ROOT}/${source_rel}"
+        logical_destination="${CHEZMOI_SOURCE_DIR}/${dest_rel}"
+
+        validate_source_ancestors "${source_rel}"
+        validate_destination_path "${logical_destination}"
+        if [[ ! -e "${source_abs}" && ! -L "${source_abs}" ]]; then
+            if [[ "${mode}" == required ]]; then
+                fail "Required source missing: ${source_rel}"
+                return
+            fi
             continue
         fi
 
-        copy_entry "${mode}" "${source_rel}" "${dest_rel}"
-    done < "${manifest_path}"
+        kind="$(entry_kind "${source_abs}")"
+        destination="$(rendered_destination "${source_abs}" "${kind}" "${logical_destination}")"
+        validate_destination_path "${destination}"
+        COPY_SOURCES+=("${source_abs}")
+        COPY_KINDS+=("${kind}")
+        COPY_DESTINATIONS+=("${destination}")
+        COPY_LOGICAL_DESTINATIONS+=("${logical_destination}")
+        COPY_RECORD_INDEXES+=("${index}")
+    done
+
+    validate_mapping_conflicts
+    validate_rendered_mapping_conflicts
+    for ((index = 0; index < ${#COPY_SOURCES[@]}; index++)); do
+        if is_zsh_override_record "${COPY_RECORD_INDEXES[index]}"; then
+            OVERRIDE_LOGICAL_DESTINATIONS["${COPY_LOGICAL_DESTINATIONS[index]}"]=1
+        fi
+        preflight_tree_entry "${COPY_SOURCES[index]}" "${COPY_KINDS[index]}" "${COPY_DESTINATIONS[index]}"
+    done
+    return 0
+}
+
+remove_destination() {
+    local destination="$1"
+
+    validate_destination_path "${destination}"
+    if [[ ! -L "${destination}" ]] && [[ -d "${destination}" ]]; then
+        chmod -R u+rwX -- "${destination}" 2>/dev/null || true
+        rm -rf -- "${destination}"
+    else
+        rm -f -- "${destination}"
+    fi
+}
+
+remove_excluded_destination_candidates() {
+    local directory="$1"
+    local directory_mode candidate
+    local -a children
+
+    directory_mode="$(source_mode "${directory}")"
+    chmod u+rwx -- "${directory}"
+    list_directory_children "${directory}" children
+    for candidate in "${children[@]}"; do
+        if destination_is_excluded "${candidate}"; then
+            remove_destination "${candidate}"
+        elif [[ -d "${candidate}" && ! -L "${candidate}" ]]; then
+            remove_excluded_destination_candidates "${candidate}"
+        fi
+    done
+    chmod "${directory_mode}" -- "${directory}"
+    return 0
+}
+
+remove_direct_alternates() {
+    local destination_dir="$1"
+    local destination_name="$2"
+    local prefix destination
+    local -a prefixes=(
+        ''
+        private_ readonly_ empty_ executable_ symlink_
+        private_readonly_ private_empty_ private_executable_
+        readonly_empty_ readonly_executable_ empty_executable_
+        private_readonly_empty_ private_readonly_executable_
+        private_empty_executable_ readonly_empty_executable_
+        private_readonly_empty_executable_
+        empty_private_ executable_empty_ readonly_private_
+    )
+
+    for prefix in "${prefixes[@]}"; do
+        destination="${destination_dir}/${prefix}${destination_name}"
+        if ! destination_contains_exclusion "${destination}" && [[ -e "${destination}" || -L "${destination}" ]]; then
+            remove_destination "${destination}"
+        fi
+    done
+    return 0
+}
+
+copy_symlink() {
+    local source_abs="$1"
+    local destination="$2"
+    local link_target
+
+    validate_destination_path "${destination}"
+    remove_destination "${destination}"
+    mkdir -p -- "$(dirname "${destination}")"
+    IFS= read -r -d '' link_target < <(readlink -z -- "${source_abs}")
+    printf '%s' "${link_target}" >"${destination}"
+    chmod 0644 -- "${destination}"
+}
+
+copy_regular_file() {
+    local source_abs="$1"
+    local destination="$2"
+
+    validate_destination_path "${destination}"
+    remove_destination "${destination}"
+    mkdir -p -- "$(dirname "${destination}")"
+    cp --preserve=mode,timestamps -- "${source_abs}" "${destination}"
+}
+
+clear_directory() {
+    local destination="$1"
+    local existing
+    local -a existing_children
+
+    validate_destination_path "${destination}"
+    if [[ -e "${destination}" || -L "${destination}" ]]; then
+        if [[ ! -d "${destination}" || -L "${destination}" ]]; then
+            remove_destination "${destination}"
+            mkdir -p -- "${destination}"
+        else
+            chmod u+rwx -- "${destination}"
+        fi
+    else
+        mkdir -p -- "${destination}"
+    fi
+
+    list_directory_children "${destination}" existing_children
+    for existing in "${existing_children[@]}"; do
+        destination_contains_exclusion "${existing}" || remove_destination "${existing}"
+    done
+    return 0
+}
+
+copy_tree() {
+    local source_abs="$1"
+    local destination="$2"
+    local logical_destination="$3"
+    local child child_name child_kind child_destination child_logical_destination
+    local -a children
+
+    destination_is_excluded "${destination}" && return 0
+    clear_directory "${destination}"
+
+    list_directory_children "${source_abs}" children
+    for child in "${children[@]}"; do
+        child_name="$(basename "${child}")"
+        child_kind="$(entry_kind "${child}")"
+        child_destination="${destination}/$(encoded_entry_name "${child}" "${child_name}" "${child_kind}")"
+        child_logical_destination="${logical_destination}/${child_name}"
+        if destination_is_excluded "${child_destination}" || [[ -n "${OVERRIDE_LOGICAL_DESTINATIONS[${child_logical_destination}]+present}" ]]; then
+            continue
+        fi
+
+        case "${child_kind}" in
+            directory)
+                copy_tree "${child}" "${child_destination}" "${child_logical_destination}"
+                validate_destination_path "${child_destination}"
+                chmod "$(source_mode "${child}")" -- "${child_destination}"
+                ;;
+            regular)
+                copy_regular_file "${child}" "${child_destination}"
+                ;;
+            symlink)
+                copy_symlink "${child}" "${child_destination}"
+                ;;
+        esac
+    done
+
+    validate_destination_path "${destination}"
+    chmod "$(source_mode "${source_abs}")" -- "${destination}"
+}
+
+copy_entry() {
+    local index="$1"
+    local source_abs="${COPY_SOURCES[index]}"
+    local kind="${COPY_KINDS[index]}"
+    local destination="${COPY_DESTINATIONS[index]}"
+    local logical_destination="${COPY_LOGICAL_DESTINATIONS[index]}"
+    local destination_dir raw_name destination_name
+
+    destination_is_excluded "${destination}" && return 0
+    destination_dir="$(dirname "${destination}")"
+    raw_name="$(basename "${logical_destination}")"
+    destination_name="$(encoded_direct_name "${raw_name}")"
+    remove_direct_alternates "${destination_dir}" "${destination_name}"
+    if [[ "${destination_name}" != "${raw_name}" ]]; then
+        remove_direct_alternates "${destination_dir}" "${raw_name}"
+    fi
+
+    case "${kind}" in
+        directory)
+            copy_tree "${source_abs}" "${destination}" "${logical_destination}"
+            ;;
+        regular)
+            copy_regular_file "${source_abs}" "${destination}"
+            ;;
+        symlink)
+            copy_symlink "${source_abs}" "${destination}"
+            ;;
+    esac
+}
+
+parse_manifests
+preflight_records
+
+# No filesystem mutation occurs before all manifest and tree preflight checks pass.
+validate_source_root "${CHEZMOI_SOURCE_DIR}"
+mkdir -p -- "${CHEZMOI_SOURCE_DIR}"
+
+for manifest_path in "${MANIFEST_PATHS[@]}"; do
+    echo "    -> $(basename "${manifest_path}")"
 done
+for ((index = 0; index < ${#COPY_SOURCES[@]}; index++)); do
+    copy_entry "${index}"
+done
+remove_excluded_destination_candidates "${CHEZMOI_SOURCE_DIR}"
 
 echo "==> Sync complete. Run 'chezmoi apply' to update home directory."

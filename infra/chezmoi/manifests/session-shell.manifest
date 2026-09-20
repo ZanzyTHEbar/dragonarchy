@@ -10,3 +10,6 @@ optional|hosts/__HOST__/dotfiles/.config/systemd/user/fprintd-watchdog.timer|dot
 exclude||dot_config/clipse/theme.toml
 exclude||dot_config/clipse/clipboard_history.json
 exclude||dot_config/swaync/style.css
+exclude||dot_config/clipse/clipse.log
+exclude||dot_config/clipse/tmp_files
+exclude||dot_config/clipse/README.md
