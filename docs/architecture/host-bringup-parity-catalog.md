@@ -1,8 +1,29 @@
-# Host Bringup Parity Catalog
+# Host Bringup Parity Catalog — leaf 1.1.1 baseline
 
 ## Purpose
 
-This document catalogs what remains to reach full host bringup parity after the managed-host pivot to Ansible + chezmoi.
+This document catalogs the repository baseline needed to reach full host bringup parity after the managed-host pivot to Ansible + chezmoi.
+
+It is **not** a parity approval. Every relationship in this document is a
+proposal with a named producer, writer, verifier, recovery owner and pending
+decision owner. The machine-readable enumeration is
+`docs/architecture/ansible-chezmoi-retirement/gates/contract/baseline.json`;
+this catalog is its human-facing reconciliation.
+
+## Baseline boundary
+
+- The historical catalog modeled four hosts (`dragon`, `firedragon`,
+  `goldendragon`, `microdragon`). The current inventory contains six, adding
+  `opencode-runtime` and `ubuntu-mobile-dev`; all six are listed below.
+- `AUDIT.md` remains immutable. Its recorded SHA-256 is checked by the leaf
+  test. Corrections and current observations belong in the contract baseline,
+  not in the audit.
+- Repository presence, role presence, archived runbooks, historical success,
+  cleanup claims and task percentages are not current-SHA or live-host proof.
+  Live drift, credentials, hardware state, exact platform facts and current
+  host outcomes remain **UNKNOWN**.
+- `PENDING` means unresolved. It is not retained, retired, approved,
+  parity-complete or permission to execute a live operation.
 
 The goal is not a vague migration summary.
 
@@ -17,10 +38,11 @@ The goal is a host-by-host implementation catalog of:
 
 The comparison uses these facts:
 
-- `main` has no `infra/` control plane
+- the historical `main` comparison had no `infra/` control plane; this
+  checkout's current branch does
 - `./install` is the canonical managed-host entrypoint
 - `./install.sh` is deprecated and guarded for managed hosts
-- host trees under `hosts/<host>/etc` and `hosts/<host>/dotfiles` are canonical payload sources consumed by Ansible roles and chezmoi manifests until fully absorbed or explicitly retained
+- legacy host trees under `hosts/<host>/etc/` and `hosts/<host>/dotfiles/` are repository payload candidates referenced by Ansible roles and chezmoi manifests until fully absorbed or explicitly retained
 - the current branch adds the new architecture primarily under:
   - `infra/ansible/`
   - `infra/chezmoi/`
@@ -33,12 +55,14 @@ That means most parity analysis is:
 
 ## In-scope hosts
 
-Current modeled hosts from `infra/ansible/inventory/hosts.yml`:
+Current inventory hosts from `infra/ansible/inventory/hosts.yml`:
 
 - `dragon`
 - `firedragon`
 - `goldendragon`
 - `microdragon`
+- `opencode-runtime`
+- `ubuntu-mobile-dev`
 
 ## Current new-architecture host mapping
 
@@ -66,7 +90,25 @@ Current modeled hosts from `infra/ansible/inventory/hosts.yml`:
 - host vars: `infra/ansible/inventory/host_vars/microdragon.yml`
 - capabilities: `netbird`
 
-## Shared new-architecture ownership
+### `opencode-runtime`
+
+- groups: `debian`, `server`
+- host vars: `infra/ansible/inventory/host_vars/opencode-runtime.yml`
+- capabilities: explicit local-connection runtime targeting; no host
+  capability list is selected in the current inventory
+
+### `ubuntu-mobile-dev`
+
+- groups: `debian`, `desktop`, `hyprland`, `sddm`
+- host vars: `infra/ansible/inventory/host_vars/ubuntu-mobile-dev.yml`
+- capabilities: desktop/session composition; no host-specific capability list
+  is selected in the current inventory
+
+## Shared new-architecture ownership observations
+
+The paths below are observed producers/candidates, not accepted ownership.
+Role or manifest presence does not prove complete behavior, current target
+state or retirement readiness.
 
 Current role directories:
 
@@ -128,13 +170,13 @@ Legacy recovery/unmanaged bringup still exists under:
 
 ### 2. Duplicate package truth
 
-**Closed for Ansible convergence:** `scripts/install/deps.manifest.toml` is canonical. The `packages` role resolves plans via `scripts/install/export-package-plan.sh` (see `docs/architecture/package-manifest-contract.md`). Role-local package lists were removed or emptied where migrated (e.g. `amd_gpu`, `nvidia`, `tlp` stacks; `roles/packages/vars/main.yml` retired).
+**Repository observation, still PENDING:** `scripts/install/deps.manifest.toml` is the proposed package source. The `packages` role resolves plans via `scripts/install/export-package-plan.sh` (see `docs/architecture/package-manifest-contract.md`). Role-local package lists were removed or emptied in some migrated areas (e.g. `amd_gpu`, `nvidia`, `tlp` stacks; `roles/packages/vars/main.yml` retired), but provider acceptance and complete selected plans remain downstream work.
 
 **Remaining seams (incremental):** some roles still carry install lists for session/UI stacks (`hyprland`, `sddm`, `fingerprint`, `openfortivpn`) until those are folded into manifest-backed groups or host profiles in a later batch.
 
-### 3. NetBird is now role-owned, but not yet parity-complete
+### 3. NetBird has a role candidate, but is not parity-complete
 
-Hosts and capability mapping now have a real `roles/netbird`.
+Hosts and capability mapping now have a candidate `roles/netbird`.
 
 That means:
 
@@ -142,7 +184,8 @@ That means:
 - `firedragon`
 - `microdragon`
 
-all have a canonical system owner for NetBird installation and service state.
+all have an observed Ansible candidate for NetBird installation and service
+state; this is not live or final ownership proof.
 
 The remaining gap is host-specific parity around surrounding behavior:
 
@@ -172,14 +215,17 @@ They matter because parity is not enough if runtime ownership is still ambiguous
 
 If legacy shell, Stow, or host trees can still write or source the same concern, then the pivot is incomplete even when a new role exists.
 
-### Duplicate ownership matrix
+### Duplicate ownership matrix (all rows PENDING)
+
+The `Proposed owner` column records the current candidate only. Each row still
+needs its named downstream decision and later behavioral verification.
 
 
-| Domain                                            | Legacy owner paths                                                                                                                                     | Current new owner paths                                                                                             | Conflict type    | Canonical owner                                                                            | Remaining pivot work                                                                                                                          |
+| Domain                                            | Legacy owner paths                                                                                                                                     | Current new owner paths                                                                                             | Conflict type    | Proposed owner                                                                            | Remaining pivot work                                                                                                                          |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | top-level bringup                                 | `install.sh`, `scripts/install/*`, `hosts/<host>/setup.sh`                                                                                             | `./install`, `infra/ansible/playbooks/*.yml`, `infra/chezmoi/bin/chezmoi-sync`                                      | legacy seam      | Ansible + chezmoi                                                                          | keep legacy installer guarded and finish removing stale operator docs                                                                         |
 | validation gate                                   | `scripts/install/validate.sh`                                                                                                                          | `infra/validate-parity.sh`, role `validate.yml` and `verify.yml`, CI syntax checks                                  | partial overlap  | Ansible/chezmoi parity gate                                                                | extend parity validation to strict behavioral checks and pending package tiers                                                                |
-| package truth                                     | `scripts/install/deps.manifest.toml`                                                                                                                   | `infra/ansible/roles/packages` (manifest plan consumer) + optional legacy role overrides                                                           | **resolved**     | **`deps.manifest.toml` + `export-package-plan.sh`**                                        | keep thinning role-local lists (`hyprland`, `sddm`, …) into manifest groups                                                                    |
+| package truth                                     | `scripts/install/deps.manifest.toml`                                                                                                                   | `infra/ansible/roles/packages` (manifest plan consumer) + optional legacy role overrides                                                           | PENDING          | proposed: **`deps.manifest.toml` + `export-package-plan.sh`**                             | leaf-1.1.5 must decide authority and keep thinning role-local lists (`hyprland`, `sddm`, …) into manifest groups                              |
 | SDDM theme payload and active theme               | `packages/sddm/**`, `scripts/install/stow-system.sh`, `scripts/theme-manager/refresh-sddm`, `scripts/theme-manager/sddm-set`                           | `infra/ansible/roles/sddm/tasks/configure.yml`                                                                      | partial overlap  | Ansible `sddm` role                                                                        | stop using system Stow and theme-manager as the runtime writer for managed hosts                                                              |
 | baseline polkit admin rule                        | `packages/polkit/etc/polkit-1/rules.d/49-wheel-admin.rules`                                                                                            | `infra/ansible/roles/base/tasks/configure.yml`                                                                      | full duplication | Ansible `base` role                                                                        | remove `polkit` from system-Stow bringup for managed hosts                                                                                    |
 | fingerprint PAM insertion                         | `hosts/goldendragon/setup.sh`, `hosts/goldendragon/etc/pam.d/*`                                                                                        | `infra/ansible/roles/fingerprint/defaults/main.yml`, `infra/ansible/roles/fingerprint/tasks/configure.yml`          | partial overlap  | Ansible `fingerprint` role                                                                 | stop relying on `setup.sh` edits; own `sudo`, `polkit-1`, `system-local-login`, and `sddm` insertion only through the role                    |
@@ -191,9 +237,9 @@ If legacy shell, Stow, or host trees can still write or source the same concern,
 | theme-generated user files                        | `scripts/theme-manager/*` writes runtime state under `$HOME`                                                                                           | chezmoi manifests are beginning to own adjacent trees                                                               | migration seam   | split by concern: chezmoi for static user files, theme-manager for runtime-generated state | document every runtime-generated exception and either keep it runtime-owned or move generation into the new model                             |
 | NVIDIA kernel and module state                    | `scripts/install/system-config.sh`, `hosts/goldendragon/etc/modprobe.d/*`                                                                              | `infra/ansible/roles/nvidia/*`                                                                                      | partial overlap  | Ansible `nvidia` role                                                                      | keep host tree as payload source, not runtime writer                                                                                          |
 | AMD GPU kernel, module, polkit, and service state | `scripts/install/system-config.sh`, `hosts/dragon/etc/**`, `hosts/firedragon/etc/**`                                                                   | `infra/ansible/roles/amd_gpu/*`                                                                                     | partial overlap  | Ansible `amd_gpu` role                                                                     | keep host tree as payload source, not runtime writer                                                                                          |
-| Intel GPU kernel and module state                 | `scripts/install/system-config.sh`                                                                                                                     | `infra/ansible/roles/intel_gpu/*`                                                                                   | resolved         | Ansible `intel_gpu` role                                                                   | validate on goldendragon hardware                                                                                                             |
+| Intel GPU kernel and module state                 | `scripts/install/system-config.sh`                                                                                                                     | `infra/ansible/roles/intel_gpu/*`                                                                                   | PENDING          | proposed: Ansible `intel_gpu` role                                                         | leaf-1.1.2 platform decision and validate on goldendragon hardware                                                                             |
 | laptop power policy                               | `scripts/install/setup/power-management.sh`, host TLP config under `hosts/*/etc/tlp.d/*`                                                               | `infra/ansible/roles/tlp/*`, `infra/ansible/roles/tlp/files/hosts/*`                                                | partial overlap  | Ansible `tlp` role                                                                         | retire shell-side service toggles for managed hosts and eventually delete or archive the legacy reference copy                                |
-| resolved DNS drop-ins                             | legacy host-tree DNS copies                                                                                                                            | `infra/ansible/roles/resolved/*`, `infra/ansible/roles/resolved/files/hosts/*`                                      | **resolved**     | Ansible `resolved` role                                                                    | keep DNS payloads role-local; do not reintroduce host-tree runtime sources                                                                    |
+| resolved DNS drop-ins                             | legacy host-tree DNS copies                                                                                                                            | `infra/ansible/roles/resolved/*`, `infra/ansible/roles/resolved/files/hosts/*`                                      | PENDING          | proposed: Ansible `resolved` role                                                         | leaf-1.1.6 source decision; keep DNS payloads role-local unless the decision changes                                                            |
 | OpenFortiVPN units and helper                     | `hosts/goldendragon/etc/systemd/system/openfortivpn*.service`, `hosts/goldendragon/dotfiles/.local/bin/avular-vpn-dns`                                 | `infra/ansible/roles/openfortivpn/*`, `infra/ansible/roles/openfortivpn/files/hosts/goldendragon/*`                 | partial overlap  | Ansible `openfortivpn` role                                                                | stop treating host files as a live source and eventually delete or archive the legacy reference copy                                          |
 | NetBird capability                                | legacy host setup NetBird paths                                                                                                                        | `infra/ansible/roles/netbird/*`                                                                                     | partial overlap  | Ansible `netbird` role                                                                     | retire host setup logic and finish any host-specific DNS or routing parity that still lives outside the role                                  |
 | declared system service enablement                | `scripts/install/setup/system-services.sh`, `hosts/<host>/setup.sh`                                                                                    | owning Ansible roles (`iwd`, `networkmanager`, `acpi_wakeup`, `power_sleep`, `asus_laptop`, `tlp`, `resolved`, …)    | partial overlap  | owning Ansible role                                                                        | do not port legacy opportunistic service detection; add explicit capabilities before owning generic Bluetooth, CUPS, Docker, or power-profile services |
@@ -202,16 +248,17 @@ If legacy shell, Stow, or host trees can still write or source the same concern,
 | host-specific hardware and service extras         | `hosts/dragon/setup.sh`, `hosts/firedragon/setup.sh`, `hosts/goldendragon/setup.sh`, assorted `hosts/*/etc/**`                                         | only partially represented in current roles                                                                         | migration seam   | explicit role ownership, chezmoi for `$HOME` only                                          | port remaining host `/etc`, service, and hardware slices into explicit roles or mark them as intentional exceptions                           |
 
 
-### Canonical-owner decisions already implied by the new architecture
+### Proposed ownership hypotheses (PENDING, not approval)
 
-These should now be treated as policy:
+These are candidate boundaries to reconcile; they must not be treated as
+approved policy until the named decision and later proof gates pass:
 
-- Ansible is the canonical owner of system packages.
-- Ansible is the canonical owner of `/etc`.
-- Ansible is the canonical owner of system services and service enablement.
-- chezmoi is the canonical owner of static user-state under `$HOME`.
-- host trees under `hosts/<host>/etc/` and `hosts/<host>/dotfiles/` are canonical payload sources when referenced by Ansible roles or chezmoi manifests; they are not runtime writers.
-- host setup scripts are not the long-term runtime owner of any feature that already has an Ansible role or chezmoi manifest.
+- proposed: Ansible owns system packages.
+- proposed: Ansible owns `/etc`.
+- proposed: Ansible owns system services and service enablement.
+- proposed: chezmoi owns static user-state under `$HOME`.
+- proposed: host trees under `hosts/<host>/etc/` and `hosts/<host>/dotfiles/` are payload sources when referenced by Ansible roles or chezmoi manifests; they are not runtime writers.
+- proposed: host setup scripts are not the long-term runtime owner of a feature that already has an Ansible role or chezmoi manifest.
 
 ### Canonical-owner decisions that still need explicit resolution
 
@@ -392,7 +439,7 @@ Chezmoi:
 - no committed `dragon`-specific generated tree
 - host zsh overlays are now covered by `session-zsh.manifest`
 
-### Already covered or strongly represented
+### Repository paths observed (not proof of coverage)
 
 - resolved DNS via `roles/resolved` and role-local `roles/resolved/files/hosts/dragon/`
 - AMD GPU core role coverage via `roles/amd_gpu`
@@ -484,7 +531,7 @@ Chezmoi:
 - no committed `firedragon`-specific generated tree
 - host zsh overlays are now covered by `session-zsh.manifest`
 
-### Already covered or strongly represented
+### Repository paths observed (not proof of coverage)
 
 - `etc/tlp.d/01-firedragon.conf` via `roles/tlp`
 - `etc/modprobe.d/amdgpu.conf` via `roles/amd_gpu`
@@ -591,7 +638,7 @@ Chezmoi:
 - current manifests can include `hosts/goldendragon/dotfiles/.config/waybar-hosts/goldendragon/`
 - host zsh overlays are now covered by `session-zsh.manifest`
 
-### Already covered or strongly represented
+### Repository paths observed (not proof of coverage)
 
 - `etc/tlp.d/01-goldendragon.conf` via `roles/tlp`
 - `etc/systemd/resolved.conf.d/dns.conf` via `roles/resolved` and role-local `roles/resolved/files/hosts/goldendragon/`
@@ -672,7 +719,7 @@ Chezmoi:
 - no host dotfiles source exists
 - no current chezmoi slice targets `microdragon`
 
-### Already covered or strongly represented
+### Repository paths observed (not proof of coverage)
 
 - Debian server identity via inventory and host vars
 - base user management via `roles/users`
@@ -690,6 +737,84 @@ Chezmoi:
 - verify the new `netbird` role against real Debian behavior on `microdragon`
 - keep legacy setup's NetBird skip until the setup script is fully retired
 - decide whether `microdragon` should gain a `.traits` file and/or host dotfiles source
+
+## Inventory extensions
+
+The two inventory hosts that were absent from the historical four-host
+catalog are baseline rows, not silent approvals:
+
+### `opencode-runtime`
+
+- source: `hosts/opencode-runtime/setup.sh`, `hosts/opencode-runtime/.traits`
+- current selectors: `debian`, `server`, `ansible_connection: local`,
+  `managed_users: coder`
+- proposed producer: `infra/ansible/playbooks/site.yml` with an explicit
+  local-runtime target contract
+- proposed writer: Ansible system state; chezmoi only after target binding
+- proposed verifier: `leaf-1.6.7`, then `leaf-1.7.5`
+- recovery owner: opencode-runtime operator with local container/host recovery
+- pending decision: **PENDING — leaf-1.1.2** must confirm release,
+  architecture, target, user and home binding
+
+### `ubuntu-mobile-dev`
+
+- source: `hosts/ubuntu-mobile-dev/**` is referenced by inventory but absent
+  from this repository snapshot; live absence is unknown
+- current selectors: `debian`, `desktop`, `hyprland`, `sddm`, managed user
+  `ubuntu`
+- proposed producer: `infra/ansible/playbooks/site.yml` with Ubuntu-specific
+  providers
+- proposed writer: Ansible system state and selected chezmoi user state
+- proposed verifier: `leaf-1.6.8`, then `leaf-1.7.6`
+- recovery owner: ubuntu-mobile-dev operator with physical/console recovery
+- pending decision: **PENDING — leaf-1.1.2** must confirm exact Ubuntu release,
+  architecture and package/session boundary
+
+## Host/profile capability ownership matrix
+
+Each comma-separated capability ID below is a separate host/profile
+relationship. The ownership tuple on that row applies to every listed ID;
+the capability-specific proposed tuple and source list are in
+`gates/contract/baseline.json`. No row is approved.
+
+| Host/profile | Capability IDs | Proposed producer | Proposed writer | Proposed verifier | Recovery owner | Pending decision |
+|---|---|---|---|---|---|---|
+| `dragon` | `baseline-system`, `platform-arch`, `profile-desktop`, `desktop-hyprland`, `desktop-sddm`, `desktop-session-stack`, `desktop-audio-services`, `desktop-visual-integration`, `package-core-cli`, `package-development`, `package-host`, `package-fonts`, `package-aur`, `package-vendor`, `package-runtimes`, `optional-gui`, `optional-sharing`, `optional-creative`, `optional-gaming`, `optional-input`, `user-static`, `user-devtools`, `user-git-ssh`, `user-zsh`, `gpu-amd`, `hardware-aio`, `hardware-v4l2loopback`, `power-sleep`, `network-netbird`, `network-resolved`, `boot-plymouth`, `boot-parameters`, `firewall-polkit`, `sddm-ownership`, `source-encoding`, `source-sync`, `source-target`, `source-migration`, `source-cutover`, `generated-state`, `theme-runtime`, `secrets`, `pkgsolve`, `validation-ci`, `validation-idempotency` | `infra/ansible/playbooks/site.yml plus the capability-specific producer in capabilities` | `Ansible system writer plus selected chezmoi/runtime writers after decisions` | `leaf-1.6.3 qualification and leaf-1.7.1 cutover evidence` | `dragon cutover operator with physical/console recovery` | `leaf-1.1.2` |
+| `firedragon` | `baseline-system`, `platform-arch`, `profile-desktop`, `profile-laptop`, `desktop-hyprland`, `desktop-sddm`, `desktop-session-stack`, `desktop-audio-services`, `desktop-visual-integration`, `package-core-cli`, `package-development`, `package-host`, `package-fonts`, `package-aur`, `package-vendor`, `package-runtimes`, `optional-gui`, `optional-sharing`, `optional-creative`, `optional-gaming`, `optional-input`, `user-static`, `user-devtools`, `user-git-ssh`, `user-zsh`, `gpu-amd`, `hardware-asus`, `power-tlp`, `power-hibernation`, `network-netbird`, `network-resolved`, `boot-plymouth`, `boot-parameters`, `firewall-polkit`, `sddm-ownership`, `source-encoding`, `source-sync`, `source-target`, `source-migration`, `source-cutover`, `generated-state`, `theme-runtime`, `secrets`, `pkgsolve`, `validation-ci`, `validation-idempotency` | `infra/ansible/playbooks/site.yml plus the capability-specific producer in capabilities` | `Ansible system writer plus selected chezmoi/runtime writers after decisions` | `leaf-1.6.4 qualification and leaf-1.7.2 cutover evidence` | `firedragon cutover operator with physical/console recovery` | `leaf-1.1.2` |
+| `goldendragon` | `baseline-system`, `platform-arch`, `profile-desktop`, `profile-laptop`, `desktop-hyprland`, `desktop-sddm`, `desktop-session-stack`, `desktop-audio-services`, `desktop-visual-integration`, `package-core-cli`, `package-development`, `package-host`, `package-fonts`, `package-aur`, `package-vendor`, `package-runtimes`, `optional-gui`, `optional-sharing`, `optional-creative`, `optional-gaming`, `optional-input`, `user-static`, `user-devtools`, `user-git-ssh`, `user-zsh`, `user-host-watchdog`, `gpu-intel`, `gpu-nvidia`, `hardware-v4l2loopback`, `power-tlp`, `power-sleep`, `power-acpi`, `auth-fingerprint`, `network-resolved`, `network-iwd`, `network-networkmanager`, `network-fortinet`, `boot-plymouth`, `boot-parameters`, `firewall-polkit`, `sddm-ownership`, `source-encoding`, `source-sync`, `source-target`, `source-migration`, `source-cutover`, `generated-state`, `theme-runtime`, `secrets`, `pkgsolve`, `validation-ci`, `validation-idempotency` | `infra/ansible/playbooks/site.yml plus the capability-specific producer in capabilities` | `Ansible system writer plus selected chezmoi/runtime writers after decisions` | `leaf-1.6.5 qualification and leaf-1.7.3 cutover evidence` | `goldendragon cutover operator with physical/console recovery` | `leaf-1.1.2` |
+| `microdragon` | `baseline-system`, `platform-debian`, `profile-server`, `package-core-cli`, `package-runtimes`, `user-static`, `user-devtools`, `user-git-ssh`, `user-zsh`, `network-netbird`, `boot-plymouth`, `boot-parameters`, `firewall-polkit`, `source-encoding`, `source-sync`, `source-target`, `source-migration`, `source-cutover`, `secrets`, `pkgsolve`, `validation-ci`, `validation-idempotency` | `infra/ansible/playbooks/site.yml plus the capability-specific producer in capabilities` | `Ansible server writer plus selected chezmoi/runtime writers after decisions` | `leaf-1.6.6 qualification and leaf-1.7.4 cutover evidence` | `microdragon cutover operator with console recovery` | `leaf-1.1.2` |
+| `opencode-runtime` | `baseline-system`, `platform-debian`, `profile-server`, `package-core-cli`, `package-runtimes`, `user-static`, `user-devtools`, `user-git-ssh`, `user-zsh`, `boot-plymouth`, `boot-parameters`, `firewall-polkit`, `source-encoding`, `source-sync`, `source-target`, `source-migration`, `source-cutover`, `secrets`, `pkgsolve`, `validation-ci`, `validation-idempotency` | `infra/ansible/playbooks/site.yml with explicit local-runtime target binding` | `Ansible local-runtime writer plus chezmoi only after target resolution` | `leaf-1.6.7 qualification and leaf-1.7.5 cutover evidence` | `opencode-runtime operator with local container/host recovery` | `leaf-1.1.2` |
+| `ubuntu-mobile-dev` | `baseline-system`, `platform-debian`, `profile-desktop`, `desktop-hyprland`, `desktop-sddm`, `desktop-session-stack`, `desktop-audio-services`, `desktop-visual-integration`, `package-core-cli`, `package-development`, `package-fonts`, `package-runtimes`, `optional-gui`, `optional-sharing`, `optional-creative`, `optional-gaming`, `optional-input`, `user-static`, `user-devtools`, `user-git-ssh`, `user-zsh`, `boot-plymouth`, `boot-parameters`, `firewall-polkit`, `sddm-ownership`, `source-encoding`, `source-sync`, `source-target`, `source-migration`, `source-cutover`, `generated-state`, `theme-runtime`, `secrets`, `pkgsolve`, `validation-ci`, `validation-idempotency` | `infra/ansible/playbooks/site.yml plus Ubuntu-specific package/session providers` | `Ansible system writer plus selected chezmoi/runtime writers after decisions` | `leaf-1.6.8 qualification and leaf-1.7.6 cutover evidence` | `ubuntu-mobile-dev operator with physical/console recovery` | `leaf-1.1.2` |
+| `generic-desktop` | `generic-desktop`, `profile-desktop`, `desktop-hyprland`, `desktop-sddm`, `desktop-session-stack`, `desktop-audio-services`, `desktop-visual-integration`, `package-core-cli`, `package-fonts`, `package-aur`, `package-vendor`, `optional-gui`, `optional-sharing`, `optional-creative`, `optional-gaming`, `optional-input`, `user-static`, `user-devtools`, `user-git-ssh`, `user-zsh`, `boot-plymouth`, `boot-parameters`, `firewall-polkit`, `sddm-ownership`, `source-encoding`, `source-sync`, `source-target`, `source-migration`, `source-cutover`, `generated-state`, `theme-runtime`, `secrets`, `pkgsolve`, `validation-ci`, `validation-idempotency` | `leaf-1.1.4-selected generic desktop composition` | `install-selected Ansible/chezmoi composition` | `leaf-1.7.14 generic desktop final acceptance` | `generic desktop maintainer with disposable recovery procedure` | `leaf-1.1.4` |
+| `generic-headless` | `generic-headless`, `profile-server`, `package-core-cli`, `package-runtimes`, `user-static`, `user-devtools`, `user-git-ssh`, `user-zsh`, `boot-plymouth`, `boot-parameters`, `firewall-polkit`, `source-encoding`, `source-sync`, `source-target`, `source-migration`, `source-cutover`, `secrets`, `pkgsolve`, `validation-ci`, `validation-idempotency` | `leaf-1.1.4-selected generic headless composition` | `install-selected Ansible composition` | `leaf-1.7.15 generic headless final acceptance` | `generic headless maintainer with disposable recovery procedure` | `leaf-1.1.4` |
+
+## Source inventory mapping and evidence boundaries
+
+The following IDs and categories are the complete source inventory. Paths and
+ownership tuples are authoritative in `gates/contract/baseline.json`; this
+table is the catalog cross-check, not a second source list.
+
+| Source ID | Category | Repository paths | Pending owner |
+|---|---|---|---|
+| `inventory-and-host-vars` | platform | `infra/ansible/inventory/hosts.yml`, `infra/ansible/inventory/group_vars/*`, `infra/ansible/inventory/host_vars/*` | `leaf-1.1.2` |
+| `legacy-host-dragon` | source | `hosts/dragon/**` | `leaf-1.1.6` |
+| `legacy-host-firedragon` | source | `hosts/firedragon/**` | `leaf-1.1.6` |
+| `legacy-host-goldendragon` | source | `hosts/goldendragon/**` | `leaf-1.1.6` |
+| `legacy-host-microdragon` | source | `hosts/microdragon/setup.sh` | `leaf-1.1.6` |
+| `legacy-host-opencode-runtime` | platform | `hosts/opencode-runtime/setup.sh`, `hosts/opencode-runtime/.traits` | `leaf-1.1.2` |
+| `legacy-host-ubuntu-mobile-dev` | platform | `hosts/ubuntu-mobile-dev/**` *(intentionally missing in this checkout)* | `leaf-1.1.2` |
+| `generic-profile-sources` | generic | `hosts/desktop/**`, `hosts/headless/**` | `leaf-1.1.4` |
+| `package-manifest` | package | `scripts/install/deps.manifest.toml`, `scripts/install/export-package-plan.sh`, `scripts/install/install-deps.sh` | `leaf-1.1.5` |
+| `ansible-role-sources` | package | `infra/ansible/roles/common`, `infra/ansible/roles/base`, `infra/ansible/roles/packages`, `infra/ansible/roles/users`, and the listed role paths in the baseline | `leaf-1.1.5` |
+| `chezmoi-source-slices` | source | `infra/chezmoi/manifests/*`, `infra/chezmoi/bin/chezmoi-sync`, `infra/chezmoi/.chezmoiignore` | `leaf-1.1.6` |
+| `managed-entrypoints` | platform | `install`, `infra/ansible/playbooks/site.yml`, `infra/ansible/run-playbook.sh`, `infra/chezmoi/bin/chezmoi-sync` | `leaf-1.1.2` |
+| `legacy-control-plane` | source | `install.sh`, `scripts/install/setup.sh`, `scripts/install/stow-system.sh`, `scripts/install/system-config.sh`, `scripts/install/update.sh`, `scripts/install/setup/*`, `scripts/lib/control-plane-mode.sh` | `leaf-1.1.6` |
+| `migration-and-validation-sources` | package | `migrations/**`, `scripts/install/validate.sh`, `infra/validate-parity.sh`, `tests/docker/**`, `scripts/ci/debian-vm-e2e.sh`, `tools/pkgsolve/**` | `leaf-1.1.5` |
+| `archived-runbooks` | source | `docs/archive/migration-2026-05/` runbooks listed in the baseline | `leaf-1.1.6` |
+
+The intentional missing path is limited to
+`legacy-host-ubuntu-mobile-dev` → `hosts/ubuntu-mobile-dev/**`; the checker
+rejects any other missing or unlisted path.
 
 ## Cross-host implementation checklist
 

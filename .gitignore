@@ -57,3 +57,7 @@ infra/packer/*.auto.pkrvars.json
 
 # pkgsolve may be cloned as a nested working tree; never commit its .git metadata
 tools/pkgsolve/.git/
+
+# Local Unlazy execution state; durable contracts live in docs/architecture.
+.unlazy/
+.unlazy-hook-state.json
