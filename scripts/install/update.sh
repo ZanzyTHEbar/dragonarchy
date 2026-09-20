@@ -8,6 +8,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091  # Runtime-resolved path to logging library
 source "${SCRIPT_DIR}/../lib/logging.sh"
 # shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../lib/control-plane-mode.sh"
+
+if ! dotfiles_require_explicit_legacy_ownership "legacy updater"; then
+    exit 1
+fi
+
+# The legacy updater is retained only for explicitly legacy-owned hosts. The
+# managed replacement updater is owned by the later control-plane leaf.
+# shellcheck disable=SC1091
 source "${SCRIPT_DIR}/../lib/install-state.sh"
 
 REPO_ROOT=$(git rev-parse --show-toplevel)

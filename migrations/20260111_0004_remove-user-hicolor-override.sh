@@ -17,16 +17,28 @@ fi
 
 # shellcheck disable=SC1091
 source "$REPO_ROOT/scripts/lib/logging.sh"
+# shellcheck disable=SC1091
+source "$REPO_ROOT/scripts/lib/control-plane-mode.sh"
+
+dotfiles_require_explicit_legacy_ownership "migration $(basename "$0")" || exit 1
 
 log_info "Migration $(basename "$0"): remove user-level hicolor override"
 
 target="$HOME/.local/share/icons/hicolor/index.theme"
+dotfiles_validate_no_symlinked_ancestors \
+  "$target" "migration $(basename "$0") target $target" || exit 1
 
 if [[ -L "$target" ]]; then
   resolved="$(readlink -f "$target" 2>/dev/null || true)"
   if [[ -n "$resolved" && "$resolved" == "$REPO_ROOT/"* ]]; then
     ts="$(date +%Y%m%d-%H%M%S)"
     backup_root="$HOME/.local/state/dotfiles/backups/${ts}/migration-icon-fixes"
+    dotfiles_validate_no_symlinked_ancestors \
+      "$backup_root/index.theme" "migration $(basename "$0") backup $backup_root/index.theme" || exit 1
+    if [[ -L "$backup_root/index.theme" ]]; then
+      log_error "Migration $(basename "$0"): backup path is a symlink; leaving $target untouched"
+      exit 1
+    fi
     mkdir -p "$backup_root"
     cp -a "$target" "$backup_root/index.theme"
     rm -f "$target"
@@ -38,6 +50,12 @@ elif [[ -f "$target" ]]; then
   # If user manually created it, back it up but warn (it might be intentional).
   ts="$(date +%Y%m%d-%H%M%S)"
   backup_root="$HOME/.local/state/dotfiles/backups/${ts}/migration-icon-fixes"
+  dotfiles_validate_no_symlinked_ancestors \
+    "$backup_root/index.theme" "migration $(basename "$0") backup $backup_root/index.theme" || exit 1
+  if [[ -L "$backup_root/index.theme" ]]; then
+    log_error "Migration $(basename "$0"): backup path is a symlink; leaving $target untouched"
+    exit 1
+  fi
   mkdir -p "$backup_root"
   cp -a "$target" "$backup_root/index.theme"
   rm -f "$target"
@@ -47,4 +65,3 @@ else
 fi
 
 log_success "Migration complete"
-
