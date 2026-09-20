@@ -1,8 +1,23 @@
 ---
-- name: Ensure managed users exist with declared supplementary groups
+- name: Require one explicitly selected managed user
+  ansible.builtin.assert:
+    that:
+      - dotfiles_target_user is defined
+      - dotfiles_target_user | length > 0
+      - selected_managed_users | length == 1
+    fail_msg: >-
+      Exactly one managed user must match dotfiles_target_user on host
+      '{{ inventory_hostname }}'.
+  vars:
+    selected_managed_users: >-
+      {{ managed_users | selectattr('name', 'equalto', dotfiles_target_user | default('')) | list }}
+
+- name: Ensure the selected managed user exists with declared supplementary groups
   ansible.builtin.user:
-    name: "{{ item.name }}"
-    groups: "{{ item.groups | join(',') }}"
+    name: "{{ selected_managed_users[0].name }}"
+    groups: "{{ selected_managed_users[0].groups | join(',') }}"
     append: true
     state: present
-  loop: "{{ managed_users }}"
+  vars:
+    selected_managed_users: >-
+      {{ managed_users | selectattr('name', 'equalto', dotfiles_target_user | default('')) | list }}

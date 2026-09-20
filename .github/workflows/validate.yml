@@ -99,7 +99,7 @@ jobs:
 
       - name: Run Bats tests
         run: |
-          ./tests/shell/vendor/bin/bats tests/shell/*.bats
+          ./tests/shell/vendor/bin/bats tests/shell/*.bats tests/shell/retirement/1.2.4.bats
 
       - name: Check Zsh syntax
         run: |

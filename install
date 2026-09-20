@@ -2,7 +2,7 @@
 #
 # install — Idempotent dotfiles installer
 #
-# Usage: ./install [--host <hostname>] [--system-only] [--user-only] [--dry-run]
+# Usage: ./install --host <hostname> --user <username> [target options]
 #
 # Applies the complete desired state for this machine:
 #   1. System state via Ansible (packages, services, hardware config)
@@ -14,6 +14,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${SCRIPT_DIR}"
+INVENTORY_FILE="${DOTFILES_INVENTORY:-${REPO_ROOT}/infra/ansible/inventory/hosts.yml}"
+CHEZMOI_SYNC_COMMAND="${DOTFILES_CHEZMOI_SYNC:-${REPO_ROOT}/infra/chezmoi/bin/chezmoi-sync}"
 
 # Source logging library if available
 if [[ -f "${REPO_ROOT}/scripts/lib/logging.sh" ]]; then
@@ -32,6 +34,11 @@ fi
 # ---------------------------------------------------------------------------
 
 HOST_NAME=""
+TARGET_PROFILE=""
+TARGET_USER=""
+TARGET_HOME=""
+TARGET_SOURCE=""
+TARGET_CONNECTION=""
 SYSTEM_ONLY=false
 USER_ONLY=false
 DRY_RUN=false
@@ -42,29 +49,81 @@ DRY_RUN=false
 
 usage() {
     cat <<EOF
-Usage: $0 [OPTIONS]
+Usage: $0 --host <name> --user <name> [OPTIONS]
 
 Apply the complete desired state for this machine.
 
 Options:
-    --host <name>      Target host (defaults to current hostname)
+    --host <name>      Target host (required)
+    --user <name>      Explicit user from the host's managed_users list
+    --target <kind>    Target profile: local-profile, remote-host, or container
+    --home <path>      Expected target home; must match inventory
+    --source-dir <path>
+                        Expected chezmoi source; must be <home>/.local/share/chezmoi
+    --connection <mode>
+                        Expected connection: local or ssh; must match inventory
     --system-only      Apply only Ansible system state
     --user-only        Apply only chezmoi user state
     --dry-run          Show what would change without applying
     -h, --help         Show this help
 
 Examples:
-    $0                          # Full install/update
-    $0 --host goldendragon      # Install for specific host
-    $0 --system-only --dry-run  # Preview system changes
-    $0 --user-only              # Update dotfiles only
+    $0 --host "$(hostname -s)" --user <name>                 # Full install/update
+    $0 --host goldendragon --user daofficialwizard             # Install for specific host
+    $0 --host goldendragon --user daofficialwizard --system-only --dry-run
+                                                               # Preview system changes
+    $0 --host goldendragon --user daofficialwizard --user-only # Update dotfiles only
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --host)
+            if [[ $# -lt 2 || -z "${2}" || "${2}" == -* ]]; then
+                log_error "--host requires a non-empty value"
+                exit 2
+            fi
             HOST_NAME="${2:-}"
+            shift 2
+            ;;
+        --user)
+            if [[ $# -lt 2 || -z "${2}" || "${2}" == -* ]]; then
+                log_error "--user requires a non-empty value"
+                exit 2
+            fi
+            TARGET_USER="${2:-}"
+            shift 2
+            ;;
+        --target|--profile)
+            if [[ $# -lt 2 || -z "${2}" || "${2}" == -* ]]; then
+                log_error "$1 requires a non-empty value"
+                exit 2
+            fi
+            TARGET_PROFILE="${2:-}"
+            shift 2
+            ;;
+        --home)
+            if [[ $# -lt 2 || -z "${2}" || "${2}" == -* ]]; then
+                log_error "--home requires a non-empty value"
+                exit 2
+            fi
+            TARGET_HOME="${2:-}"
+            shift 2
+            ;;
+        --source-dir)
+            if [[ $# -lt 2 || -z "${2}" || "${2}" == -* ]]; then
+                log_error "--source-dir requires a non-empty value"
+                exit 2
+            fi
+            TARGET_SOURCE="${2:-}"
+            shift 2
+            ;;
+        --connection)
+            if [[ $# -lt 2 || -z "${2}" || "${2}" == -* ]]; then
+                log_error "--connection requires a non-empty value"
+                exit 2
+            fi
+            TARGET_CONNECTION="${2:-}"
             shift 2
             ;;
         --system-only)
@@ -95,10 +154,253 @@ done
 # Host detection
 # ---------------------------------------------------------------------------
 
-if [[ -z "${HOST_NAME}" ]]; then
-    HOST_NAME="$(hostname -s)"
-    log_info "Detected host: ${HOST_NAME}"
-fi
+[[ -n "${HOST_NAME}" ]] || log_fatal "An explicit --host selection is required."
+
+# ---------------------------------------------------------------------------
+# Target tuple resolution
+# ---------------------------------------------------------------------------
+
+normalize_connection() {
+    case "$1" in
+        local)
+            printf '%s' local
+            ;;
+        ssh|remote-ssh)
+            printf '%s' ssh
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+inventory_tuple() {
+    local inventory_json
+    inventory_json="$(ansible-inventory -i "${INVENTORY_FILE}" --host "${HOST_NAME}" 2>/dev/null)" || return 1
+
+    INVENTORY_JSON="${inventory_json}" python3 - "${TARGET_USER}" <<'PY'
+import json
+import os
+import sys
+
+
+def fail(message):
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+
+requested_user = sys.argv[1]
+try:
+    inventory = json.loads(os.environ["INVENTORY_JSON"])
+except (KeyError, json.JSONDecodeError) as error:
+    fail(f"inventory output is not valid JSON: {error}")
+
+
+def required_string(value, label):
+    if not isinstance(value, str) or not value.strip():
+        fail(f"{label} must be a non-empty inventory field")
+    return value
+
+
+def canonical_path(value, label):
+    value = required_string(value, label)
+    if not value.startswith("/"):
+        fail(f"{label} must be an absolute path")
+    if any(component in {".", ".."} for component in value.split("/")):
+        fail(f"{label} contains dot path components")
+    if os.path.normpath(value) != value:
+        fail(f"{label} is not lexically canonical")
+    if os.path.realpath(value) != value:
+        fail(f"{label} resolves through a symlink")
+    return value
+
+
+def normalize_connection(value, label):
+    value = required_string(value, label)
+    if value == "local":
+        return "local"
+    if value in {"ssh", "remote-ssh"}:
+        return "ssh"
+    fail(f"{label} has an unsupported value: {value}")
+
+
+users = inventory.get("managed_users")
+if not isinstance(users, list) or not users:
+    fail("managed_users must be a non-empty list")
+if not requested_user:
+    fail("an explicit --user selection is required for managed_users")
+
+selected = [user for user in users if isinstance(user, dict) and user.get("name") == requested_user]
+if len(selected) != 1:
+    fail(f"managed user selection is not unique: {requested_user}")
+if any(not isinstance(user, dict) or not isinstance(user.get("name"), str) or not user["name"].strip() for user in users):
+    fail("every managed user must have a non-empty name")
+
+profile = required_string(inventory.get("target_profile"), "target_profile")
+target_connection = normalize_connection(inventory.get("target_connection"), "target_connection")
+platform_connection_mode = required_string(inventory.get("platform_connection_mode"), "platform_connection_mode")
+target_home = canonical_path(inventory.get("target_home"), "target_home")
+target_source = canonical_path(inventory.get("target_source"), "target_source")
+policy_fields = [
+    "platform_local_connection_policy",
+    "platform_container_policy",
+    "platform_remote_connection_policy",
+    "platform_container_identity",
+    "platform_controller_home_policy",
+    "platform_unsupported_combination_policy",
+    "platform_generic_family_fallback",
+]
+policies = {field: required_string(inventory.get(field), field) for field in policy_fields}
+expected_policies = {
+    "local": "forbidden" if profile == "remote-host" else "required",
+    "container": "required" if profile == "container" else "forbidden",
+    "remote": "required" if profile == "remote-host" else "forbidden",
+    "identity": "declared-local-container" if profile == "container" else "not-applicable",
+}
+
+if profile not in {"local-profile", "remote-host", "container"}:
+    fail(f"target_profile has an unsupported value: {profile}")
+mode_connection = {"local": "local", "remote-ssh": "ssh"}.get(platform_connection_mode)
+if mode_connection != target_connection:
+    fail("target connection and platform connection mode drift")
+if target_connection != ("ssh" if profile == "remote-host" else "local"):
+    fail("target profile and target connection drift")
+if (
+    policies["platform_local_connection_policy"] != expected_policies["local"]
+    or policies["platform_container_policy"] != expected_policies["container"]
+    or policies["platform_remote_connection_policy"] != expected_policies["remote"]
+    or policies["platform_container_identity"] != expected_policies["identity"]
+    or policies["platform_controller_home_policy"] != "forbidden"
+    or policies["platform_unsupported_combination_policy"] != "reject"
+    or policies["platform_generic_family_fallback"] != "forbidden"
+):
+    fail("target profile and platform policy drift")
+
+user = selected[0]
+home = canonical_path(user.get("home"), f"managed_users.{user['name']}.home")
+source = canonical_path(user.get("chezmoi_source"), f"managed_users.{user['name']}.chezmoi_source")
+if home != target_home or source != target_source:
+    fail("managed user home/source does not match the inventory target tuple")
+if target_home in {"/", "/root"} or target_source != f"{target_home}/.local/share/chezmoi":
+    fail("inventory target home/source binding is unsafe or drifted")
+if "ansible_connection" in inventory and normalize_connection(inventory["ansible_connection"], "ansible_connection") != target_connection:
+    fail("ansible connection and target connection drift")
+
+fields = [profile, target_connection, user["name"], home, source]
+if any(not isinstance(field, str) or "\t" in field or "\n" in field for field in fields):
+    fail("inventory target tuple contains an invalid field")
+print("\t".join(fields))
+PY
+}
+
+configured_source_dir() {
+    local config_path line value
+    local -a config_paths=()
+
+    if [[ -n "${CHEZMOI_CONFIG_FILE:-}" ]]; then
+        config_paths+=("${CHEZMOI_CONFIG_FILE}")
+    else
+        config_paths+=(
+            "${TARGET_HOME}/.config/chezmoi/chezmoi.toml"
+            "${TARGET_HOME}/.config/chezmoi/chezmoi.yaml"
+            "${TARGET_HOME}/.config/chezmoi/chezmoi.yml"
+        )
+    fi
+
+    for config_path in "${config_paths[@]}"; do
+        [[ -f "${config_path}" ]] || continue
+        while IFS= read -r line; do
+            if [[ "${line}" =~ ^[[:space:]]*(sourceDir|source-dir|source_dir)[[:space:]]*[:=][[:space:]]*(.+)[[:space:]]*$ ]]; then
+                value="${BASH_REMATCH[2]}"
+                value="${value#\"}"
+                value="${value%\"}"
+                value="${value#\'}"
+                value="${value%\'}"
+                printf '%s' "${value}"
+                return 0
+            fi
+        done <"${config_path}"
+    done
+}
+
+resolve_target_tuple() {
+    local tuple inventory_profile inventory_connection inventory_user inventory_home inventory_source
+    [[ -n "${TARGET_USER}" ]] || log_fatal "An explicit --user selection is required."
+
+    tuple="$(inventory_tuple)" || log_fatal "Unable to resolve target tuple for host '${HOST_NAME}' and user '${TARGET_USER}'."
+    IFS=$'\t' read -r inventory_profile inventory_connection inventory_user inventory_home inventory_source <<<"${tuple}"
+
+    [[ "${inventory_user}" == "${TARGET_USER}" ]] || log_fatal "Resolved managed user does not match --user."
+    [[ "${inventory_user}" != root ]] || log_fatal "Refusing root as a managed user."
+    [[ -n "${inventory_home}" && "${inventory_home}" == /* && "${inventory_home}" != / && "${inventory_home}" != /root ]] || \
+        log_fatal "Managed user '${TARGET_USER}' has an unsafe or missing home."
+    [[ -n "${inventory_source}" && "${inventory_source}" == /* ]] || \
+        log_fatal "Managed user '${TARGET_USER}' has an unsafe or missing chezmoi source."
+
+    TARGET_PROFILE="${TARGET_PROFILE:-${inventory_profile}}"
+    [[ "${TARGET_PROFILE}" == "${inventory_profile}" ]] || \
+        log_fatal "Target profile '${TARGET_PROFILE}' does not match inventory profile '${inventory_profile}'."
+    case "${TARGET_PROFILE}" in
+        local-profile|remote-host|container)
+            ;;
+        *)
+            log_fatal "Unsupported target profile: ${TARGET_PROFILE}"
+            ;;
+    esac
+
+    inventory_connection="$(normalize_connection "${inventory_connection}")" || \
+        log_fatal "Inventory has an unsupported target connection."
+    if [[ -n "${TARGET_CONNECTION}" ]]; then
+        TARGET_CONNECTION="$(normalize_connection "${TARGET_CONNECTION}")" || \
+            log_fatal "Unsupported target connection: ${TARGET_CONNECTION}"
+        [[ "${TARGET_CONNECTION}" == "${inventory_connection}" ]] || \
+            log_fatal "Target connection '${TARGET_CONNECTION}' does not match inventory connection '${inventory_connection}'."
+    else
+        TARGET_CONNECTION="${inventory_connection}"
+    fi
+
+    case "${TARGET_PROFILE}:${TARGET_CONNECTION}" in
+        local-profile:local|remote-host:ssh|container:local)
+            ;;
+        *)
+            log_fatal "Target profile '${TARGET_PROFILE}' and connection '${TARGET_CONNECTION}' are inconsistent."
+            ;;
+    esac
+    if [[ "${HOST_NAME}" == opencode-runtime && ( "${TARGET_PROFILE}" != container || "${TARGET_CONNECTION}" != local ) ]]; then
+        log_fatal "opencode-runtime is a forced local container target."
+    fi
+    if [[ "${HOST_NAME}" != opencode-runtime && "${TARGET_PROFILE}" == container ]]; then
+        log_fatal "Only opencode-runtime may use the container target profile."
+    fi
+
+    if [[ -n "${TARGET_HOME}" && "${TARGET_HOME}" != "${inventory_home}" ]]; then
+        log_fatal "Target home '${TARGET_HOME}' does not match inventory home '${inventory_home}'."
+    fi
+    TARGET_HOME="${inventory_home}"
+    if [[ -n "${TARGET_SOURCE}" && "${TARGET_SOURCE}" != "${inventory_source}" ]]; then
+        log_fatal "Target source '${TARGET_SOURCE}' does not match inventory source '${inventory_source}'."
+    fi
+    TARGET_SOURCE="${inventory_source}"
+    [[ "${TARGET_SOURCE}" == "${TARGET_HOME}/.local/share/chezmoi" ]] || \
+        log_fatal "Configured chezmoi source must be under the selected target home."
+
+    if [[ "${TARGET_CONNECTION}" == local && "${HOME:-}" != "${TARGET_HOME}" ]]; then
+        log_fatal "Local target home '${TARGET_HOME}' does not match controller HOME '${HOME:-}'."
+    fi
+
+    if [[ "${TARGET_CONNECTION}" == local ]]; then
+        local configured_source
+        configured_source="$(configured_source_dir || true)"
+        if [[ -n "${configured_source}" && "${configured_source}" != "${TARGET_SOURCE}" ]]; then
+            log_fatal "Configured chezmoi source '${configured_source}' is an alternate source."
+        fi
+        if [[ -n "${CHEZMOI_SOURCE_DIR:-}" && "${CHEZMOI_SOURCE_DIR}" != "${TARGET_SOURCE}" ]]; then
+            log_fatal "CHEZMOI_SOURCE_DIR points to an alternate source."
+        fi
+    fi
+
+    log_info "Resolved target: host=${HOST_NAME} user=${TARGET_USER} home=${TARGET_HOME} source=${TARGET_SOURCE} connection=${TARGET_CONNECTION} profile=${TARGET_PROFILE}"
+}
 
 # ---------------------------------------------------------------------------
 # Prerequisite checks
@@ -114,13 +416,22 @@ check_cmd() {
     fi
 }
 
+check_cmd ansible-inventory "Ansible inventory validation"
+check_cmd python3 "inventory tuple validation"
 if [[ "${USER_ONLY}" != "true" ]]; then
     check_cmd ansible-playbook "Ansible system provisioning"
-    check_cmd ansible-inventory "Ansible inventory validation"
 fi
 
+resolve_target_tuple
+
 if [[ "${SYSTEM_ONLY}" != "true" ]]; then
-    check_cmd chezmoi "Chezmoi dotfile management"
+    [[ -x "${CHEZMOI_SYNC_COMMAND}" ]] || \
+        log_fatal "chezmoi-sync is required (${CHEZMOI_SYNC_COMMAND}) but not executable."
+    if [[ "${TARGET_CONNECTION}" == local ]]; then
+        check_cmd chezmoi "Chezmoi dotfile management"
+    else
+        check_cmd ansible "Remote chezmoi execution"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -132,15 +443,10 @@ apply_system_state() {
 
     local wrapper="${REPO_ROOT}/infra/ansible/run-playbook.sh"
     local playbook_dir="${REPO_ROOT}/infra/ansible/playbooks"
-    local inventory="${REPO_ROOT}/infra/ansible/inventory/hosts.yml"
+    local inventory="${INVENTORY_FILE}"
 
     if [[ ! -x "${wrapper}" ]]; then
         log_fatal "Ansible wrapper not found or not executable: ${wrapper}"
-    fi
-
-    # Validate host exists in inventory
-    if ! ansible-inventory -i "${inventory}" --host "${HOST_NAME}" >/dev/null 2>&1; then
-        log_fatal "Host '${HOST_NAME}' not found in Ansible inventory."
     fi
 
     local ansible_args=()
@@ -151,10 +457,18 @@ apply_system_state() {
     # Run foundation (global contract) then site (full convergence)
     # Scope foundation to the target host to avoid SSH attempts to unreachable hosts.
     log_info "Running foundation playbook..."
-    "${wrapper}" "${playbook_dir}/foundation.yml" --limit "${HOST_NAME}" "${ansible_args[@]}"
+    "${wrapper}" "${playbook_dir}/foundation.yml" \
+        --limit "${HOST_NAME}" \
+        --connection "${TARGET_CONNECTION}" \
+        --extra-vars "dotfiles_target_profile=${TARGET_PROFILE} dotfiles_target_user=${TARGET_USER} dotfiles_target_home=${TARGET_HOME} dotfiles_target_source=${TARGET_SOURCE} dotfiles_target_connection=${TARGET_CONNECTION}" \
+        "${ansible_args[@]}"
 
     log_info "Running site playbook for ${HOST_NAME}..."
-    "${wrapper}" "${playbook_dir}/site.yml" --limit "${HOST_NAME}" "${ansible_args[@]}"
+    "${wrapper}" "${playbook_dir}/site.yml" \
+        --limit "${HOST_NAME}" \
+        --connection "${TARGET_CONNECTION}" \
+        --extra-vars "dotfiles_target_profile=${TARGET_PROFILE} dotfiles_target_user=${TARGET_USER} dotfiles_target_home=${TARGET_HOME} dotfiles_target_source=${TARGET_SOURCE} dotfiles_target_connection=${TARGET_CONNECTION}" \
+        "${ansible_args[@]}"
 
     log_success "System state applied"
 }
@@ -166,7 +480,41 @@ apply_system_state() {
 apply_user_state() {
     log_step "Applying user state via chezmoi"
 
-    local chezmoi_source="${HOME}/.local/share/chezmoi"
+    local chezmoi_source="${TARGET_SOURCE}"
+
+    if [[ "${TARGET_CONNECTION}" != local ]]; then
+        if [[ "${DRY_RUN}" == "true" ]]; then
+            log_info "Remote dry-run is isolated; no remote source or home will be changed."
+            return 0
+        fi
+
+        local remote_stage
+        remote_stage="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-chezmoi-remote.XXXXXX")"
+        local ansible_common=(
+            -i "${INVENTORY_FILE}" "${HOST_NAME}"
+            --connection=ssh
+            --become
+        )
+        local copy_args
+        local apply_args
+        (
+            trap 'rm -rf "${remote_stage}"' EXIT
+            "${CHEZMOI_SYNC_COMMAND}" \
+                --host "${HOST_NAME}" \
+                --source-dir "${remote_stage}"
+
+            printf -v copy_args 'src=%q dest=%q owner=%q mode=preserve' \
+                "${remote_stage}/" "${chezmoi_source}/" "${TARGET_USER}"
+            ansible "${ansible_common[@]}" --become-user=root \
+                --module-name ansible.builtin.copy --args "${copy_args}"
+
+            printf -v apply_args 'chezmoi --source %q --destination %q apply' "${chezmoi_source}" "${TARGET_HOME}"
+            ansible "${ansible_common[@]}" --become-user "${TARGET_USER}" \
+                --module-name ansible.builtin.command --args "${apply_args}"
+        )
+        log_success "Remote user state applied"
+        return 0
+    fi
 
     if [[ "${DRY_RUN}" == "true" ]]; then
         (
@@ -183,19 +531,23 @@ apply_user_state() {
             fi
 
             log_info "Syncing dotfiles from repo to temporary chezmoi source..."
-            "${REPO_ROOT}/infra/chezmoi/bin/chezmoi-sync" --host "${HOST_NAME}" --source-dir "${dry_run_source}"
+            "${CHEZMOI_SYNC_COMMAND}" \
+                --host "${HOST_NAME}" \
+                --source-dir "${dry_run_source}"
 
             log_info "Previewing chezmoi changes..."
-            chezmoi --source "${dry_run_source}" diff || true
+            chezmoi --source "${dry_run_source}" --destination "${TARGET_HOME}" diff
         )
         log_success "User state previewed"
     else
         # Sync manifest-declared dotfiles into chezmoi source
         log_info "Syncing dotfiles from repo to chezmoi source..."
-        "${REPO_ROOT}/infra/chezmoi/bin/chezmoi-sync" --host "${HOST_NAME}" --source-dir "${chezmoi_source}"
+        "${CHEZMOI_SYNC_COMMAND}" \
+            --host "${HOST_NAME}" \
+            --source-dir "${chezmoi_source}"
 
         log_info "Applying chezmoi state..."
-        chezmoi apply
+        chezmoi --source "${chezmoi_source}" --destination "${TARGET_HOME}" apply
         log_success "User state applied"
     fi
 }

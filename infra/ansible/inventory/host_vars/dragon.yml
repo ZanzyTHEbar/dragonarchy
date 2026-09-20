@@ -5,6 +5,33 @@ host_platform_family: arch
 host_desktop_stack: hyprland
 host_gpu_stack:
   - amd-gpu
+platform_matrix_id: dragon
+platform_release_family: UNKNOWN
+platform_release_version: UNKNOWN
+platform_architecture: UNKNOWN
+platform_kernel_family: UNKNOWN
+platform_kernel_version: UNKNOWN
+platform_boot_firmware: UNKNOWN
+platform_bootloader: UNKNOWN
+platform_filesystem: UNKNOWN
+platform_encryption: UNKNOWN
+platform_secure_boot: UNKNOWN
+platform_connection_mode: remote-ssh
+target_profile: remote-host
+target_connection: ssh
+target_home: /home/daofficialwizard
+target_source: /home/daofficialwizard/.local/share/chezmoi
+platform_local_connection_policy: forbidden
+platform_container_policy: forbidden
+platform_container_identity: not-applicable
+platform_remote_connection_policy: required
+platform_controller_home_policy: forbidden
+platform_unsupported_combination_policy: reject
+platform_generic_family_fallback: forbidden
+platform_decision_state: PENDING
+platform_decision_owner: leaf-1.1.2
+platform_maintainer_gate: G2_PENDING
+platform_evidence: repository-inventory-only
 host_capabilities:
   - aio-cooler
   - netbird
@@ -20,6 +47,8 @@ host_profile_packages:
 
 managed_users:
   - name: daofficialwizard
+    home: /home/daofficialwizard
+    chezmoi_source: /home/daofficialwizard/.local/share/chezmoi
     groups:
       - wheel
 
