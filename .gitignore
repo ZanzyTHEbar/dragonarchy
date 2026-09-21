@@ -61,3 +61,8 @@ tools/pkgsolve/.git/
 # Local Unlazy execution state; durable contracts live in docs/architecture.
 .unlazy/
 .unlazy-hook-state.json
+
+# Local retirement evidence; retain on disk but never version it.
+/docs/architecture/ansible-chezmoi-retirement/
+/tests/retirement/
+/tests/shell/retirement/
