@@ -518,9 +518,11 @@ apply_user_state() {
 
     if [[ "${DRY_RUN}" == "true" ]]; then
         (
-            local dry_run_source
-            dry_run_source="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-chezmoi-dry-run.XXXXXX")"
-            trap 'rm -rf "${dry_run_source}"' EXIT
+            local dry_run_root dry_run_source
+            dry_run_root="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-chezmoi-dry-run.XXXXXX")"
+            trap 'rm -rf "${dry_run_root}"' EXIT
+            dry_run_source="${dry_run_root}/source"
+            mkdir -- "${dry_run_source}"
 
             # Dry-run sync must not mutate the user's real chezmoi source tree.
             if [[ -d "${chezmoi_source}" ]]; then
