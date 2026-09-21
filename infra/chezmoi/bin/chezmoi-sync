@@ -12,7 +12,7 @@
 #
 # Design principles:
 #   - Idempotent: running twice produces the same result
-#   - Simple: no Stow awareness, no backup logic
+#   - Transactional: stages before promotion and retains bounded ownership state
 #   - Manifest-driven: source of truth is the manifest files
 #   - Direct: syncs to chezmoi's native source path
 
@@ -24,6 +24,13 @@ REPO_ROOT="$(cd "${CHEZMOI_ROOT}/../.." && pwd)"
 
 HOST_NAME=""
 CHEZMOI_SOURCE_DIR="${HOME}/.local/share/chezmoi"
+CHEZMOI_STATE_FILE=""
+CHEZMOI_STAGE_DIR=""
+CHEZMOI_BACKUP_DIR=""
+CHEZMOI_LOCK_FILE=""
+LIFECYCLE_LOCK_FD=""
+MUTATION_ROOT=""
+STAGED_SOURCE_ROOT_MODE=""
 
 usage() {
     echo "Usage: $0 --host <hostname> [--source-dir <path>]" >&2
@@ -58,6 +65,11 @@ if [[ -z "${HOST_NAME}" ]]; then
     usage
     exit 2
 fi
+
+CHEZMOI_STATE_FILE="${CHEZMOI_SOURCE_DIR}.chezmoi-sync-state"
+CHEZMOI_STAGE_DIR="${CHEZMOI_SOURCE_DIR}.chezmoi-sync-stage"
+CHEZMOI_BACKUP_DIR="${CHEZMOI_SOURCE_DIR}.chezmoi-sync-backup"
+CHEZMOI_LOCK_FILE="${CHEZMOI_SOURCE_DIR}.chezmoi-sync-lock"
 
 # ---------------------------------------------------------------------------
 # Discover manifests
@@ -96,6 +108,13 @@ declare -a COPY_RECORD_INDEXES=()
 declare -a EXCLUDE_DESTINATIONS=()
 declare -A EXCLUDED_DESTINATIONS=()
 declare -A OVERRIDE_LOGICAL_DESTINATIONS=()
+declare -a DESIRED_STATE_PATHS=()
+declare -A DESIRED_STATE_PATH_SET=()
+declare -a STATE_OLD_PATHS=()
+declare -a STATE_NEW_PATHS=()
+declare -A STATE_OLD_PATH_SET=()
+declare -A STATE_NEW_PATH_SET=()
+STATE_STATUS="absent"
 
 fail() {
     echo "Error: $*" >&2
@@ -158,6 +177,18 @@ validate_source_root() {
     return 0
 }
 
+ensure_source_parent() {
+    local source_parent
+
+    validate_source_root "${CHEZMOI_SOURCE_DIR}"
+    source_parent="$(dirname "${CHEZMOI_SOURCE_DIR}")"
+    if ! mkdir -p -- "${source_parent}"; then
+        fail "Cannot create --source-dir parent: ${source_parent}"
+        return
+    fi
+    validate_source_root "${CHEZMOI_SOURCE_DIR}"
+}
+
 validate_source_ancestors() {
     local source_rel="$1"
     local component current="${REPO_ROOT}"
@@ -179,9 +210,9 @@ validate_source_ancestors() {
     return 0
 }
 
-validate_destination_path() {
-    local destination="$1"
-    local source_root="${CHEZMOI_SOURCE_DIR}"
+validate_destination_path_under_root() {
+    local source_root="$1"
+    local destination="$2"
     local relative component current
     local -a components
     local index
@@ -215,6 +246,14 @@ validate_destination_path() {
         fi
     done
     return 0
+}
+
+validate_destination_path() {
+    validate_destination_path_under_root "${CHEZMOI_SOURCE_DIR}" "$1"
+}
+
+validate_mutation_destination() {
+    validate_destination_path_under_root "${MUTATION_ROOT}" "$1"
 }
 
 parse_manifest_record() {
@@ -704,41 +743,531 @@ preflight_records() {
     return 0
 }
 
+validate_state_path() {
+    local path="$1"
+
+    validate_relative_path state "${path}"
+}
+
+add_state_path() {
+    local path="$1"
+    local paths_name="$2"
+    local seen_name="$3"
+    local -n paths="${paths_name}"
+    local -n seen="${seen_name}"
+
+    validate_state_path "${path}"
+    if [[ -n "${seen[${path}]+present}" ]]; then
+        fail "Duplicate state path: ${path}"
+        return
+    fi
+    paths+=("${path}")
+    seen["${path}"]=1
+}
+
+read_state_file() {
+    local state_fd header status record section="old" saw_separator=0
+
+    STATE_STATUS="absent"
+    STATE_OLD_PATHS=()
+    STATE_NEW_PATHS=()
+    STATE_OLD_PATH_SET=()
+    STATE_NEW_PATH_SET=()
+    [[ -e "${CHEZMOI_STATE_FILE}" ]] || return 0
+
+    if [[ -L "${CHEZMOI_STATE_FILE}" || ! -f "${CHEZMOI_STATE_FILE}" || ! -r "${CHEZMOI_STATE_FILE}" ]]; then
+        fail "Invalid transaction state file: ${CHEZMOI_STATE_FILE}"
+        return
+    fi
+    if ! exec {state_fd}<"${CHEZMOI_STATE_FILE}"; then
+        fail "Cannot read transaction state file: ${CHEZMOI_STATE_FILE}"
+        return
+    fi
+    if ! IFS= read -r -d '' header <&"${state_fd}" || [[ "${header}" != chezmoi-sync-state-v1 ]]; then
+        exec {state_fd}<&-
+        fail "Invalid transaction state file: ${CHEZMOI_STATE_FILE}"
+        return
+    fi
+    if ! IFS= read -r -d '' status <&"${state_fd}"; then
+        exec {state_fd}<&-
+        fail "Invalid transaction state file: ${CHEZMOI_STATE_FILE}"
+        return
+    fi
+    case "${status}" in
+        complete|prepared|prepared-new) STATE_STATUS="${status}" ;;
+        *)
+            exec {state_fd}<&-
+            fail "Invalid transaction state file: ${CHEZMOI_STATE_FILE}"
+            return
+            ;;
+    esac
+
+    while :; do
+        record=""
+        if IFS= read -r -d '' record <&"${state_fd}"; then
+            if [[ "${STATE_STATUS}" == complete ]]; then
+                [[ -n "${record}" ]] || {
+                    exec {state_fd}<&-
+                    fail "Invalid transaction state file: ${CHEZMOI_STATE_FILE}"
+                    return
+                }
+                add_state_path "${record}" STATE_OLD_PATHS STATE_OLD_PATH_SET
+            elif [[ -z "${record}" ]]; then
+                if (( saw_separator )); then
+                    exec {state_fd}<&-
+                    fail "Invalid transaction state file: ${CHEZMOI_STATE_FILE}"
+                    return
+                fi
+                section="new"
+                saw_separator=1
+            elif [[ "${section}" == old ]]; then
+                add_state_path "${record}" STATE_OLD_PATHS STATE_OLD_PATH_SET
+            else
+                add_state_path "${record}" STATE_NEW_PATHS STATE_NEW_PATH_SET
+            fi
+        else
+            [[ -z "${record}" ]] || {
+                exec {state_fd}<&-
+                fail "Invalid transaction state file: ${CHEZMOI_STATE_FILE}"
+                return
+            }
+            break
+        fi
+    done
+    exec {state_fd}<&-
+
+    if [[ "${STATE_STATUS}" == prepared || "${STATE_STATUS}" == prepared-new ]] && (( ! saw_separator )); then
+        fail "Invalid transaction state file: ${CHEZMOI_STATE_FILE}"
+        return
+    fi
+    if [[ "${STATE_STATUS}" == prepared-new && ${#STATE_OLD_PATHS[@]} -ne 0 ]]; then
+        fail "Invalid transaction state file: ${CHEZMOI_STATE_FILE}"
+        return
+    fi
+    return 0
+}
+
+write_complete_state() {
+    local state_temp path
+    local -a paths=("$@")
+
+    state_temp="$(mktemp -- "${CHEZMOI_STATE_FILE}.tmp.XXXXXX")"
+    if ! {
+        printf '%s\0%s\0' chezmoi-sync-state-v1 complete
+        for path in "${paths[@]}"; do
+            printf '%s\0' "${path}"
+        done
+    } >"${state_temp}"; then
+        rm -f -- "${state_temp}"
+        return 1
+    fi
+    chmod 0600 -- "${state_temp}"
+    mv -f -- "${state_temp}" "${CHEZMOI_STATE_FILE}"
+}
+
+write_prepared_state() {
+    local status="$1"
+    local old_paths_name="$2"
+    local new_paths_name="$3"
+    local state_temp path
+    local -n old_paths="${old_paths_name}"
+    local -n new_paths="${new_paths_name}"
+
+    state_temp="$(mktemp -- "${CHEZMOI_STATE_FILE}.tmp.XXXXXX")"
+    if ! {
+        printf '%s\0%s\0' chezmoi-sync-state-v1 "${status}"
+        for path in "${old_paths[@]}"; do
+            printf '%s\0' "${path}"
+        done
+        printf '\0'
+        for path in "${new_paths[@]}"; do
+            printf '%s\0' "${path}"
+        done
+    } >"${state_temp}"; then
+        rm -f -- "${state_temp}"
+        return 1
+    fi
+    chmod 0600 -- "${state_temp}"
+    mv -f -- "${state_temp}" "${CHEZMOI_STATE_FILE}"
+}
+
+validate_lifecycle_paths() {
+    local path kind
+
+    for kind in state stage backup lock; do
+        case "${kind}" in
+            state) path="${CHEZMOI_STATE_FILE}" ;;
+            stage) path="${CHEZMOI_STAGE_DIR}" ;;
+            backup) path="${CHEZMOI_BACKUP_DIR}" ;;
+            lock) path="${CHEZMOI_LOCK_FILE}" ;;
+        esac
+        if [[ -L "${path}" ]]; then
+            fail "Transaction ${kind} path is a symlink: ${path}"
+            return
+        fi
+        if [[ -e "${path}" ]]; then
+            if [[ "${kind}" == state || "${kind}" == lock ]]; then
+                [[ -f "${path}" ]] || {
+                    fail "Invalid transaction ${kind} path: ${path}"
+                    return
+                }
+            elif [[ ! -d "${path}" ]]; then
+                fail "Invalid transaction ${kind} path: ${path}"
+                return
+            fi
+        fi
+    done
+    return 0
+}
+
+ensure_lifecycle_lock_file() {
+    local lock_temp
+
+    if [[ -L "${CHEZMOI_LOCK_FILE}" ]]; then
+        fail "Transaction lock path is a symlink: ${CHEZMOI_LOCK_FILE}"
+        return
+    fi
+    if [[ ! -e "${CHEZMOI_LOCK_FILE}" ]]; then
+        lock_temp="$(mktemp -- "${CHEZMOI_LOCK_FILE}.tmp.XXXXXX")"
+        chmod 0600 -- "${lock_temp}"
+        if ! ln -T -- "${lock_temp}" "${CHEZMOI_LOCK_FILE}"; then
+            rm -f -- "${lock_temp}"
+            if [[ -L "${CHEZMOI_LOCK_FILE}" || ! -f "${CHEZMOI_LOCK_FILE}" ]]; then
+                fail "Invalid transaction lock path: ${CHEZMOI_LOCK_FILE}"
+                return
+            fi
+        else
+            rm -f -- "${lock_temp}"
+        fi
+    fi
+    if [[ -L "${CHEZMOI_LOCK_FILE}" || ! -f "${CHEZMOI_LOCK_FILE}" ]]; then
+        fail "Invalid transaction lock path: ${CHEZMOI_LOCK_FILE}"
+        return
+    fi
+}
+
+acquire_lifecycle_lock() {
+    local lock_fd
+
+    ensure_lifecycle_lock_file
+    if ! exec {lock_fd}<>"${CHEZMOI_LOCK_FILE}"; then
+        fail "Cannot open transaction lock: ${CHEZMOI_LOCK_FILE}"
+        return
+    fi
+    if [[ -L "${CHEZMOI_LOCK_FILE}" || ! -f "${CHEZMOI_LOCK_FILE}" ]]; then
+        exec {lock_fd}>&-
+        fail "Invalid transaction lock path: ${CHEZMOI_LOCK_FILE}"
+        return
+    fi
+    if ! flock -x "${lock_fd}"; then
+        exec {lock_fd}>&-
+        fail "Cannot acquire transaction lock: ${CHEZMOI_LOCK_FILE}"
+        return
+    fi
+    LIFECYCLE_LOCK_FD="${lock_fd}"
+}
+
+make_lifecycle_tree_removable() {
+    local directory="$1"
+    local child
+    local -a children
+
+    [[ -d "${directory}" && ! -L "${directory}" ]] || {
+        fail "Invalid transaction cleanup path: ${directory}"
+        return
+    }
+    if [[ ! -r "${directory}" || ! -w "${directory}" || ! -x "${directory}" ]]; then
+        chmod u+rwx -- "${directory}"
+    fi
+    list_directory_children "${directory}" children
+    for child in "${children[@]}"; do
+        [[ -d "${child}" && ! -L "${child}" ]] || continue
+        make_lifecycle_tree_removable "${child}"
+    done
+}
+
+remove_lifecycle_tree() {
+    local path="$1"
+
+    case "${path}" in
+        "${CHEZMOI_STAGE_DIR}"|"${CHEZMOI_BACKUP_DIR}") ;;
+        *)
+            fail "Invalid transaction cleanup path: ${path}"
+            return
+            ;;
+    esac
+    if [[ -L "${path}" || ! -d "${path}" ]]; then
+        fail "Invalid transaction cleanup path: ${path}"
+        return
+    fi
+    make_lifecycle_tree_removable "${path}"
+    rm -rf -- "${path}"
+}
+
+complete_recovery_state() {
+    if [[ "${STATE_STATUS}" == prepared-new ]]; then
+        rm -f -- "${CHEZMOI_STATE_FILE}"
+        STATE_STATUS="absent"
+        STATE_OLD_PATHS=()
+        STATE_OLD_PATH_SET=()
+    else
+        write_complete_state "${STATE_OLD_PATHS[@]}"
+        STATE_STATUS="complete"
+    fi
+}
+
+recover_lifecycle() {
+    case "${STATE_STATUS}" in
+        absent)
+            if [[ -d "${CHEZMOI_STAGE_DIR}" && ! -e "${CHEZMOI_BACKUP_DIR}" ]]; then
+                # A state-less stage can only be the abandoned copy transaction.
+                remove_lifecycle_tree "${CHEZMOI_STAGE_DIR}"
+            elif [[ -e "${CHEZMOI_STAGE_DIR}" || -e "${CHEZMOI_BACKUP_DIR}" ]]; then
+                fail "Untracked transaction lifecycle paths exist"
+                return
+            fi
+            return 0
+            ;;
+        complete)
+            if [[ -d "${CHEZMOI_SOURCE_DIR}" && -d "${CHEZMOI_STAGE_DIR}" && ! -e "${CHEZMOI_BACKUP_DIR}" ]]; then
+                # Stage is transaction-owned; active source is never removed recursively.
+                remove_lifecycle_tree "${CHEZMOI_STAGE_DIR}"
+            elif [[ -d "${CHEZMOI_SOURCE_DIR}" && ! -e "${CHEZMOI_STAGE_DIR}" && -d "${CHEZMOI_BACKUP_DIR}" ]]; then
+                # The new root and complete state are durable; only old transaction data remains.
+                remove_lifecycle_tree "${CHEZMOI_BACKUP_DIR}"
+            elif [[ ! -d "${CHEZMOI_SOURCE_DIR}" || -e "${CHEZMOI_STAGE_DIR}" || -e "${CHEZMOI_BACKUP_DIR}" ]]; then
+                fail "Unknown transaction recovery topology"
+                return
+            fi
+            return 0
+            ;;
+        prepared|prepared-new)
+            if [[ -d "${CHEZMOI_BACKUP_DIR}" && ! -e "${CHEZMOI_SOURCE_DIR}" && -d "${CHEZMOI_STAGE_DIR}" ]]; then
+                remove_lifecycle_tree "${CHEZMOI_STAGE_DIR}"
+                mv -- "${CHEZMOI_BACKUP_DIR}" "${CHEZMOI_SOURCE_DIR}"
+            elif [[ -d "${CHEZMOI_BACKUP_DIR}" && -d "${CHEZMOI_SOURCE_DIR}" && ! -e "${CHEZMOI_STAGE_DIR}" ]]; then
+                mv -- "${CHEZMOI_SOURCE_DIR}" "${CHEZMOI_STAGE_DIR}"
+                mv -- "${CHEZMOI_BACKUP_DIR}" "${CHEZMOI_SOURCE_DIR}"
+                remove_lifecycle_tree "${CHEZMOI_STAGE_DIR}"
+            elif [[ -d "${CHEZMOI_SOURCE_DIR}" && -d "${CHEZMOI_STAGE_DIR}" && ! -e "${CHEZMOI_BACKUP_DIR}" ]]; then
+                # Prepared state is durable but active source was never parked.
+                remove_lifecycle_tree "${CHEZMOI_STAGE_DIR}"
+            elif [[ "${STATE_STATUS}" == prepared-new && ! -e "${CHEZMOI_BACKUP_DIR}" && ! -e "${CHEZMOI_SOURCE_DIR}" && -d "${CHEZMOI_STAGE_DIR}" ]]; then
+                remove_lifecycle_tree "${CHEZMOI_STAGE_DIR}"
+            elif [[ "${STATE_STATUS}" == prepared-new && ! -e "${CHEZMOI_BACKUP_DIR}" && -d "${CHEZMOI_SOURCE_DIR}" && ! -e "${CHEZMOI_STAGE_DIR}" ]]; then
+                mv -- "${CHEZMOI_SOURCE_DIR}" "${CHEZMOI_STAGE_DIR}"
+                remove_lifecycle_tree "${CHEZMOI_STAGE_DIR}"
+            else
+                fail "Unknown transaction recovery topology"
+                return
+            fi
+            complete_recovery_state
+            return 0
+            ;;
+    esac
+}
+
+add_desired_destination() {
+    local destination="$1"
+    local relative
+
+    validate_destination_path "${destination}"
+    relative="${destination#"${CHEZMOI_SOURCE_DIR}/"}"
+    if [[ "${relative}" == "${destination}" ]]; then
+        fail "Destination escapes --source-dir: ${destination}"
+        return
+    fi
+    if [[ -n "${DESIRED_STATE_PATH_SET[${relative}]+present}" ]]; then
+        fail "Duplicate rendered destination: ${relative}"
+        return
+    fi
+    DESIRED_STATE_PATHS+=("${relative}")
+    DESIRED_STATE_PATH_SET["${relative}"]=1
+}
+
+collect_tree_destinations() {
+    local source_abs="$1"
+    local destination="$2"
+    local logical_destination="$3"
+    local child child_name child_kind child_destination child_logical_destination
+    local -a children
+
+    destination_is_excluded "${destination}" && return 0
+    add_desired_destination "${destination}"
+    list_directory_children "${source_abs}" children
+    for child in "${children[@]}"; do
+        child_name="$(basename "${child}")"
+        child_kind="$(entry_kind "${child}")"
+        child_destination="${destination}/$(encoded_entry_name "${child}" "${child_name}" "${child_kind}")"
+        child_logical_destination="${logical_destination}/${child_name}"
+        if destination_is_excluded "${child_destination}" || [[ -n "${OVERRIDE_LOGICAL_DESTINATIONS[${child_logical_destination}]+present}" ]]; then
+            continue
+        fi
+        if [[ "${child_kind}" == directory ]]; then
+            collect_tree_destinations "${child}" "${child_destination}" "${child_logical_destination}"
+        else
+            add_desired_destination "${child_destination}"
+        fi
+    done
+}
+
+collect_desired_destinations() {
+    local index
+
+    DESIRED_STATE_PATHS=()
+    DESIRED_STATE_PATH_SET=()
+    for ((index = 0; index < ${#COPY_SOURCES[@]}; index++)); do
+        destination_is_excluded "${COPY_DESTINATIONS[index]}" && continue
+        if [[ "${COPY_KINDS[index]}" == directory ]]; then
+            collect_tree_destinations \
+                "${COPY_SOURCES[index]}" \
+                "${COPY_DESTINATIONS[index]}" \
+                "${COPY_LOGICAL_DESTINATIONS[index]}"
+        else
+            add_desired_destination "${COPY_DESTINATIONS[index]}"
+        fi
+    done
+}
+
+stage_destination() {
+    local destination="$1"
+    local relative="${destination#"${CHEZMOI_SOURCE_DIR}/"}"
+
+    [[ "${relative}" != "${destination}" ]] || {
+        fail "Destination escapes --source-dir: ${destination}"
+        return
+    }
+    printf '%s/%s' "${CHEZMOI_STAGE_DIR}" "${relative}"
+}
+
+prepare_destination_parent() {
+    local destination="$1"
+    local parent
+
+    validate_mutation_destination "${destination}"
+    parent="$(dirname "${destination}")"
+    if [[ -e "${parent}" ]]; then
+        chmod u+rwx -- "${parent}"
+    else
+        mkdir -p -- "${parent}"
+    fi
+}
+
 remove_destination() {
     local destination="$1"
 
-    validate_destination_path "${destination}"
-    if [[ ! -L "${destination}" ]] && [[ -d "${destination}" ]]; then
-        chmod -R u+rwX -- "${destination}" 2>/dev/null || true
-        rm -rf -- "${destination}"
+    validate_mutation_destination "${destination}"
+    [[ -e "${destination}" || -L "${destination}" ]] || return 0
+    prepare_destination_parent "${destination}"
+    if [[ -d "${destination}" && ! -L "${destination}" ]]; then
+        rmdir -- "${destination}"
     else
         rm -f -- "${destination}"
     fi
 }
 
-remove_excluded_destination_candidates() {
-    local directory="$1"
-    local directory_mode candidate
-    local -a children
+remove_contained_destination() {
+    local destination="$1"
 
-    directory_mode="$(source_mode "${directory}")"
-    chmod u+rwx -- "${directory}"
-    list_directory_children "${directory}" children
-    for candidate in "${children[@]}"; do
-        if destination_is_excluded "${candidate}"; then
-            remove_destination "${candidate}"
-        elif [[ -d "${candidate}" && ! -L "${candidate}" ]]; then
-            remove_excluded_destination_candidates "${candidate}"
-        fi
-    done
-    chmod "${directory_mode}" -- "${directory}"
-    return 0
+    validate_mutation_destination "${destination}"
+    [[ -e "${destination}" || -L "${destination}" ]] || return 0
+    if [[ -d "${destination}" && ! -L "${destination}" ]]; then
+        make_lifecycle_tree_removable "${destination}"
+        rm -rf -- "${destination}"
+    else
+        remove_destination "${destination}"
+    fi
 }
 
-remove_direct_alternates() {
-    local destination_dir="$1"
-    local destination_name="$2"
-    local prefix destination
+remove_stale_destination() {
+    local destination="$1"
+
+    validate_mutation_destination "${destination}"
+    [[ -e "${destination}" || -L "${destination}" ]] || return 0
+    if [[ -d "${destination}" && ! -L "${destination}" ]]; then
+        prepare_destination_parent "${destination}"
+        rmdir -- "${destination}" 2>/dev/null || true
+    else
+        remove_destination "${destination}"
+    fi
+}
+
+ensure_directory() {
+    local destination="$1"
+
+    validate_mutation_destination "${destination}"
+    if [[ -d "${destination}" && ! -L "${destination}" ]]; then
+        chmod u+rwx -- "${destination}"
+    elif [[ -e "${destination}" || -L "${destination}" ]]; then
+        remove_destination "${destination}"
+        mkdir -p -- "${destination}"
+    else
+        prepare_destination_parent "${destination}"
+        mkdir -p -- "${destination}"
+    fi
+}
+
+copy_symlink() {
+    local source_abs="$1"
+    local destination="$2"
+    local link_target
+
+    prepare_destination_parent "${destination}"
+    remove_destination "${destination}"
+    IFS= read -r -d '' link_target < <(readlink -z -- "${source_abs}")
+    printf '%s' "${link_target}" >"${destination}"
+    chmod 0644 -- "${destination}"
+}
+
+copy_regular_file() {
+    local source_abs="$1"
+    local destination="$2"
+
+    prepare_destination_parent "${destination}"
+    remove_destination "${destination}"
+    cp --preserve=mode,timestamps -- "${source_abs}" "${destination}"
+}
+
+copy_tree() {
+    local source_abs="$1"
+    local destination="$2"
+    local active_destination="$3"
+    local logical_destination="$4"
+    local child child_name child_kind child_destination child_active_destination child_logical_destination
+    local -a children
+
+    destination_is_excluded "${active_destination}" && return 0
+    ensure_directory "${destination}"
+    list_directory_children "${source_abs}" children
+    for child in "${children[@]}"; do
+        child_name="$(basename "${child}")"
+        child_kind="$(entry_kind "${child}")"
+        child_destination="${destination}/$(encoded_entry_name "${child}" "${child_name}" "${child_kind}")"
+        child_active_destination="${active_destination}/$(encoded_entry_name "${child}" "${child_name}" "${child_kind}")"
+        child_logical_destination="${logical_destination}/${child_name}"
+        if destination_is_excluded "${child_active_destination}" || [[ -n "${OVERRIDE_LOGICAL_DESTINATIONS[${child_logical_destination}]+present}" ]]; then
+            continue
+        fi
+        case "${child_kind}" in
+            directory)
+                copy_tree "${child}" "${child_destination}" "${child_active_destination}" "${child_logical_destination}"
+                chmod "$(source_mode "${child}")" -- "${child_destination}"
+                ;;
+            regular)
+                copy_regular_file "${child}" "${child_destination}"
+                ;;
+            symlink)
+                copy_symlink "${child}" "${child_destination}"
+                ;;
+        esac
+    done
+    chmod "$(source_mode "${source_abs}")" -- "${destination}"
+}
+
+remove_legacy_direct_alternates() {
+    local active_destination="$1"
+    local logical_destination="$2"
+    local active_directory staged_directory raw_name destination_name prefix active_candidate staged_candidate
     local -a prefixes=(
         ''
         private_ readonly_ empty_ executable_ symlink_
@@ -750,121 +1279,38 @@ remove_direct_alternates() {
         empty_private_ executable_empty_ readonly_private_
     )
 
+    [[ "${STATE_STATUS}" == absent ]] || return 0
+    active_directory="$(dirname "${active_destination}")"
+    staged_directory="$(dirname "$(stage_destination "${active_destination}")")"
+    raw_name="$(basename "${logical_destination}")"
+    destination_name="$(encoded_direct_name "${raw_name}")"
     for prefix in "${prefixes[@]}"; do
-        destination="${destination_dir}/${prefix}${destination_name}"
-        if ! destination_contains_exclusion "${destination}" && [[ -e "${destination}" || -L "${destination}" ]]; then
-            remove_destination "${destination}"
-        fi
+        active_candidate="${active_directory}/${prefix}${destination_name}"
+        staged_candidate="${staged_directory}/${prefix}${destination_name}"
+        destination_contains_exclusion "${active_candidate}" || remove_contained_destination "${staged_candidate}"
     done
-    return 0
-}
-
-copy_symlink() {
-    local source_abs="$1"
-    local destination="$2"
-    local link_target
-
-    validate_destination_path "${destination}"
-    remove_destination "${destination}"
-    mkdir -p -- "$(dirname "${destination}")"
-    IFS= read -r -d '' link_target < <(readlink -z -- "${source_abs}")
-    printf '%s' "${link_target}" >"${destination}"
-    chmod 0644 -- "${destination}"
-}
-
-copy_regular_file() {
-    local source_abs="$1"
-    local destination="$2"
-
-    validate_destination_path "${destination}"
-    remove_destination "${destination}"
-    mkdir -p -- "$(dirname "${destination}")"
-    cp --preserve=mode,timestamps -- "${source_abs}" "${destination}"
-}
-
-clear_directory() {
-    local destination="$1"
-    local existing
-    local -a existing_children
-
-    validate_destination_path "${destination}"
-    if [[ -e "${destination}" || -L "${destination}" ]]; then
-        if [[ ! -d "${destination}" || -L "${destination}" ]]; then
-            remove_destination "${destination}"
-            mkdir -p -- "${destination}"
-        else
-            chmod u+rwx -- "${destination}"
-        fi
-    else
-        mkdir -p -- "${destination}"
+    if [[ "${destination_name}" != "${raw_name}" ]]; then
+        for prefix in "${prefixes[@]}"; do
+            active_candidate="${active_directory}/${prefix}${raw_name}"
+            staged_candidate="${staged_directory}/${prefix}${raw_name}"
+            destination_contains_exclusion "${active_candidate}" || remove_contained_destination "${staged_candidate}"
+        done
     fi
-
-    list_directory_children "${destination}" existing_children
-    for existing in "${existing_children[@]}"; do
-        destination_contains_exclusion "${existing}" || remove_destination "${existing}"
-    done
-    return 0
-}
-
-copy_tree() {
-    local source_abs="$1"
-    local destination="$2"
-    local logical_destination="$3"
-    local child child_name child_kind child_destination child_logical_destination
-    local -a children
-
-    destination_is_excluded "${destination}" && return 0
-    clear_directory "${destination}"
-
-    list_directory_children "${source_abs}" children
-    for child in "${children[@]}"; do
-        child_name="$(basename "${child}")"
-        child_kind="$(entry_kind "${child}")"
-        child_destination="${destination}/$(encoded_entry_name "${child}" "${child_name}" "${child_kind}")"
-        child_logical_destination="${logical_destination}/${child_name}"
-        if destination_is_excluded "${child_destination}" || [[ -n "${OVERRIDE_LOGICAL_DESTINATIONS[${child_logical_destination}]+present}" ]]; then
-            continue
-        fi
-
-        case "${child_kind}" in
-            directory)
-                copy_tree "${child}" "${child_destination}" "${child_logical_destination}"
-                validate_destination_path "${child_destination}"
-                chmod "$(source_mode "${child}")" -- "${child_destination}"
-                ;;
-            regular)
-                copy_regular_file "${child}" "${child_destination}"
-                ;;
-            symlink)
-                copy_symlink "${child}" "${child_destination}"
-                ;;
-        esac
-    done
-
-    validate_destination_path "${destination}"
-    chmod "$(source_mode "${source_abs}")" -- "${destination}"
 }
 
 copy_entry() {
     local index="$1"
     local source_abs="${COPY_SOURCES[index]}"
     local kind="${COPY_KINDS[index]}"
-    local destination="${COPY_DESTINATIONS[index]}"
-    local logical_destination="${COPY_LOGICAL_DESTINATIONS[index]}"
-    local destination_dir raw_name destination_name
+    local active_destination="${COPY_DESTINATIONS[index]}"
+    local destination
 
-    destination_is_excluded "${destination}" && return 0
-    destination_dir="$(dirname "${destination}")"
-    raw_name="$(basename "${logical_destination}")"
-    destination_name="$(encoded_direct_name "${raw_name}")"
-    remove_direct_alternates "${destination_dir}" "${destination_name}"
-    if [[ "${destination_name}" != "${raw_name}" ]]; then
-        remove_direct_alternates "${destination_dir}" "${raw_name}"
-    fi
-
+    destination_is_excluded "${active_destination}" && return 0
+    destination="$(stage_destination "${active_destination}")"
+    remove_legacy_direct_alternates "${active_destination}" "${COPY_LOGICAL_DESTINATIONS[index]}"
     case "${kind}" in
         directory)
-            copy_tree "${source_abs}" "${destination}" "${logical_destination}"
+            copy_tree "${source_abs}" "${destination}" "${active_destination}" "${COPY_LOGICAL_DESTINATIONS[index]}"
             ;;
         regular)
             copy_regular_file "${source_abs}" "${destination}"
@@ -875,19 +1321,101 @@ copy_entry() {
     esac
 }
 
+remove_excluded_destination_candidates() {
+    local directory="$1"
+    local active_directory="$2"
+    local directory_mode candidate active_candidate
+    local -a children
+
+    directory_mode="$(source_mode "${directory}")"
+    chmod u+rwx -- "${directory}"
+    list_directory_children "${directory}" children
+    for candidate in "${children[@]}"; do
+        active_candidate="${active_directory}/${candidate#"${directory}/"}"
+        if destination_is_excluded "${active_candidate}"; then
+            remove_contained_destination "${candidate}"
+        elif [[ -d "${candidate}" && ! -L "${candidate}" ]]; then
+            remove_excluded_destination_candidates "${candidate}" "${active_candidate}"
+        fi
+    done
+    chmod "${directory_mode}" -- "${directory}"
+}
+
+inject_failure() {
+    [[ "${CHEZMOI_SYNC_FAILPOINT:-}" == "$1" ]] || return 0
+    echo "Injected chezmoi-sync failure: $1" >&2
+    return 1
+}
+
+prepare_stage() {
+    [[ ! -e "${CHEZMOI_STAGE_DIR}" ]] || remove_lifecycle_tree "${CHEZMOI_STAGE_DIR}"
+    mkdir -- "${CHEZMOI_STAGE_DIR}"
+    STAGED_SOURCE_ROOT_MODE=""
+    if [[ -d "${CHEZMOI_SOURCE_DIR}" ]]; then
+        STAGED_SOURCE_ROOT_MODE="$(source_mode "${CHEZMOI_SOURCE_DIR}")"
+        cp -R --preserve=mode,timestamps --no-dereference -- \
+            "${CHEZMOI_SOURCE_DIR}/." "${CHEZMOI_STAGE_DIR}/"
+    fi
+    MUTATION_ROOT="${CHEZMOI_STAGE_DIR}"
+}
+
+cleanup_stale_destinations() {
+    local index relative destination stale_count=0
+
+    for ((index = ${#STATE_OLD_PATHS[@]} - 1; index >= 0; index--)); do
+        relative="${STATE_OLD_PATHS[index]}"
+        [[ -n "${DESIRED_STATE_PATH_SET[${relative}]+present}" ]] && continue
+        destination="${CHEZMOI_STAGE_DIR}/${relative}"
+        remove_stale_destination "${destination}"
+        ((stale_count += 1))
+        if (( stale_count == 1 )); then
+            inject_failure stale-cleanup:1
+        fi
+    done
+}
+
+promote_stage() {
+    local prepared_status=prepared
+
+    [[ "${STATE_STATUS}" == absent ]] && prepared_status=prepared-new
+    write_prepared_state "${prepared_status}" STATE_OLD_PATHS DESIRED_STATE_PATHS
+    inject_failure promote:after-prepare
+    if [[ -d "${CHEZMOI_SOURCE_DIR}" ]]; then
+        mv -- "${CHEZMOI_SOURCE_DIR}" "${CHEZMOI_BACKUP_DIR}"
+        inject_failure promote:after-park
+    fi
+    mv -- "${CHEZMOI_STAGE_DIR}" "${CHEZMOI_SOURCE_DIR}"
+    inject_failure promote:after-root
+    write_complete_state "${DESIRED_STATE_PATHS[@]}"
+    STATE_STATUS=complete
+    inject_failure finalize:before-backup-delete
+    [[ ! -e "${CHEZMOI_BACKUP_DIR}" ]] || remove_lifecycle_tree "${CHEZMOI_BACKUP_DIR}"
+}
+
 parse_manifests
 preflight_records
 
 # No filesystem mutation occurs before all manifest and tree preflight checks pass.
-validate_source_root "${CHEZMOI_SOURCE_DIR}"
-mkdir -p -- "${CHEZMOI_SOURCE_DIR}"
+ensure_source_parent
+acquire_lifecycle_lock
+validate_lifecycle_paths
+read_state_file
+collect_desired_destinations
+recover_lifecycle
 
 for manifest_path in "${MANIFEST_PATHS[@]}"; do
     echo "    -> $(basename "${manifest_path}")"
 done
+prepare_stage
 for ((index = 0; index < ${#COPY_SOURCES[@]}; index++)); do
     copy_entry "${index}"
+    if (( index == 0 )); then
+        inject_failure copy:1
+    fi
 done
-remove_excluded_destination_candidates "${CHEZMOI_SOURCE_DIR}"
+cleanup_stale_destinations
+remove_excluded_destination_candidates "${CHEZMOI_STAGE_DIR}" "${CHEZMOI_SOURCE_DIR}"
+[[ -z "${STAGED_SOURCE_ROOT_MODE}" ]] || chmod "${STAGED_SOURCE_ROOT_MODE}" -- "${CHEZMOI_STAGE_DIR}"
+promote_stage
 
 echo "==> Sync complete. Run 'chezmoi apply' to update home directory."
