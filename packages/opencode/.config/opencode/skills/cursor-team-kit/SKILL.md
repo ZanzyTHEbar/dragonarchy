@@ -45,7 +45,7 @@ This directory preserves the Cursor Team Kit plugin metadata as an OpenCode skil
 | `weekly-review` | Generate a weekly recap of shipped work with bugfix/tech-debt/net-new highlights. |
 | `fix-merge-conflicts` | Resolve merge conflicts, validate build/tests, and summarize decisions. |
 | `deslop` | Remove AI-generated code slop and clean up code style. |
-| `workflow-from-chats` | Extract durable working preferences from chats into skills, rules, or docs. |
+| `workflow-from-chats` | Extract durable working preferences from opencode sessions into skills, rules, or docs. |
 | `thermo-nuclear-code-quality-review` | Run an unusually strict maintainability review. |
 
 ### Agents

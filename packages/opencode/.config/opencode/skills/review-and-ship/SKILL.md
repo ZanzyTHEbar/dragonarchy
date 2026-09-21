@@ -11,7 +11,7 @@ Reviewing changes before shipping. Close key issues, verify behavior, and open o
 
 ## Workflow
 
-1. Gather context: diff against base branch, uncommitted changes, recent commits, changed files, and user intent from recent relevant chats if useful and available.
+1. Gather context: diff against base branch, uncommitted changes, recent commits, changed files, and user intent from the current opencode session. If intent is unclear, list prior sessions in the same project directory (`opencode session list -n 10 --format json`) and export the relevant one (`opencode export <sessionID> --sanitize`).
 2. Run targeted tests for changed behavior. If no focused tests exist, decide whether to add them or document the gap.
 3. Review for correctness, regressions, security, and intent fit. Use parallel subagents for larger diffs.
 4. Fix critical issues before finalizing and re-run affected tests.
