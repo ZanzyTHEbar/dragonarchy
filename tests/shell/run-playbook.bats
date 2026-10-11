@@ -356,6 +356,14 @@ EOF
   [[ "$output" == *"does not match"* ]]
 }
 
+@test "uses local execution when explicitly requested for an SSH inventory target" {
+  run env DOTFILES_LOCAL_ANSIBLE_EXECUTION=true "${WRAPPER}" playbooks/site.yml --limit microdragon --connection ssh --user remoteuser --extra-vars "$REMOTE_TUPLE"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--connection=local"* ]]
+  [[ "$output" == *"dotfiles_target_connection=ssh"* ]]
+  [[ "$output" != *"--connection=ssh"* ]]
+}
+
 @test "rejects attached -c=local before playbook execution" {
   run "${WRAPPER}" playbooks/site.yml --limit microdragon -c=local --extra-vars "$REMOTE_TUPLE"
   [ "$status" -eq 2 ]

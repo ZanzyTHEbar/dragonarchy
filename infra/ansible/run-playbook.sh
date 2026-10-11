@@ -520,8 +520,27 @@ validate_connection_contract() {
     fi
 }
 
+apply_local_execution_override() {
+    local local_execution="${DOTFILES_LOCAL_ANSIBLE_EXECUTION:-false}"
+    case "${local_execution}" in
+        false|0|'')
+            return 0
+            ;;
+        true|1)
+            ;;
+        *)
+            log_fatal "DOTFILES_LOCAL_ANSIBLE_EXECUTION must be true or false."
+            ;;
+    esac
+
+    [[ -n "${LIMIT}" ]] || log_fatal "Local Ansible execution requires a --limit target."
+    CONNECTION_ARGS=(--connection=local)
+    log_info "Using local Ansible execution for '${LIMIT}' as requested by the caller."
+}
+
 validate_site_inventory_tuple
 validate_connection_contract
+apply_local_execution_override
 
 # ---------------------------------------------------------------------------
 # Execute
