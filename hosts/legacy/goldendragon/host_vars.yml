@@ -61,4 +61,4 @@ managed_users:
       - wheel
 
 fingerprint_usb_id: "06cb:00f9"
-legacy_host_directory: hosts/goldendragon
+legacy_host_directory: hosts/legacy/goldendragon

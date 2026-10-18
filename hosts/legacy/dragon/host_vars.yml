@@ -52,4 +52,4 @@ managed_users:
     groups:
       - wheel
 
-legacy_host_directory: hosts/dragon
+legacy_host_directory: hosts/legacy/dragon

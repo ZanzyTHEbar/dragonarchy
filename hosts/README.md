@@ -12,19 +12,21 @@ Current runtime authority lives in:
 - `infra/ansible/inventory/host_vars/<host>.yml`
 - `infra/ansible/inventory/group_vars/*.yml`
 
-Use `./install --host <hostname>` for managed-host convergence. Use `./infra/validate-parity.sh --host <hostname>` for read-only parity checks.
+Active inventory membership is exactly `firedragon`, `microdragon`, `opencode-runtime`, and `ubuntu-mobile-dev`. Active payloads retain `hosts/<host>/` naming; directory presence alone does not activate a host.
+
+Preview managed-host convergence with `./install --host <hostname> --user <username> --dry-run`, selecting the user declared for that host. Use `./infra/validate-parity.sh --host <hostname>` for read-only static coverage checks, not proof of completed migration or live readiness.
+
+`dragon` and `goldendragon` are archived, not managed inventory targets. Their payloads stay under `hosts/legacy/{dragon,goldendragon}/`, with archived variables in each tree's `host_vars.yml`, outside Ansible's automatically loaded `inventory/host_vars/`. There is no automatic fallback to these trees. Restoring either host requires an explicit inventory and ownership decision; archive retention is not parity acceptance.
 
 ## Directory Structure
 
 ```bash
 hosts/
 ├── desktop/          # Generic desktop / Hyprland validation profile
-├── dragon/           # AMD desktop workstation
 ├── firedragon/       # ASUS VivoBook AMD laptop
-├── goldendragon/     # Lenovo ThinkPad P16s (Intel/NVIDIA)
 ├── headless/         # Generic terminal-only/headless profile
+├── legacy/           # Retained dragon/ and goldendragon/ archives
 ├── microdragon/      # Debian server profile
-├── opencode-runtime/ # Headless OpenCode container runtime
 └── shared/           # Shared host resources
 ```
 
@@ -102,4 +104,4 @@ If a managed host receives the wrong behavior, inspect these first:
 3. Role defaults and validation for the role that should own the behavior.
 4. Chezmoi manifests if the issue is user state.
 
-Only use legacy host setup scripts for historical diagnosis or explicit recovery work.
+Legacy host setup scripts are reference material, not active convergence paths. Do not select archived hosts for current validation or cutover.

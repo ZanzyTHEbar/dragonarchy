@@ -1,6 +1,33 @@
 # Host Bringup Parity Catalog — leaf 1.1.1 baseline
 
-## Purpose
+## Current-scope amendment — 2026-10-18 (authoritative)
+
+- Active Ansible inventory membership is exactly `firedragon`, `microdragon`,
+  `opencode-runtime`, and `ubuntu-mobile-dev`, as declared in
+  `infra/ansible/inventory/hosts.yml`. Active payload naming stays `hosts/<host>/`.
+- `dragon` and `goldendragon` are **archived, not active targets**. Keep their
+  payloads in `hosts/legacy/{dragon,goldendragon}/`; their archived `host_vars.yml`
+  files are outside the automatically loaded `inventory/host_vars/` tree.
+  Neither directory presence nor retained role mappings reactivate these hosts.
+  No automatic archive fallback is allowed.
+- Archived-host-only role sources now point explicitly at `hosts/legacy/`.
+  TLP retains the generic active `hosts/<host>` source root and an inactive
+  archived mapping. The shared session manifest no longer declares the
+  goldendragon-only fingerprint watchdog. Generic `__HOST__` overlays remain
+  available for active hosts.
+- `infra/validate-parity.sh` requires actual inventory membership and rejects
+  archived or unknown names. Its static coverage result is **not** behavioral
+  parity, cutover approval, or evidence of a completed migration.
+- The six-host r2 baseline and all sections below are **historical analysis**,
+  not the current scope or an executable backlog. Their old paths, selectors,
+  proposed owners, and gate IDs describe that snapshot only. In particular,
+  archived-host validation/cutover proposals are not current recommendations.
+  Follow current inventory and explicit ownership decisions, not those rows.
+- Migration remains incomplete. No historical gate, task status, or archive
+  move is promoted to acceptance; unresolved decisions and live proof remain
+  unresolved. `AUDIT.md` remains immutable and is not rewritten by this amendment.
+
+## Historical r2 baseline — purpose
 
 This document catalogs the repository baseline needed to reach full host bringup parity after the managed-host pivot to Ansible + chezmoi.
 
@@ -10,11 +37,11 @@ decision owner. The machine-readable enumeration is
 `docs/architecture/ansible-chezmoi-retirement/gates/contract/baseline.json`;
 this catalog is its human-facing reconciliation.
 
-## Baseline boundary
+## Historical r2 baseline boundary
 
 - The historical catalog modeled four hosts (`dragon`, `firedragon`,
-  `goldendragon`, `microdragon`). The current inventory contains six, adding
-  `opencode-runtime` and `ubuntu-mobile-dev`; all six are listed below.
+  `goldendragon`, `microdragon`). The r2 snapshot contained six, adding
+  `opencode-runtime` and `ubuntu-mobile-dev`; all six historical rows are below.
 - `AUDIT.md` remains immutable. Its recorded SHA-256 is checked by the leaf
   test. Corrections and current observations belong in the contract baseline,
   not in the audit.
@@ -53,9 +80,9 @@ That means most parity analysis is:
 - legacy shell behavior that remains as reference or recovery path
 - versus inventory, roles, manifests, and validation in the current branch
 
-## In-scope hosts
+## Historical r2 host scope (superseded above)
 
-Current inventory hosts from `infra/ansible/inventory/hosts.yml`:
+Inventory hosts recorded in the historical r2 snapshot:
 
 - `dragon`
 - `firedragon`
@@ -64,7 +91,7 @@ Current inventory hosts from `infra/ansible/inventory/hosts.yml`:
 - `opencode-runtime`
 - `ubuntu-mobile-dev`
 
-## Current new-architecture host mapping
+## Historical r2 new-architecture host mapping
 
 ### `dragon`
 
@@ -237,7 +264,7 @@ needs its named downstream decision and later behavioral verification.
 | theme-generated user files                        | `scripts/theme-manager/*` writes runtime state under `$HOME`                                                                                           | chezmoi manifests are beginning to own adjacent trees                                                               | migration seam   | split by concern: chezmoi for static user files, theme-manager for runtime-generated state | document every runtime-generated exception and either keep it runtime-owned or move generation into the new model                             |
 | NVIDIA kernel and module state                    | `scripts/install/system-config.sh`, `hosts/goldendragon/etc/modprobe.d/*`                                                                              | `infra/ansible/roles/nvidia/*`                                                                                      | partial overlap  | Ansible `nvidia` role                                                                      | keep host tree as payload source, not runtime writer                                                                                          |
 | AMD GPU kernel, module, polkit, and service state | `scripts/install/system-config.sh`, `hosts/dragon/etc/**`, `hosts/firedragon/etc/**`                                                                   | `infra/ansible/roles/amd_gpu/*`                                                                                     | partial overlap  | Ansible `amd_gpu` role                                                                     | keep host tree as payload source, not runtime writer                                                                                          |
-| Intel GPU kernel and module state                 | `scripts/install/system-config.sh`                                                                                                                     | `infra/ansible/roles/intel_gpu/*`                                                                                   | PENDING          | proposed: Ansible `intel_gpu` role                                                         | leaf-1.1.2 platform decision and validate on goldendragon hardware                                                                             |
+| Intel GPU kernel and module state                 | `scripts/install/system-config.sh`                                                                                                                     | `infra/ansible/roles/intel_gpu/*`                                                                                   | PENDING          | historical proposal: Ansible `intel_gpu` role                                              | archived-host hardware proof excluded from current scope                                                                                     |
 | laptop power policy                               | `scripts/install/setup/power-management.sh`, host TLP config under `hosts/*/etc/tlp.d/*`                                                               | `infra/ansible/roles/tlp/*`, `infra/ansible/roles/tlp/files/hosts/*`                                                | partial overlap  | Ansible `tlp` role                                                                         | retire shell-side service toggles for managed hosts and eventually delete or archive the legacy reference copy                                |
 | resolved DNS drop-ins                             | legacy host-tree DNS copies                                                                                                                            | `infra/ansible/roles/resolved/*`, `infra/ansible/roles/resolved/files/hosts/*`                                      | PENDING          | proposed: Ansible `resolved` role                                                         | leaf-1.1.6 source decision; keep DNS payloads role-local unless the decision changes                                                            |
 | OpenFortiVPN units and helper                     | `hosts/goldendragon/etc/systemd/system/openfortivpn*.service`, `hosts/goldendragon/dotfiles/.local/bin/avular-vpn-dns`                                 | `infra/ansible/roles/openfortivpn/*`, `infra/ansible/roles/openfortivpn/files/hosts/goldendragon/*`                 | partial overlap  | Ansible `openfortivpn` role                                                                | stop treating host files as a live source and eventually delete or archive the legacy reference copy                                          |
@@ -380,7 +407,7 @@ Until all five are true for a host, that host remains blocked from real-host val
 
 ## Host Catalog
 
-## `dragon`
+## Historical `dragon` analysis (archived, not a target)
 
 ### Legacy host sources on `main`
 
@@ -454,10 +481,10 @@ Chezmoi:
 ### Missing or only partially represented
 
 - PipeWire host audio drop-ins under `hosts/dragon/pipewire/`
-- live NetBird convergence proof on `dragon`
+- historical gap: NetBird convergence proof (archived host; no current execution)
 - generic desktop service enablement from `system-services.sh` still needs explicit capability decisions for Bluetooth, CUPS, Docker, and `power-profiles-daemon`
 
-### `dragon` parity checklist
+### Historical `dragon` parity topics (not current actions)
 
 - decide whether PipeWire host audio stays script-owned or moves to chezmoi
 - verify the `netbird` role against real Dragon behavior; legacy setup now skips NetBird
@@ -568,7 +595,7 @@ Chezmoi:
 - decide whether generic desktop services become explicit role-owned capabilities for `firedragon`
 - decide whether `kbd-backlight` becomes chezmoi-owned user state or is intentionally retired
 
-## `goldendragon`
+## Historical `goldendragon` analysis (archived, not a target)
 
 ### Legacy host sources on `main`
 
@@ -672,7 +699,7 @@ Chezmoi:
 - secure-boot bringup path is still script-oriented and currently path-fragile
 - generic Bluetooth, CUPS, Docker, and non-TLP `power-profiles-daemon` service enablement from `system-services.sh` still needs explicit capability decisions
 
-### `goldendragon` parity checklist
+### Historical `goldendragon` parity topics (not current actions)
 
 - add fingerprint watchdog ownership to the new architecture
 - decide where `battery-status` lives in the new model
@@ -770,7 +797,7 @@ catalog are baseline rows, not silent approvals:
 - pending decision: **PENDING — leaf-1.1.2** must confirm exact Ubuntu release,
   architecture and package/session boundary
 
-## Host/profile capability ownership matrix
+## Historical r2 host/profile capability ownership matrix
 
 Each comma-separated capability ID below is a separate host/profile
 relationship. The ownership tuple on that row applies to every listed ID;
@@ -788,11 +815,11 @@ the capability-specific proposed tuple and source list are in
 | `generic-desktop` | `generic-desktop`, `profile-desktop`, `desktop-hyprland`, `desktop-sddm`, `desktop-session-stack`, `desktop-audio-services`, `desktop-visual-integration`, `package-core-cli`, `package-fonts`, `package-aur`, `package-vendor`, `optional-gui`, `optional-sharing`, `optional-creative`, `optional-gaming`, `optional-input`, `user-static`, `user-devtools`, `user-git-ssh`, `user-zsh`, `boot-plymouth`, `boot-parameters`, `firewall-polkit`, `sddm-ownership`, `source-encoding`, `source-sync`, `source-target`, `source-migration`, `source-cutover`, `generated-state`, `theme-runtime`, `secrets`, `pkgsolve`, `validation-ci`, `validation-idempotency` | `leaf-1.1.4-selected generic desktop composition` | `install-selected Ansible/chezmoi composition` | `leaf-1.7.14 generic desktop final acceptance` | `generic desktop maintainer with disposable recovery procedure` | `leaf-1.1.4` |
 | `generic-headless` | `generic-headless`, `profile-server`, `package-core-cli`, `package-runtimes`, `user-static`, `user-devtools`, `user-git-ssh`, `user-zsh`, `boot-plymouth`, `boot-parameters`, `firewall-polkit`, `source-encoding`, `source-sync`, `source-target`, `source-migration`, `source-cutover`, `secrets`, `pkgsolve`, `validation-ci`, `validation-idempotency` | `leaf-1.1.4-selected generic headless composition` | `install-selected Ansible composition` | `leaf-1.7.15 generic headless final acceptance` | `generic headless maintainer with disposable recovery procedure` | `leaf-1.1.4` |
 
-## Source inventory mapping and evidence boundaries
+## Historical r2 source inventory mapping and evidence boundaries
 
 The following IDs and categories are the complete source inventory. Paths and
-ownership tuples are authoritative in `gates/contract/baseline.json`; this
-table is the catalog cross-check, not a second source list.
+ownership tuples were recorded in `gates/contract/baseline.json`; this
+table cross-checks that historical snapshot, not current inventory membership.
 
 | Source ID | Category | Repository paths | Pending owner |
 |---|---|---|---|
@@ -816,7 +843,7 @@ The intentional missing path is limited to
 `legacy-host-ubuntu-mobile-dev` → `hosts/ubuntu-mobile-dev/**`; the checker
 rejects any other missing or unlisted path.
 
-## Cross-host implementation checklist
+## Historical cross-host implementation checklist
 
 This is the minimum shared backlog to achieve true 1:1 parity claims.
 

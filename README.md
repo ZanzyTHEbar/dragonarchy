@@ -12,26 +12,25 @@ The canonical managed-host path is now the Ansible + chezmoi control plane. The 
 ## Quick Start
 
 ```bash
-# Clone and install
+# Clone and preview (replace host/user with your declared inventory target)
 git clone https://github.com/ZanzyTHEbar/dragonarchy ~/dotfiles
 cd ~/dotfiles
 
-# Full install (system + user state)
-./install --host <hostname>
+# Full install preview (system + user state)
+./install --host firedragon --user daofficialwizard --dry-run
 
-# Or apply only system state (Ansible)
-./install --host <hostname> --system-only
+# Or preview only system state (Ansible)
+./install --host firedragon --user daofficialwizard --system-only --dry-run
 
-# Or apply only user state (chezmoi dotfiles)
-./install --host <hostname> --user-only
-
-# Preview changes without applying
-./install --host <hostname> --dry-run
+# Or preview only user state (chezmoi dotfiles)
+./install --host firedragon --user daofficialwizard --user-only --dry-run
 ```
 
 > [!IMPORTANT]
 > The current hosts are machines that I own, and are not representative of the general population.
 > Be sure to create a new host configuration for your machine, use one of mine as a reference.
+
+Active inventory hosts are `firedragon`, `microdragon`, `opencode-runtime`, and `ubuntu-mobile-dev`. Active payloads retain `hosts/<host>/` naming. `dragon` and `goldendragon` remain archived under `hosts/legacy/`, outside active inventory; there is no automatic archive fallback. Migration is not parity-complete, and a dry-run or static check does not authorize live cutover.
 
 ## Architecture
 
@@ -62,9 +61,8 @@ dragonarchy/
 │   ├── ssh/            # SSH configuration
 │   └── ...
 ├── hosts/              # Host-specific system configs and dotfile overlays
-│   ├── dragon/         # AMD desktop workstation
 │   ├── firedragon/     # ASUS laptop
-│   ├── goldendragon/   # ThinkPad P16s
+│   ├── legacy/         # Archived dragon and goldendragon payloads (retained)
 │   └── ...
 ├── infra/
 │   ├── ansible/        # System-state control plane (packages, services, hardware)
@@ -105,7 +103,7 @@ When adding a new command:
 2. Append an entry to `scripts/tools/bin-links.manifest` with `package=`, `target=` (canonical script), and `link=` (package `.local/bin` path).
 3. Run `scripts/tools/sync-bin-links --package <name>` to generate or verify the package-local symlink.
 
-This keeps every PATH-visible command sourced from a single canonical script while preserving per-package bin directories. Managed user-state application goes through `infra/chezmoi/bin/chezmoi-sync` and `./install --user-only`; direct Stow restows are legacy/manual recovery operations.
+This keeps every PATH-visible command sourced from a single canonical script while preserving per-package bin directories. Managed user-state application goes through `infra/chezmoi/bin/chezmoi-sync` and `./install --host <hostname> --user <username> --user-only`; direct Stow restows are legacy/manual recovery operations.
 
 ## Features
 
@@ -126,11 +124,11 @@ This keeps every PATH-visible command sourced from a single canonical script whi
 ### Basic Usage
 
 ```bash
-./install --host dragon              # Complete managed-host setup
-./install --host dragon --dry-run    # Preview Ansible + chezmoi changes
-./install --host dragon --system-only  # Only apply Ansible system state
-./install --host dragon --user-only    # Only apply chezmoi user state
-./infra/validate-parity.sh --host dragon  # Check migration parity surface
+# Preview the local runtime profile with its declared managed user
+./install --host opencode-runtime --user coder --dry-run
+./install --host opencode-runtime --user coder --system-only --dry-run
+./install --host opencode-runtime --user coder --user-only --dry-run
+./infra/validate-parity.sh --host opencode-runtime  # Static coverage, not behavioral proof
 ```
 
 ### Legacy Installer Toggles
@@ -198,7 +196,7 @@ Packages are defined in `scripts/install/deps.manifest.toml`. Ansible consumes t
 ./scripts/install/install-deps.sh --bundle desktop_smb # Desktop + optional Nemo SMB/usershare support
 
 # Managed-host install uses the Ansible packages role through ./install
-./install --host microdragon --system-only
+./install --host microdragon --user daofficialwizard --system-only --dry-run
 ```
 
 Bundles are composable:
@@ -220,13 +218,13 @@ Bundles are composable:
 The primary migration parity check is read-only and validates inventory, role coverage, manifest sources, and legacy retirement markers:
 
 ```bash
-./infra/validate-parity.sh --host dragon
 ./infra/validate-parity.sh --host firedragon
-./infra/validate-parity.sh --host goldendragon
 ./infra/validate-parity.sh --host microdragon
+./infra/validate-parity.sh --host opencode-runtime
+./infra/validate-parity.sh --host ubuntu-mobile-dev
 ```
 
-The legacy validator remains available for historical troubleshooting, but it is not the canonical managed-host parity gate.
+Unknown and archived hosts are rejected. Success checks static coverage only, not full behavioral parity, live readiness, or retirement acceptance. The legacy validator remains available for historical troubleshooting, but it is not the canonical managed-host parity gate.
 
 ## Legacy Migration System
 

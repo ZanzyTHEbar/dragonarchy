@@ -1,6 +1,6 @@
 ---
 acpi_wakeup_enabled: true
-acpi_wakeup_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
+acpi_wakeup_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts/legacy"
 acpi_wakeup_sleep_hook_path: /etc/systemd/system-sleep/98-acpi-wakeup.sh
 acpi_wakeup_service_name: disable-acpi-wakeup.service
 

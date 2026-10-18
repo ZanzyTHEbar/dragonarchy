@@ -4,8 +4,8 @@
 #
 # Usage: ./infra/validate-parity.sh --host <hostname>
 #
-# Verifies that the declarative control plane (Ansible + chezmoi) is complete
-# for the given host. This is a read-only check that does not modify any state.
+# Checks static control-plane coverage for an active inventory host.
+# Read-only; success is not proof of behavioral parity or migration completion.
 
 set -euo pipefail
 
@@ -66,7 +66,20 @@ if ! command -v ansible-inventory >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! ansible-inventory -i "${INVENTORY}" --host "${HOST_NAME}" >/dev/null 2>&1; then
+# --host can succeed with {} for an unknown host; require listed membership.
+if ! INVENTORY_JSON=$(ansible-inventory -i "${INVENTORY}" --list 2>/dev/null); then
+    error "Failed to list Ansible inventory: ${INVENTORY}"
+    exit 1
+fi
+
+if ! printf '%s\n' "${INVENTORY_JSON}" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+target = sys.argv[1]
+sys.exit(0 if any(target in (group.get("hosts") or [])
+                  for name, group in data.items()
+                  if name != "_meta" and isinstance(group, dict)) else 1)
+' "${HOST_NAME}"; then
     error "Host '${HOST_NAME}' not found in inventory"
     exit 1
 fi
@@ -99,10 +112,6 @@ if [[ -n "${gpu_stack}" ]]; then
 fi
 
 # Query inventory group membership so role coverage includes group-applied roles.
-if ! INVENTORY_JSON=$(ansible-inventory -i "${INVENTORY}" --list 2>/dev/null); then
-    error "Failed to list Ansible inventory: ${INVENTORY}"
-    exit 1
-fi
 inventory_groups=$(printf '%s\n' "${INVENTORY_JSON}" | python3 -c "
 import sys, json
 

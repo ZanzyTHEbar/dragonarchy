@@ -1,6 +1,6 @@
 ---
 power_sleep_enabled: true
-power_sleep_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
+power_sleep_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts/legacy"
 
 power_sleep_managed_services_by_host:
   goldendragon:
