@@ -1,0 +1,15 @@
+---
+- name: Targeted package upgrades
+  hosts: all
+  gather_facts: true
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Reuse foundation assertions without provisioning
+      ansible.builtin.import_role:
+        name: common
+        tasks_from: contract
+
+  tasks:
+    - name: Upgrade target packages only
+      ansible.builtin.import_tasks: ../roles/packages/tasks/upgrade.yml

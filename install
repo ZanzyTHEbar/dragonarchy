@@ -42,6 +42,7 @@ TARGET_CONNECTION=""
 SYSTEM_ONLY=false
 USER_ONLY=false
 DRY_RUN=false
+UPDATE=false
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -54,6 +55,7 @@ Usage: $0 --host <name> --user <name> [OPTIONS]
 Apply the complete desired state for this machine.
 
 Options:
+    --update           Upgrade target packages, then converge declared user state
     --host <name>      Target host (required)
     --user <name>      Explicit user from the host's managed_users list
     --target <kind>    Target profile: local-profile, remote-host, or container
@@ -130,6 +132,10 @@ while [[ $# -gt 0 ]]; do
             SYSTEM_ONLY=true
             shift
             ;;
+        --update)
+            UPDATE=true
+            shift
+            ;;
         --user-only)
             USER_ONLY=true
             shift
@@ -155,6 +161,11 @@ done
 # ---------------------------------------------------------------------------
 
 [[ -n "${HOST_NAME}" ]] || log_fatal "An explicit --host selection is required."
+[[ "${HOST_NAME}" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || \
+    log_fatal "--host must be a literal safe inventory host name."
+if [[ "${SYSTEM_ONLY}" == "true" && "${USER_ONLY}" == "true" ]]; then
+    log_fatal "--system-only and --user-only are mutually exclusive."
+fi
 
 # ---------------------------------------------------------------------------
 # Target tuple resolution
@@ -178,119 +189,8 @@ inventory_tuple() {
     local inventory_json
     inventory_json="$(ansible-inventory -i "${INVENTORY_FILE}" --host "${HOST_NAME}" 2>/dev/null)" || return 1
 
-    INVENTORY_JSON="${inventory_json}" python3 - "${TARGET_USER}" <<'PY'
-import json
-import os
-import sys
-
-
-def fail(message):
-    print(message, file=sys.stderr)
-    raise SystemExit(1)
-
-
-requested_user = sys.argv[1]
-try:
-    inventory = json.loads(os.environ["INVENTORY_JSON"])
-except (KeyError, json.JSONDecodeError) as error:
-    fail(f"inventory output is not valid JSON: {error}")
-
-
-def required_string(value, label):
-    if not isinstance(value, str) or not value.strip():
-        fail(f"{label} must be a non-empty inventory field")
-    return value
-
-
-def canonical_path(value, label):
-    value = required_string(value, label)
-    if not value.startswith("/"):
-        fail(f"{label} must be an absolute path")
-    if any(component in {".", ".."} for component in value.split("/")):
-        fail(f"{label} contains dot path components")
-    if os.path.normpath(value) != value:
-        fail(f"{label} is not lexically canonical")
-    if os.path.realpath(value) != value:
-        fail(f"{label} resolves through a symlink")
-    return value
-
-
-def normalize_connection(value, label):
-    value = required_string(value, label)
-    if value == "local":
-        return "local"
-    if value in {"ssh", "remote-ssh"}:
-        return "ssh"
-    fail(f"{label} has an unsupported value: {value}")
-
-
-users = inventory.get("managed_users")
-if not isinstance(users, list) or not users:
-    fail("managed_users must be a non-empty list")
-if not requested_user:
-    fail("an explicit --user selection is required for managed_users")
-
-selected = [user for user in users if isinstance(user, dict) and user.get("name") == requested_user]
-if len(selected) != 1:
-    fail(f"managed user selection is not unique: {requested_user}")
-if any(not isinstance(user, dict) or not isinstance(user.get("name"), str) or not user["name"].strip() for user in users):
-    fail("every managed user must have a non-empty name")
-
-profile = required_string(inventory.get("target_profile"), "target_profile")
-target_connection = normalize_connection(inventory.get("target_connection"), "target_connection")
-platform_connection_mode = required_string(inventory.get("platform_connection_mode"), "platform_connection_mode")
-target_home = canonical_path(inventory.get("target_home"), "target_home")
-target_source = canonical_path(inventory.get("target_source"), "target_source")
-policy_fields = [
-    "platform_local_connection_policy",
-    "platform_container_policy",
-    "platform_remote_connection_policy",
-    "platform_container_identity",
-    "platform_controller_home_policy",
-    "platform_unsupported_combination_policy",
-    "platform_generic_family_fallback",
-]
-policies = {field: required_string(inventory.get(field), field) for field in policy_fields}
-expected_policies = {
-    "local": "forbidden" if profile == "remote-host" else "required",
-    "container": "required" if profile == "container" else "forbidden",
-    "remote": "required" if profile == "remote-host" else "forbidden",
-    "identity": "declared-local-container" if profile == "container" else "not-applicable",
-}
-
-if profile not in {"local-profile", "remote-host", "container"}:
-    fail(f"target_profile has an unsupported value: {profile}")
-mode_connection = {"local": "local", "remote-ssh": "ssh"}.get(platform_connection_mode)
-if mode_connection != target_connection:
-    fail("target connection and platform connection mode drift")
-if target_connection != ("ssh" if profile == "remote-host" else "local"):
-    fail("target profile and target connection drift")
-if (
-    policies["platform_local_connection_policy"] != expected_policies["local"]
-    or policies["platform_container_policy"] != expected_policies["container"]
-    or policies["platform_remote_connection_policy"] != expected_policies["remote"]
-    or policies["platform_container_identity"] != expected_policies["identity"]
-    or policies["platform_controller_home_policy"] != "forbidden"
-    or policies["platform_unsupported_combination_policy"] != "reject"
-    or policies["platform_generic_family_fallback"] != "forbidden"
-):
-    fail("target profile and platform policy drift")
-
-user = selected[0]
-home = canonical_path(user.get("home"), f"managed_users.{user['name']}.home")
-source = canonical_path(user.get("chezmoi_source"), f"managed_users.{user['name']}.chezmoi_source")
-if home != target_home or source != target_source:
-    fail("managed user home/source does not match the inventory target tuple")
-if target_home in {"/", "/root"} or target_source != f"{target_home}/.local/share/chezmoi":
-    fail("inventory target home/source binding is unsafe or drifted")
-if "ansible_connection" in inventory and normalize_connection(inventory["ansible_connection"], "ansible_connection") != target_connection:
-    fail("ansible connection and target connection drift")
-
-fields = [profile, target_connection, user["name"], home, source]
-if any(not isinstance(field, str) or "\t" in field or "\n" in field for field in fields):
-    fail("inventory target tuple contains an invalid field")
-print("\t".join(fields))
-PY
+    INVENTORY_JSON="${inventory_json}" \
+        python3 "${REPO_ROOT}/scripts/lib/target-tuple.py" resolve "${TARGET_USER}"
 }
 
 configured_source_dir() {
@@ -424,13 +324,27 @@ fi
 
 resolve_target_tuple
 
+if [[ "${UPDATE}" == true && "${TARGET_PROFILE}" == container ]]; then
+    if ! systemd-detect-virt --container --quiet; then
+        log_fatal "The container profile requires execution inside a detected container."
+    fi
+fi
+
+# A plan only: do not run check-mode package tasks or promote chezmoi sources.
+if [[ "${UPDATE}" == true && "${DRY_RUN}" == true ]]; then
+    log_info "Update plan for ${HOST_NAME} (${TARGET_PROFILE}, ${TARGET_CONNECTION})"
+    [[ "${USER_ONLY}" == true ]] || log_info "System: update.yml targeted package upgrades"
+    [[ "${SYSTEM_ONLY}" == true ]] || log_info "User: declared chezmoi convergence for ${TARGET_USER} at ${TARGET_HOME} from ${TARGET_SOURCE}"
+    exit 0
+fi
+
 if [[ "${SYSTEM_ONLY}" != "true" ]]; then
     [[ -x "${CHEZMOI_SYNC_COMMAND}" ]] || \
         log_fatal "chezmoi-sync is required (${CHEZMOI_SYNC_COMMAND}) but not executable."
     if [[ "${TARGET_CONNECTION}" == local ]]; then
         check_cmd chezmoi "Chezmoi dotfile management"
     else
-        check_cmd ansible "Remote chezmoi execution"
+        check_cmd ansible-playbook "Remote chezmoi execution"
     fi
 fi
 
@@ -454,15 +368,16 @@ apply_system_state() {
         ansible_args+=(--check --diff)
     fi
 
-    # Run foundation (global contract) then site (full convergence)
-    # Scope foundation to the target host to avoid SSH attempts to unreachable hosts.
-    log_info "Running foundation playbook..."
-    "${wrapper}" "${playbook_dir}/foundation.yml" \
-        --limit "${HOST_NAME}" \
-        --connection "${TARGET_CONNECTION}" \
-        --extra-vars "dotfiles_target_profile=${TARGET_PROFILE} dotfiles_target_user=${TARGET_USER} dotfiles_target_home=${TARGET_HOME} dotfiles_target_source=${TARGET_SOURCE} dotfiles_target_connection=${TARGET_CONNECTION}" \
-        "${ansible_args[@]}"
+    if [[ "${UPDATE}" == true ]]; then
+        log_info "Running update playbook for ${HOST_NAME}..."
+        "${wrapper}" "${playbook_dir}/update.yml" \
+            --limit "${HOST_NAME}" \
+            --connection "${TARGET_CONNECTION}" \
+            --extra-vars "dotfiles_target_profile=${TARGET_PROFILE} dotfiles_target_user=${TARGET_USER} dotfiles_target_home=${TARGET_HOME} dotfiles_target_source=${TARGET_SOURCE} dotfiles_target_connection=${TARGET_CONNECTION}"
+        return 0
+    fi
 
+    # Site already imports foundation through the tranche graph.
     log_info "Running site playbook for ${HOST_NAME}..."
     "${wrapper}" "${playbook_dir}/site.yml" \
         --limit "${HOST_NAME}" \
@@ -488,30 +403,10 @@ apply_user_state() {
             return 0
         fi
 
-        local remote_stage
-        remote_stage="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-chezmoi-remote.XXXXXX")"
-        local ansible_common=(
-            -i "${INVENTORY_FILE}" "${HOST_NAME}"
-            --connection=ssh
-            --become
-        )
-        local copy_args
-        local apply_args
-        (
-            trap 'rm -rf "${remote_stage}"' EXIT
-            "${CHEZMOI_SYNC_COMMAND}" \
-                --host "${HOST_NAME}" \
-                --source-dir "${remote_stage}"
-
-            printf -v copy_args 'src=%q dest=%q owner=%q mode=preserve' \
-                "${remote_stage}/" "${chezmoi_source}/" "${TARGET_USER}"
-            ansible "${ansible_common[@]}" --become-user=root \
-                --module-name ansible.builtin.copy --args "${copy_args}"
-
-            printf -v apply_args 'chezmoi --source %q --destination %q apply' "${chezmoi_source}" "${TARGET_HOME}"
-            ansible "${ansible_common[@]}" --become-user "${TARGET_USER}" \
-                --module-name ansible.builtin.command --args "${apply_args}"
-        )
+        ANSIBLE_CONFIG="${REPO_ROOT}/infra/ansible/ansible.cfg" \
+            python3 "${REPO_ROOT}/scripts/lib/remote-sync.py" \
+                --inventory "${INVENTORY_FILE}" --host "${HOST_NAME}" \
+                --user "${TARGET_USER}" --home "${TARGET_HOME}" --source "${chezmoi_source}"
         log_success "Remote user state applied"
         return 0
     fi
@@ -559,10 +454,6 @@ apply_user_state() {
 # ---------------------------------------------------------------------------
 
 log_step "=== Installing dotfiles for host '${HOST_NAME}' ==="
-
-if [[ "${SYSTEM_ONLY}" == "true" && "${USER_ONLY}" == "true" ]]; then
-    log_fatal "--system-only and --user-only are mutually exclusive."
-fi
 
 if [[ "${USER_ONLY}" != "true" ]]; then
     apply_system_state

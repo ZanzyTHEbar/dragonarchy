@@ -7,6 +7,7 @@
 setup() {
   WRAPPER="${BATS_TEST_DIRNAME}/../../infra/ansible/run-playbook.sh"
   MOCK_DIR="$(mktemp -d)"
+  export REMOTE_CHECK_LOG="${MOCK_DIR}/remote-checks"
 
   # Create a mock ansible-playbook that echoes its arguments
   cat >"${MOCK_DIR}/ansible-playbook" <<'EOF'
@@ -14,6 +15,17 @@ setup() {
 echo "ANSIBLE_PLAYBOOK_ARGS: $*"
 EOF
   chmod +x "${MOCK_DIR}/ansible-playbook"
+
+  cat >"${MOCK_DIR}/ansible" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$REMOTE_CHECK_LOG"
+echo "REMOTE_CHECK_ARGS: $*"
+if [[ "${REMOTE_PATH_STATUS:-0}" != 0 ]]; then
+  echo 'target_home resolves through a symlink' >&2
+  exit "$REMOTE_PATH_STATUS"
+fi
+EOF
+  chmod +x "${MOCK_DIR}/ansible"
 
   cat >"${MOCK_DIR}/ansible-inventory" <<'EOF'
 #!/usr/bin/env bash
@@ -450,26 +462,29 @@ EOF
   done
 }
 
-@test "rejects symlinked target home and source paths before playbook execution" {
-  real_home="${MOCK_DIR}/real-home"
-  home_link="${MOCK_DIR}/home-link"
-  real_source="${MOCK_DIR}/real-source"
-  source_link="${MOCK_DIR}/source-link"
-  mkdir -p "${real_home}" "${real_source}"
-  ln -s "${real_home}" "${home_link}"
-  ln -s "${real_source}" "${source_link}"
+@test "standalone system convergence requires a successful target filesystem check" {
+  run "${WRAPPER}" playbooks/site.yml --limit microdragon --extra-vars "$REMOTE_TUPLE"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"REMOTE_CHECK_ARGS:"*"ansible.builtin.script"*"check-paths"*"ANSIBLE_PLAYBOOK_ARGS"* ]]
 
-  symlink_home_tuple="dotfiles_target_profile=remote-host dotfiles_target_user=remoteuser dotfiles_target_home=${home_link} dotfiles_target_source=${home_link}/.local/share/chezmoi dotfiles_target_connection=ssh"
-  run "${WRAPPER}" playbooks/site.yml --limit microdragon --extra-vars "$symlink_home_tuple"
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"resolves through a symlink"* ]]
-  [[ "$output" != *"ANSIBLE_PLAYBOOK_ARGS"* ]]
+  for playbook in site update; do
+    run env REMOTE_PATH_STATUS=42 "${WRAPPER}" "playbooks/$playbook.yml" --limit microdragon --extra-vars "$REMOTE_TUPLE"
+    [ "$status" -eq 42 ]
+    [[ "$output" == *"resolves through a symlink"* ]]
+    [[ "$output" != *"ANSIBLE_PLAYBOOK_ARGS"* ]]
+  done
+}
 
-  symlink_source_tuple="dotfiles_target_profile=remote-host dotfiles_target_user=remoteuser dotfiles_target_home=/tmp/remote-target-home dotfiles_target_source=${source_link} dotfiles_target_connection=ssh"
-  run "${WRAPPER}" playbooks/site.yml --limit microdragon --extra-vars "$symlink_source_tuple"
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"resolves through a symlink"* ]]
-  [[ "$output" != *"ANSIBLE_PLAYBOOK_ARGS"* ]]
+@test "inspection-only flags never invoke the remote preflight" {
+  for flag in --syntax-check --list-tasks; do
+    for playbook in site update; do
+      run env REMOTE_PATH_STATUS=42 "${WRAPPER}" "playbooks/$playbook.yml" --limit microdragon --extra-vars "$REMOTE_TUPLE" "$flag"
+      [ "$status" -eq 0 ]
+      [[ "$output" == *"ANSIBLE_PLAYBOOK_ARGS:"*"$flag"* ]]
+      [[ "$output" != *"REMOTE_CHECK_ARGS:"* ]]
+      [ ! -e "$REMOTE_CHECK_LOG" ]
+    done
+  done
 }
 
 # ---------------------------------------------------------------------------

@@ -26,6 +26,7 @@ LIMIT=""
 LIMIT_SET=false
 REQUESTED_CONNECTION=""
 EXPLICIT_CONNECTION=false
+INSPECTION_ONLY=false
 SELECTED_USER=""
 EXTRA_VARS_USER=""
 EXTRA_VARS_KV_PARSEABLE=true
@@ -59,7 +60,7 @@ canonicalize_playbook_path() {
     fi
 
     case "${resolved}" in
-        "${SCRIPT_DIR}/playbooks/foundation.yml"|"${SCRIPT_DIR}/playbooks/site.yml")
+        "${SCRIPT_DIR}/playbooks/foundation.yml"|"${SCRIPT_DIR}/playbooks/site.yml"|"${SCRIPT_DIR}/playbooks/update.yml")
             printf '%s' "${resolved}"
             ;;
         *)
@@ -265,7 +266,12 @@ while [[ $# -gt 0 ]]; do
             EXPLICIT_CONNECTION=true
             shift 2
             ;;
-        --check|--diff|--syntax-check|--list-tasks)
+        --syntax-check|--list-tasks)
+            INSPECTION_ONLY=true
+            PASSTHROUGH_ARGS+=("$1")
+            shift
+            ;;
+        --check|--diff)
             PASSTHROUGH_ARGS+=("$1")
             shift
             ;;
@@ -312,7 +318,12 @@ if [[ -z "${LIMIT}" && "${EXPLICIT_CONNECTION}" == true ]]; then
     log_fatal "Explicit connections require a --limit target."
 fi
 
-if [[ "${PLAYBOOK}" == "${SCRIPT_DIR}/playbooks/site.yml" ]]; then
+if [[ "${PLAYBOOK}" == "${SCRIPT_DIR}/playbooks/update.yml" ]]; then
+    [[ "${LIMIT}" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || \
+        log_fatal "update.yml requires a literal safe inventory host name."
+fi
+
+if [[ "${PLAYBOOK}" == "${SCRIPT_DIR}/playbooks/site.yml" || "${PLAYBOOK}" == "${SCRIPT_DIR}/playbooks/update.yml" ]]; then
     [[ -n "${LIMIT}" ]] || log_fatal "site.yml requires a non-empty --limit target."
     [[ -n "${TUPLE_PROFILE}" ]] || log_fatal "site.yml requires dotfiles_target_profile in --extra-vars."
     [[ -n "${TUPLE_USER}" ]] || [[ -n "${SELECTED_USER}" ]] || \
@@ -359,26 +370,8 @@ normalize_connection() {
 
 inventory_connection_from_json() {
     local inventory_json="$1"
-    INVENTORY_JSON="${inventory_json}" python3 <<'PY'
-import json
-import os
-
-try:
-    inventory = json.loads(os.environ["INVENTORY_JSON"])
-except (KeyError, json.JSONDecodeError):
-    raise SystemExit(2)
-
-if "target_connection" not in inventory:
-    raise SystemExit(2)
-connection = inventory["target_connection"]
-
-if connection == "local":
-    print("local")
-elif connection in {"ssh", "remote-ssh"}:
-    print("ssh")
-else:
-    raise SystemExit(2)
-PY
+    INVENTORY_JSON="${inventory_json}" \
+        python3 "${REPO_ROOT}/scripts/lib/target-tuple.py" connection
 }
 
 inventory_connection_for_target() {
@@ -402,7 +395,7 @@ inventory_json_for_target() {
 }
 
 validate_site_inventory_tuple() {
-    [[ "${PLAYBOOK}" == "${SCRIPT_DIR}/playbooks/site.yml" ]] || return 0
+    [[ "${PLAYBOOK}" == "${SCRIPT_DIR}/playbooks/site.yml" || "${PLAYBOOK}" == "${SCRIPT_DIR}/playbooks/update.yml" ]] || return 0
 
     local inventory_json
     inventory_json="$(inventory_json_for_target)" || \
@@ -414,80 +407,7 @@ validate_site_inventory_tuple() {
     TUPLE_HOME="${TUPLE_HOME}" \
     TUPLE_SOURCE="${TUPLE_SOURCE}" \
     TUPLE_CONNECTION="${TUPLE_CONNECTION}" \
-    python3 <<'PY'
-import json
-import os
-
-
-def fail(message):
-    print(message)
-    raise SystemExit(1)
-
-
-def canonical_path(value, label):
-    if not isinstance(value, str) or not value:
-        fail(f"{label} must be a non-empty path")
-    if not value.startswith("/"):
-        fail(f"{label} must be an absolute path")
-    if any(component in {".", ".."} for component in value.split("/")):
-        fail(f"{label} contains dot path components")
-    if os.path.normpath(value) != value:
-        fail(f"{label} is not lexically canonical")
-    if os.path.realpath(value) != value:
-        fail(f"{label} resolves through a symlink")
-    return value
-
-
-try:
-    inventory = json.loads(os.environ["INVENTORY_JSON"])
-except (KeyError, json.JSONDecodeError):
-    fail("site target inventory is not valid JSON")
-
-for field in ("target_profile", "target_connection", "target_home", "target_source", "managed_users"):
-    if field not in inventory:
-        fail(f"inventory is missing {field}")
-
-tuple_fields = {
-    "target_profile": os.environ["TUPLE_PROFILE"],
-    "target_user": os.environ["TUPLE_USER"],
-    "target_home": canonical_path(os.environ["TUPLE_HOME"], "target_home"),
-    "target_source": canonical_path(os.environ["TUPLE_SOURCE"], "target_source"),
-    "target_connection": os.environ["TUPLE_CONNECTION"],
-}
-if any(not isinstance(value, str) or not value for value in tuple_fields.values()):
-    fail("site target tuple fields must be non-empty")
-
-if not isinstance(inventory["managed_users"], list):
-    fail("inventory managed_users must be a list")
-inventory_home = canonical_path(inventory["target_home"], "inventory target_home")
-inventory_source = canonical_path(inventory["target_source"], "inventory target_source")
-if tuple_fields["target_home"] in {"/", "/root"}:
-    fail("target home is unsafe")
-if inventory_home in {"/", "/root"}:
-    fail("inventory target home is unsafe")
-if inventory_source != f"{inventory_home}/.local/share/chezmoi":
-    fail("inventory target source does not match target home")
-selected = [
-    user for user in inventory["managed_users"]
-    if isinstance(user, dict) and user.get("name") == tuple_fields["target_user"]
-]
-if len(selected) != 1:
-    fail(f"selected managed user is not unique: {tuple_fields['target_user']}")
-
-if tuple_fields["target_profile"] != inventory["target_profile"]:
-    fail("target profile does not match inventory")
-if tuple_fields["target_connection"] != inventory["target_connection"]:
-    fail("target connection does not match inventory")
-user = selected[0]
-user_home = canonical_path(user.get("home"), "managed user home")
-user_source = canonical_path(user.get("chezmoi_source"), "managed user source")
-if user_home != tuple_fields["target_home"] or inventory_home != tuple_fields["target_home"]:
-    fail("target home does not match inventory")
-if user_source != tuple_fields["target_source"] or inventory_source != tuple_fields["target_source"]:
-    fail("target source does not match inventory")
-if tuple_fields["target_source"] != f"{tuple_fields['target_home']}/.local/share/chezmoi":
-    fail("target source does not match target home")
-PY
+        python3 "${REPO_ROOT}/scripts/lib/target-tuple.py" validate-site 2>&1
 }
 
 validate_connection_contract() {
@@ -522,6 +442,17 @@ validate_connection_contract() {
 
 validate_site_inventory_tuple
 validate_connection_contract
+
+# SSH paths belong to the target filesystem, not the controller's namespace.
+if [[ "${INSPECTION_ONLY}" == false && "${REQUESTED_CONNECTION}" == ssh && -n "${TUPLE_HOME}" && -n "${TUPLE_SOURCE}" ]]; then
+    command -v ansible >/dev/null 2>&1 || log_fatal "ansible is required for target filesystem validation."
+    printf -v target_check_args '%q check-paths %q %q' \
+        "${REPO_ROOT}/scripts/lib/target-tuple.py" "${TUPLE_HOME}" "${TUPLE_SOURCE}"
+    # The users role may not have created the selected account yet.
+    ansible -i "${INVENTORY_FILE}" "${LIMIT}" --connection=ssh \
+        --become --become-user root \
+        --module-name ansible.builtin.script --args "${target_check_args} executable=python3"
+fi
 
 # ---------------------------------------------------------------------------
 # Execute

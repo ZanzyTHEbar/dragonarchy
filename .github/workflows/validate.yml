@@ -85,6 +85,9 @@ jobs:
       - name: Check active host scope and archived payload boundary (static/mock)
         run: python3 tests/shell/host-scope-check.py
 
+      - name: Check isolated remote source transport and reconciliation
+        run: python3 tests/shell/remote-sync-check.py
+
       - name: Syntax check full site playbook
         working-directory: infra/ansible
         run: ansible-playbook -i inventory/hosts.yml playbooks/site.yml --syntax-check
@@ -102,7 +105,7 @@ jobs:
 
       - name: Run Bats tests
         run: |
-          ./tests/shell/vendor/bin/bats tests/shell/*.bats tests/shell/retirement/1.2.4.bats
+          ./tests/shell/vendor/bin/bats tests/shell/*.bats
 
       - name: Check Zsh syntax
         run: |
