@@ -237,10 +237,37 @@ The legacy migration framework is retained for historical `install.sh` flows onl
 # Migrations are stored in migrations/ (created on demand)
 # Run them (tracked via install-state):
 ./scripts/install/run-migrations.sh
+```
 
-# Or run a full update (also runs migrations):
-./scripts/install/update.sh
+## Managed updater usage
 
+The public updater validates an explicit inventory host and managed user before
+refreshing its own checkout with one upstream fetch and a fast-forward-only merge.
+It requires a clean attached branch with a configured upstream; staged, untracked,
+ahead/diverged, or in-progress Git work is refused, never stashed or reset.
+
+```bash
+./scripts/install/update.sh --host firedragon --user <managed-user> --dry-run
+dragon-cli update --host firedragon --user <managed-user>
+dragon-cli theme update --host firedragon --user <managed-user>
+```
+
+Installer options are forwarded unchanged, including `--system-only`, `--user-only`,
+`--target`, `--connection`, `--home` and `--source-dir`. Help and dry-run do not
+fetch or write. Direct `./install --update` uses the current checkout without
+refreshing it. Public refresh rejects `DOTFILES_INVENTORY` overrides. If inventory
+inputs change during refresh, apply stops: review the updated checkout and rerun;
+the repository fast-forward is not rolled back. The inventory guard conservatively
+covers all `infra/ansible` inputs, root vars/config and the target tuple resolver.
+
+Theme update delegates to the user-only updater (`--system-only` is rejected).
+It refreshes repository theme assets and converges declared user state, but does
+not reselect themes/backgrounds or rewrite runtime history/generated palettes.
+Repository-only assets are not delivered to remote hosts by user convergence;
+this is not a full remote theme refresh or live reapply. No migrations or Stow run.
+Interactive Update asks for both host and user; neither is guessed.
+
+```bash
 # Or you can use the dragon-cli to manage your dotfiles:
 dragon-cli                       # Interactive main menu
 dragon-cli theme                 # Theme management menu
@@ -250,8 +277,7 @@ dragon-cli utilities nfs         # Configure NFS mounts
 dragon-cli utilities web-apps    # Create web application launchers
 dragon-cli utilities docker-dbs  # Launch database containers
 dragon-cli utilities secrets     # Secrets management menu
-dragon-cli utilities add-migration  # Create new migration
-dragon-cli update                # Update dotfiles
+dragon-cli update --host <host> --user <user> # Refresh and update selected target
 dragon-cli setup                 # Run setup script
 dragon-cli power                 # Power menu
 dragon-cli keybindings           # View keybindings

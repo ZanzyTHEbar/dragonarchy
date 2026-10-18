@@ -1,52 +1,84 @@
 #!/usr/bin/env bash
-# Updates the entire system: dotfiles, packages, and themes.
+# Refresh this checkout, then delegate the selected target to the installer.
 
 set -euo pipefail
 
-# Get script directory and source logging utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck disable=SC1091  # Runtime-resolved path to logging library
-source "${SCRIPT_DIR}/../lib/logging.sh"
-# shellcheck disable=SC1091
-source "${SCRIPT_DIR}/../lib/control-plane-mode.sh"
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -h "$SOURCE" ]]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ "$SOURCE" == /* ]] || SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
 
-if ! dotfiles_require_explicit_legacy_ownership "legacy updater"; then
-    exit 1
+fail() { printf 'Update refused: %s\n' "$*" >&2; exit 1; }
+
+DRY_RUN=false
+for arg in "$@"; do
+    case "$arg" in
+        -h|--help)
+            cat <<'EOF'
+Usage: update.sh --host <inventory host> --user <managed user> [installer options]
+
+Validate the explicit target, refresh this clean checkout from its configured
+upstream (one fetch, fast-forward only), then run the refreshed install --update.
+--dry-run validates the current checkout only; it does not fetch or write.
+--system-only / --user-only select installer scope. Other target options, including
+--home, --source-dir, --connection and --target, are forwarded unchanged.
+Inventory changes stop apply after refresh: review the changes and rerun.
+No migrations, Stow, stash, reset, or live theme/background reselection.
+EOF
+            exit 0
+            ;;
+        --dry-run) DRY_RUN=true ;;
+    esac
+done
+
+# Public refresh is bound to repository inventory, not an external/dynamic source.
+[[ ! -v DOTFILES_INVENTORY ]] || fail 'DOTFILES_INVENTORY is not supported by public refresh; use install --update for custom inventory.'
+export ANSIBLE_CONFIG="$REPO_ROOT/infra/ansible/ansible.cfg"
+cd "$REPO_ROOT/infra/ansible"
+"$REPO_ROOT/install" --update "$@" --dry-run
+$DRY_RUN && exit 0
+
+[[ "$(git -C "$REPO_ROOT" rev-parse --show-toplevel)" == "$REPO_ROOT" ]] || fail 'Script is not at the root of its own checkout.'
+cd "$REPO_ROOT"
+
+require_clean() {
+    local status state state_path
+    status="$(git status --porcelain --untracked-files=all --ignore-submodules=none)"
+    [[ -z "$status" ]] || fail 'Checkout must be clean, including staged and untracked files. Commit or move your edits yourself.'
+    for state in MERGE_HEAD rebase-merge rebase-apply CHERRY_PICK_HEAD REVERT_HEAD sequencer; do
+        state_path="$(git rev-parse --git-path "$state")"
+        [[ ! -e "$state_path" ]] || fail "Git operation in progress ($state)."
+    done
+}
+
+require_clean
+BRANCH="$(git symbolic-ref -q HEAD)" || fail 'An attached branch is required.'
+HEAD_BEFORE="$(git rev-parse HEAD)"
+UPSTREAM="$(git rev-parse --symbolic-full-name '@{upstream}')" || fail 'Configure a branch upstream first.'
+REMOTE="$(git config --get "branch.${BRANCH#refs/heads/}.remote")" || fail 'Configure a branch remote first.'
+MERGE_REF="$(git config --get "branch.${BRANCH#refs/heads/}.merge")" || fail 'Configure an upstream branch first.'
+[[ "$REMOTE" != . && "$MERGE_REF" == refs/heads/* ]] || fail 'Upstream must be a branch on a configured remote.'
+git remote get-url -- "$REMOTE" >/dev/null
+git merge-base --is-ancestor HEAD "$UPSTREAM" || fail 'Local branch is ahead or diverged; publish or reconcile it explicitly.'
+
+# Fetch only the selected upstream, regardless of broad configured refspecs.
+git -c fetch.recurseSubmodules=false fetch --no-tags --no-recurse-submodules -- "$REMOTE" "$MERGE_REF"
+FETCHED_HEAD="$(git rev-parse FETCH_HEAD)"
+[[ "$(git symbolic-ref -q HEAD)" == "$BRANCH" && "$(git rev-parse HEAD)" == "$HEAD_BEFORE" ]] || fail 'Local branch or HEAD changed during fetch.'
+require_clean
+git merge-base --is-ancestor HEAD "$FETCHED_HEAD" || fail 'Local branch is ahead or diverged from fetched upstream; reconcile it explicitly.'
+git -c merge.autoStash=false -c rebase.autoStash=false merge --ff-only --no-autostash --no-overwrite-ignore "$FETCHED_HEAD"
+require_clean
+
+# Conservative: all Ansible inputs (including vars, plugins and config), plus
+# root vars/config and the tuple resolver. Never infer identity from human logs.
+if ! git diff --quiet "$HEAD_BEFORE" HEAD -- infra/ansible ansible.cfg group_vars host_vars scripts/lib/target-tuple.py; then
+    fail 'Inventory inputs changed during refresh; review the refreshed checkout and rerun. No target was applied.'
 fi
 
-# The legacy updater is retained only for explicitly legacy-owned hosts. The
-# managed replacement updater is owned by the later control-plane leaf.
-# shellcheck disable=SC1091
-source "${SCRIPT_DIR}/../lib/install-state.sh"
-
-REPO_ROOT=$(git rev-parse --show-toplevel)
-
-# 1. Update Dotfiles
-log_info "Updating dotfiles repository..."
-cd "$REPO_ROOT" # Move to the root of the dotfiles repo
-git pull --autostash
-git diff --check || git reset --merge
-cd - >/dev/null
-
-# 2. Run Pending Migrations
-log_info "Running pending migrations..."
-
-"$REPO_ROOT/scripts/install/run-migrations.sh"
-
-# 3. Update System Packages
-if command -v paru >/dev/null 2>&1; then
-    log_info "Updating system packages with paru..."
-    paru -Syu --noconfirm
-elif command -v apt-get >/dev/null 2>&1; then
-    log_info "Updating system packages with apt-get..."
-    sudo apt-get update
-    sudo apt-get upgrade -y
-else
-    log_warning "No supported package manager found (paru/apt-get); skipping package update"
-fi
-
-# 4. Update Themes
-log_info "Updating all installed themes..."
-"$(dirname "$0")/../theme-manager/theme-update"
-
-log_info "System update complete!"
+cd "$REPO_ROOT/infra/ansible"
+exec "$REPO_ROOT/install" --update "$@"

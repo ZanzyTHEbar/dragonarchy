@@ -1,21 +1,28 @@
-#!/bin/bash
-# Update themes by pulling the dotfiles repository
-# Themes are managed via stow, so we update the main dotfiles repo
+#!/usr/bin/env bash
+# User-only public update; leave runtime theme/background choices untouched.
+set -euo pipefail
 
-DOTFILES_DIR="${HOME}/dotfiles"
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -h "$SOURCE" ]]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ "$SOURCE" == /* ]] || SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 
-if [ ! -d "$DOTFILES_DIR/.git" ]; then
-    echo "Error: Dotfiles directory not found or not a git repository: $DOTFILES_DIR" >&2
-    exit 1
-fi
-
-echo "Updating dotfiles repository (themes are managed here)..."
-git -C "$DOTFILES_DIR" pull
-
-# If stow is available, re-stow themes to ensure symlinks are current
-if command -v stow >/dev/null 2>&1; then
-    echo "Re-stowing themes package..."
-    cd "$DOTFILES_DIR" && stow -R packages/themes 2>/dev/null || true
-fi
-
-echo "Themes updated successfully!"
+for arg in "$@"; do
+    case "$arg" in
+        --system-only)
+            echo 'theme-update only supports user state; --system-only is not allowed.' >&2
+            exit 2
+            ;;
+        -h|--help)
+            echo 'Usage: theme-update --host <inventory host> --user <managed user> [installer options]'
+            echo 'Runs public update with --user-only. Refreshes repository theme assets, not live selections.'
+            echo 'Remote user convergence does not deliver repository-only theme assets to remote hosts.'
+            echo 'No theme/background reselection, history changes, generated palette rewrite, or live reapply.'
+            exit 0
+            ;;
+    esac
+done
+exec "$SCRIPT_DIR/../install/update.sh" --user-only "$@"

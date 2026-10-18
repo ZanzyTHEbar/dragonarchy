@@ -183,7 +183,7 @@ secrets_menu() {
 
 utilities_menu() {
     ensure_tty || return
-    local options=("NFS" "Web Apps" "Docker DBs" "Secrets" "Add Migration" "Deps Manifest" "Back")
+    local options=("NFS" "Web Apps" "Docker DBs" "Secrets" "Deps Manifest" "Back")
     choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Utilities") || main_menu
     case "$choice" in
         NFS)
@@ -201,11 +201,6 @@ utilities_menu() {
         ;;
         Secrets)
             secrets_menu
-            utilities_menu
-        ;;
-        "Add Migration")
-            "$SCRIPT_DIR/utilities/add-migration.sh"
-            ack_command
             utilities_menu
         ;;
         "Deps Manifest")
@@ -231,6 +226,15 @@ remove_theme_prompt() {
     if [[ -n "$theme" ]]; then
         theme-remove "$theme"
     fi
+}
+
+update_prompt() {
+    local updater="$1" host user
+    host=$(gum input --placeholder="Explicit inventory host" --header="Update target") || return
+    [[ -n "${host//[[:space:]]/}" ]] || return 1
+    user=$(gum input --placeholder="Explicit managed user" --header="Update target") || return
+    [[ -n "${user//[[:space:]]/}" ]] || return 1
+    "$updater" --host "$host" --user "$user" && ack_command
 }
 
 list_sddm_themes() {
@@ -359,10 +363,7 @@ theme_menu() {
             theme_menu
         ;;
         Update)
-            if theme-update; then
-                ack_command
-                show_theme_summary
-            fi
+            update_prompt "$SCRIPT_DIR/theme-manager/theme-update"
             theme_menu
         ;;
         Remove)
@@ -405,8 +406,7 @@ main_menu() {
         ;;
         Utilities) utilities_menu ;;
         Update)
-            "$SCRIPT_DIR/install/update.sh"
-            ack_command
+            update_prompt "$SCRIPT_DIR/install/update.sh"
             main_menu
         ;;
         Setup)
@@ -432,8 +432,16 @@ main_menu() {
 
 # Handle direct command arguments
 case "${1:-}" in
+    update)
+        shift
+        exec "$SCRIPT_DIR/install/update.sh" "$@"
+    ;;
     theme)
         shift
+        if [[ "${1:-}" == update ]]; then
+            shift
+            exec "$SCRIPT_DIR/theme-manager/theme-update" "$@"
+        fi
         theme_menu
         exit 0
     ;;
@@ -491,9 +499,8 @@ case "${1:-}" in
                 exit 0
             ;;
             add-migration)
-                shift
-                "$SCRIPT_DIR/utilities/add-migration.sh"
-                exit 0
+                echo 'The public add-migration route is retired; managed updates use install --update without migrations.' >&2
+                exit 2
             ;;
             deps-manifest|deps)
                 shift
