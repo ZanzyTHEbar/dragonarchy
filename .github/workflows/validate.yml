@@ -85,6 +85,9 @@ jobs:
       - name: Check active host scope and archived payload boundary (static/mock)
         run: python3 tests/shell/host-scope-check.py
 
+      - name: Check required package closure (isolated Ansible templates, no provisioning)
+        run: python3 tests/shell/package-closure-check.py
+
       - name: Check isolated remote source transport and reconciliation
         run: python3 tests/shell/remote-sync-check.py
 

@@ -5,7 +5,19 @@
       - host_platform_family is defined
       - host_platform_family in ['arch', 'debian']
       - host_profile_packages is defined
-      - packages_pending_paru_policy in ['report', 'fail']
-      - packages_pending_script_policy in ['report', 'fail']
+      - host_profile_packages | type_debug == 'list'
+      - host_profile_packages | length > 0
+      - host_profile_packages | select('string') | list | length == host_profile_packages | length
+      - host_profile_packages | map('trim') | reject('equalto', '') | list | length == host_profile_packages | length
     fail_msg: >-
-      Package role inputs are incomplete for host '{{ inventory_hostname }}'.
+      Package role inputs are incomplete for host '{{ inventory_hostname }}', groups={{ host_profile_packages }}.
+
+- name: Refuse reporting policies for managed provisioning before resolution or installation
+  ansible.builtin.assert:
+    that:
+      - packages_pending_paru_policy == 'fail'
+      - packages_pending_script_policy == 'fail'
+    fail_msg: >-
+      Host '{{ inventory_hostname }}', groups={{ host_profile_packages }}: managed provisioning requires fail policies;
+      paru={{ packages_pending_paru_policy }}, script={{ packages_pending_script_policy }}.
+      report cannot authorize completion; use the read-only package plan exporter for reporting.

@@ -1,21 +1,17 @@
 ---
-- name: Fail on pending AUR / paru-tier packages in strict package parity mode
+- name: Refuse incomplete required AUR / paru tier before any package action
   ansible.builtin.fail:
     msg: >-
-      Manifest lists {{ packages_pending_paru | length }} paru/AUR package(s) for this host,
-      but packages_pending_paru_policy=fail: {{ packages_pending_paru | join(', ') }}
-  when:
-    - packages_pending_paru | default([]) | length > 0
-    - packages_pending_paru_policy == 'fail'
+      Host '{{ inventory_hostname }}', groups={{ packages_manifest_resolved_groups }}: required paru/AUR tier
+      has no managed provider; packages={{ packages_pending_paru | join(', ') }}. Provisioning is incomplete.
+  when: packages_pending_paru | length > 0
 
-- name: Fail on pending script-channel packages in strict package parity mode
+- name: Refuse incomplete required script tier before any package action
   ansible.builtin.fail:
     msg: >-
-      Manifest lists {{ packages_pending_script | length }} script/vendor package(s) for this host,
-      but packages_pending_script_policy=fail: {{ packages_pending_script | join(', ') }}
-  when:
-    - packages_pending_script | default([]) | length > 0
-    - packages_pending_script_policy == 'fail'
+      Host '{{ inventory_hostname }}', groups={{ packages_manifest_resolved_groups }}: required script/vendor tier
+      has no managed provider; packages={{ packages_pending_script | join(', ') }}. Provisioning is incomplete.
+  when: packages_pending_script | length > 0
 
 - name: Install resolved pacman plan (repo-native)
   ansible.builtin.package:
@@ -33,21 +29,3 @@
   when:
     - host_platform_family == 'debian'
     - resolved_package_list_apt | length > 0
-
-- name: Report AUR / paru-tier packages (not installed by this role)
-  ansible.builtin.debug:
-    msg: >-
-      Manifest lists {{ packages_pending_paru | length }} paru/AUR package(s) for this host
-        (install via install-deps.sh, paru, or a dedicated gate): {{ packages_pending_paru | join(', ') }}
-  when:
-    - packages_pending_paru | default([]) | length > 0
-    - packages_pending_paru_policy == 'report'
-
-- name: Report script-channel packages (not installed by this role)
-  ansible.builtin.debug:
-    msg: >-
-      Manifest lists {{ packages_pending_script | length }} script/vendor package(s)
-      (handled by install-deps.sh or manual steps): {{ packages_pending_script | join(', ') }}
-  when:
-    - packages_pending_script | default([]) | length > 0
-    - packages_pending_script_policy == 'report'

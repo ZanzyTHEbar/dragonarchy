@@ -6,7 +6,7 @@
 
 Ansible inventory describes **host identity and capabilities**; the **packages** role resolves **which manifest groups apply** and installs **repo-native** packages (`pacman` / `apt`) from a **resolved plan** produced by `scripts/install/export-package-plan.sh`.
 
-AUR (`paru`), vendor tarballs, and `script`-channel installs remain **explicit tiers**: they appear in the exported plan for inspection and optional follow-up; they are not silently folded into `ansible.builtin.package` with a pacman backend.
+AUR (`paru`), vendor tarballs, and `script`-channel installs remain **explicit required tiers**: they are not silently folded into `ansible.builtin.package` with a pacman backend. Every group explicitly selected by current inventory is required until the user deliberately classifies it as optional. No optional classification is currently implemented.
 
 ## Resolution inputs
 
@@ -24,15 +24,21 @@ Bundles (`[bundles.*]` in the manifest) are used by `install-deps.sh --bundle`; 
 | Tier | Manifest managers | Disposable / minimal validation | Ansible `packages` role (default) |
 |------|--------------------|----------------------------------|-------------------------------------|
 | **repo-native** | `pacman`, `apt` | Safe to assert on clean Arch/Debian images with default repos enabled | Installs these packages |
-| **AUR** | `paru` | Requires AUR helper / build tooling; separate gate | Exposed in plan as `pending.paru`; not installed by default |
-| **vendor / script** | `script` | May download binaries or run installers; separate gate | Exposed as `pending.script` |
+| **AUR** | `paru` | Requires AUR helper / build tooling; separate gate | Nonempty `pending.paru` blocks before the role installs any package |
+| **vendor / script** | `script` | May download binaries or run installers; separate gate | Nonempty `pending.script` blocks before the role installs any package |
 
-The packages role exposes pending-tier policy knobs:
+The packages role retains legacy pending-tier variables only to reject unsupported overrides:
 
-- `packages_pending_paru_policy: report|fail`
-- `packages_pending_script_policy: report|fail`
+- `packages_pending_paru_policy: fail`
+- `packages_pending_script_policy: fail`
 
-Defaults are `report` so normal managed-host convergence remains non-invasive. Strict disposable validation lanes can set either policy to `fail` to turn unresolved pending tiers into a hard parity failure.
+Both default to `fail`; `report` is refused before resolution or installation, even with empty pending lists. The exporter does not mutate target hosts and remains the read-only reporting interface, not an authorization for green provisioning. There is no provider URL/version/installer guessed by this role, and preinstalled packages do not bypass pending-tier refusal. Managed providers require separate implementation and qualification.
+
+The Ansible resolver runs the exporter with `--no-bootstrap`, so plan generation never downloads or bootstraps yq on the controller. It requires and executes a preinstalled `mikefarah` yq v4; `install` rejects a missing or incompatible parser before running Ansible. The legacy `install-deps.sh` path retains its own explicit bootstrap behavior.
+
+Before installing any package, the role validates the existing exporter JSON contract: metadata (`manifest`, `platform`, `host`, `feature_csv`), exact `requested_groups`, group entries (`manager`, `group`, `tier`, `packages`), all four `by_manager` arrays, both `ansible_install` arrays and both `pending` arrays. Required fields cannot default to empty lists. Package values must be nonblank strings; every selected group must contribute at least one package; group coverage and flattened lists must agree. Groups intentionally declared with empty package lists cannot currently be selected through the Ansible role; selecting one fails closed rather than counting as complete. Arch accepts pacman/paru/script group providers; Debian accepts apt/script. Native installation runs only for the matching target platform. Missing, malformed or inconsistent plans fail with host/group/tier context.
+
+`python3 tests/shell/package-closure-check.py` evaluates the production role's task assertions, conditions and facts with installed Ansible templating libraries and spies on package actions. It neither runs Ansible commands nor executes the exporter or package modules. This isolated proof does not qualify native package availability, privileges, providers or fleet readiness; native VM qualification remains deferred.
 
 ## Capability-backed groups
 

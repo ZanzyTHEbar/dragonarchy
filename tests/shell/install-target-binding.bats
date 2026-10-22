@@ -14,6 +14,16 @@ setup() {
   LOG="$TEST_ROOT/commands.log"
   mkdir -p "$MOCK_DIR" "$TARGET_HOME"
 
+  cat >"$MOCK_DIR/yq" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then
+  echo "yq (https://github.com/mikefarah/yq/) version v4.44.3"
+  exit 0
+fi
+exit 1
+EOF
+  chmod +x "$MOCK_DIR/yq"
+
   cat >"$MOCK_DIR/ansible-inventory" <<'EOF'
 #!/usr/bin/env bash
 if [[ "${INVENTORY_MODE:-}" == unknown ]]; then

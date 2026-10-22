@@ -1,13 +1,57 @@
 ---
-- name: Set system timezone
-  ansible.builtin.timezone:
-    name: "{{ host_timezone | default(base_timezone) }}"
+- name: Query current system timezone and NTP state
+  ansible.builtin.command:
+    argv:
+      - timedatectl
+      - show
+      - -p
+      - Timezone
+      - -p
+      - NTP
+  register: base_timedatectl_show
+  changed_when: false
+  check_mode: false
   when: base_manage_time | bool
 
-- name: Enable NTP
-  ansible.builtin.command: timedatectl set-ntp true
+- name: Report timezone drift in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Timezone would change from the current value to
+      '{{ host_timezone | default(base_timezone) }}'.
+  when:
+    - ansible_check_mode
+    - base_manage_time | bool
+    - ("Timezone=" ~ (host_timezone | default(base_timezone))) not in base_timedatectl_show.stdout_lines
+
+- name: Report NTP drift in check mode
+  ansible.builtin.debug:
+    msg: "NTP is disabled; timedatectl set-ntp true would run."
+  when:
+    - ansible_check_mode
+    - base_manage_time | bool
+    - "'NTP=yes' not in base_timedatectl_show.stdout_lines"
+
+- name: Set system timezone when drifted
+  ansible.builtin.command:
+    argv:
+      - timedatectl
+      - set-timezone
+      - "{{ host_timezone | default(base_timezone) }}"
   changed_when: true
-  when: base_manage_time | bool
+  when:
+    - base_manage_time | bool
+    - ("Timezone=" ~ (host_timezone | default(base_timezone))) not in base_timedatectl_show.stdout_lines
+
+- name: Enable NTP when disabled
+  ansible.builtin.command:
+    argv:
+      - timedatectl
+      - set-ntp
+      - "true"
+  changed_when: true
+  when:
+    - base_manage_time | bool
+    - "'NTP=yes' not in base_timedatectl_show.stdout_lines"
 
 - name: Check if pacman.conf exists
   ansible.builtin.stat:

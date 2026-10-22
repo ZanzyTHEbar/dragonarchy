@@ -47,9 +47,12 @@
       - "{{ packages_manifest_feature_csv }}"
       - --groups
       - "{{ packages_manifest_resolved_groups | join(',') }}"
+      - --no-bootstrap
       - --format
       - json
   delegate_to: localhost
+  become: false
+  check_mode: false
   changed_when: false
   register: packages_manifest_plan_cmd
 
@@ -57,9 +60,78 @@
   ansible.builtin.set_fact:
     packages_manifest_plan: "{{ packages_manifest_plan_cmd.stdout | from_json }}"
 
+- name: Require complete exporter plan metadata and containers
+  ansible.builtin.assert:
+    that:
+      - packages_manifest_plan is mapping
+      - "['manifest', 'platform', 'host', 'feature_csv', 'requested_groups', 'groups', 'by_manager', 'ansible_install', 'pending'] | difference(packages_manifest_plan.keys() | list) | length == 0"
+      - packages_manifest_plan.manifest is string
+      - packages_manifest_plan.manifest | trim | length > 0
+      - packages_manifest_plan.platform == host_platform_family
+      - packages_manifest_plan.host == inventory_hostname
+      - packages_manifest_plan.feature_csv == packages_manifest_feature_csv
+      - packages_manifest_plan.requested_groups | type_debug == 'list'
+      - packages_manifest_plan.requested_groups == packages_manifest_resolved_groups
+      - packages_manifest_plan.groups | type_debug == 'list'
+      - packages_manifest_plan.groups | length > 0
+      - packages_manifest_plan.by_manager is mapping
+      - packages_manifest_plan.ansible_install is mapping
+      - packages_manifest_plan.pending is mapping
+    fail_msg: >-
+      Host '{{ inventory_hostname }}', groups={{ packages_manifest_resolved_groups }}: invalid package plan metadata
+      or missing/wrong-type requested_groups, groups, by_manager, ansible_install or pending tiers.
+
+- name: Require typed manager and install tier lists
+  ansible.builtin.assert:
+    that:
+      - item.manager in packages_manifest_plan.by_manager
+      - item.manager in packages_manifest_plan[item.section]
+      - packages_manifest_plan.by_manager[item.manager] | type_debug == 'list'
+      - packages_manifest_plan[item.section][item.manager] | type_debug == 'list'
+      - packages_manifest_plan.by_manager[item.manager] | select('string') | list | length == packages_manifest_plan.by_manager[item.manager] | length
+      - packages_manifest_plan.by_manager[item.manager] | map('trim') | reject('equalto', '') | list | length == packages_manifest_plan.by_manager[item.manager] | length
+      - packages_manifest_plan[item.section][item.manager] == packages_manifest_plan.by_manager[item.manager]
+    fail_msg: >-
+      Host '{{ inventory_hostname }}', groups={{ packages_manifest_resolved_groups }}: invalid or missing
+      {{ item.section }}.{{ item.manager }} / by_manager.{{ item.manager }} package list.
+  loop:
+    - {manager: pacman, section: ansible_install}
+    - {manager: apt, section: ansible_install}
+    - {manager: paru, section: pending}
+    - {manager: script, section: pending}
+
+- name: Require group provenance and matching platform providers
+  ansible.builtin.assert:
+    that:
+      - item is mapping
+      - "['manager', 'group', 'tier', 'packages'] | difference(item.keys() | list) | length == 0"
+      - item.manager is string
+      - item.manager in {'arch':['pacman', 'paru', 'script'], 'debian':['apt', 'script']}[host_platform_family]
+      - item.group is string
+      - item.group in packages_manifest_resolved_groups
+      - item.tier == {'pacman':'repo', 'apt':'repo', 'paru':'aur', 'script':'script'}[item.manager]
+      - item.packages | type_debug == 'list'
+      - item.packages | length > 0
+      - item.packages | select('string') | list | length == item.packages | length
+      - item.packages | map('trim') | reject('equalto', '') | list | length == item.packages | length
+    fail_msg: >-
+      Host '{{ inventory_hostname }}', groups={{ packages_manifest_resolved_groups }}: invalid group/tier/provider
+      or package strings for platform={{ host_platform_family }}; entry={{ item }}.
+  loop: "{{ packages_manifest_plan.groups }}"
+
+- name: Require all selected groups and exact flattened manager lists
+  ansible.builtin.assert:
+    that:
+      - packages_manifest_plan.groups | map(attribute='group') | unique | sort == packages_manifest_resolved_groups | unique | sort
+      - packages_manifest_plan.by_manager[item] == packages_manifest_plan.groups | selectattr('manager', 'equalto', item) | map(attribute='packages') | flatten | unique | sort
+    fail_msg: >-
+      Host '{{ inventory_hostname }}', groups={{ packages_manifest_resolved_groups }}: incomplete group coverage
+      or inconsistent {{ item }} tier packages={{ packages_manifest_plan.by_manager[item] }}.
+  loop: [pacman, apt, paru, script]
+
 - name: Set flat install lists from plan (repo-native tiers)
   ansible.builtin.set_fact:
-    resolved_package_list_pacman: "{{ packages_manifest_plan.ansible_install.pacman | default([]) }}"
-    resolved_package_list_apt: "{{ packages_manifest_plan.ansible_install.apt | default([]) }}"
-    packages_pending_paru: "{{ packages_manifest_plan.pending.paru | default([]) }}"
-    packages_pending_script: "{{ packages_manifest_plan.pending.script | default([]) }}"
+    resolved_package_list_pacman: "{{ packages_manifest_plan.ansible_install.pacman }}"
+    resolved_package_list_apt: "{{ packages_manifest_plan.ansible_install.apt }}"
+    packages_pending_paru: "{{ packages_manifest_plan.pending.paru }}"
+    packages_pending_script: "{{ packages_manifest_plan.pending.script }}"

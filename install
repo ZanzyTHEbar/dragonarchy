@@ -29,6 +29,10 @@ else
     log_success() { echo "[OK]    $*"; }
 fi
 
+# yq resolution is read-only here; managed plan generation forbids auto-bootstrap.
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/lib/manifest-toml.sh"
+
 # ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
@@ -321,6 +325,11 @@ check_cmd python3 "inventory tuple validation"
 if [[ "${USER_ONLY}" != "true" ]]; then
     check_cmd ansible-playbook "Ansible system provisioning"
 fi
+if [[ "${USER_ONLY}" != "true" && "${UPDATE}" != "true" ]]; then
+    if ! manifest_yq_resolve_bin >/dev/null 2>&1; then
+        log_fatal "mikefarah yq v4 is required for package plan resolution; install it explicitly (managed plan generation does not auto-bootstrap)."
+    fi
+fi
 
 resolve_target_tuple
 
@@ -463,4 +472,12 @@ if [[ "${SYSTEM_ONLY}" != "true" ]]; then
     apply_user_state
 fi
 
-log_success "=== Install complete for host '${HOST_NAME}' ==="
+if [[ "${USER_ONLY}" == "true" ]]; then
+    log_success "=== User state complete for host '${HOST_NAME}' ==="
+elif [[ "${UPDATE}" == "true" ]]; then
+    log_success "=== Update complete for host '${HOST_NAME}' ==="
+elif [[ "${SYSTEM_ONLY}" == "true" ]]; then
+    log_success "=== System state complete for host '${HOST_NAME}' ==="
+else
+    log_success "=== Install complete for host '${HOST_NAME}' ==="
+fi
