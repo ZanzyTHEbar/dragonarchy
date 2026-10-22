@@ -111,12 +111,12 @@
       - item.group in packages_manifest_resolved_groups
       - item.tier == {'pacman':'repo', 'apt':'repo', 'paru':'aur', 'script':'script'}[item.manager]
       - item.packages | type_debug == 'list'
-      - item.packages | length > 0
+      - packages_manifest_plan.groups | selectattr('group', 'equalto', item.group) | map(attribute='packages') | flatten | length > 0
       - item.packages | select('string') | list | length == item.packages | length
       - item.packages | map('trim') | reject('equalto', '') | list | length == item.packages | length
     fail_msg: >-
       Host '{{ inventory_hostname }}', groups={{ packages_manifest_resolved_groups }}: invalid group/tier/provider
-      or package strings for platform={{ host_platform_family }}; entry={{ item }}.
+      or package strings; each selected group must contribute at least one package; entry={{ item }}.
   loop: "{{ packages_manifest_plan.groups }}"
 
 - name: Require all selected groups and exact flattened manager lists

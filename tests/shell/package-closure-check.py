@@ -163,6 +163,19 @@ class Closure(unittest.TestCase):
         exported["ansible_install"]["pacman"] = []
         self.rejected(exported, "closure-host", "core_cli")
 
+    def test_empty_manager_entry_is_allowed_when_group_has_packages(self):
+        exported = plan(platform="debian", manager="apt")
+        exported["requested_groups"] = ["core_cli", "dev"]
+        exported["groups"] += [
+            dict(manager="script", group="core_cli", tier="script", packages=[]),
+            dict(manager="apt", group="dev", tier="repo", packages=["ansible"]),
+            dict(manager="script", group="dev", tier="script", packages=[]),
+        ]
+        exported["by_manager"]["apt"] = ["ansible", "git"]
+        exported["ansible_install"]["apt"] = ["ansible", "git"]
+        self.run_tasks(exported, host_profile_packages=["core_cli", "dev"])
+        self.assertEqual(self.actions, ["resolve", ("ansible.builtin.apt", ["ansible", "git"])])
+
     def test_resolver_is_controller_local_and_runs_in_check_mode(self):
         task = next(task for task in load("tasks/resolve.yml")
                     if task["name"].startswith("Resolve package plan"))

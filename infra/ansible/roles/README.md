@@ -60,7 +60,7 @@ The current control plane contains:
 
 ## Package ownership
 
-The `packages` role does not author package lists. It runs `scripts/install/export-package-plan.sh` against `scripts/install/deps.manifest.toml` using inventory (`host_profile_packages`, host name, features). Repo-native installs use `pacman`/`apt`; `paru` and `script` tiers block managed completion. See `docs/architecture/package-manifest-contract.md`.
+The `packages` role does not author package lists. It runs `scripts/install/export-package-plan.sh` against `scripts/install/deps.manifest.toml` using inventory (`host_profile_packages`, host name, features). Repo-native installs use `pacman`/`apt`; selected `paru` and `script` tiers block managed completion. Host-specific opt-in groups that inventory does not select are not part of the required plan. See `docs/architecture/package-manifest-contract.md`.
 
 ## Service ownership
 

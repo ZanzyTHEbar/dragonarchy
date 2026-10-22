@@ -96,8 +96,10 @@ packages = [
     "mesa-utils",
 ]
 
-# AUR-only laptop tools for firedragon (explicit tier; not installed by ansible.builtin.package)
-[platforms.arch.paru.host_firedragon_laptop]
+# Host-specific opt-in AUR extra. The active Ansible inventory selects the
+# pacman laptop group, not this provider group; selecting it makes the AUR
+# requirement binding.
+[platforms.arch.paru.host_firedragon_gestures]
 requires_hosts = ["firedragon"]
 packages = ["libinput-gestures"]
 
@@ -598,11 +600,24 @@ packages = [
     "mpv",
 ]
 
+# Provider placeholders: these groups contribute no script packages to the
+# required baseline. The host-specific opt-in groups below carry the extras.
 [platforms.debian.script.dev]
-packages = ["gh"]
+packages = []
 
 [platforms.debian.script.core_cli]
+packages = []
+
+# Host-specific opt-in script extras. The active Ansible inventory does not
+# select these groups; the legacy installer still installs them on the matching
+# hosts. Selecting one through inventory makes its provider requirement binding.
+[platforms.debian.script.host_debian_installer_ui]
+requires_hosts = ["microdragon", "opencode-runtime", "ubuntu-mobile-dev"]
 packages = ["gum"]
+
+[platforms.debian.script.host_ubuntu_mobile_dev_github_cli]
+requires_hosts = ["ubuntu-mobile-dev"]
+packages = ["gh"]
 
 [platforms.debian.script.gui]
 packages = [
