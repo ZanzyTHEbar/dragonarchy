@@ -1,13 +1,15 @@
-# Dotfiles — Ansible + Chezmoi Control Plane
+# Dragonarchy — Reproducible Host Management
 
-This is a very opinionated Linux configuration using Hyprland, built on CachyOS (no hard dependencies) and inspired by _Omarchy_.
+Dragonarchy is an opinionated Linux host-management system under migration. Its goal is to let users declare supported hosts, compose reliable capabilities and personalize cohesive defaults without modifying core implementation for each machine. It is not limited to the current owner's dotfiles, and does not require becoming a distribution with its own installer ISO or package repositories.
 
 - **Ansible** for system-level state (packages, services, hardware config)
-- **chezmoi** for user-level dotfiles
+- **chezmoi** for static user configuration
 - **Manifests** for declarative dotfile ownership
 - **age/sops** for secrets management
 
-The canonical managed-host path is now the Ansible + chezmoi control plane. The legacy GNU Stow + bash-script flow is deprecated and guarded, retained only for unmanaged profiles, recovery, and historical troubleshooting.
+The canonical managed-host path is the Ansible + chezmoi control plane. Independent installation, capability parity and complete retirement of legacy provisioning are not finished. The guarded GNU Stow + bash-script flow still exists during that migration; it is not the permanent recovery design.
+
+Parity means preserving required behavior while removing cruft and replacing patchwork—not reproducing every legacy file or script. Cohesive desktop orchestration, including suitable Omarchy/Quickshell command and plugin mechanisms, belongs to that work. Unrelated feature expansion remains deferred. The [managed lifecycle contract and closure ledger](docs/architecture/managed-lifecycle.md) define the scope, evidence and four-host completion requirements; no native readiness or reproducible package-version claim follows from static checks alone.
 
 ## Quick Start
 

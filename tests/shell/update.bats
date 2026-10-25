@@ -18,6 +18,7 @@ container = profile == 'container'
 home = '/remote/home/testuser' if remote else os.environ['HOME']
 source = home + '/.local/share/chezmoi'
 print(json.dumps(dict(
+    host_desktop_stack='none',
     target_profile=profile, target_connection='ssh' if remote else 'local',
     target_home=home, target_source=source,
     platform_connection_mode='remote-ssh' if remote else 'local',

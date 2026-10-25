@@ -69,7 +69,7 @@ schedule_ui_refresh() {
         command pkill -USR1 -x kitty >/dev/null 2>&1 || true
         command pkill -SIGUSR2 btop >/dev/null 2>&1 || true
         command pkill -SIGUSR2 waybar >/dev/null 2>&1 || true
-        command pkill --signal USR2 -f workspace-indicator --ignore-ancestors >/dev/null 2>&1 || true
+        command pkill --signal USR2 -f '/workspace-indicator$' --ignore-ancestors >/dev/null 2>&1 || true
         if command -v hyprctl >/dev/null 2>&1; then
             hyprctl reload >/dev/null 2>&1 || true
             sleep 0.1
@@ -137,6 +137,12 @@ THEME_PATH="$THEMES_DIR/$THEME_NAME"
 if [[ ! -d "$THEME_PATH" ]]; then
     echo "Theme '$THEME_NAME' does not exist in $THEMES_DIR" >&2
     exit 2
+fi
+
+# Wayle's imported palette is generated state, not a second theme authority.
+# Surface failures before changing the selected theme or any other application.
+if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/wayle/config.toml" ]]; then
+    "$SCRIPT_DIR/wayle-theme-apply" "$THEME_PATH/hyprland-palette.conf" || exit 1
 fi
 
 # Record previous theme for undo and record recents
@@ -296,30 +302,18 @@ fi
 # Generate kitty theme from palettes and link current
 "$SCRIPT_DIR/generate-kitty-themes" >/dev/null 2>&1 || true
 "$SCRIPT_DIR/generate-walker-themes" >/dev/null 2>&1 || true
-"$SCRIPT_DIR/generate-swaync-themes" >/dev/null 2>&1 || true
 "$SCRIPT_DIR/generate-clipse-themes" >/dev/null 2>&1 || true
 
-# Merge swaync theme colors + base structural CSS into a single file.
-# This avoids CSS @import through stow-symlinked paths, which GTK's
-# CSS provider caches and never re-resolves on swaync-client -rs.
-# The destination may begin life as a stow symlink into the repo, so
-# replace it atomically with a user-local regular file before writing.
+# The canonical renderer supplies the complete stylesheet (no cached imports).
+# Replace a legacy Stow symlink rather than writing through it into the repo.
 SWAYNC_DIR="$HOME/.config/swaync"
-SWAYNC_COLORS="$CURRENT_THEME_DIR/swaync.css"
-SWAYNC_BASE="$SWAYNC_DIR/style-base.css"
-if [[ -f "$SWAYNC_COLORS" && -f "$SWAYNC_BASE" ]]; then
-    local_tmp="$(mktemp)"
+if SWAYNC_BASE="$(readlink -e -- "$SWAYNC_DIR/style-base.css")" &&
+    SWAYNC_BASE="$SWAYNC_BASE" "$SCRIPT_DIR/generate-swaync-themes" >/dev/null &&
+    [[ -f "$CURRENT_THEME_DIR/swaync.css" ]]; then
     mkdir -p "$SWAYNC_DIR"
-    if [[ -L "$SWAYNC_DIR/style.css" ]]; then
-        rm -f "$SWAYNC_DIR/style.css"
-    fi
-    {
-        cat "$SWAYNC_COLORS"
-        printf '\n'
-        cat "$SWAYNC_BASE"
-    } >"$local_tmp"
-    cp --remove-destination "$local_tmp" "$SWAYNC_DIR/style.css"
-    rm -f "$local_tmp"
+    cp --remove-destination "$CURRENT_THEME_DIR/swaync.css" "$SWAYNC_DIR/style.css"
+else
+    printf 'Failed to prepare SwayNC stylesheet from configured base: %s\n' "$SWAYNC_DIR/style-base.css" >&2
 fi
 
 mkdir -p "$HOME/.config/kitty"

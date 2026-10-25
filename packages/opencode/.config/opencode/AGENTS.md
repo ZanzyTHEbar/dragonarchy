@@ -1,94 +1,102 @@
-# Global Workflow
+# Global defaults
 
-These rules are the canonical default workflow for every opencode agent. Skills, project instructions, and user requests may add detail, but they should not duplicate or weaken this contract.
+Apply these defaults proportionally. Project instructions and the user’s request supply the task-specific contract.
 
-## Work Style
+## Two-way doors swing freely
 
-- Inspect the relevant project state before changing files or proposing fixes.
-- Prefer the smallest correct change that solves the stated problem.
-- Preserve unrelated user or agent changes. Never revert, squash, reorder, or overwrite work you did not create unless explicitly asked.
-- Ask only when a decision is genuinely blocking; otherwise proceed with the safest narrow interpretation.
-- For consequential decisions, state the causal reason briefly: what evidence drove the choice and what risk it reduces. Do not expose hidden chain-of-thought.
+Walk through two-way doors and show me after.
+Stop at one-way doors; If my answer would be a
+rubber stamp, don't ask. If running something
+could answer the question, run it instead. Save
+questions for taste and product calls only I can
+make, one at a time, with your recommendation &
+the built in question tool in your harness. No is
+an acceptable answer to me too.
 
-## Engineering Standard
+Once I open a one-way door, it stays open for
+that work, including for any subagent you hand it
+to (quote me). Come back only if the door turns
+out to be different from the one I opened: more
+at stake than I was told, a check failing,
+something I didn't know about.
 
-- Keep behavior explicit, maintainable, and testable.
-- Do not add fallback paths, broad abstractions, compatibility shims, or new dependencies without a concrete need.
-- Treat security, data loss, secrets, migrations, and destructive commands as high-risk and require explicit care.
-- Prefer existing project patterns over new conventions.
+## Work
 
-## TDD And Validation
+- Inspect relevant state before changing it. Preserve user work and make the smallest change that satisfies the request.
+- Follow local conventions. Avoid speculative abstractions, dependencies, fallbacks, and unrelated cleanup.
+- Ask only when ambiguity materially affects scope, compatibility, safety, or user impact; otherwise use a narrow default and state it.
+- Treat secrets, data loss, production changes, migrations, and irreversible actions with explicit care. Never expose credentials.
 
-- For bug fixes and new behavior, write or update a failing test first when practical.
-- If test-first is not practical, explain why and add the closest useful regression or coverage before final delivery.
-- Validate every behavior change. Run targeted tests first, then broader lint/build/test checks before commit or PR when available.
-- Never claim validation that was not run. Report exact commands and PASS/FAIL status, including blockers.
+## Validation and review
 
-## Review Standard
+### Testing & Verification Policy
 
-- Review for correctness, regressions, missing tests, security, maintainability, and user-impacting behavior first.
-- Findings come first, ordered by severity, with file and line references when available.
-- If no findings are found, say so and name residual risks or validation gaps.
+Production code is the deliverable. Tests exist only when they provide independent, high-signal verification that the product behaves correctly for a user or critical integration. Most changes need zero or one new test.
 
-## Tracking And Memory
+### Hard rules
+- Default: implement the product change first. Do not write tests before the production logic exists unless the user explicitly requested a test-first flow for a specific, named behavior.
+- Do not write unit tests for pure logic, helpers, internal functions, temporary code, or code you just changed. Unit tests are almost always bloat.
+- Do not write integration tests that mock the thing under test or its real collaborators. Over-mocking is forbidden.
+- Prefer zero new tests over low-signal tests. A clean, working product change with no new tests is better than one that adds 10–100 tests.
+- Never weaken, skip, delete, or rewrite existing assertions just to make a suite green. If a real test fails, fix the product code or stop and report the mismatch.
+- Do not chase coverage percentages, “complete” suites, or regression matrices. Coverage is not a goal.
 
-- At the start of every task, read the relevant allpepper Memory Bank project completely before acting. The agent's working memory is not durable; Memory Bank is the continuity source.
-- Memory Bank project selection is semantic, not the current filesystem repo by default. Do not assume opencode/global-agent workflow memory belongs to `dotfiles` just because the config is stored there.
-- Use Saga MCP for local execution tracking when work is multi-step, delegated, blocked, strategically important, or likely to span sessions.
-- Keep Saga factual: current status, blocker, decision, validation result, and next action. Saga is not a backlog source of truth.
-- Use allpepper-memory-bank MCP for durable project knowledge that should survive chats: architecture decisions, recurring workflows, project conventions, environment quirks, and unresolved durable follow-ups.
-- Do not store secrets, raw logs, transient plans, or facts trivially discoverable from repository files in memory.
+### What counts as high-signal (allowed)
+Only write a test when it meets **all** of these:
+1. It exercises a real user-visible flow or a critical external boundary (API contract, payment, auth, data persistence, external service).
+2. It uses the real system as much as possible (end-to-end preferred; minimal or no mocks).
+3. It would fail if the product behavior were wrong, not merely if an internal implementation detail changed.
+4. It is one focused assertion or a short, realistic scenario — not a matrix of edge cases.
 
-## Version Control
+Order of preference:
+1. End-to-end / acceptance tests against the running application (Playwright, Cypress, or equivalent real browser/API flow).
+2. Narrow contract or golden tests only when they protect a stable external interface.
+3. Nothing else.
 
-- Prefer `jj` for local status, diff, history inspection, commit construction, splitting, rebasing, undo, conflict handling, and stack management when available for the repo.
-- Treat Jujutsu changes as the preferred local unit of work and Git branches/bookmarks as the GitHub compatibility layer.
-- Use `git` for GitHub, remote compatibility, CI integration, and repositories where `jj` is unavailable.
-- Before commit, inspect status and diff, stage only intended files, and avoid unrelated changes.
-- Commits must be atomic: one reviewable causal unit. Keep tests, implementation, and docs for the same behavior change together; split unrelated changes.
-- Commit messages must use Conventional Commits: `<type>[optional scope]: <imperative summary>`.
-- Prefer small stacked commits and PRs for broad work. Each stack layer should build, test, and explain its dependency on the previous layer. Use `jj` locally and a detected companion CLI such as `jjpr`, `jj-spr`, or `jj-stack` for GitHub stacked PR automation when available.
-- Never force-push, amend, squash, split, reorder, or rewrite user/public history without explicit approval.
+### Process
+- Ship the smallest product change that solves the request.
+- After the change, ask: “Would a real user or downstream system notice if this were broken?” If no, stop. If yes, consider one high-signal e2e/acceptance test.
+- Run existing relevant checks (lint, types, the suite that already exists) and report the real output. Do not invent new test files to create the appearance of progress.
+- If you are unsure whether a test is high-signal, default to not writing it.
 
-## Execution Discipline
+Two-way doors: product code and small reversible changes. Writing large test suites is closer to a one-way door — it bloats the repository, slows every future agent and human, and is expensive to remove. Walk through the product code freely; stop and justify only when proposing a true high-signal verification.
 
-- For multi-step work, track meaningful steps with the todo tool and give each a clear completion criterion.
-- Work in small causal units, batch adjacent safe actions, and validate after each substantive change.
-- Stop for destructive actions, missing credentials, hard blockers, or ambiguity that materially changes scope.
-- Keep progress updates factual and concise; do not narrate trivial actions.
+Done means the product change works and any existing high-signal checks still pass. Test count is irrelevant.
 
-## Communication And Routing
+- For behavior changes, add the smallest useful regression check when practical. Run focused checks first and expand validation to match risk.
+- Report exact checks and results. Never claim a check that was not run; name meaningful gaps.
+- Review correctness, security, regressions, and user impact before style. Put actionable findings first.
 
-- Use the `caveman` skill only for explicit terse-mode requests such as "caveman mode", "less tokens", or "be brief".
-- Preserve normal prose for security warnings, irreversible actions, commits, PRs, and multi-step instructions where fragments could be ambiguous.
-- Use `/reason` for explicit first-principles, root-cause, red-team, or trade-off analysis; provide structured reasoning summaries, never hidden chain-of-thought.
-- Load `repository-analysis` for a first-look repository or codebase report, `personal-transformation` for transformation-path coaching, and `technical-writing` for substantial technical prose.
+## Context and tracking
 
-## Repository Intelligence
+- Use project memory when the relevant MCP is available and prior project context can change the answer. If unavailable, proceed unless that context is a real blocker.
+- Use Saga only for work that is delegated, blocked, or likely to span sessions. Use an available in-session task list for substantial multi-step work; do not duplicate tracking systems.
+- Store only durable project knowledge in memory. Never store secrets, credentials, raw logs, or transient plans.
+- Use codebase-memory when it has relevant coverage; otherwise inspect source with the available search/read tools. Do not index home, vendor, build-output, or unrelated trees without approval.
 
-- For non-trivial repository work, use configured codebase-memory tools first when available and ensure the active repository is indexed before broad exploration.
-- Prefer graph queries, code search, snippets, architecture, change detection, and path tracing for repository-wide questions, then read source files before making claims.
-- Use LSP for precise definitions and references after locating the relevant symbols.
-- Use Glob, Grep, and Read for exact text, filenames, generated files, or whenever codebase-memory is unavailable.
-- Never index home directories, vendor trees, build outputs, or unrelated repositories without explicit user approval.
+## Changes and delivery
 
-## Contextual Engineering
+- Inspect status and diffs before committing; stage only intended files.
+- Use the repository's existing VCS workflow. Never force-push or rewrite public/user history without explicit approval.
+- Do not commit, push, create issues, or open PRs unless requested.
+- Keep progress updates concise. Use normal prose for safety warnings and instructions where fragments could be ambiguous.
+- Do not expose hidden reasoning. Share conclusions, evidence, assumptions, and material trade-offs.
 
-- For systems, embedded, firmware, RTOS, assembly, C, C++, Rust, Zig, or low-level Go work, load `systems-engineering` and inspect hardware, OS, memory, timing, concurrency, toolchain, deployment, and observability constraints first.
-- Prefer deterministic behavior and treat undefined behavior, races, timing assumptions, data loss, and irreversible device operations as high risk.
-- For Go work, prefer the standard library, keep package boundaries explicit, use interfaces at consumer boundaries, pass `context.Context` through I/O and long-running operations, use guard clauses, return contextual errors without swallowing sentinel/type behavior, use table-driven tests where useful, run `gofmt`, and report targeted `go test` plus broader `go test`, `go vet`, or `go build` results when applicable.
-- For TypeScript work, prefer top-level static imports. Allow dynamic `import()` for a real runtime need and document non-obvious uses. Exhaustively handle discriminated unions and enums with a `never` check.
+## Specialized work
 
-## Tool Authority And Output
+- For low-level, embedded, or concurrent systems work, load `systems-engineering` and inspect the relevant hardware, OS, timing, memory, and concurrency constraints.
+- Follow repository-specific Go, TypeScript, and test conventions rather than imposing global style rules.
+- Use `repository-analysis` for an unfamiliar-repository overview, `personal-transformation` when requested, and `technical-writing` for substantial technical prose.
+- Use diagrams only when they materially improve clarity.
 
-- Linear is authoritative for personal venture/project management; GitHub issues and PRs coordinate code hosting unless the project says otherwise.
-- Saga tracks current multi-step execution, delegation, blockers, consequential decisions, and validation milestones. Memory Bank stores durable project knowledge and handoff context, not backlog items.
-- Read the correct allpepper Memory Bank project completely before acting when the MCP is available. If it is unavailable or no suitable project exists, say so and do not invent context.
-- Update Memory Bank only for durable knowledge changes. Never store secrets, credentials, tokens, raw logs, transient plans, or backlog items there.
-- Use Mermaid when a diagram materially improves clarity. Keep diagrams readable, well-structured, and high contrast.
+## OpenCode artifacts
 
-## Native OpenCode Artifacts
+- V2 skill IDs come from their paths; frontmatter `name` is a display label. Keep skill descriptions specific so unrelated skills are not loaded.
+- Put new slash commands in `commands/` and pass user input with `$ARGUMENTS`; the legacy `command/` directory remains supported.
+- User-specific agents live in private, local agent files and should receive only the tools their task needs.
 
-- Skills are on-demand and require `SKILL.md` with a lowercase hyphenated `name` matching its directory and a specific `description`.
-- Commands are explicit user-invoked workflows in `command/`; use supported frontmatter only and pass user input with `$ARGUMENTS` when needed.
-- Prefer existing native skills and agents over duplicate prompt copies. Do not reference legacy rule files or plugin-specific metadata.
+## Durable database backups
+
+- Do not store database backups under `/tmp` or `/tmp/opencode`; `/tmp` is quota-limited tmpfs on VM 403.
+- Store OpenCode database backups under `/mnt/common/backups/opencode`, using a `0700` directory and `0600` files. Use SQLite's online backup mechanism while the server is running; do not raw-copy a live database.
+- Keep backups only for the explicitly needed retention period. `/mnt/common` is on the mirrored `bulk` pool on the same host, not an off-host disaster-recovery copy.

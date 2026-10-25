@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Unlike checkout-oriented consumers, this renderer requires explicit staging.
+: "${THEMES_DIR:?Supply a selected-theme staging directory}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/theme-utils.sh"
+export LC_ALL=C
+
+for theme in "$THEMES_DIR"/*/; do
+    palette="${theme}hyprland-palette.conf"
+    [[ -f "$palette" ]] || { echo "Missing palette: $palette" >&2; exit 1; }
+    tm_validate_palette "$palette"
+    background="$(tm_palette_hex "$palette" background)"
+    foreground="$(tm_palette_hex "$palette" foreground)"
+    accent="$(tm_palette_hex "$palette" accent)"
+    comment="$(tm_palette_hex "$palette" comment)"
+    green="$(tm_palette_hex "$palette" green)"
+    red="$(tm_palette_hex "$palette" red "$accent")"
+    yellow="$(tm_palette_hex "$palette" yellow "$accent")"
+    blue="$(tm_palette_hex "$palette" blue "$accent")"
+    cyan="$(tm_palette_hex "$palette" cyan "$accent")"
+    magenta="$(tm_palette_hex "$palette" magenta "$accent")"
+    # Native btop roles, shared by shipped themes and /usr/share/btop/themes.
+    cat > "${theme}btop.theme" <<EOF
+# Generated from hyprland-palette.conf. Do not edit by hand.
+theme[main_bg]="$background"
+theme[main_fg]="$foreground"
+theme[title]="$foreground"
+theme[hi_fg]="$accent"
+theme[selected_bg]="$accent"
+theme[selected_fg]="$background"
+theme[inactive_fg]="$comment"
+theme[graph_text]="$foreground"
+theme[meter_bg]="$comment"
+theme[proc_misc]="$cyan"
+theme[cpu_box]="$magenta"
+theme[mem_box]="$green"
+theme[net_box]="$cyan"
+theme[proc_box]="$blue"
+theme[div_line]="$comment"
+theme[temp_start]="$green"
+theme[temp_mid]="$yellow"
+theme[temp_end]="$red"
+theme[cpu_start]="$cyan"
+theme[cpu_mid]="$blue"
+theme[cpu_end]="$magenta"
+theme[free_start]="$green"
+theme[free_mid]="$cyan"
+theme[free_end]="$blue"
+theme[cached_start]="$blue"
+theme[cached_mid]="$cyan"
+theme[cached_end]="$accent"
+theme[available_start]="$green"
+theme[available_mid]="$yellow"
+theme[available_end]="$red"
+theme[used_start]="$green"
+theme[used_mid]="$yellow"
+theme[used_end]="$red"
+theme[download_start]="$blue"
+theme[download_mid]="$cyan"
+theme[download_end]="$green"
+theme[upload_start]="$yellow"
+theme[upload_mid]="$magenta"
+theme[upload_end]="$red"
+theme[process_start]="$green"
+theme[process_mid]="$yellow"
+theme[process_end]="$red"
+EOF
+done

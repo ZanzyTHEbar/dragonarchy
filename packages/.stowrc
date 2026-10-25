@@ -25,6 +25,7 @@
 --ignore=\\.config/gtk-4\\.0/(gtk\\.css|settings\\.ini)$
 --ignore=\\.config/hypr/config/keyboard\\.local\\.conf$
 --ignore=\\.config/hypr/config/monitor\\.local\\.conf$
+--ignore=\\.config/hypr/config/workspace-indicator\\.local\\.conf$
 --ignore=\\.config/swaync/style\\.css$
 --ignore=\\.config/clipse/theme\\.toml$
 --ignore=\\.config/wlogout/wlogout\\.css$

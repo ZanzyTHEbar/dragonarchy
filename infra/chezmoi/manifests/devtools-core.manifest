@@ -2,6 +2,8 @@
 required|packages/nvim/.config/nvim|dot_config/nvim
 required|packages/opencode/.config/opencode|dot_config/opencode
 exclude||dot_config/opencode/node_modules
+exclude||dot_config/opencode/skills/dreamwork-qc/__pycache__
+exclude||dot_config/opencode/skills/unlazy/README.md
 required|packages/kitty/.config/kitty|dot_config/kitty
 exclude||dot_config/kitty/colors.conf
 required|packages/tmux/.tmux.conf|dot_tmux.conf

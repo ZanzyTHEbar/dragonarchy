@@ -298,18 +298,17 @@ if command -v elephant >/dev/null 2>&1; then
   fi
 fi
 
-# --- Workspace indicator (compile from source) ---
-WS_INDICATOR_SRC="$DOTFILES_ROOT/scripts/theme-manager/workspace-indicator"
-if [[ -f "$WS_INDICATOR_SRC/Makefile" ]]; then
-    if pkg-config --exists gtk+-3.0 gtk-layer-shell-0 2>/dev/null; then
-        if make -C "$WS_INDICATOR_SRC" clean all install; then
-            log_success "workspace-indicator compiled and installed"
-        else
-            log_warning "workspace-indicator build failed; check gtk3/gtk-layer-shell dev packages"
-        fi
+# --- Workspace indicator (optional standalone pre-built release) ---
+# ponytail: direct latest release asset URL avoids GitHub API rate limits and jq parsing
+WS_INDICATOR_URL="${WORKSPACE_INDICATOR_URL:-https://github.com/ZanzyTHEbar/workspace-indicator/releases/latest/download/workspace-indicator-linux-x86_64.tar.gz}"
+if [[ "${WORKSPACE_INDICATOR_SKIP:-0}" != "1" ]]; then
+    ws_tmp="$(mktemp -d)"
+    if curl -fsSL "$WS_INDICATOR_URL" | tar -xz -C "$ws_tmp" 2>/dev/null && "$ws_tmp/install.sh"; then
+        log_success "workspace-indicator pre-built bundle installed"
     else
-        log_warning "workspace-indicator build deps missing (gtk+-3.0, gtk-layer-shell-0); skipping"
+        log_warning "workspace-indicator release unavailable or failed to install; skipping optional integration"
     fi
+    rm -rf "$ws_tmp"
 fi
 
 WORKSPACE_INDICATOR_UNIT="workspace-indicator.service"

@@ -1,11 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "openai/gpt-5.6-luna#xhigh",
+  "model": "openai/gpt-6-luna#xhigh",
   "default_agent": "plan",
   "provider": {
     "github-copilot": {
       "options": {
-        "baseURL": "http://127.0.0.1:17321/v1",
+        "baseURL": "http://127.0.0.1:17322/v1",
         "headers": {
           "sleeve-harness": "opencode",
           "sleeve-provider": "copilot"
@@ -14,52 +14,52 @@
     },
     "google": {
       "options": {
-        "baseURL": "http://127.0.0.1:17321",
+        "baseURL": "http://127.0.0.1:17322",
         "headers": {
           "sleeve-harness": "opencode",
           "sleeve-provider": "google"
         }
       }
     },
-    "openai": {
-      "options": {
-        "baseURL": "http://127.0.0.1:17321/v1",
-        "headers": {
-          "sleeve-harness": "opencode",
-          "sleeve-provider": "openai"
-        }
-      }
-    },
+    //"openai": {
+    //  "options": {
+    //    "baseURL": "http://127.0.0.1:17322/v1",
+    //    "headers": {
+    //      "sleeve-harness": "opencode",
+    //      "sleeve-provider": "openai"
+    //    }
+    //  }
+    //},
     "openrouter": {
       "options": {
-        "baseURL": "http://127.0.0.1:17321/v1",
+        "baseURL": "http://127.0.0.1:17322/v1",
         "headers": {
           "sleeve-harness": "opencode",
           "sleeve-provider": "openrouter"
         }
       }
     },
-    "opencode": {
-      "options": {
-        "baseURL": "http://127.0.0.1:17321/v1",
-        "headers": {
-          "sleeve-harness": "opencode",
-          "sleeve-provider": "opencode"
-        }
-      }
-    },
-    "opencode-go": {
-      "options": {
-        "baseURL": "http://127.0.0.1:17321/v1",
-        "headers": {
-          "sleeve-harness": "opencode",
-          "sleeve-provider": "opencode-go"
-        }
-      }
-    },
+    //"opencode": {
+    //  "options": {
+    //    "baseURL": "http://127.0.0.1:17322/v1",
+    //    "headers": {
+    //      "sleeve-harness": "opencode",
+    //      "sleeve-provider": "opencode"
+    //    }
+    //  }
+    //},
+    //"opencode-go": {
+    //  "options": {
+    //    "baseURL": "http://127.0.0.1:17322/v1",
+    //    "headers": {
+    //      "sleeve-harness": "opencode",
+    //      "sleeve-provider": "opencode-go"
+    //    }
+    //  }
+    //},
     "xai": {
       "options": {
-        "baseURL": "http://127.0.0.1:17321/v1",
+        "baseURL": "http://127.0.0.1:17322/v1",
         "headers": {
           "sleeve-harness": "opencode",
           "sleeve-provider": "xai"
@@ -148,10 +148,19 @@
       "enabled": true,
       "command": ["uvx", "--from", "browser-use[cli]", "browser-use", "--mcp"],
       "timeout": 60000
+    },
+    "dreamwork": {
+      "type": "local",
+      "command": [
+        "sh",
+        "-c",
+        "key=$(secret-tool lookup service dreamwork account default) && [ -n \"$key\" ] && DREAMWORK_API_KEY=\"$key\" exec npx -y @dreamworkhq/mcp"
+      ],
+      "enabled": true
     }
   },
-  "plugin": [
-    "{env:HOME}/.local/share/opencode/ponytail/.opencode/plugins/ponytail.mjs"
+  "plugins": [
+    "{env:HOME}/.local/share/opencode/ponytail/.opencode/plugins/ponytail"
   ],
   "skills": {
     "paths": [

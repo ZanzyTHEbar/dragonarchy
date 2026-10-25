@@ -1,0 +1,17 @@
+/* ponytail: use libadwaita's light/dark colors; no GTK3 wlogout CSS imports. */
+window {
+    background-color: alpha(@window_bg_color, 0.9);
+}
+
+button {
+    padding: 24px;
+    border-radius: 12px;
+}
+
+button label.action-name {
+    font-size: 20px;
+}
+
+button label.keybind {
+    font-family: monospace;
+}

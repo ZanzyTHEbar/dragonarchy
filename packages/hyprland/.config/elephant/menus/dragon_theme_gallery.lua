@@ -3,7 +3,6 @@ NamePretty = "Theme Gallery"
 Icon = "view-grid"
 Parent = "dragon_theme"
 Description = "Browse themes with a background preview"
-Action = "theme-set %VALUE%"
 History = false
 Cache = false
 SearchName = true
@@ -17,6 +16,17 @@ local function dotfiles_root()
     local home = os.getenv("HOME") or ""
     return home .. "/dotfiles"
 end
+
+local function shell_quote(value)
+    return "'" .. value:gsub("'", "'\\''") .. "'"
+end
+
+-- These live menus use checkout helpers, not the installed offline commands.
+local function theme_helper(name)
+    return shell_quote(dotfiles_root() .. "/scripts/theme-manager/" .. name)
+end
+
+Action = theme_helper("theme-set") .. " %VALUE%"
 
 local function config_home()
     local env = os.getenv("XDG_CONFIG_HOME")
@@ -48,7 +58,7 @@ end
 local function list_themes()
     local themes = {}
     local base = dotfiles_root() .. "/packages/themes/.config/themes"
-    local cmd = string.format("find '%s' -mindepth 1 -maxdepth 1 -type d -o -type l 2>/dev/null", base)
+    local cmd = string.format("find %s -mindepth 1 -maxdepth 1 -type d -o -type l 2>/dev/null", shell_quote(base))
     local handle = io.popen(cmd)
     if not handle then
         return themes
@@ -68,7 +78,7 @@ end
 
 local function current_theme_slug()
     local link = config_home() .. "/current/theme"
-    local handle = io.popen(string.format("readlink -f '%s' 2>/dev/null", link))
+    local handle = io.popen(string.format("readlink -f %s 2>/dev/null", shell_quote(link)))
     if not handle then
         return ""
     end
@@ -83,7 +93,7 @@ end
 
 local function current_background_path()
     local link = config_home() .. "/current/background"
-    local handle = io.popen(string.format("readlink -f '%s' 2>/dev/null", link))
+    local handle = io.popen(string.format("readlink -f %s 2>/dev/null", shell_quote(link)))
     if not handle then
         return ""
     end
@@ -95,10 +105,10 @@ end
 local function first_background_for_theme(theme_path)
     local base = theme_path .. "/backgrounds"
     local cmd = string.format(
-        "find '%s' -maxdepth 1 -type f \\( " ..
+        "find %s -maxdepth 1 -type f \\( " ..
         "-iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.bmp' " ..
         "\\) 2>/dev/null | sort | head -n 1",
-        base
+        shell_quote(base)
     )
     local handle = io.popen(cmd)
     if not handle then
@@ -186,14 +196,14 @@ function GetEntries()
         Subtext = "Toggle back to the previous theme",
         Icon = "edit-undo",
         Value = "",
-        Actions = { ["menus:default"] = "theme-undo", undo = "theme-undo" }
+        Actions = { ["menus:default"] = theme_helper("theme-undo"), undo = theme_helper("theme-undo") }
     })
     table.insert(entries, {
         Text = "Revert preview session",
         Subtext = "Go back to the theme/background you had before previewing",
         Icon = "edit-undo",
         Value = "",
-        Actions = { ["menus:default"] = "theme-preview-revert", revert_preview = "theme-preview-revert" }
+        Actions = { ["menus:default"] = theme_helper("theme-preview-revert"), revert_preview = theme_helper("theme-preview-revert") }
     })
 
     local seen = {}
@@ -203,7 +213,7 @@ function GetEntries()
         -- Prefer a cached composite preview (wallpaper + palette strip)
         local preview = ""
         if file_exists(preview_helper) then
-            preview = run_cmd_first_line(string.format("'%s' '%s' 2>/dev/null", preview_helper, item.slug))
+            preview = run_cmd_first_line(string.format("%s %s 2>/dev/null", shell_quote(preview_helper), shell_quote(item.slug)))
         end
         -- Fallback: wallpaper itself (no palette)
         if preview == "" then
@@ -219,12 +229,12 @@ function GetEntries()
             Value = item.slug,
             Icon = "preferences-desktop-theme",
             Actions = {
-                ["menus:default"] = "theme-apply %VALUE%",
-                remove = "theme-remove %VALUE%",
-                favorite = "theme-favorite-toggle %VALUE%",
-                undo = "theme-undo",
-                preview = "theme-preview %VALUE%",
-                revert_preview = "theme-preview-revert"
+                ["menus:default"] = theme_helper("theme-apply") .. " %VALUE%",
+                remove = theme_helper("theme-remove") .. " %VALUE%",
+                favorite = theme_helper("theme-favorite-toggle") .. " %VALUE%",
+                undo = theme_helper("theme-undo"),
+                preview = theme_helper("theme-preview") .. " %VALUE%",
+                revert_preview = theme_helper("theme-preview-revert")
             }
         }
 
@@ -289,4 +299,3 @@ function GetEntries()
 
     return entries
 end
-

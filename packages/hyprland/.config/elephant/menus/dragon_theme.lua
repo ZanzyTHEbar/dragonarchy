@@ -3,7 +3,6 @@ NamePretty = "Theme Controls"
 Icon = "preferences-desktop-theme"
 Parent = "dragon"
 Description = "Manage Dragon themes and assets"
-Action = "theme-set %VALUE%"
 History = false
 Cache = false
 SearchName = true
@@ -16,6 +15,17 @@ local function dotfiles_root()
     local home = os.getenv("HOME") or ""
     return home .. "/dotfiles"
 end
+
+local function shell_quote(value)
+    return "'" .. value:gsub("'", "'\\''") .. "'"
+end
+
+-- These live menus use checkout helpers, not the installed offline commands.
+local function theme_helper(name)
+    return shell_quote(dotfiles_root() .. "/scripts/theme-manager/" .. name)
+end
+
+Action = theme_helper("theme-set") .. " %VALUE%"
 
 local function config_home()
     local env = os.getenv("XDG_CONFIG_HOME")
@@ -38,7 +48,7 @@ end
 local function list_themes()
     local themes = {}
     local base = dotfiles_root() .. "/packages/themes/.config/themes"
-    local cmd = string.format("find '%s' -mindepth 1 -maxdepth 1 -type d -o -type l 2>/dev/null", base)
+    local cmd = string.format("find %s -mindepth 1 -maxdepth 1 -type d -o -type l 2>/dev/null", shell_quote(base))
     local handle = io.popen(cmd)
     if not handle then
         return themes
@@ -58,7 +68,7 @@ end
 
 local function current_theme_slug()
     local link = config_home() .. "/current/theme"
-    local handle = io.popen(string.format("readlink -f '%s' 2>/dev/null", link))
+    local handle = io.popen(string.format("readlink -f %s 2>/dev/null", shell_quote(link)))
     if not handle then
         return ""
     end
@@ -91,8 +101,8 @@ function GetEntries()
             Value = item.slug,
             Icon = "preferences-desktop-theme",
             Actions = {
-                ["menus:default"] = "theme-set %VALUE%",
-                remove = "theme-remove %VALUE%"
+                ["menus:default"] = theme_helper("theme-set") .. " %VALUE%",
+                remove = theme_helper("theme-remove") .. " %VALUE%"
             }
         }
 
@@ -109,8 +119,8 @@ function GetEntries()
         Subtext = "Type or paste URL, default action uses query args",
         Icon = "system-software-install",
         Actions = {
-            ["menus:default"] = "theme-install %ARGS%",
-            from_clipboard = "theme-install \"$(wl-paste)\""
+            ["menus:default"] = theme_helper("theme-install") .. " %ARGS%",
+            from_clipboard = theme_helper("theme-install") .. " \"$(wl-paste)\""
         }
     })
 
@@ -118,7 +128,7 @@ function GetEntries()
         Text = "Update Installed Themes",
         Icon = "view-refresh",
         Actions = {
-            ["menus:default"] = "theme-update"
+            ["menus:default"] = theme_helper("theme-update")
         }
     })
 
@@ -132,11 +142,10 @@ function GetEntries()
         Text = "Next Background",
         Icon = "media-skip-forward",
         Actions = {
-            ["menus:default"] = "theme-bg-next"
+            ["menus:default"] = theme_helper("theme-bg-next")
         }
     })
 
     return entries
 end
-
 

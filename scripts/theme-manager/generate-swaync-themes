@@ -4,6 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/theme-utils.sh
 source "$SCRIPT_DIR/lib/theme-utils.sh"
+export LC_ALL=C
+
+# Checkout callers retain their default; installed callers pass the owned base.
+: "${SWAYNC_BASE:=$DOTFILES_ROOT/packages/hyprland/.config/swaync/style-base.css}"
+[[ -f "$SWAYNC_BASE" && ! -L "$SWAYNC_BASE" && -s "$SWAYNC_BASE" ]] || {
+  echo "Missing regular SwayNC structural base: $SWAYNC_BASE" >&2; exit 1;
+}
 
 hex_to_rgb() {
   local hex="${1#\#}"
@@ -25,9 +32,10 @@ rgba_from_hex() {
 
 for theme in "$THEMES_DIR"/*/; do
   palette="$theme/hyprland-palette.conf"
-  [[ -f "$palette" ]] || continue
+  [[ -f "$palette" ]] || { echo "Missing palette: $palette" >&2; exit 1; }
+  tm_validate_palette "$palette"
 
-  background="$(tm_palette_hex "$palette" background)" || continue
+  background="$(tm_palette_hex "$palette" background)"
   foreground="$(tm_palette_hex "$palette" foreground "$background")"
   comment="$(tm_palette_hex "$palette" comment "$foreground")"
   accent="$(tm_palette_hex "$palette" accent "$foreground")"
@@ -40,22 +48,8 @@ for theme in "$THEMES_DIR"/*/; do
   output_file="${theme%/}/swaync.css"
 
   {
-    printf '/* Auto-generated SwayNC theme - color overrides only */\n'
+    printf '/* Auto-generated complete SwayNC stylesheet */\n'
     printf '/* Source: hyprland-palette.conf */\n'
-    printf ':root {\n'
-    printf '  --cc-bg: %s;\n' "$(rgba_from_hex "$background" 0.96)"
-    printf '  --noti-border-color: %s;\n' "$(rgba_from_hex "$foreground" 0.15)"
-    printf '  --noti-bg: %s;\n' "$(hex_to_rgb "$background")"
-    printf '  --noti-bg-alpha: 0.9;\n'
-    printf '  --noti-bg-darker: %s;\n' "$(rgb_from_hex "$noti_bg_darker")"
-    printf '  --noti-bg-hover: %s;\n' "$(rgb_from_hex "$noti_bg_hover")"
-    printf '  --noti-bg-focus: %s;\n' "$(rgba_from_hex "$noti_bg_focus" 0.6)"
-    printf '  --noti-close-bg: %s;\n' "$(rgba_from_hex "$foreground" 0.10)"
-    printf '  --noti-close-bg-hover: %s;\n' "$(rgba_from_hex "$foreground" 0.15)"
-    printf '  --text-color: %s;\n' "$(rgb_from_hex "$foreground")"
-    printf '  --text-color-disabled: %s;\n' "$(rgb_from_hex "$comment")"
-    printf '  --bg-selected: %s;\n' "$(rgb_from_hex "$accent")"
-    printf '}\n\n'
     printf '@define-color background %s;\n' "$background"
     printf '@define-color foreground %s;\n' "$foreground"
     printf '@define-color accent %s;\n' "$accent"
@@ -74,6 +68,8 @@ for theme in "$THEMES_DIR"/*/; do
     printf '@define-color text-color %s;\n' "$foreground"
     printf '@define-color text-color-disabled %s;\n' "$comment"
     printf '@define-color bg-selected %s;\n' "$accent"
+    printf '\n'
+    cat "$SWAYNC_BASE"
   } >"$output_file"
 
   echo "Wrote ${theme}swaync.css"

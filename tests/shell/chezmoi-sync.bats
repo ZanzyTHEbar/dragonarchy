@@ -6,11 +6,13 @@ setup() {
   root="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
   FIXTURE="$BATS_TEST_TMPDIR/repository"
   SOURCE="$BATS_TEST_TMPDIR/source"
-  MANIFEST="$FIXTURE/infra/chezmoi/manifests/fixture.manifest"
+  MANIFEST="$FIXTURE/infra/chezmoi/manifests/devtools-core.manifest"
   mkdir -p "$FIXTURE/infra/chezmoi/bin" "$(dirname "$MANIFEST")" \
     "$FIXTURE/packages/fixture" "$SOURCE/dot_config" "$BATS_TEST_TMPDIR/home"
   cp "$root/infra/chezmoi/bin/chezmoi-sync" "$FIXTURE/infra/chezmoi/bin/chezmoi-sync"
   cp -R "$root/infra/chezmoi/lib" "$FIXTURE/infra/chezmoi/lib"
+  printf '{"inventory_hostname":"fixture","host_desktop_stack":"none"}\n' >"$FIXTURE/infra/chezmoi/host-selection.json"
+  touch "$FIXTURE/infra/chezmoi/manifests/git-ssh.manifest" "$FIXTURE/infra/chezmoi/manifests/session-zsh.manifest"
   printf 'owned\n' >"$FIXTURE/packages/fixture/base.conf"
   printf 'required|packages/fixture/base.conf|dot_config/base.conf\n' >"$MANIFEST"
 }

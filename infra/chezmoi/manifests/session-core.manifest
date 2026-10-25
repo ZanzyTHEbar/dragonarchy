@@ -1,7 +1,31 @@
 # mode|source|dest
 required|packages/hyprland/.config/hypr|dot_config/hypr
+# Runtime/user-owned state must not become chezmoi-managed source entries.
+exclude||dot_config/hypr/colors-theme.conf
+exclude||dot_config/hypr/config/keyboard.local.conf
+exclude||dot_config/hypr/config/monitor.local.conf
+exclude||dot_config/hypr/config/workspace-indicator.local.conf
+exclude||dot_config/hypr/config/wallpaper.conf
 required|packages/hyprland/.config/waybar|dot_config/waybar
+required|packages/wayle/.config/wayle|dot_config/wayle
+exclude||dot_config/wayle/palette.toml
+exclude||dot_config/wayle/runtime.toml
 required|packages/hyprland/.config/walker|dot_config/walker
+exclude||dot_config/walker/themes/current/style.css
 exclude||dot_config/walker/config.toml.backup
 required|packages/hyprland/.config/elephant|dot_config/elephant
 optional|hosts/__HOST__/dotfiles/.config/waybar-hosts/__HOST__|dot_config/waybar-hosts/__HOST__
+# Static inputs only; generated snapshots and user preferences live elsewhere.
+required|packages/themes/.config/themes|dot_config/dragon/theme-inputs
+required|packages/hyprland/.config/theme-manager/wallpaper.conf|dot_config/dragon/wallpaper.defaults.conf
+required|packages/hyprland/.config/btop/btop.conf|dot_config/dragon/btop.defaults.conf
+# btop preferences are initialized once by runtime, never continuously applied.
+exclude||dot_config/btop/themes/current.theme
+required|packages/theme-runtime/.local/bin/theme-bootstrap|dot_local/bin/theme-bootstrap
+required|packages/theme-runtime/.local/bin/theme-set|dot_local/bin/theme-set
+required|packages/theme-runtime/.local/bin/theme-undo|dot_local/bin/theme-undo
+required|scripts/theme-manager/generate-kitty-themes|dot_local/libexec/dragon/theme-manager/generate-kitty-themes
+required|scripts/theme-manager/generate-gtk-themes|dot_local/libexec/dragon/theme-manager/generate-gtk-themes
+required|scripts/theme-manager/generate-btop-themes|dot_local/libexec/dragon/theme-manager/generate-btop-themes
+required|scripts/theme-manager/generate-swaync-themes|dot_local/libexec/dragon/theme-manager/generate-swaync-themes
+required|scripts/theme-manager/lib/theme-utils.sh|dot_local/libexec/dragon/theme-manager/lib/theme-utils.sh

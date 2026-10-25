@@ -101,7 +101,7 @@ case "${INVENTORY_MODE:-remote}" in
     users='[{"name":"remoteuser","groups":["sudo"],"home":"/remote/microdragon/home/remoteuser","chezmoi_source":"/remote/microdragon/home/remoteuser/.local/share/chezmoi"}]'
     ;;
 esac
-printf '{"target_profile":"%s","target_connection":"%s","target_home":"%s","target_source":"%s","platform_connection_mode":"%s","platform_local_connection_policy":"%s","platform_container_policy":"%s","platform_remote_connection_policy":"%s","platform_container_identity":"%s","platform_controller_home_policy":"forbidden","platform_unsupported_combination_policy":"reject","platform_generic_family_fallback":"forbidden","ansible_connection":"%s","managed_users":%s}\n' "$profile" "$connection" "$home" "$source" "$platform_mode" "$local_policy" "$container_policy" "$remote_policy" "$container_identity" "$ansible_connection" "$users"
+printf '{"host_desktop_stack":"none","target_profile":"%s","target_connection":"%s","target_home":"%s","target_source":"%s","platform_connection_mode":"%s","platform_local_connection_policy":"%s","platform_container_policy":"%s","platform_remote_connection_policy":"%s","platform_container_identity":"%s","platform_controller_home_policy":"forbidden","platform_unsupported_combination_policy":"reject","platform_generic_family_fallback":"forbidden","ansible_connection":"%s","managed_users":%s}\n' "$profile" "$connection" "$home" "$source" "$platform_mode" "$local_policy" "$container_policy" "$remote_policy" "$container_identity" "$ansible_connection" "$users"
 EOF
   chmod +x "$MOCK_DIR/ansible-inventory"
 

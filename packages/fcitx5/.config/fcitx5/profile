@@ -10,7 +10,7 @@ DefaultIM=keyboard-us
 # Name
 Name=keyboard-us
 # Layout
-Layout=
+# Layout=
 
 [GroupOrder]
 0=Default

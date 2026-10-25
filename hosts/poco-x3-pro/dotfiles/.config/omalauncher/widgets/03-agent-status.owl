@@ -1,0 +1,15 @@
+widget "agent-status" {
+  meta { owl: 5; description: "Agent setup shortcut, not live session status"; version: "1.0"; license: "MIT"; category: "dev" }
+  page: 1
+  order: 3
+  size: 3x2
+  minSize: 2x2
+
+  Column {
+    gap: 4
+    Text { text: "agent"; style: muted }
+    Text { text: "OpenCode"; style: title }
+    Text { text: "Session status not connected"; style: small; color: muted }
+    onTap: launcher("agents")
+  }
+}

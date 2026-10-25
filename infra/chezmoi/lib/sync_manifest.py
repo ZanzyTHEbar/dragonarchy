@@ -38,6 +38,19 @@ def source_root(value):
     return path
 
 
+THEME_RENDERERS = frozenset({
+    'scripts/theme-manager/generate-kitty-themes',
+    'scripts/theme-manager/generate-gtk-themes',
+    'scripts/theme-manager/generate-btop-themes',
+    'scripts/theme-manager/generate-swaync-themes',
+    'scripts/theme-manager/lib/theme-utils.sh',
+})
+
+
+def allowed_source(source, host):
+    return source.startswith(('packages/', f'hosts/{host}/dotfiles/')) or source in THEME_RENDERERS
+
+
 def destination(root, rel):
     relative(rel, 'destination')
     directory_chain(root, 'Destination path', leaf=True)
@@ -159,7 +172,7 @@ def plan(repo, manifests, host, root):
                 continue
             require(mode in ('required', 'optional'), f'Unknown manifest mode: {mode}')
             relative(source, 'source')
-            require(source.startswith(('packages/', f'hosts/{host}/dotfiles/')),
+            require(allowed_source(source, host),
                     f'Manifest source is outside the allowed roots: {source}')
             path = repo / source
             directory_chain(path, 'Source path')

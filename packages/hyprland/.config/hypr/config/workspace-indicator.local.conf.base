@@ -1,0 +1,6 @@
+# Runtime workspace-indicator include stub.
+#
+# The real file is `workspace-indicator.local.conf`, installed by the optional
+# standalone `ZanzyTHEbar/workspace-indicator` package. This stub ensures the
+# globbed source in `hyprland.conf` always matches at least one file when the
+# indicator is not installed.

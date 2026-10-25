@@ -5,12 +5,14 @@ import errno
 import fcntl
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import sys
 import tempfile
 
 from sync_manifest import destination, plan, relative, require, source_root
+from host_selection import select_manifests
 
 
 def failpoint(name):
@@ -201,13 +203,27 @@ class Transaction:
 def main():
     parser = argparse.ArgumentParser(description='Sync manifest-declared dotfiles into chezmoi source.')
     parser.add_argument('--host', required=True)
+    parser.add_argument('--profile')
     parser.add_argument('--source-dir', default=os.path.expanduser('~/.local/share/chezmoi'))
     args = parser.parse_args()
     if not args.host:
         parser.error('--host is required')
     repo = Path(__file__).resolve().parents[3]
     manifests = repo / 'infra/chezmoi/manifests'
-    paths = sorted(manifests.glob('*.manifest'))
+    if args.profile is not None:
+        if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]*', args.profile):
+            parser.error(f'Invalid profile name: {args.profile}')
+        if args.profile != 'mobile' or args.host != 'poco-x3-pro':
+            parser.error('Only --host poco-x3-pro --profile mobile is supported')
+        if args.source_dir == os.path.expanduser('~/.local/share/chezmoi'):
+            args.source_dir = os.path.expanduser('~/.local/share/dragonarchy/poco-x3-pro/omalauncher/chezmoi')
+        manifests /= 'mobile'
+        require(manifests.is_dir(), f'Mobile manifest directory not found: {manifests}')
+        paths = [manifests / (name + '.manifest') for name in ('common', 'mobile')]
+        for path in paths:
+            require(path.is_file(), f'Required mobile manifest missing: {path.stem}')
+    else:
+        paths, _ = select_manifests(repo, args.host)
     require(paths, f'No manifests found in {manifests}')
     root = source_root(args.source_dir)
     entries, excludes = plan(repo, paths, args.host, root)

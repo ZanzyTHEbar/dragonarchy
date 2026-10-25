@@ -1,0 +1,42 @@
+# Dragonarchy device descriptor — Xiaomi Poco X3 Pro
+# Proposed metadata, not yet consumed by deployment tooling.
+
+device:
+  id: poco-x3-pro
+  platform: android
+  vendor: xiaomi
+  model: poco-x3-pro
+  firmware: miui14
+  architecture: aarch64
+  soc: snapdragon-860
+  gpu: adreno-640
+
+security:
+  root_allowed: false
+  bootloader_unlock_allowed: false
+  preserve_play_integrity: true
+  preserve_nfc: true
+  preserve_banking_apps: true
+  preserve_revolut: true
+
+runtimes:
+  omalauncher:
+    enabled: true
+    distro: archlinuxarm
+    package_manager: pacman
+    config_profile: mobile
+    display: wayland-compositor  # Omalauncher is the Wayland compositor for Linux apps
+
+automation:
+  engine: opencode
+  deployment_policy: approval_required
+  rollback_enabled: false  # Deployment stays disabled until restore is implemented.
+
+# Mobile-specific adaptations
+mobile:
+  input: touch
+  navigation: gesture
+  keyboard: software
+  screen: portrait-6x12
+  battery_optimization: scoped_exceptions
+  background_daemons: opt_in_only

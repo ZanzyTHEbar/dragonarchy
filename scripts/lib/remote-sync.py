@@ -9,8 +9,13 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'infra/chezmoi/lib'))
+from host_selection import SNAPSHOT, select_manifests
+from sync_manifest import allowed_source
 
 
 # The tempfile is owned by the selected user. Repair only directory permissions,
@@ -41,11 +46,9 @@ def encoded_name(name):
     return encoded + (".tmpl" if encoded.endswith(".tmpl") else "")
 
 
-def build_bundle(repo, bundle, host):
+def build_bundle(repo, bundle, host, inventory=None):
     records = []
-    manifests = sorted((repo / "infra/chezmoi/manifests").glob("*.manifest"))
-    if not manifests:
-        raise ValueError("No manifests found")
+    manifests, selection = select_manifests(repo, host, inventory)
     for manifest in manifests:
         if manifest.is_symlink():
             raise ValueError(f"Manifest is a symlink: {manifest}")
@@ -59,7 +62,7 @@ def build_bundle(repo, bundle, host):
                     raise ValueError("Exclude source must be empty")
             elif mode in {"required", "optional"}:
                 relative_path(source)
-                if not source.startswith(("packages/", f"hosts/{host}/dotfiles/")):
+                if not allowed_source(source, host):
                     raise ValueError(f"Source outside allowed roots: {source}")
             else:
                 raise ValueError(f"Unknown manifest mode: {mode}")
@@ -108,6 +111,7 @@ def build_bundle(repo, bundle, host):
         target = bundle / path.relative_to(repo)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
+    (bundle / SNAPSHOT).write_text(json.dumps(selection) + '\n')
 
 
 def create_archive(bundle, archive):
@@ -137,7 +141,7 @@ def main():
     repo = Path(__file__).resolve().parents[2]
     with tempfile.TemporaryDirectory(prefix="dotfiles-remote-", dir="/tmp/opencode" if Path("/tmp/opencode").is_dir() else None) as temp:
         bundle = Path(temp) / "repo"
-        build_bundle(repo, bundle, args.host)
+        build_bundle(repo, bundle, args.host, args.inventory)
         # Reject unsafe distributable content before any bytes leave the controller.
         # This isolated source is never the SSH target's filesystem path.
         sync = os.environ.get("DOTFILES_CHEZMOI_SYNC") or str(bundle / "infra/chezmoi/bin/chezmoi-sync")
@@ -146,6 +150,7 @@ def main():
             raise SystemExit(validation.returncode)
         archive = Path(temp) / "payload.tar"
         create_archive(bundle, archive)
+        selection = json.loads((bundle / SNAPSHOT).read_text())
         remote = "{{ dotfiles_remote_stage.path }}"
         play = [{"hosts": args.host, "gather_facts": False, "become": True,
                  "become_user": args.user, "environment": {"HOME": args.home},
@@ -163,6 +168,10 @@ def main():
                 {"name": "Reconcile owned source paths transactionally", "ansible.builtin.command": {"argv": [
                     "bash", remote + "/infra/chezmoi/bin/chezmoi-sync", "--host", args.host, "--source-dir", args.source]}},
                 {"ansible.builtin.command": {"argv": ["chezmoi", "--source", args.source, "--destination", args.home, "apply"]}},
+                *([{"name": "Prepare required palettes before next managed login", "ansible.builtin.command": {
+                    "argv": [args.home + "/.local/bin/theme-bootstrap"]},
+                    "environment": {"XDG_CONFIG_HOME": args.home + "/.config"}}]
+                  if selection['host_desktop_stack'] == 'hyprland' else []),
             ], "always": [{"name": "Remove isolated remote payload directory", "ansible.builtin.command": {
                 "argv": ["python3", "-c", CLEANUP_CODE, remote]}}]},
         ]}]

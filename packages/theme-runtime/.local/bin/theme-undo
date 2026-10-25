@@ -1,0 +1,3 @@
+#!/bin/sh
+# Offline preparation only; running applications are not refreshed.
+exec "$(dirname "$0")/theme-bootstrap" undo "$@"

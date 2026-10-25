@@ -1,0 +1,383 @@
+#!/usr/bin/env python3
+"""Select and prepare offline application inputs without touching a live session."""
+
+from contextlib import ExitStack
+import fcntl
+import hashlib
+import os
+from pathlib import Path
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+
+
+def palette(path):
+    if not stat.S_ISREG(path.lstat().st_mode):
+        raise ValueError(f'Palette must be a regular file: {path}')
+    data = path.read_bytes()
+    keys = set()
+    # Canonical renderers use awk's $1/$3 fields, not a Hyprland parser.
+    # Do not normalize Unicode whitespace/line separators that awk won't read.
+    for line in data.decode().split('\n'):
+        line = line.split('#', 1)[0].strip(' \t')
+        if not line:
+            continue
+        match = re.fullmatch(r'\$([A-Za-z_][A-Za-z0-9_]*)[ \t]+=[ \t]+rgba\(([0-9a-fA-F]{6}|[0-9a-fA-F]{8})\)', line)
+        if not match or match[1] in keys:
+            raise ValueError(f'Unsupported or duplicate palette declaration in {path}: {line}')
+        keys.add(match[1])
+    if not {'background', 'foreground', 'accent', 'green', 'comment'} <= keys:
+        raise ValueError(f'Missing required compositor colors: {path}')
+    return data
+
+
+def directory(path, create=True):
+    for parent in (*reversed(path.parents), path):
+        if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
+            raise ValueError(f'Runtime directory must not redirect writes: {parent}')
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
+
+
+def assets(root):
+    entries = {}
+    for path in (root, *root.rglob('*')):
+        mode = path.lstat().st_mode
+        if not (stat.S_ISREG(mode) or stat.S_ISDIR(mode)):
+            raise ValueError(f'Unsupported theme asset: {path}')
+        entries[path.relative_to(root)] = (stat.S_IFMT(mode), stat.S_IMODE(mode))
+    return entries
+
+
+def identity(root, renderers, bases):
+    digest = hashlib.sha256()
+    digest.update(Path(__file__).read_bytes())
+    for name, (kind, mode) in sorted(assets(root).items()):
+        digest.update(f'{name}\0{kind}\0{mode}\0'.encode())
+        if kind == stat.S_IFREG:
+            digest.update((root / name).read_bytes())
+    for renderer in renderers:
+        if not stat.S_ISREG(renderer.lstat().st_mode):
+            raise ValueError(f'Renderer must be a regular file: {renderer}')
+        digest.update(renderer.read_bytes())
+    for base in bases:
+        if not stat.S_ISREG(base.lstat().st_mode) or not base.read_bytes():
+            raise ValueError(f'Missing regular structural base: {base}')
+        digest.update(f'{base.name}\0{stat.S_IMODE(base.stat().st_mode)}\0'.encode())
+        digest.update(base.read_bytes())
+    return digest.hexdigest()
+
+
+def regular(path):
+    if path.is_symlink() and not path.exists():
+        raise ValueError(f'Dangling runtime path: {path}')
+    if path.exists() and not path.is_file():
+        raise ValueError(f'Conflicting runtime path: {path}')
+
+
+def prepare(config, mode, slug):
+    inputs = config / 'dragon/theme-inputs'
+    current = config / 'current/theme'
+    colors = config / 'hypr/colors-theme.conf'
+    wallpaper = config / 'theme-manager/wallpaper.conf'
+    snapshots = config / 'current/.theme-snapshots'
+    published_palette = config / 'current/.published-palette'
+    swaync_provenance = config / 'current/.swaync-base-source'
+    outputs = {colors: 'hyprland-palette.conf', config / 'kitty/colors.conf': 'kitty.conf',
+               config / 'gtk-3.0/gtk.css': 'gtk-3.0/gtk.css',
+               config / 'gtk-4.0/gtk.css': 'gtk-4.0/gtk.css',
+               config / 'btop/themes/current.theme': 'btop.theme',
+               config / 'swaync/style.css': 'swaync.css'}
+    preferences = {wallpaper: config / 'dragon/wallpaper.defaults.conf',
+                   config / 'btop/btop.conf': config / 'dragon/btop.defaults.conf'}
+    runtime_roots = {path.parent for path in (*outputs, *preferences, current, published_palette)}
+    runtime_roots.add(snapshots)
+    if published_palette.is_symlink():
+        raise ValueError('Published palette identity must not be a symlink')
+    regular(published_palette)
+    if swaync_provenance.is_symlink():
+        raise ValueError('SwayNC base provenance must not be a symlink')
+    regular(swaync_provenance)
+    # Automatic convergence must neither consult nor create interactive history.
+    if mode != 'bootstrap':
+        state = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state')))
+        if not state.is_absolute() or '..' in state.parts:
+            raise ValueError('XDG_STATE_HOME must be absolute without parent traversal')
+        state = state / 'dragon/theme-manager'
+        directory(state, create=False)
+        history = [state / name for name in ('prev-theme', 'recent-themes', 'previous-generation')]
+        runtime_roots.update(path.parent for path in history)
+        for path in history:
+            if path.is_symlink():
+                raise ValueError(f'History must not be a symlink: {path}')
+            regular(path)
+    renderer_dir = Path(__file__).resolve().parent.parent / 'libexec/dragon/theme-manager'
+    renderers = [renderer_dir / name for name in (
+        'generate-kitty-themes', 'generate-gtk-themes', 'generate-btop-themes',
+        'generate-swaync-themes', 'lib/theme-utils.sh')]
+    swaync_base = config / 'swaync/style-base.css'
+    prepared = None
+    provenance = None
+    if current.is_symlink():
+        selected = current.resolve(strict=True)
+        active_palette = palette(selected / 'hyprland-palette.conf')
+        if (mode == 'bootstrap' and colors.exists() and colors.is_file() and
+                colors.read_bytes() != active_palette and not (
+                    published_palette.is_file() and published_palette.read_text() ==
+                    hashlib.sha256(colors.read_bytes()).hexdigest())):
+            raise ValueError(f'Conflicting selected theme and compositor palette: {colors}')
+        # Only our own snapshots carry source provenance. Never infer identity
+        # from a familiar basename: an external tokyo-night may be customized.
+        if selected.parent.parent == snapshots:
+            prepared = selected
+            source = selected.parent / 'source'
+            if source.is_symlink() or not source.is_file():
+                raise ValueError(f'Unsupported snapshot provenance: {source}')
+            provenance = source.read_text()
+            selected = Path(provenance)
+            if not selected.is_absolute():
+                raise ValueError(f'Snapshot source must be absolute: {source}')
+    elif current.exists():
+        raise ValueError(f'Unsupported selection (expected a symlink): {current}')
+    else:
+        if colors.exists() or colors.is_symlink():
+            raise ValueError(f'Palette exists without a theme selection: {colors}')
+        selected = inputs / 'tokyo-night'
+    old = os.readlink(current) if current.is_symlink() else None
+    old_generation = prepared
+    if mode != 'bootstrap' and old is not None and prepared is None:
+        raise ValueError('Run theme-bootstrap to capture the external selection before set/undo')
+    undo = None
+    if mode == 'set':
+        selected = inputs / slug
+        if selected.is_symlink():
+            raise ValueError('Installed theme must not redirect selection')
+    elif mode == 'undo':
+        undo = Path(history[2].read_text())
+        if not undo.is_absolute() or undo.parent.parent != snapshots or undo.is_symlink():
+            raise ValueError('Unsupported previous generation')
+        assets(undo)
+        selected = Path((undo.parent / 'source').read_text())
+        if not selected.is_absolute():
+            raise ValueError('Previous source must be absolute')
+    selected = selected.resolve(strict=undo is None)
+    if (undo is None and not selected.is_dir()) or not re.fullmatch(r'[\w.-]+', selected.name):
+        raise ValueError(f'Unsupported theme selection: {selected}')
+    # Protect every publication/default destination, not only compositor paths.
+    # Reject before creating destination directories or renderer staging files.
+    for runtime in runtime_roots:
+        if selected == runtime or selected in runtime.parents or runtime in selected.parents:
+            raise ValueError(f'Theme source overlaps runtime preparation: {selected}')
+    for parent in runtime_roots:
+        directory(parent)
+    source = undo if undo is not None else selected
+    data = palette(source / 'hyprland-palette.conf')
+    fingerprint = None if undo is not None else identity(selected, renderers, [swaync_base])
+    unchanged = (prepared is not None and provenance == str(selected) and
+                 (prepared.parent / 'identity').is_file() and
+                 (prepared.parent / 'identity').read_text() == fingerprint)
+    if undo is not None:
+        unchanged = undo == prepared
+    for path in (*outputs, *preferences):
+        directory(path.parent)
+        regular(path)
+    defaults = {path: source.read_bytes() for path, source in preferences.items() if not path.exists()}
+    # Validate everything before publication. Keep snapshots for recovery; each
+    # ends in the actual slug for existing basename-based theme consumers.
+    with tempfile.TemporaryDirectory(prefix='.prepare-', dir=current.parent) as temporary:
+        stage = Path(temporary)
+        tree = stage / selected.name
+        if not unchanged and undo is None:
+            shutil.copytree(selected, tree, symlinks=True)
+            assets(tree)
+            if palette(tree / 'hyprland-palette.conf') != data:
+                raise ValueError('Palette changed during preparation')
+            (stage / 'source').write_text(str(selected))
+            (stage / 'identity').write_text(fingerprint)
+            # Retain exact source assets separately from generated output.
+            shutil.copytree(tree, stage / 'input')
+            shutil.copy2(swaync_base, stage / 'style-base.css')
+            # Renderers need filesystem roots and ordinary command lookup, not
+            # shell startup hooks, desktop/session credentials or GUI endpoints.
+            environment = {key: os.environ[key] for key in (
+                'HOME', 'PATH', 'LANG', 'LC_ALL', 'TMPDIR', 'XDG_CONFIG_HOME',
+                'XDG_STATE_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'XDG_RUNTIME_DIR')
+                if key in os.environ}
+            # Only the selected slug is present under this renderer root.
+            render_root = stage / 'render'
+            render_root.mkdir()
+            tree.rename(render_root / selected.name)
+            tree = render_root / selected.name
+            environment['THEMES_DIR'] = str(render_root)
+            environment['SWAYNC_BASE'] = str(stage / 'style-base.css')
+            # Never accept a stale shipped btop asset as successful generation.
+            (tree / 'btop.theme').unlink(missing_ok=True)
+            (tree / 'swaync.css').unlink(missing_ok=True)
+            for renderer in renderers[:-1]:
+                subprocess.run([str(renderer)], env=environment, check=True,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            assets(tree)
+            if (identity(stage / 'input', renderers, [stage / 'style-base.css']) != fingerprint or
+                    identity(selected, renderers, [swaync_base]) != fingerprint):
+                raise ValueError('Theme inputs changed during rendering')
+        ready = prepared if unchanged else (undo if undo is not None else tree)
+        btop = ready / 'btop.theme'
+        if (unchanged or undo is not None) and not btop.exists():
+            # Older retained generations have no btop output. Render ONLY that
+            # output from their retained palette; never edit historical snapshots
+            # or regenerate their exact compositor/Kitty/GTK bytes from new input.
+            retained_root = stage / 'retained'
+            retained = retained_root / ready.name
+            retained.mkdir(parents=True)
+            (retained / 'hyprland-palette.conf').write_bytes(palette(ready / 'hyprland-palette.conf'))
+            environment = {key: os.environ[key] for key in (
+                'HOME', 'PATH', 'LANG', 'LC_ALL', 'TMPDIR', 'XDG_CONFIG_HOME',
+                'XDG_STATE_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'XDG_RUNTIME_DIR')
+                if key in os.environ}
+            environment['THEMES_DIR'] = str(retained_root)
+            subprocess.run([str(renderers[2])], env=environment, check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            btop = retained / 'btop.theme'
+        swaync = ready / 'swaync.css'
+        # A retained base outside the theme/input trees identifies our complete
+        # output. Older generations may contain inherited colors-only assets.
+        retained_base = ready.parent / 'style-base.css'
+        if not unchanged and undo is None:
+            retained_base = stage / 'style-base.css'
+        base = retained_base if retained_base.exists() else swaync_base
+        if not stat.S_ISREG(base.lstat().st_mode) or not base.read_bytes():
+            raise ValueError(f'Missing regular SwayNC structural base: {base}')
+        if (unchanged or undo is not None) and (not retained_base.exists() or not swaync.exists()):
+            retained_root = stage / 'retained-swaync'
+            retained = retained_root / ready.name
+            retained.mkdir(parents=True)
+            (retained / 'hyprland-palette.conf').write_bytes(palette(ready / 'hyprland-palette.conf'))
+            environment = {key: os.environ[key] for key in (
+                'HOME', 'PATH', 'LANG', 'LC_ALL', 'TMPDIR', 'XDG_CONFIG_HOME',
+                'XDG_STATE_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'XDG_RUNTIME_DIR')
+                if key in os.environ}
+            environment.update(THEMES_DIR=str(retained_root), SWAYNC_BASE=str(base))
+            subprocess.run([str(renderers[3])], env=environment, check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            swaync = retained / 'swaync.css'
+        publications = {}
+        for path, relative in outputs.items():
+            asset = btop if relative == 'btop.theme' else swaync if relative == 'swaync.css' else ready / relative
+            if not stat.S_ISREG(asset.lstat().st_mode) or not asset.read_bytes():
+                raise ValueError(f'Missing rendered output: {asset}')
+            publications[path] = asset.read_bytes()
+        publications[published_palette] = hashlib.sha256(publications[colors]).hexdigest().encode()
+        base_source = snapshots / stage.name / 'style-base.css' if not unchanged and undo is None else base
+        publications[swaync_provenance] = (
+            f'{base_source}\n{hashlib.sha256(base.read_bytes()).hexdigest()}\n').encode()
+        if not unchanged and (mode == 'undo' or (mode == 'set' and provenance != str(selected))):
+            recent = history[1].read_text().splitlines() if history[1].exists() else []
+            publications[history[1]] = ('\n'.join(list(dict.fromkeys([selected.name, *filter(None, recent)]))[:10]) + '\n').encode()
+            if old_generation is not None:
+                publications[history[0]] = (old_generation.name + '\n').encode()
+                publications[history[2]] = str(old_generation).encode()
+        # Prepare all destination-local regular files before changing selection.
+        # Ordinary publication errors restore prior bytes/links; not crash atomic.
+        link = stage / 'selection'
+        with ExitStack() as cleanup:
+            pending = {}
+            default_pending = {}
+            for path, content in defaults.items():
+                temporary = cleanup.enter_context(tempfile.TemporaryDirectory(prefix='.defaults-', dir=path.parent))
+                new = Path(temporary) / 'new'
+                new.write_bytes(content)
+                default_pending[path] = new
+            for path, content in publications.items():
+                if path.exists() and not path.is_symlink() and path.read_bytes() == content:
+                    continue
+                temporary = cleanup.enter_context(tempfile.TemporaryDirectory(prefix='.theme-', dir=path.parent))
+                new = Path(temporary) / 'new'
+                new.write_bytes(content)
+                backup = Path(temporary) / 'old'
+                if path.is_symlink():
+                    backup.symlink_to(path.readlink())
+                elif path.exists():
+                    shutil.copy2(path, backup)
+                pending[path] = (new, backup)
+            if not unchanged and undo is None:
+                snapshot = snapshots / stage.name
+                snapshot.mkdir()
+                tree.rename(snapshot / selected.name)
+                (stage / 'source').rename(snapshot / 'source')
+                (stage / 'identity').rename(snapshot / 'identity')
+                (stage / 'input').rename(snapshot / 'input')
+                (stage / 'style-base.css').rename(snapshot / 'style-base.css')
+                ready = snapshot / selected.name
+            published = []
+            initialized = []
+            selection_published = False
+            try:
+                # Exclusive links never overwrite personal preferences, including
+                # a file created by another writer after validation. An ordinary
+                # failure rolls back defaults created by this invocation as well.
+                for path, new in default_pending.items():
+                    os.link(new, path)
+                    initialized.append(path)
+                if not unchanged:
+                    link.symlink_to(ready)
+                    os.replace(link, current)
+                    selection_published = True
+                for path, (new, backup) in pending.items():
+                    os.replace(new, path)
+                    published.append(path)
+            except OSError:
+                for path in reversed(initialized):
+                    path.unlink()
+                for path in reversed(published):
+                    backup = pending[path][1]
+                    if backup.exists() or backup.is_symlink():
+                        os.replace(backup, path)
+                    else:
+                        path.unlink()
+                if selection_published:
+                    if old is None:
+                        current.unlink()
+                    else:
+                        if link.is_symlink():
+                            link.unlink()
+                        link.symlink_to(old)
+                        os.replace(link, current)
+                raise
+
+
+def main():
+    args = sys.argv[1:]
+    mode, slug = 'bootstrap', None
+    if args:
+        mode = args.pop(0)
+        if mode == 'set' and args[:1] == ['--no-gui']:
+            args.pop(0)
+        if mode == 'set' and len(args) == 1 and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]*', args[0]):
+            slug = args[0]
+        elif mode != 'undo' or args:
+            raise ValueError('Usage: theme-bootstrap | theme-set [--no-gui] SLUG | theme-undo')
+    config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
+    if not config.is_absolute() or '..' in config.parts:
+        raise ValueError('XDG_CONFIG_HOME must be absolute without parent traversal')
+    directory(config / 'current')
+    # A persistent user-owned inode serializes source/provenance reads through
+    # publication and rollback. Closing on every exit releases the flock.
+    fd = os.open(config / 'current/.theme-bootstrap.lock',
+                 os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    with os.fdopen(fd, 'a') as lock:
+        info = os.fstat(lock.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
+            raise ValueError('Bootstrap lock must be a user-owned regular file without hard links')
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        prepare(config, mode, slug)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
+        print(f'theme-bootstrap: {error}', file=sys.stderr)
+        sys.exit(1)

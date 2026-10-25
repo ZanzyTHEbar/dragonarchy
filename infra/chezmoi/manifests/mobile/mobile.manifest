@@ -1,0 +1,9 @@
+# mode|source|dest
+# Mobile profile — single host-owned poco-x3-pro runtime package
+# Omalauncher only. No Linux desktop or DroidDesk configuration is selected.
+# Own individual files: never capture .preview/, .errors/ or launcher state.
+required|hosts/poco-x3-pro/dotfiles/.config/omalauncher/style/style.toml|dot_config/omalauncher/style/style.toml
+
+required|hosts/poco-x3-pro/dotfiles/.config/omalauncher/widgets/01-device-status.owl|dot_config/omalauncher/widgets/01-device-status.owl
+required|hosts/poco-x3-pro/dotfiles/.config/omalauncher/widgets/02-dev-launcher.owl|dot_config/omalauncher/widgets/02-dev-launcher.owl
+required|hosts/poco-x3-pro/dotfiles/.config/omalauncher/widgets/03-agent-status.owl|dot_config/omalauncher/widgets/03-agent-status.owl

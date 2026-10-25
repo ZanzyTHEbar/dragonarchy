@@ -1,0 +1,20 @@
+widget "device-status" {
+  meta { owl: 5; description: "Battery, memory, storage and uptime"; version: "1.0"; license: "MIT"; category: "system" }
+  page: 1
+  order: 1
+  size: 3x3
+  minSize: 2x2
+
+  source bat = android.battery
+  source sys = android.system every 30s
+
+  Column {
+    gap: 4
+    Text { text: "device"; style: muted }
+    Text { text: "${bat.level}%"; style: title; color: bat.level < 20 ? red : foreground }
+    Progress { value: bat.level; max: 100; color: bat.level < 20 ? red : accent }
+    Text { text: "${fmtBytes(sys.memory.used)} / ${fmtBytes(sys.memory.total)}"; style: small }
+    Text { text: "${fmtBytes(sys.storage.free)} free"; style: small }
+    Text { text: "up ${fmtDuration(sys.uptime)}"; style: small; color: muted }
+  }
+}

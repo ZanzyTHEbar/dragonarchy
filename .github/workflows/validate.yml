@@ -7,6 +7,32 @@ on:
     branches: [main]
 
 jobs:
+  mobile-owl:
+    name: Omalauncher widgets (pinned OWL compiler)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/checkout@v4
+        with:
+          repository: SimonSchubert/omalauncher
+          ref: 06d4b484f268b30090da1cf235eae1c1fcd07762
+          path: _upstream/omalauncher
+          persist-credentials: false
+      - name: Build and test the host-only OWL checker
+        working-directory: _upstream/omalauncher
+        run: |
+          # OWL is plain JVM code; avoid configuring the Android app without an SDK.
+          sed -i '/^include(":app")$/d' settings.gradle.kts
+          ./gradlew :owl:test :owl:owlJar --console=plain
+      - name: Validate mobile manifests and widgets
+        run: |
+          OWL_JAR="$GITHUB_WORKSPACE/_upstream/omalauncher/owl/build/cli/owl.jar" \
+            bash scripts/mobile/validate.sh
+
   pkgsolve:
     name: pkgsolve Rust CI
     runs-on: ubuntu-latest
@@ -116,6 +142,12 @@ jobs:
             packages/zsh/.zshrc \
             packages/zsh/.config/zsh/profile.zsh \
             packages/zsh/.config/zsh/functions/*.zsh
+
+      - name: Check mobile profile isolation and disabled mutation commands
+        run: python3 tests/shell/mobile-safety-check.py
+
+      - name: Render Omalauncher profile without applying home files
+        run: bash scripts/mobile/validate.sh --render-only
 
   syntax-check:
     name: Bash Syntax Check

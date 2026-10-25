@@ -15,8 +15,11 @@ if command -v hyprlock >/dev/null 2>&1; then
   "$SCRIPT_DIR/hyprlock-setup" >/dev/null 2>&1 || true
 fi
 
-# If wlogout is present and not explicitly disabled, prefer it using stowed config
-if command -v wlogout >/dev/null 2>&1 && [ -z "${DRAGON_TUI_ONLY:-}" ]; then
+# Select native wleave files explicitly: its search path also includes wlogout CSS.
+if command -v wleave >/dev/null 2>&1 && [ -z "${DRAGON_TUI_ONLY:-}" ]; then
+  exec wleave --layout "${XDG_CONFIG_HOME:-$HOME/.config}/wleave/layout.json" \
+    --css "${XDG_CONFIG_HOME:-$HOME/.config}/wleave/style.css"
+elif command -v wlogout >/dev/null 2>&1 && [ -z "${DRAGON_TUI_ONLY:-}" ]; then
   exec wlogout
 else
   show_power_menu() {

@@ -67,4 +67,26 @@ tm_palette_hex() {
   tm_rgba_to_hex "$raw"
 }
 
+# Match the offline engine's narrow palette grammar; never eval theme input.
+tm_validate_palette() {
+  local palette="$1" line key declaration
+  local -A seen=()
+  declaration='^\$([A-Za-z_][A-Za-z0-9_]*)[ \t]+=[ \t]+rgba\(([0-9a-fA-F]{6}|[0-9a-fA-F]{8})\)$'
+  declaration=${declaration//\\t/$'\t'}
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line=${line%%#*}
+    line="${line#"${line%%[!$' \t']*}"}"
+    line="${line%"${line##*[!$' \t']}"}"
+    [[ -n "$line" ]] || continue
+    if [[ ! $line =~ $declaration ]]; then
+      echo "Unsupported palette declaration: $palette" >&2; return 1
+    fi
+    key=${BASH_REMATCH[1]}
+    [[ ! ${seen[$key]+present} ]] || { echo "Duplicate palette color: $key" >&2; return 1; }
+    seen[$key]=1
+  done < "$palette"
+  for key in background foreground accent comment green; do
+    [[ ${seen[$key]+present} ]] || { echo "Missing palette color: $key" >&2; return 1; }
+  done
+}
 

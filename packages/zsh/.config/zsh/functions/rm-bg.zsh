@@ -1,21 +1,20 @@
-#!/usr/bin/env zsh
-#
 # rm-bg.zsh - Background removal with path hardening
 #
-
-# Usage: rm_bg [--] <file-or-symlink> [file-or-symlink ...]
+# Usage: rm_bg [-h] [--] <path> [path ...]
 #   RM_BG_NOTIFY=0        suppress desktop notification
 #   RM_BG_SYNC=1          wait for rm and return its status
 #   RM_BG_IONICE=1        wrap rm in ionice -c 3 (can stall forever on NFS)
 #
+# Files, directories, and symlinks are all valid targets.
 # Unlink requires write+exec on the parent, not write on the target.
-# Privileged deletion is intentionally unsupported: string validation cannot
-# make a pkexec path race-resistant.
+# Privileged deletion is unsupported: a pkexec path cannot be made
+# race-resistant from the shell.
 # No tombstones, no named log file.
 # Protected prefixes are refused regardless of caller.
-# ponytail: shell path checks cannot be atomic; nonrecursive unprivileged unlink
-# limits the impact. Use an fd-relative unlinkat helper if adversarial concurrency
-# matters.
+
+(( $+functions[log_error] ))   || log_error()   { print -u2 -- "[ERROR] $*"; }
+(( $+functions[log_info] ))    || log_info()    { print -- "[INFO] $*"; }
+(( $+functions[log_success] )) || log_success() { print -- "[SUCCESS] $*"; }
 
 typeset -gA _RM_BG_CMD_CACHE
 typeset -g  _RM_BG_RM_FLAGS_READY=0
@@ -39,7 +38,10 @@ _rm_bg_has() {
 _rm_bg_init_rm_flags() {
     emulate -L zsh
     (( _RM_BG_RM_FLAGS_READY )) && return 0
-    _RM_BG_RM_FLAGS=(-f --)
+    _RM_BG_RM_FLAGS=(-rf --)
+    local help
+    help=$(command rm --help 2>/dev/null) || help=
+    [[ $help == *--preserve-root=all* ]] && _RM_BG_RM_FLAGS=(-rf --preserve-root=all --)
     _RM_BG_RM_FLAGS_READY=1
 }
 
@@ -112,9 +114,16 @@ _rm_bg_notify() {
     fi
 }
 
-# $1 = summary, $2.. = argv to run (nice/rm/...).
-# Do not exec-redirect this process: desktop notify and rm errors must keep
-# the session fds and D-Bus environment.
+_rm_bg_usage() {
+    print -u2 -- "Usage: rm_bg [-h] [--] <path> [path ...]"
+    print -u2 -- "  Remove files, directories, or symlinks in the background."
+    print -u2 -- "  -h, --help     show this help"
+    print -u2 -- "  --             treat remaining args as paths"
+    print -u2 -- "  RM_BG_SYNC=1   wait for rm and return its status"
+    print -u2 -- "  RM_BG_NOTIFY=0 suppress desktop notifications"
+}
+
+# $1 = summary, $2.. = argv. Keep session fds so notify-send and rm errors work.
 _rm_bg_exec() {
     emulate -L zsh
     local summary=$1
@@ -135,15 +144,32 @@ rm_bg() {
     setopt localoptions extendedglob no_notify no_monitor
 
     local -a args targets
-    local allow_option_like=0
     args=("$@")
-    if [[ ${args[1]} == -- ]]; then
-        allow_option_like=1
+
+    while (( ${#args} )); do
+        case ${args[1]} in
+            -h|--help)
+                _rm_bg_usage
+                return 0
+                ;;
+            --)
+                shift args
+                break
+                ;;
+            -*)
+                log_error "rm_bg: unknown option: ${args[1]}"
+                _rm_bg_usage
+                return 1
+                ;;
+            *)
+                break
+                ;;
+        esac
         shift args
-    fi
+    done
 
     if (( ${#args} < 1 )); then
-        log_error "Usage: rm_bg [--] <path> [path ...]"
+        _rm_bg_usage
         return 1
     fi
 
@@ -157,19 +183,19 @@ rm_bg() {
             continue
         fi
 
-        if (( ! allow_option_like )) && [[ $raw == -* ]]; then
-            log_error "rm_bg: refuse option-like path: $raw (pass as: rm_bg -- $raw)"
-            failed=1
-            continue
-        fi
         case $raw in
-            ..|../|../*|*/..|*/../*|.|./|*/.|*/./*)
-                log_error "rm_bg: refuse parent-directory path component: $raw"
+            -*)
+                log_error "rm_bg: refuse option-like path: $raw (pass as: rm_bg -- $raw)"
                 failed=1
                 continue
                 ;;
-            .|./)
+            .|./|..|../)
                 log_error "rm_bg: refuse relative path '$raw'"
+                failed=1
+                continue
+                ;;
+            */.|*/..|*/./*|*/../*)
+                log_error "rm_bg: refuse path with . or .. component: $raw"
                 failed=1
                 continue
                 ;;
@@ -193,11 +219,6 @@ rm_bg() {
             failed=1
             continue
         fi
-        if [[ -d $abs && ! -L $abs ]]; then
-            log_error "rm_bg: directories are not supported: $raw"
-            failed=1
-            continue
-        fi
 
         parent=${abs:h}
         parent_resolved=${parent:A}
@@ -211,6 +232,7 @@ rm_bg() {
             failed=1
             continue
         fi
+
         targets+=("$abs")
     done
 
@@ -219,7 +241,7 @@ rm_bg() {
         return 1
     fi
     if (( ${#targets} == 0 )); then
-        log_error "Usage: rm_bg [--] <path> [path ...]"
+        _rm_bg_usage
         return 1
     fi
 
@@ -232,6 +254,7 @@ rm_bg() {
 
     _rm_bg_init_rm_flags
 
+    # Always use the binary. Interactive `alias rm='rm -iv'` must not apply.
     local rm_bin=${commands[rm]:-/bin/rm}
     local -a cmd
     cmd=()
@@ -239,8 +262,9 @@ rm_bg() {
         cmd+=(ionice -c 3)
     fi
     _rm_bg_has nice && cmd+=(nice -n 19)
-
     cmd+=("$rm_bin" "${_RM_BG_RM_FLAGS[@]}" "${targets[@]}")
+
+    _rm_bg_notify "Removing" "$summary" low
 
     local jobpid rc
     if [[ ${RM_BG_SYNC:-0} == 1 ]]; then

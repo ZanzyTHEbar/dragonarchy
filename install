@@ -190,10 +190,7 @@ normalize_connection() {
 }
 
 inventory_tuple() {
-    local inventory_json
-    inventory_json="$(ansible-inventory -i "${INVENTORY_FILE}" --host "${HOST_NAME}" 2>/dev/null)" || return 1
-
-    INVENTORY_JSON="${inventory_json}" \
+    INVENTORY_JSON="${INVENTORY_JSON}" \
         python3 "${REPO_ROOT}/scripts/lib/target-tuple.py" resolve "${TARGET_USER}"
 }
 
@@ -231,6 +228,8 @@ resolve_target_tuple() {
     local tuple inventory_profile inventory_connection inventory_user inventory_home inventory_source
     [[ -n "${TARGET_USER}" ]] || log_fatal "An explicit --user selection is required."
 
+    INVENTORY_JSON="$(ansible-inventory -i "${INVENTORY_FILE}" --host "${HOST_NAME}" 2>/dev/null)" || \
+        log_fatal "Unable to read inventory for host '${HOST_NAME}'."
     tuple="$(inventory_tuple)" || log_fatal "Unable to resolve target tuple for host '${HOST_NAME}' and user '${TARGET_USER}'."
     IFS=$'\t' read -r inventory_profile inventory_connection inventory_user inventory_home inventory_source <<<"${tuple}"
 
@@ -413,7 +412,8 @@ apply_user_state() {
         fi
 
         ANSIBLE_CONFIG="${REPO_ROOT}/infra/ansible/ansible.cfg" \
-            python3 "${REPO_ROOT}/scripts/lib/remote-sync.py" \
+            INVENTORY_JSON="${INVENTORY_JSON}" \
+            python3 -B "${REPO_ROOT}/scripts/lib/remote-sync.py" \
                 --inventory "${INVENTORY_FILE}" --host "${HOST_NAME}" \
                 --user "${TARGET_USER}" --home "${TARGET_HOME}" --source "${chezmoi_source}"
         log_success "Remote user state applied"
@@ -437,7 +437,7 @@ apply_user_state() {
             fi
 
             log_info "Syncing dotfiles from repo to temporary chezmoi source..."
-            "${CHEZMOI_SYNC_COMMAND}" \
+            INVENTORY_JSON="${INVENTORY_JSON}" "${CHEZMOI_SYNC_COMMAND}" \
                 --host "${HOST_NAME}" \
                 --source-dir "${dry_run_source}"
 
@@ -448,12 +448,18 @@ apply_user_state() {
     else
         # Sync manifest-declared dotfiles into chezmoi source
         log_info "Syncing dotfiles from repo to chezmoi source..."
-        "${CHEZMOI_SYNC_COMMAND}" \
+        INVENTORY_JSON="${INVENTORY_JSON}" "${CHEZMOI_SYNC_COMMAND}" \
             --host "${HOST_NAME}" \
             --source-dir "${chezmoi_source}"
 
         log_info "Applying chezmoi state..."
         chezmoi --source "${chezmoi_source}" --destination "${TARGET_HOME}" apply
+        local desktop_stack
+        desktop_stack="$(INVENTORY_JSON="${INVENTORY_JSON}" python3 -c 'import json, os; print(json.loads(os.environ["INVENTORY_JSON"])["host_desktop_stack"])')"
+        if [[ "${desktop_stack}" == hyprland ]]; then
+            HOME="${TARGET_HOME}" XDG_CONFIG_HOME="${TARGET_HOME}/.config" \
+                "${TARGET_HOME}/.local/bin/theme-bootstrap"
+        fi
         log_success "User state applied"
     fi
 }

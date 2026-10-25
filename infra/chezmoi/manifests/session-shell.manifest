@@ -3,6 +3,7 @@ required|packages/hyprland/.config/autostart|dot_config/autostart
 required|packages/hyprland/.config/clipse|dot_config/clipse
 required|packages/hyprland/.config/swaync|dot_config/swaync
 required|packages/hyprland/.config/swayosd|dot_config/swayosd
+required|packages/wleave/.config/wleave|dot_config/wleave
 exclude||dot_config/clipse/theme.toml
 exclude||dot_config/clipse/clipboard_history.json
 exclude||dot_config/swaync/style.css

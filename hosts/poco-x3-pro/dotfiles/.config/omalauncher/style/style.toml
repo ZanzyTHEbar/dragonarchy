@@ -1,0 +1,3 @@
+# Omalauncher v0.8.1 StyleFile schema. Omitted settings use upstream defaults.
+version = 1
+theme = "gruvbox"

@@ -354,6 +354,7 @@ packages = ["hypridle", "hyprland", "hyprlock", "hyprpicker", "hyprshot"]
 [platforms.arch.paru.hyprland_aur]
 requires_features = ["hyprland"]
 packages = [
+    "wleave-git",
     "openbsd-netcat",
     "gnome-calculator",
     "gnome-keyring",

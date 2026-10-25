@@ -149,11 +149,26 @@ native_dimensions_for_modes() {
 
 choose_mode_for_monitor() {
   local _name="${1:-}"
-  local _native_width="${2:-}"
-  local _native_height="${3:-}"
+  local native_width="${2:-}"
+  local native_height="${3:-}"
   local _physical_width_mm="${4:-}"
-  local _available_modes_b64="${5:-}"
-  echo "preferred"
+  local available_modes_b64="${5:-}"
+  local modes_json='[]'
+
+  if [[ -n "$available_modes_b64" ]]; then
+    modes_json="$(printf '%s' "$available_modes_b64" | base64 -d 2>/dev/null || echo '[]')"
+  fi
+
+  printf '%s' "$modes_json" | jq -r \
+    --argjson native_width "$native_width" \
+    --argjson native_height "$native_height" '
+    map((capture("^(?<width>[0-9]+)x(?<height>[0-9]+)@(?<refresh>[0-9.]+)Hz$")?) | select(.))
+    | map({width: (.width | tonumber), height: (.height | tonumber), refresh: (.refresh | tonumber)})
+    | map(select(.width == $native_width and .height == $native_height))
+    | sort_by(.refresh)
+    | last // null
+    | if . then "\(.width)x\(.height)@\(.refresh)Hz" else "preferred" end
+  '
 }
 
 scale_for_selected_mode() {
@@ -285,7 +300,7 @@ desired_layout_signature() {
     xpos=$((xpos + logical_width))
   done
 
-  printf '%s\n' "${parts[@]}" | sort | paste -sd'|' -
+  printf '%s\n' "${parts[@]}" | LC_ALL=C sort | paste -sd'|' -
 }
 
 apply_layout() {

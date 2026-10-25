@@ -170,8 +170,6 @@ fi
 
 [ -f "$HOME/.local/share/../bin/env" ] && . "$HOME/.local/share/../bin/env"
 
-[ "$TERM" = "xterm-kitty" ] && alias ssh="kitty +kitten ssh"
-
 export GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
 
 # Fix broken SSH_AUTH_SOCK (literal $UID from gnome-keyring on Hyprland)
