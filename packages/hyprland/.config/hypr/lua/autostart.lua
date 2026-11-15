@@ -1,0 +1,13 @@
+-- Existing installed owners only; no checkout commands or compatibility dispatch.
+hl.on("hyprland.start", function()
+    hl.exec_cmd('"$HOME/.local/bin/dragon-launcher-session"')
+    hl.exec_cmd('uwsm app -- "$HOME/.local/bin/theme-bg-apply"')
+    hl.exec_cmd("uwsm app -- waybar")
+    hl.exec_cmd("uwsm app -- fcitx5")
+    hl.exec_cmd("uwsm app -- swaync")
+    hl.exec_cmd("uwsm app -- swayosd-server")
+    hl.exec_cmd("/usr/bin/gnome-keyring-daemon --start --components=pkcs11,secrets,ssh")
+    hl.exec_cmd("nm-applet --indicator")
+    hl.exec_cmd("udiskie --tray --notify --automount")
+    hl.exec_cmd([[bash -lc 'if command -v wob >/dev/null 2>&1; then rm -f "/tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob"; mkfifo -m 600 "/tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob"; tail -f "/tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob" | wob & disown; fi']])
+end)

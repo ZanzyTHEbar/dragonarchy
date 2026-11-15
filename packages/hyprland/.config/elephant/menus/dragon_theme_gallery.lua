@@ -3,20 +3,26 @@ NamePretty = "Theme Gallery"
 Icon = "view-grid"
 Parent = "dragon_theme"
 Description = "Browse themes with a background preview"
-Action = "theme-set %VALUE%"
 History = false
 Cache = false
 SearchName = true
 FixedOrder = true
 
-local function dotfiles_root()
-    local env = os.getenv("DOTFILES_ROOT")
-    if env ~= nil and env ~= "" then
-        return env
-    end
-    local home = os.getenv("HOME") or ""
-    return home .. "/dotfiles"
+local function installed_bin()
+    return (os.getenv("HOME") or "") .. "/.local/bin"
 end
+
+local function shell_quote(value)
+    -- Elephant replaces %VALUE% and then %ARGS%, even inside shell quotes.
+    return "'" .. value:gsub("'", "'\\''"):gsub("%%", "%%''") .. "'"
+end
+
+-- Every action uses the same installed live API/selection owner.
+local function theme_helper(name)
+    return shell_quote(installed_bin() .. "/" .. name)
+end
+
+Action = "[ -n ''%VALUE% ] && " .. theme_helper("theme-set") .. " %VALUE%"
 
 local function config_home()
     local env = os.getenv("XDG_CONFIG_HOME")
@@ -46,29 +52,23 @@ local function title_case(str)
 end
 
 local function list_themes()
-    local themes = {}
-    local base = dotfiles_root() .. "/packages/themes/.config/themes"
-    local cmd = string.format("find '%s' -mindepth 1 -maxdepth 1 -type d -o -type l 2>/dev/null", base)
-    local handle = io.popen(cmd)
+    local handle = io.popen(theme_helper("theme-list") .. " --json")
     if not handle then
-        return themes
+        return {}
     end
-    for line in handle:lines() do
-        local slug = line:match("([^/]+)$")
-        if slug then
-            table.insert(themes, { slug = slug, path = line })
-        end
-    end
+    local data = handle:read("*a")
     handle:close()
+    local themes = jsonDecode(data)
+    if type(themes) ~= "table" then return {} end
     table.sort(themes, function(a, b)
-        return a.slug < b.slug
+        return a.id < b.id
     end)
     return themes
 end
 
 local function current_theme_slug()
     local link = config_home() .. "/current/theme"
-    local handle = io.popen(string.format("readlink -f '%s' 2>/dev/null", link))
+    local handle = io.popen(string.format("readlink -e %s 2>/dev/null", shell_quote(link)))
     if not handle then
         return ""
     end
@@ -83,7 +83,7 @@ end
 
 local function current_background_path()
     local link = config_home() .. "/current/background"
-    local handle = io.popen(string.format("readlink -f '%s' 2>/dev/null", link))
+    local handle = io.popen(string.format("readlink -e %s 2>/dev/null", shell_quote(link)))
     if not handle then
         return ""
     end
@@ -95,10 +95,10 @@ end
 local function first_background_for_theme(theme_path)
     local base = theme_path .. "/backgrounds"
     local cmd = string.format(
-        "find '%s' -maxdepth 1 -type f \\( " ..
+        "find %s -maxdepth 1 -type f \\( " ..
         "-iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.bmp' " ..
         "\\) 2>/dev/null | sort | head -n 1",
-        base
+        shell_quote(base)
     )
     local handle = io.popen(cmd)
     if not handle then
@@ -167,7 +167,7 @@ function GetEntries()
     local current = current_theme_slug()
     local current_bg = current_background_path()
 
-    local preview_helper = dotfiles_root() .. "/scripts/theme-manager/theme-gallery-preview"
+    local preview_helper = installed_bin() .. "/theme-gallery-preview"
 
     local fav_file = config_home() .. "/dragon/theme-favorites"
     local recents_file = state_home() .. "/dragon/theme-manager/recent-themes"
@@ -178,6 +178,7 @@ function GetEntries()
     local by_slug = {}
     for _, item in ipairs(themes) do
         by_slug[item.slug] = item
+        by_slug[item.id] = item
     end
 
     -- Quick actions
@@ -186,14 +187,14 @@ function GetEntries()
         Subtext = "Toggle back to the previous theme",
         Icon = "edit-undo",
         Value = "",
-        Actions = { ["menus:default"] = "theme-undo", undo = "theme-undo" }
+        Actions = { ["menus:default"] = theme_helper("theme-undo"), undo = theme_helper("theme-undo") }
     })
     table.insert(entries, {
         Text = "Revert preview session",
         Subtext = "Go back to the theme/background you had before previewing",
         Icon = "edit-undo",
         Value = "",
-        Actions = { ["menus:default"] = "theme-preview-revert", revert_preview = "theme-preview-revert" }
+        Actions = { ["menus:default"] = theme_helper("theme-preview-revert"), revert_preview = theme_helper("theme-preview-revert") }
     })
 
     local seen = {}
@@ -203,28 +204,28 @@ function GetEntries()
         -- Prefer a cached composite preview (wallpaper + palette strip)
         local preview = ""
         if file_exists(preview_helper) then
-            preview = run_cmd_first_line(string.format("'%s' '%s' 2>/dev/null", preview_helper, item.slug))
+            preview = run_cmd_first_line(string.format("%s %s", shell_quote(preview_helper), shell_quote(item.id)))
         end
         -- Fallback: wallpaper itself (no palette)
         if preview == "" then
             preview = first_background_for_theme(item.path)
-            if current ~= "" and current == item.slug and current_bg ~= "" then
+            if item.current and current_bg ~= "" then
                 preview = current_bg
             end
         end
 
         local entry = {
             Text = display,
-            Subtext = item.slug,
-            Value = item.slug,
+            Subtext = item.id,
+            Value = shell_quote(item.id),
             Icon = "preferences-desktop-theme",
             Actions = {
-                ["menus:default"] = "theme-apply %VALUE%",
-                remove = "theme-remove %VALUE%",
-                favorite = "theme-favorite-toggle %VALUE%",
-                undo = "theme-undo",
-                preview = "theme-preview %VALUE%",
-                revert_preview = "theme-preview-revert"
+                ["menus:default"] = theme_helper("theme-apply") .. " %VALUE%",
+                remove = theme_helper("theme-remove") .. " %VALUE%",
+                favorite = theme_helper("theme-favorite-toggle") .. " %VALUE%",
+                undo = theme_helper("theme-undo"),
+                preview = theme_helper("theme-preview") .. " %VALUE%",
+                revert_preview = theme_helper("theme-preview-revert")
             }
         }
 
@@ -235,7 +236,7 @@ function GetEntries()
             entry.PreviewType = "file"
         end
 
-        if current ~= "" and current == item.slug then
+        if item.current then
             entry.State = { "current" }
             entry.Subtext = "current"
         end
@@ -250,13 +251,13 @@ function GetEntries()
         end
 
         table.insert(entries, entry)
-        seen[item.slug] = true
+        seen[item.id] = true
     end
 
     -- Favorites first (in file order)
     for _, slug in ipairs(favorites) do
         local item = by_slug[slug]
-        if item ~= nil and not seen[slug] then
+        if item ~= nil and not seen[item.id] then
             add_theme_entry(item, true, false)
         end
     end
@@ -264,14 +265,14 @@ function GetEntries()
     -- Recents next (in file order), skipping ones already shown as favorites
     for _, slug in ipairs(recents) do
         local item = by_slug[slug]
-        if item ~= nil and not seen[slug] then
+        if item ~= nil and not seen[item.id] then
             add_theme_entry(item, false, true)
         end
     end
 
     -- Remaining themes (alphabetical already from list_themes)
     for _, item in ipairs(themes) do
-        if not seen[item.slug] then
+        if not seen[item.id] then
             add_theme_entry(item, false, false)
         end
     end
@@ -281,12 +282,8 @@ function GetEntries()
         Text = "Theme Controls (advanced list)",
         Subtext = "Install / Update / Remove / Background tools",
         Icon = "preferences-desktop-theme",
-        Value = "",
-        Actions = {
-            ["menus:default"] = "/usr/bin/elephant menu menus:dragon_theme"
-        }
+        SubMenu = "dragon_theme"
     })
 
     return entries
 end
-

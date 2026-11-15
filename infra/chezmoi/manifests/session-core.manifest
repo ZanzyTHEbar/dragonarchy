@@ -1,6 +1,148 @@
 # mode|source|dest
-required|packages/hyprland/.config/hypr|dot_config/hypr
+required|scripts/theme-manager/screenshot|dot_local/bin/screenshot
+required|scripts/theme-manager/screenrecord|dot_local/bin/screenrecord
+# Desktop-only static preferences and launchers; never copy the applications root
+# (it also contains mutable Zoom state and unrelated hidden launchers).
+required|packages/fonts/.config/fontconfig/fonts.conf|dot_config/fontconfig/fonts.conf
+required|packages/applications/.local/share/applications/imv.desktop|dot_local/share/applications/imv.desktop
+required|packages/applications/.local/share/applications/mpv.desktop|dot_local/share/applications/mpv.desktop
+required|packages/applications/.local/share/applications/nvim.desktop|dot_local/share/applications/nvim.desktop
+required|packages/applications/.local/share/applications/Activity.desktop|dot_local/share/applications/Activity.desktop
+required|packages/applications/.local/share/applications/dragon-control.desktop|dot_local/share/applications/dragon-control.desktop
+required|packages/applications/.local/share/applications/dragon.desktop|dot_local/share/applications/dragon.desktop
+required|packages/applications/.local/share/applications/About.desktop|dot_local/share/applications/About.desktop
+required|packages/theme-runtime/.local/bin/dragon-cli|dot_local/bin/dragon-cli
+required|packages/theme-runtime/.local/bin/dragon-cli-shell|dot_local/bin/dragon-cli-shell
+required|packages/theme-runtime/.config/dragon/about.json|dot_config/dragon/about.json
+# Only retained named icons, not ownership of the user's hicolor theme/index/cache.
+required|assets/dragon/icons/hicolor/16x16/apps/dragon-control.png|dot_local/share/icons/hicolor/16x16/apps/dragon-control.png
+required|assets/dragon/icons/hicolor/24x24/apps/dragon-control.png|dot_local/share/icons/hicolor/24x24/apps/dragon-control.png
+required|assets/dragon/icons/hicolor/32x32/apps/dragon-control.png|dot_local/share/icons/hicolor/32x32/apps/dragon-control.png
+required|assets/dragon/icons/hicolor/48x48/apps/dragon-control.png|dot_local/share/icons/hicolor/48x48/apps/dragon-control.png
+required|assets/dragon/icons/hicolor/64x64/apps/dragon-control.png|dot_local/share/icons/hicolor/64x64/apps/dragon-control.png
+required|assets/dragon/icons/hicolor/96x96/apps/dragon-control.png|dot_local/share/icons/hicolor/96x96/apps/dragon-control.png
+required|assets/dragon/icons/hicolor/128x128/apps/dragon-control.png|dot_local/share/icons/hicolor/128x128/apps/dragon-control.png
+required|assets/dragon/icons/hicolor/192x192/apps/dragon-control.png|dot_local/share/icons/hicolor/192x192/apps/dragon-control.png
+required|assets/dragon/icons/hicolor/256x256/apps/dragon-control.png|dot_local/share/icons/hicolor/256x256/apps/dragon-control.png
+required|assets/dragon/icons/hicolor/512x512/apps/dragon-control.png|dot_local/share/icons/hicolor/512x512/apps/dragon-control.png
+required|packages/theme-runtime/.local/libexec/dragon/user-icon-cache|dot_local/libexec/dragon/user-icon-cache
+required|packages/theme-runtime/.local/libexec/dragon/mime-defaults|dot_local/libexec/dragon/mime-defaults
+required|packages/theme-runtime/.config/dragon/mime-defaults.json|dot_config/dragon/mime-defaults.json
+# MIME preferences are mutable user state, not a continuously applied file.
+exclude||dot_config/mimeapps.list
+exclude||dot_local/share/applications/mimeapps.list
+# Native compositor only; hypridle/hyprlock retain their own grammars.
+# Old compositor configs/checkout helper scripts are not managed payloads.
+required|packages/hyprland/.config/hypr/hyprland.lua|dot_config/hypr/hyprland.lua
+required|packages/hyprland/.config/hypr/lua|dot_config/hypr/lua
+required|packages/hyprland/.config/hypr/defaults|dot_config/hypr/defaults
+required|packages/hyprland/.config/hypr/hypridle.conf|dot_config/hypr/hypridle.conf
+required|packages/hyprland/.config/hypr/config/hyprlock.conf|dot_config/hypr/config/hyprlock.conf
+# Runtime/user-owned state must not become chezmoi-managed source entries.
+exclude||dot_config/hypr/colors-theme.conf
+exclude||dot_config/hypr/colors-theme.lua
+exclude||dot_config/hypr/local
+exclude||dot_config/hypr/hyprland.conf
+exclude||dot_config/hypr/config/keyboard.local.conf
+exclude||dot_config/hypr/config/monitor.local.conf
+exclude||dot_config/hypr/config/workspace-indicator.local.conf
+exclude||dot_config/hypr/config/wallpaper.conf
 required|packages/hyprland/.config/waybar|dot_config/waybar
+exclude||dot_config/waybar/colors-theme.css
+required|packages/wayle/.config/wayle|dot_config/wayle
+exclude||dot_config/wayle/palette.toml
+exclude||dot_config/wayle/runtime.toml
 required|packages/hyprland/.config/walker|dot_config/walker
+# The current theme directory is runtime-selected, including optional layout.
+exclude||dot_config/walker/themes/current
+exclude||dot_config/walker/config.toml.backup
 required|packages/hyprland/.config/elephant|dot_config/elephant
+exclude||dot_config/elephant/websearch.toml
+exclude||dot_config/elephant/clipboard.toml
+# Raw dot source spelling is ignored by chezmoi; it has no managed target.
+exclude||dot_config/elephant/.env
+# Sync encodes a payload .env as dot_env; skip it before safety/content reads.
+exclude||dot_config/elephant/dot_env
+required|packages/hyprland/.config/elephant/websearch.toml|dot_config/dragon/elephant-websearch.defaults.toml
+required|packages/hyprland/.config/elephant/clipboard.toml|dot_config/dragon/elephant-clipboard.defaults.toml
+required|packages/hardware/.config/systemd/user/elephant.service|dot_config/systemd/user/elephant.service
+required|packages/hyprland/.config/systemd/user/walker.service|dot_config/systemd/user/walker.service
+required|packages/hyprland/.local/bin/dragon-launcher-session|dot_local/bin/dragon-launcher-session
+required|scripts/theme-manager/dynamic-monitors|dot_local/bin/dynamic-monitors
+required|packages/hardware/.config/systemd/user/dynamic-monitors.service|dot_config/systemd/user/dynamic-monitors.service
+optional|hosts/__HOST__/dotfiles/.config/systemd/user/dynamic-monitors.service.d/power.conf|dot_config/systemd/user/dynamic-monitors.service.d/power.conf
+optional|hosts/__HOST__/dotfiles/.config/hypr/hypridle.conf|dot_config/dragon/hypridle-host.conf
+exclude||dot_config/hypr/monitor-runtime.lua
+exclude||dot_config/dynamic-monitors/internal-refresh-rate
+required|packages/hyprland/.local/bin/dragon-clipboard-session|dot_local/bin/dragon-clipboard-session
+required|packages/hyprland/.config/systemd/user/clipse-text.service|dot_config/systemd/user/clipse-text.service
+required|packages/hyprland/.config/systemd/user/clipse-image.service|dot_config/systemd/user/clipse-image.service
+required|packages/hyprland/.config/systemd/user/wl-clip-persist.service|dot_config/systemd/user/wl-clip-persist.service
+required|scripts/utilities/launch-clipse.sh|dot_local/bin/launch-clipse.sh
+required|scripts/walker/restart-walker.sh|dot_local/bin/walker-restart
+required|scripts/theme-manager/restart-walker-elephant|dot_local/bin/restart-walker-elephant
+required|scripts/utilities/clipboard-menu|dot_local/bin/clipboard-menu
 optional|hosts/__HOST__/dotfiles/.config/waybar-hosts/__HOST__|dot_config/waybar-hosts/__HOST__
+# Static inputs only; generated snapshots and user preferences live elsewhere.
+required|packages/themes/.config/themes|dot_config/dragon/theme-inputs
+required|packages/hyprland/.config/theme-manager/wallpaper.conf|dot_config/dragon/wallpaper.defaults.conf
+required|packages/hyprland/.config/btop/btop.conf|dot_config/dragon/btop.defaults.conf
+# GTK bases retain mutable dark-mode preferences; initialize once, never apply in place.
+required|packages/gtk-3.0/.config/gtk-3.0/settings.base.ini|dot_config/dragon/gtk-3.0.defaults.ini
+required|packages/gtk-4.0/.config/gtk-4.0/settings.base.ini|dot_config/dragon/gtk-4.0.defaults.ini
+exclude||dot_config/gtk-3.0/settings.base.ini
+exclude||dot_config/gtk-3.0/settings.ini
+exclude||dot_config/gtk-3.0/gtk.css
+exclude||dot_config/gtk-4.0/settings.base.ini
+exclude||dot_config/gtk-4.0/settings.ini
+exclude||dot_config/gtk-4.0/gtk.css
+# btop preferences are initialized once by runtime, never continuously applied.
+exclude||dot_config/btop/themes/current.theme
+required|packages/theme-runtime/.local/bin/theme-bootstrap|dot_local/bin/theme-bootstrap
+required|packages/theme-runtime/.local/bin/theme-set|dot_local/bin/theme-set
+required|packages/theme-runtime/.local/bin/theme-undo|dot_local/bin/theme-undo
+required|scripts/theme-manager/lib/live.py|dot_local/libexec/dragon/theme-manager/lib/live.py
+required|scripts/theme-manager/lib/wallpaper-utils.sh|dot_local/libexec/dragon/theme-manager/lib/wallpaper-utils.sh
+required|scripts/theme-manager/wallpaper-run|dot_local/libexec/dragon/theme-manager/wallpaper-run
+required|scripts/theme-manager/wallpaper-apply|dot_local/libexec/dragon/theme-manager/wallpaper-apply
+required|scripts/theme-manager/wayle-theme-apply|dot_local/libexec/dragon/theme-manager/wayle-theme-apply
+required|packages/hyprland/.config/systemd/user/dragon-wallpaper.service|dot_config/systemd/user/dragon-wallpaper.service
+required|scripts/theme-manager/theme-apply|dot_local/bin/theme-apply
+required|scripts/theme-manager/theme-preview|dot_local/bin/theme-preview
+required|scripts/theme-manager/theme-preview-revert|dot_local/bin/theme-preview-revert
+required|scripts/theme-manager/theme-preview-clear|dot_local/bin/theme-preview-clear
+required|scripts/theme-manager/theme-bg-next|dot_local/bin/theme-bg-next
+required|scripts/theme-manager/theme-bg-apply|dot_local/bin/theme-bg-apply
+required|scripts/theme-manager/theme-bg-undo|dot_local/bin/theme-bg-undo
+required|scripts/theme-manager/theme-set-background|dot_local/bin/theme-set-background
+required|scripts/theme-manager/theme-list|dot_local/bin/theme-list
+required|scripts/theme-manager/theme-gallery-preview|dot_local/bin/theme-gallery-preview
+required|scripts/theme-manager/theme-favorite-toggle|dot_local/bin/theme-favorite-toggle
+required|scripts/theme-manager/theme-install|dot_local/bin/theme-install
+required|scripts/theme-manager/theme-update|dot_local/bin/theme-update
+required|scripts/theme-manager/theme-remove|dot_local/bin/theme-remove
+exclude||dot_config/zsh/autosuggest-theme.zsh
+exclude||dot_config/wlogout/wlogout.css
+required|scripts/theme-manager/keybindings-menu|dot_local/bin/keybindings-menu
+required|scripts/walker/walker-clipboard|dot_local/bin/walker-clipboard
+required|scripts/utilities/clipse-wrapper|dot_local/bin/clipse-wrapper
+required|scripts/utilities/keyboard-layout|dot_local/bin/keyboard-layout
+required|scripts/hardware/disk-usage|dot_local/bin/disk-usage
+required|scripts/hardware/thermals|dot_local/bin/thermals
+required|scripts/theme-manager/generate-kitty-themes|dot_local/libexec/dragon/theme-manager/generate-kitty-themes
+required|scripts/theme-manager/generate-gtk-themes|dot_local/libexec/dragon/theme-manager/generate-gtk-themes
+required|scripts/theme-manager/generate-btop-themes|dot_local/libexec/dragon/theme-manager/generate-btop-themes
+required|scripts/theme-manager/generate-swaync-themes|dot_local/libexec/dragon/theme-manager/generate-swaync-themes
+required|scripts/theme-manager/generate-clipse-themes|dot_local/libexec/dragon/theme-manager/generate-clipse-themes
+required|scripts/theme-manager/generate-walker-themes|dot_local/libexec/dragon/theme-manager/generate-walker-themes
+required|scripts/theme-manager/lib/theme-utils.sh|dot_local/libexec/dragon/theme-manager/lib/theme-utils.sh
+# Retained power/idle commands: installed payloads, not checkout links.
+required|scripts/theme-manager/toggle-idle|dot_local/bin/toggle-idle
+required|scripts/theme-manager/idle-status|dot_local/bin/idle-status
+required|scripts/theme-manager/power-menu|dot_local/bin/power-menu
+required|packages/hyprland/.config/systemd/user/hypridle.service|dot_config/systemd/user/hypridle.service
+required|packages/hyprland/.config/systemd/user/polkit-agent.service|dot_config/systemd/user/polkit-agent.service
+required|packages/hyprland/.local/bin/start-polkit-agent|dot_local/bin/start-polkit-agent
+required|packages/wlogout/.config/wlogout/layout|dot_config/wlogout/layout
+required|packages/wlogout/.config/wlogout/style.css|dot_config/wlogout/style.css
+required|packages/wlogout/.config/wlogout/icons|dot_config/wlogout/icons

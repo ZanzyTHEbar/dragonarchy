@@ -1,0 +1,90 @@
+---
+# System-owned defaults only. No fnm/npm/pip/gem/go invocation or home writes.
+- name: Create root-owned developer artifact directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /var/cache/dragonarchy
+    - /opt/dragonarchy
+    - "{{ packages_dev_fnm_root }}"
+    - /usr/local/bin
+
+- name: Download checksum-pinned official Node LTS archive
+  ansible.builtin.get_url:
+    url: "https://nodejs.org/dist/v{{ packages_dev_node_version }}/node-v{{ packages_dev_node_version }}-linux-{{ packages_dev_node_arch }}.tar.xz"
+    checksum: "sha256:{{ packages_dev_node_sha256 }}"
+    dest: "/var/cache/dragonarchy/node-v{{ packages_dev_node_version }}-linux-{{ packages_dev_node_arch }}.tar.xz"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Extract official Node distribution including npm and npx
+  ansible.builtin.unarchive:
+    src: "/var/cache/dragonarchy/node-v{{ packages_dev_node_version }}-linux-{{ packages_dev_node_arch }}.tar.xz"
+    dest: /opt/dragonarchy
+    remote_src: true
+    owner: root
+    group: root
+
+- name: Download checksum-pinned official fnm archive
+  ansible.builtin.get_url:
+    url: "https://github.com/Schniz/fnm/releases/download/v{{ packages_dev_fnm_version }}/{{ packages_dev_fnm_asset }}"
+    checksum: "sha256:{{ packages_dev_fnm_sha256 }}"
+    dest: "/var/cache/dragonarchy/fnm-{{ packages_dev_fnm_version }}-{{ packages_dev_fnm_asset }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Extract the official fnm executable without initializing user state
+  ansible.builtin.unarchive:
+    src: "/var/cache/dragonarchy/fnm-{{ packages_dev_fnm_version }}-{{ packages_dev_fnm_asset }}"
+    dest: "{{ packages_dev_fnm_root }}"
+    remote_src: true
+    owner: root
+    group: root
+    include: [fnm]
+
+- name: Retain checksum-pinned upstream fnm license alongside its executable
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/Schniz/fnm/v1.39.0/LICENSE
+    checksum: sha256:3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986
+    dest: "{{ packages_dev_fnm_root }}/LICENSE"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Download checksum-pinned official Debian dua executable archive
+  ansible.builtin.get_url:
+    url: "https://github.com/Byron/dua-cli/releases/download/v{{ packages_dev_dua_version }}/{{ packages_dev_dua_archive_root }}.tar.gz"
+    checksum: "sha256:{{ packages_dev_dua_sha256 }}"
+    dest: "/var/cache/dragonarchy/{{ packages_dev_dua_archive_root }}.tar.gz"
+    owner: root
+    group: root
+    mode: '0644'
+  when: "'dua-cli' in packages_pending_script"
+
+- name: Extract official dua executable and license without Cargo or user state
+  ansible.builtin.unarchive:
+    src: "/var/cache/dragonarchy/{{ packages_dev_dua_archive_root }}.tar.gz"
+    dest: /opt/dragonarchy
+    remote_src: true
+    owner: root
+    group: root
+    include:
+      - "{{ packages_dev_dua_archive_root }}/dua"
+      - "{{ packages_dev_dua_archive_root }}/LICENSE"
+  when: "'dua-cli' in packages_pending_script"
+
+- name: Publish inspected system default commands
+  ansible.builtin.file:
+    src: "{{ item.target }}"
+    dest: "/usr/local/bin/{{ item.name }}"
+    state: link
+    owner: root
+    group: root
+    force: false
+  loop: "{{ packages_dev_links + (packages_dev_debian_cli_links if host_platform_family == 'debian' else []) }}"

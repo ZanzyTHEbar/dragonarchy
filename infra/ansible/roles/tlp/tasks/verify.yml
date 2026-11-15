@@ -4,6 +4,36 @@
     path: "/etc/tlp.d/01-{{ inventory_hostname }}.conf"
   register: tlp_installed_config
 
+- name: Check vendor TLP power-transition and sleep integration
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /usr/lib/udev/rules.d/85-tlp.rules
+    - /usr/lib/systemd/system-sleep/tlp
+  register: tlp_vendor_hooks
+
+- name: Require vendor TLP hooks instead of inventing another power daemon
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.isreg
+    fail_msg: "Missing vendor TLP hook {{ item.item }}; qualify the installed package."
+  loop: "{{ tlp_vendor_hooks.results }}"
+
+- name: Read effective TLP configuration including later override files
+  ansible.builtin.command: tlp-stat -c
+  changed_when: false
+  register: tlp_effective_config
+  when: tlp_required_policy | length > 0
+
+- name: Refuse effective power-policy overrides
+  ansible.builtin.assert:
+    that:
+      - >-
+        (tlp_effective_config.stdout | regex_search('(?m)' ~ item.key ~ '="?' ~ item.value ~ '"?\s*$')) is not none
+    fail_msg: "Effective {{ item.key }} does not match declared {{ item.value }}; inspect /etc/tlp.conf and /etc/tlp.d, do not silently discard overrides."
+  loop: "{{ tlp_required_policy | dict2items }}"
+
 - name: Assert installed TLP config exists
   ansible.builtin.assert:
     that:
@@ -21,13 +51,16 @@
     fail_msg: "Expected {{ item }} to be enabled."
   loop: "{{ tlp_managed_services }}"
 
-- name: Assert long-running TLP services are running
+- name: Read TLP oneshot state (active exited is healthy)
+  ansible.builtin.command: systemctl show tlp.service --property=ActiveState --value
+  changed_when: false
+  register: tlp_active_state
+
+- name: Assert TLP startup policy is active
   ansible.builtin.assert:
     that:
-      - ansible_facts.services[item] is defined
-      - ansible_facts.services[item].state == 'running'
-    fail_msg: "Expected {{ item }} to be running."
-  loop: "{{ tlp_running_services }}"
+      - tlp_active_state.stdout | trim == 'active'
+    fail_msg: "Expected TLP oneshot to be active; it is not a long-running daemon."
 
 - name: Assert conflicting power services are stopped and disabled when present
   ansible.builtin.assert:

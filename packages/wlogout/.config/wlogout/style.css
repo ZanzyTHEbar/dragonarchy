@@ -1,89 +1,23 @@
-/* Theme overrides: create ~/.config/current/theme/wlogout.css with concrete colors.
-   This file imports it at the end to avoid CSS custom properties. */
-* {
-  background-image: none;
-  box-shadow: none;
-}
-
-window {
-  background-color: rgba(17, 17, 17, 0.8);
-  font-family: "CaskaydiaMono Nerd Font Propo", "Symbols Nerd Font",
-    "Font Awesome 6 Free", "Noto Sans", "Inter", sans-serif;
-}
+/* GTK3 CSS, not Wleave JSON/GTK4 or browser flexbox CSS. Keep labels visible. */
+* { box-shadow: none; }
+window { background-color: rgba(17, 17, 17, 0.88); }
 button {
   color: #dddddd;
-  /* Use background-color to avoid clearing background-image */
-  background-color: transparent;
-  border: 2px solid rgba(221, 221, 221, 0.27);
+  background-color: #222222;
+  border: 2px solid #777777;
   margin: 10px;
-  padding: 36px 42px;
+  padding: 100px 20px 20px;
   border-radius: 12px;
-  font-family: "CaskaydiaMono Nerd Font Propo", "Symbols Nerd Font",
-    "Font Awesome 6 Free", "Noto Sans", "Inter", sans-serif;
-  font-size: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-family: sans-serif;
+  font-size: 20px;
   background-repeat: no-repeat;
-  background-position: center;
-  background-size: 25%;
+  background-position: center 25%;
+  background-size: 64px;
 }
-button label {
-  /* Hide textual labels to let PNG icons be primary */
-  color: transparent;
-  text-shadow: none;
-  font-size: 0;
-  margin: 0;
-  padding: 0;
-  text-align: center;
-}
-button:hover {
-  border-color: #88c0d0;
-  color: #88c0d0;
-}
-
-/* Icon backgrounds (PNG with fallback path) */
-#lock {
-  background-image: image(
-    url("/usr/share/wlogout/icons/lock.png"),
-    url("/usr/local/share/wlogout/icons/lock.png")
-  ) !important;
-}
-
-#logout {
-  background-image: image(
-    url("/usr/share/wlogout/icons/logout.png"),
-    url("/usr/local/share/wlogout/icons/logout.png")
-  ) !important;
-}
-
-#suspend {
-  background-image: image(
-    url("/usr/share/wlogout/icons/suspend.png"),
-    url("/usr/local/share/wlogout/icons/suspend.png")
-  ) !important;
-}
-
-#hibernate {
-  background-image: image(
-    url("/usr/share/wlogout/icons/hibernate.png"),
-    url("/usr/local/share/wlogout/icons/hibernate.png")
-  ) !important;
-}
-
-#shutdown {
-  background-image: image(
-    url("/usr/share/wlogout/icons/shutdown.png"),
-    url("/usr/local/share/wlogout/icons/shutdown.png")
-  ) !important;
-}
-
-#reboot {
-  background-image: image(
-    url("/usr/share/wlogout/icons/reboot.png"),
-    url("/usr/local/share/wlogout/icons/reboot.png")
-  ) !important;
-}
-
-/* Import theme overrides last (relative to ~/.config/wlogout/style.css) */
-@import url("../current/theme/wlogout.css");
+button:hover, button:focus { border-color: #88c0d0; background-color: #333333; }
+#lock { background-image: url("icons/lock.svg"); }
+#logout { background-image: url("icons/logout.svg"); }
+#suspend { background-image: url("icons/suspend.svg"); }
+#hibernate { background-image: url("icons/hibernate.svg"); }
+#reboot { background-image: url("icons/reboot.svg"); }
+#shutdown { background-image: url("icons/shutdown.svg"); }

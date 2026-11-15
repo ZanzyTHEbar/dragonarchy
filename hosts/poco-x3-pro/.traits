@@ -1,0 +1,8 @@
+# Host traits for poco-x3-pro (Android mobile workstation)
+# One trait per line. Lines starting with # are comments.
+android
+mobile
+arch-linux-arm
+aarch64
+touch
+omalauncher

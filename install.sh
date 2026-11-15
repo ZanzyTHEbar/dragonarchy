@@ -1114,7 +1114,9 @@ main() {
     if [[ "$PACKAGES_ONLY" != "true" && "$SECRETS_ONLY" != "true" ]]; then
         if [[ -x "$SCRIPTS_DIR/install/run-migrations.sh" ]]; then
             log_step "Running pending migrations..."
-            bash "$SCRIPTS_DIR/install/run-migrations.sh" || log_warning "Some migrations failed (continuing)"
+            DOTFILES_SYSTEM_OWNER="${DOTFILES_SYSTEM_OWNER:-legacy}" \
+            DOTFILES_USER_OWNER="${DOTFILES_USER_OWNER:-stow}" \
+                bash "$SCRIPTS_DIR/install/run-migrations.sh" || log_warning "Some migrations failed (continuing)"
         fi
     fi
     

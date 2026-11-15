@@ -1,0 +1,102 @@
+---
+- name: Require supported capture source platform before any package mutation
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - ansible_architecture == 'x86_64'
+      - ansible_os_family == {'arch':'Archlinux', 'debian':'Debian'}[host_platform_family]
+      - "'hyprland_session' in packages_manifest_resolved_groups"
+      - >-
+        host_platform_family == 'arch'
+        or (ansible_distribution == 'Debian' and ansible_distribution_major_version == '13')
+        or (ansible_distribution == 'Ubuntu' and ansible_distribution_version == '26.04')
+    fail_msg: >-
+      Capture providers require selected Linux x86_64 Arch, Debian 13 or Ubuntu 26.04.
+      Other/missing facts cannot authorize package actions. Native capture/VAAPI and
+      encoder availability remain unqualified; cpu encoding still needs VAAPI capture.
+  when: "'wl-screenrec' in packages_pending_script or 'satty' in packages_pending_script"
+
+- name: Require native Arch desktop facts for the Wlogout source provider
+  ansible.builtin.assert:
+    that:
+      - host_platform_family == 'arch'
+      - ansible_system == 'Linux'
+      - ansible_os_family == 'Archlinux'
+      - "'hyprland_session' in packages_manifest_resolved_groups"
+    fail_msg: "Pinned Wlogout source provider requires a selected Linux Arch-family desktop."
+  when: "'wlogout' in packages_pending_script"
+
+- name: Require the supported launcher pair and native platform before mutation
+  ansible.builtin.assert:
+    that:
+      - "'walker' in packages_pending_script and 'elephant' in packages_pending_script"
+      - "'hyprland_session' in packages_manifest_resolved_groups"
+      - ansible_system == 'Linux'
+      - ansible_os_family == {'arch':'Archlinux', 'debian':'Debian'}[host_platform_family]
+      - ansible_architecture == 'x86_64'
+      - >-
+        host_platform_family == 'arch'
+        or (ansible_distribution == 'Debian' and ansible_distribution_major_version == '13')
+        or (ansible_distribution == 'Ubuntu' and ansible_distribution_version == '26.04')
+    fail_msg: >-
+      Host '{{ inventory_hostname }}': Walker 2.17.2 / Elephant 2.22.1 must be selected
+      together through hyprland_session on Linux x86_64, Arch family, Debian 13 or
+      Ubuntu 26.04. Other/missing gathered facts cannot authorize package actions.
+  when: "'walker' in packages_pending_script or 'elephant' in packages_pending_script"
+
+- name: Inspect native libc before admitting the official launcher ELF
+  ansible.builtin.command:
+    argv: [/usr/bin/getconf, GNU_LIBC_VERSION]
+  register: packages_launcher_libc
+  changed_when: false
+  check_mode: false
+  when: "'walker' in packages_pending_script or 'elephant' in packages_pending_script"
+
+- name: Require the published Walker ELF libc floor before package mutation
+  ansible.builtin.assert:
+    that:
+      - packages_launcher_libc.stdout is match('^glibc [0-9]+[.][0-9]+$')
+      - packages_launcher_libc.stdout.split()[1] is version('2.39', '>=')
+    fail_msg: "Official Walker 2.17.2 requires glibc >= 2.39; refusing all package actions."
+  when: "'walker' in packages_pending_script or 'elephant' in packages_pending_script"
+
+- name: Require supported Clipse Wayland artifact architecture before mutation
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - ansible_os_family == {'arch':'Archlinux', 'debian':'Debian'}[host_platform_family]
+      - ansible_architecture in ['x86_64', 'aarch64']
+    fail_msg: >-
+      Host '{{ inventory_hostname }}': Clipse 1.2.1 Wayland artifacts support only
+      Linux x86_64/aarch64 on the declared Arch/Debian family. Missing or unsupported
+      gathered target facts cannot authorize any package/provider action.
+  when: "'clipse' in packages_pending_script"
+
+- name: Require supported native build platform for wl-clip-persist before mutation
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - ansible_os_family == 'Debian'
+      - ansible_architecture in ['x86_64', 'aarch64']
+      - >-
+        (ansible_distribution == 'Debian' and ansible_distribution_major_version == '13')
+        or (ansible_distribution == 'Ubuntu' and ansible_distribution_version == '26.04')
+    fail_msg: >-
+      Host '{{ inventory_hostname }}': wl-clip-persist 0.5.0 source provider requires
+      Linux x86_64/aarch64 on Debian 13 or Ubuntu 26.04 (native Rust >= 1.85).
+      Unsupported or missing target facts cannot authorize any package/provider action.
+  when:
+    - host_platform_family == 'debian'
+    - "'wl-clip-persist' in packages_pending_script"
+
+- name: Require Linux Debian-family target for architecture-independent Nerd Fonts
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - ansible_os_family == 'Debian'
+    fail_msg: >-
+      Host '{{ inventory_hostname }}': the CaskaydiaMono Nerd Font provider requires
+      a Linux Debian-family target; missing target facts cannot authorize installation.
+  when:
+    - host_platform_family == 'debian'
+    - "'caskaydiamono-nerd-font' in packages_pending_script"

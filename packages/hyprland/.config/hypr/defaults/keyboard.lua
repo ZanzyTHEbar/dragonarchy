@@ -1,0 +1,2 @@
+-- Personal keyboard/device overrides, evaluated after shared defaults.
+-- hl.config({ input = { kb_layout = "us,pt", kb_variant = "altgr-intl," } })

@@ -1,0 +1,55 @@
+---
+- name: Select official Clipse 1.2.1 Wayland artifact from gathered architecture
+  ansible.builtin.set_fact:
+    packages_clipse_arch: "{{ {'x86_64':'amd64', 'aarch64':'arm64'}[ansible_architecture] }}"
+    packages_clipse_checksum: "{{ {'x86_64':'0853240cbfa8efc1a73baebf4e202f70dc14c832bb5a8b74c650ab410e294003', 'aarch64':'976b4d255c92a8e9ba4e2e4448069e128a74e98a3cd89a6814cdc9e2381991cc'}[ansible_architecture] }}"
+
+- name: Ensure root-owned Clipse artifact and executable directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /var/cache/dragonarchy
+    - /var/cache/dragonarchy/clipse-1.2.1
+    - /usr/local/bin
+    - /usr/local/share/doc/clipse
+
+- name: Download checksum-pinned official Clipse Wayland release
+  ansible.builtin.get_url:
+    url: "https://github.com/savedra1/clipse/releases/download/v1.2.1/clipse_v1.2.1_linux_wayland_{{ packages_clipse_arch }}.tar.gz"
+    checksum: "sha256:{{ packages_clipse_checksum }}"
+    dest: "/var/cache/dragonarchy/clipse-1.2.1/clipse-{{ packages_clipse_arch }}.tar.gz"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Extract official Clipse executable without executing it
+  ansible.builtin.unarchive:
+    src: "/var/cache/dragonarchy/clipse-1.2.1/clipse-{{ packages_clipse_arch }}.tar.gz"
+    dest: /var/cache/dragonarchy/clipse-1.2.1
+    remote_src: true
+    owner: root
+    group: root
+    include:
+      - "clipse-linux-wayland-{{ packages_clipse_arch }}"
+
+- name: Install official Clipse executable
+  ansible.builtin.copy:
+    src: "/var/cache/dragonarchy/clipse-1.2.1/clipse-linux-wayland-{{ packages_clipse_arch }}"
+    dest: /usr/local/bin/clipse
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install checksum-pinned upstream Clipse license
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/savedra1/clipse/95d666b6cd8cbaec22732d605bc838365f144617/LICENSE
+    checksum: sha256:7a2e32b86e825be38f8d6582261c0d60617e1cc2b8171ff6e5fed1e03a788638
+    dest: /usr/local/share/doc/clipse/LICENSE
+    owner: root
+    group: root
+    mode: '0644'

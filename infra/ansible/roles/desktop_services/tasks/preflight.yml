@@ -1,0 +1,126 @@
+---
+# Called before native package actions as well as immediately before activation.
+- name: Require the canonical resolved package plan for desktop service ownership
+  ansible.builtin.assert:
+    that:
+      - packages_manifest_plan is defined
+      - packages_manifest_resolved_groups is defined
+      - resolved_package_list_pacman is defined
+      - resolved_package_list_apt is defined
+    fail_msg: Run the canonical site playbook; desktop services do not resolve or install packages independently.
+
+- name: Derive service selection from declared capabilities and selected packages
+  ansible.builtin.set_fact:
+    desktop_services_printing: "{{ 'cups' in (resolved_package_list_pacman + resolved_package_list_apt) }}"
+    desktop_services_bluetooth: "{{ 'bluetooth' in (host_capabilities | default([])) }}"
+    desktop_services_docker: "{{ (resolved_package_list_pacman + resolved_package_list_apt) | intersect(['docker', 'docker.io', 'docker-ce']) | length > 0 or 'docker' in (host_capabilities | default([])) }}"
+
+- name: Require the retained native Docker engine and CLI plugins together
+  ansible.builtin.assert:
+    that:
+      - "'hyprland_session' in packages_manifest_resolved_groups"
+      - "['docker', 'docker-buildx', 'docker-compose'] | difference(resolved_package_list_pacman) | length == 0 if host_platform_family == 'arch' else ['docker.io', 'docker-buildx', 'docker-compose'] | difference(resolved_package_list_apt) | length == 0"
+      - "'docker-ce' not in (resolved_package_list_pacman + resolved_package_list_apt)"
+      - >-
+        host_platform_family == 'arch'
+        or (ansible_distribution == 'Debian' and ansible_distribution_major_version is version('13', '>='))
+        or (ansible_distribution == 'Ubuntu' and ansible_distribution_version is version('26.04', '>='))
+    fail_msg: >-
+      Retained desktop Docker requires the native engine, modern Compose and buildx
+      together: Arch docker/docker-compose/docker-buildx or Debian 13+/Ubuntu
+      26.04+ docker.io/docker-compose/docker-buildx. No alternate engine fallback.
+  when: desktop_services_docker
+
+- name: Validate selected desktop service platform and provider
+  ansible.builtin.assert:
+    that:
+      - ansible_service_mgr == 'systemd'
+      - host_platform_family in ['arch', 'debian']
+      - ansible_distribution in ['Archlinux', 'CachyOS', 'Debian', 'Ubuntu']
+      - not desktop_services_bluetooth or 'bluez' in (resolved_package_list_pacman + resolved_package_list_apt)
+      - not desktop_services_printing or 'cups' in (resolved_package_list_pacman + resolved_package_list_apt)
+    fail_msg: Selected printing/Bluetooth/Docker requires supported native systemd units and providers in the canonical plan.
+  when: desktop_services_printing or desktop_services_bluetooth or desktop_services_docker
+
+- name: Select the vendor unit families to inspect without changing their state
+  ansible.builtin.set_fact:
+    desktop_services_units: "{{ (['cups.service', 'cups.socket', 'cups.path'] if desktop_services_printing else []) + (['bluetooth.service'] if desktop_services_bluetooth else []) + (['docker.service', 'docker.socket', 'containerd.service'] if desktop_services_docker else []) }}"
+
+- name: Check native Docker incumbent configuration and package ownership
+  ansible.builtin.import_tasks: docker-preflight.yml
+  when: desktop_services_docker
+
+- name: Inspect existing CUPS configuration without adopting or rewriting it
+  ansible.builtin.stat:
+    path: /etc/cups/cupsd.conf
+  register: desktop_services_cups_config
+  when: desktop_services_printing
+
+- name: Refuse an indirect or non-regular scheduler configuration owner
+  ansible.builtin.assert:
+    that:
+      - not desktop_services_cups_config.stat.exists or desktop_services_cups_config.stat.isreg | default(false)
+    fail_msg: Existing cupsd.conf is not a regular file; preserve it and obtain explicit profile/cutover disposition.
+  when: desktop_services_printing
+
+- name: Read existing scheduler listener policy before activation
+  ansible.builtin.slurp:
+    src: /etc/cups/cupsd.conf
+  register: desktop_services_cups_policy
+  no_log: true
+  when:
+    - desktop_services_printing
+    - desktop_services_cups_config.stat.exists
+
+- name: Refuse remote or indirect CUPS listener policy without changing personal configuration
+  ansible.builtin.assert:
+    that:
+      - >-
+        (desktop_services_cups_policy.content | b64decode) is not
+        regex('(?im)^\s*(Port|SSLPort|Include)\s+')
+      - >-
+        (desktop_services_cups_policy.content | b64decode |
+         regex_findall('(?im)^\s*(?:Listen|SSLListen)\s+([^\s#]+)')) |
+        difference(['localhost:631', '127.0.0.1:631', '[::1]:631',
+                    '/run/cups/cups.sock', '/var/run/cups/cups.sock']) | length == 0
+    fail_msg: >-
+      Existing CUPS config has a nonlocal/unknown listener, Port, SSLPort or Include.
+      Refusing activation/package actions without approved listener-policy cutover;
+      configuration, queues and printer state are not rewritten. Only local IPP
+      and the native Unix socket are admitted by this bounded owner.
+  when:
+    - desktop_services_printing
+    - desktop_services_cups_config.stat.exists
+
+- name: Inspect selected unit ownership before any service mutation
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --no-pager
+      - --property=LoadState,FragmentPath,DropInPaths,UnitFileState
+      - "{{ item }}"
+  loop: "{{ desktop_services_units }}"
+  register: desktop_services_unit_inspection
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Refuse unknown, overridden, linked or masked unit owners
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0 or (item.rc in [1, 4] and 'LoadState=not-found' in item.stdout_lines)
+      - >-
+        ('LoadState=not-found' in item.stdout_lines and 'FragmentPath=' in item.stdout_lines)
+        or
+        ('LoadState=loaded' in item.stdout_lines and
+         ('FragmentPath=/usr/lib/systemd/system/' ~ item.item in item.stdout_lines or
+          'FragmentPath=/lib/systemd/system/' ~ item.item in item.stdout_lines))
+      - "'DropInPaths=' in item.stdout_lines"
+      - item.stdout is not regex('(?m)^UnitFileState=(masked|linked|bad|alias)')
+    fail_msg: >-
+      Refusing {{ item.item }} owner conflict or unreadable unit metadata. Only
+      vendor-location units without drop-ins are admitted; absent units
+      are allowed before package installation only. Preserve overrides/state and
+      obtain separate cutover/recovery approval; no stop, mask, deletion or adoption.
+  loop: "{{ desktop_services_unit_inspection.results }}"

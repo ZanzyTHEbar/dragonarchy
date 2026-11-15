@@ -1,0 +1,57 @@
+---
+host_timezone: Europe/Lisbon
+host_role: laptop
+host_platform_family: arch
+host_desktop_stack: hyprland
+host_gpu_stack:
+  - amd-gpu
+platform_matrix_id: firedragon
+# Declare target_home, target_source, ansible_host/ansible_user as needed, and
+# managed_users in ignored 90-local.yml in this directory. Each managed_users
+# entry requires name, home, chezmoi_source, shell: /usr/bin/zsh, and groups.
+# Home/source must match the selected target tuple; no account is inferred.
+# The retained account's supplementary groups are wheel and video.
+managed_users: []
+host_capabilities:
+  - bluetooth
+  - tlp
+  - asus
+  - netbird
+host_profile_packages:
+  - core_cli
+  - dev
+  - firedragon_laptop
+  - laptop_power_tlp
+  - hyprland_session
+legacy_host_directory: hosts/firedragon
+
+# asusd owns EPP/platform/charge cap; TLP owns peripherals and CPU boost.
+asus_laptop_managed_power_policy: true
+asus_laptop_power_policy:
+  platform_profile_linked_epp: 'true'
+  change_platform_profile_on_battery: 'true'
+  change_platform_profile_on_ac: 'true'
+  platform_profile_on_battery: Quiet
+  platform_profile_on_ac: Performance
+  profile_quiet_epp: BalancePower
+  profile_performance_epp: Performance
+  charge_control_end_threshold: '80'
+  base_charge_control_end_threshold: '0'
+tlp_conflict_services:
+  - power-profiles-daemon.service
+  - tuned.service
+  - thermald.service
+tlp_required_policy:
+  CPU_ENERGY_PERF_POLICY_ON_AC: ''
+  CPU_ENERGY_PERF_POLICY_ON_BAT: ''
+  CPU_ENERGY_PERF_POLICY_ON_SAV: ''
+  PLATFORM_PROFILE_ON_AC: ''
+  PLATFORM_PROFILE_ON_BAT: ''
+  PLATFORM_PROFILE_ON_SAV: ''
+  START_CHARGE_THRESH_BAT0: ''
+  STOP_CHARGE_THRESH_BAT0: ''
+  CPU_BOOST_ON_AC: '1'
+  CPU_BOOST_ON_BAT: '1'
+  CPU_BOOST_ON_SAV: '1'
+  WIFI_PWR_ON_AC: 'off'
+  WIFI_PWR_ON_BAT: 'on'

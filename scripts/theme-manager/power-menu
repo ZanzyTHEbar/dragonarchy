@@ -1,37 +1,95 @@
-#!/bin/bash
-# Displays a power menu.
+#!/usr/bin/env python3
+"""Selected native Wlogout menu, with explicit optional TUI compatibility."""
+import argparse
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
 
-# Resolve script dir for calling helpers
-SOURCE=${BASH_SOURCE[0]}
-while [ -h "$SOURCE" ]; do
-  DIR=$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)
-  SOURCE=$(readlink "$SOURCE")
-  [[ $SOURCE != /* ]] && SOURCE=$DIR/$SOURCE
-done
-SCRIPT_DIR=$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)
 
-# Ensure hyprlock has a minimal config (prevents white screen on first run)
-if command -v hyprlock >/dev/null 2>&1; then
-  "$SCRIPT_DIR/hyprlock-setup" >/dev/null 2>&1 || true
-fi
+ACTIONS = ('lock', 'logout', 'suspend', 'hibernate', 'reboot', 'shutdown')
+CONFIG = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
 
-# If wlogout is present and not explicitly disabled, prefer it using stowed config
-if command -v wlogout >/dev/null 2>&1 && [ -z "${DRAGON_TUI_ONLY:-}" ]; then
-  exec wlogout
-else
-  show_power_menu() {
-    local options=("Lock" "Logout" "Suspend" "Reboot" "Shutdown" "Cancel")
-    local choice=$(printf "%s\n" "${options[@]}" | gum choose --header="Power Menu")
 
-    case "$choice" in
-    "Lock") hyprlock ;;
-    "Logout") uwsm stop ;;
-    "Suspend") systemctl suspend ;;
-    "Reboot") systemctl reboot ;;
-    "Shutdown") systemctl poweroff ;;
-    "Cancel") exit 0 ;;
-    esac
-  }
+def require_file(path):
+    if not path.is_file() or not os.access(path, os.R_OK) or not path.stat().st_size:
+        raise RuntimeError(f'missing or unreadable required configuration: {path}')
 
-  show_power_menu
-fi
+
+def action(name):
+    if name == 'lock':
+        config = CONFIG / 'hypr/hyprlock.conf'
+        require_file(config)
+        # The shipped lock config requires this theme input. Never manufacture
+        # a white-screen fallback or modify personal configuration/PAM policy.
+        if 'source = ~/.config/current/theme/hyprlock.conf' in config.read_text():
+            require_file(Path.home() / '.config/current/theme/hyprlock.conf')
+        command = ['hyprlock', '-c', str(config)]
+    elif name == 'logout':
+        command = ['uwsm', 'stop']
+    else:
+        if name == 'hibernate':
+            support = subprocess.run([
+                'busctl', '--system', '--timeout=5', 'call', 'org.freedesktop.login1',
+                '/org/freedesktop/login1', 'org.freedesktop.login1.Manager', 'CanHibernate',
+            ], check=True, capture_output=True, text=True).stdout.strip()
+            if support not in ('s "yes"', 's "challenge"'):
+                raise RuntimeError('Hibernate unavailable: logind does not offer host hibernation; '
+                                   'swap/resume, kernel and policy qualification are separate requirements')
+        command = ['systemctl', 'poweroff' if name == 'shutdown' else name]
+    subprocess.run(command, check=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--tui', action='store_true', help='explicit optional gum menu (no GUI fallback)')
+    parser.add_argument('--action', choices=ACTIONS, help='perform one selected action')
+    args = parser.parse_args()
+    if args.action:
+        action(args.action)
+        return
+    if args.tui or os.environ.get('DRAGON_TUI_ONLY'):
+        if not shutil.which('gum'):
+            raise RuntimeError('explicit TUI requires optional gum; no runtime was installed by this command')
+        labels = {name.capitalize(): name for name in ACTIONS}
+        result = subprocess.run(['gum', 'choose', '--header=Power Menu'],
+                                input='\n'.join((*labels, 'Cancel')) + '\n', text=True, capture_output=True)
+        if result.returncode in (1, 130) or result.stdout.strip() == 'Cancel':
+            return
+        result.check_returncode()
+        choice = result.stdout.strip()
+        if choice not in labels:
+            raise RuntimeError('unrecognized power menu choice')
+        action(labels[choice])
+        return
+    if not shutil.which('wlogout'):
+        raise RuntimeError('selected native UI wlogout is missing; install managed dependencies '
+                           'or explicitly use --tui with optional gum')
+    layout, style = CONFIG / 'wlogout/layout', CONFIG / 'wlogout/style.css'
+    require_file(layout)
+    require_file(style)
+    runtime = os.environ.get('XDG_RUNTIME_DIR')
+    if not runtime or not Path(runtime).is_absolute() or not os.environ.get('WAYLAND_DISPLAY'):
+        raise RuntimeError('a real Wayland session and XDG_RUNTIME_DIR are required')
+    # Import the static GTK3 base and optional runtime-owned theme separately.
+    # No creation/overwrite of personal config or permanently managed theme CSS.
+    with tempfile.NamedTemporaryFile(mode='w', prefix='dragon-power-', suffix='.css', dir=runtime) as css:
+        for source in (style, CONFIG / 'wlogout/wlogout.css'):
+            if source.is_file():
+                css.write(f'@import url("{source.absolute().as_uri()}");\n')
+        css.flush()
+        subprocess.run(['wlogout', '--layout', str(layout), '-C', css.name,
+                        '--buttons-per-row', '3'], check=True)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
+        message = f'power-menu: {error}'
+        print(message, file=sys.stderr)
+        if os.environ.get('WAYLAND_DISPLAY') and shutil.which('notify-send'):
+            subprocess.run(['notify-send', '--app-name=Power', '--urgency=critical', 'Power action unavailable', message])
+        sys.exit(1)

@@ -2,15 +2,14 @@
 Description=Dynamic Hyprland monitor layout helper
 After=graphical-session.target
 PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
 
 [Service]
-Type=simple
+Type=exec
 Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/bin
-ExecStartPre=/usr/bin/systemctl --user import-environment WAYLAND_DISPLAY XDG_RUNTIME_DIR HYPRLAND_INSTANCE_SIGNATURE
-ExecStartPre=/usr/bin/bash -lc 'for i in {1..50}; do [ -n "${WAYLAND_DISPLAY}" ] && [ -S "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" ] && exit 0; sleep 0.2; done; echo "WAYLAND socket not ready"; exit 1'
-ExecStart=%h/dotfiles/scripts/theme-manager/dynamic-monitors --watch
-Restart=on-failure
-RestartSec=1
+ExecStart=%h/.local/bin/dynamic-monitors --watch
+Environment=MONITOR_LAYOUT_POLL_SECONDS=5
+UMask=0077
+TimeoutStopSec=10
 
-[Install]
-WantedBy=graphical-session.target
+# The existing graphical environment importer requests this owner.

@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""Single per-user Clipse Wayland watchers and persistence; no state migration."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import stat
+import subprocess
+import sys
+
+
+UNITS = {
+    'text': 'clipse-text.service',
+    'image': 'clipse-image.service',
+    'persist': 'wl-clip-persist.service',
+}
+
+
+def fail(message):
+    raise RuntimeError(message)
+
+
+def systemctl(*args):
+    return subprocess.run(['systemctl', '--user', *args], check=True,
+                          capture_output=True, text=True).stdout
+
+
+def unit_states(starting=False):
+    # Refuse legacy unit names even if inactive: they may be enabled elsewhere.
+    for listing in (systemctl('list-unit-files', '--no-legend', '--no-pager'),
+                    systemctl('list-units', '--all', '--plain', '--no-legend', '--no-pager')):
+        for line in listing.splitlines():
+            name = line.split()[0]
+            if ('clipse' in name or 'wl-clip-persist' in name) and name not in UNITS.values():
+                fail(f'conflicting unit {name}; approved quiescent cutover required')
+    states = {}
+    config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
+    for role, unit in UNITS.items():
+        values = dict(line.split('=', 1) for line in systemctl(
+            'show', unit, '--property=LoadState,ActiveState,MainPID,FragmentPath,DropInPaths'
+        ).splitlines() if '=' in line)
+        if (values.get('LoadState') != 'loaded'
+                or values.get('FragmentPath') != str(config / 'systemd/user' / unit)
+                or values.get('DropInPaths')):
+            fail(f'{unit} missing or has another owner/override; approved cutover required')
+        permitted = ('active', 'inactive', 'activating') if starting else ('active', 'inactive')
+        if values.get('ActiveState') not in permitted:
+            fail(f'{unit} is {values.get("ActiveState")}; inspect before changing clipboard owners')
+        states[role] = values
+    return states
+
+
+def check_processes(states):
+    allowed = {int(state['MainPID']) for state in states.values()
+               if state['ActiveState'] in ('active', 'activating') and int(state['MainPID'])}
+    for process in Path('/proc').iterdir():
+        if not process.name.isdecimal() or int(process.name) == os.getpid():
+            continue
+        try:
+            if process.stat().st_uid != os.getuid():
+                continue
+            args = [os.fsdecode(arg) for arg in (process / 'cmdline').read_bytes().split(b'\0') if arg]
+            if not args:
+                continue
+            program = Path(args[0]).name
+            listener = (program == 'wl-clip-persist' or
+                        (program == 'clipse' and any(arg in (
+                            '-listen', '--listen', '-listen-shell', '--listen-shell',
+                            '-listen-x11', '--listen-x11', '-listen-darwin', '--listen-darwin',
+                            '-pause', '--pause') or arg.startswith((
+                                '-listen=', '--listen=', '-listen-shell=', '--listen-shell=',
+                                '-listen-x11=', '--listen-x11=', '-listen-darwin=', '--listen-darwin=',
+                                '-pause=', '--pause='))
+                            for arg in args[1:])) or
+                        (program == 'wl-paste' and any(arg in ('--watch', '-w') for arg in args) and
+                         any(Path(arg).name == 'clipse' for arg in args[1:])))
+            if listener and int(process.name) not in allowed:
+                fail('unmanaged Clipse watcher/listener or persistence process; approved quiescent cutover required')
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+
+
+def require_config():
+    config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'clipse/config.json'
+    # Do not invoke Clipse's default-creating Init on absent/broken preferences.
+    with config.open() as stream:
+        value = json.load(stream)
+    if not isinstance(value, dict) or not value:
+        fail('existing Clipse config.json must be a nonempty JSON object; no preferences were changed')
+    types = {
+        'allowDuplicates': bool, 'historyFile': str, 'maxHistory': int,
+        'deleteAfter': int, 'logFile': str, 'pollInterval': int, 'maxEntryLength': int,
+        'themeFile': str, 'tempDir': str, 'keyBindings': dict, 'imageDisplay': dict,
+        'excludedApps': list, 'autoPaste': dict, 'enableMouse': bool, 'enableDescription': bool,
+    }
+    for key, expected in types.items():
+        if key in value and type(value[key]) is not expected:
+            fail(f'Clipse config.json has incompatible {key}; preserve preferences for approved repair')
+    nested = {
+        'imageDisplay': {'type': str, 'scaleX': int, 'scaleY': int, 'heightCut': int},
+        'autoPaste': {'enabled': bool, 'keybind': str, 'buffer': int},
+    }
+    for group, fields in nested.items():
+        for key, expected in fields.items():
+            if key in value.get(group, {}) and type(value[group][key]) is not expected:
+                fail(f'Clipse config.json has incompatible {group}.{key}; approved repair required')
+    if (any(type(item) is not str for item in value.get('excludedApps', []))
+            or any(type(item) is not str for item in value.get('keyBindings', {}).values())):
+        fail('Clipse config.json has incompatible app exclusions/key bindings; approved repair required')
+
+
+def main():
+    args = sys.argv[1:] or ['--start']
+    if args not in (['--start'], ['--restart'], ['--run', 'text'],
+                    ['--run', 'image'], ['--run', 'persist']):
+        fail('usage: dragon-clipboard-session [--start|--restart]')
+    running = args[0] == '--run'
+    if running and (os.environ.get('DRAGON_CLIPBOARD_OWNER') != args[1]
+                    or not os.environ.get('INVOCATION_ID')):
+        fail('--run is reserved for the curated clipboard units')
+    if not os.environ.get('WAYLAND_DISPLAY'):
+        fail('a real Wayland session is required')
+    if not os.environ.get('XDG_RUNTIME_DIR'):
+        fail('a private per-user XDG_RUNTIME_DIR is required')
+    runtime = Path(os.environ['XDG_RUNTIME_DIR'])
+    info = runtime.stat()
+    if not runtime.is_absolute() or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
+        fail('a private per-user XDG_RUNTIME_DIR is required')
+    # Cooperative guards, not authentication against arbitrary same-UID writers.
+    name = f'dragon-clipboard-{args[1] if running else "control"}.lock'
+    fd = os.open(runtime / name, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    require_config()
+    for binary in ('/usr/local/bin/clipse', '/usr/bin/wl-paste'):
+        if not os.path.isfile(binary) or not os.access(binary, os.X_OK):
+            fail(f'required managed provider missing or not executable: {binary}')
+    # Established providers: Debian's pinned source recipe vs Arch's native
+    # package. Never silently prefer one if an old second install remains.
+    persist_paths = [path for path in ('/usr/local/bin/wl-clip-persist', '/usr/bin/wl-clip-persist')
+                     if os.path.lexists(path)]
+    if len(persist_paths) != 1 or not os.path.isfile(persist_paths[0]) or not os.access(persist_paths[0], os.X_OK):
+        fail('exactly one known wl-clip-persist provider is required; inspect missing/conflicting installs')
+    states = unit_states(starting=running)
+    if running and int(states[args[1]]['MainPID']) != os.getpid():
+        fail('--run must be the curated unit MainPID')
+    check_processes(states)
+    if running:
+        os.set_inheritable(fd, True)
+        if args[1] == 'persist':
+            os.execv(persist_paths[0], ['wl-clip-persist', '--clipboard', 'regular',
+                     '--all-mime-type-regex', '^(?!x-kde-passwordManagerHint).+'])
+        # These are precisely Clipse 1.2.1 shell.RunWaylandListener's two
+        # watchers, foreground and owned by systemd instead of detached by -listen.
+        mime = 'text' if args[1] == 'text' else 'image/png'
+        os.execv('/usr/bin/wl-paste', ['wl-paste', '--type', mime, '--watch',
+                                    '/usr/local/bin/clipse', '--wl-store'])
+    else:
+        if args[0] == '--restart':
+            # Finish all owned stops before parallel starts; no peer can still
+            # be deactivating while a new watcher checks ownership.
+            systemctl('stop', *UNITS.values())
+        systemctl('start', *UNITS.values())
+        states = unit_states()
+        check_processes(states)
+        if any(state['ActiveState'] != 'active' for state in states.values()):
+            fail('clipboard owner did not become active; inspect units (not a clipboard readiness proof)')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
+        print(f'dragon-clipboard-session: {error}; no adoption or fallback', file=sys.stderr)
+        sys.exit(1)

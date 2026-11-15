@@ -1,0 +1,13 @@
+[Unit]
+Description=Dragon wallpaper owner
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=exec
+Environment=XDG_RUNTIME_DIR=%t
+Environment=PATH=/usr/local/bin:%h/.local/bin:/usr/bin:/bin
+ExecStart=%h/.local/libexec/dragon/theme-manager/wallpaper-run
+TimeoutStopSec=10
+KillMode=control-group
+UMask=0077

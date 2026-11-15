@@ -1,0 +1,52 @@
+---
+host_timezone: Europe/Lisbon
+host_role: laptop
+host_platform_family: arch
+host_desktop_stack: hyprland
+host_gpu_stack:
+  - intel
+  - nvidia
+platform_matrix_id: goldendragon
+platform_release_family: UNKNOWN
+platform_release_version: UNKNOWN
+platform_architecture: UNKNOWN
+platform_kernel_family: UNKNOWN
+platform_kernel_version: UNKNOWN
+platform_boot_firmware: UNKNOWN
+platform_bootloader: UNKNOWN
+platform_filesystem: UNKNOWN
+platform_encryption: UNKNOWN
+platform_secure_boot: UNKNOWN
+platform_connection_mode: remote-ssh
+target_profile: remote-host
+target_connection: ssh
+platform_local_connection_policy: forbidden
+platform_container_policy: forbidden
+platform_container_identity: not-applicable
+platform_remote_connection_policy: required
+platform_controller_home_policy: forbidden
+platform_unsupported_combination_policy: reject
+platform_generic_family_fallback: forbidden
+host_capabilities:
+  - tlp
+  - fingerprint
+  - fortinet_vpn
+  - v4l2loopback
+  - power_sleep
+  - iwd
+  - networkmanager
+  - acpi_wakeup
+host_profile_packages:
+  - core_cli
+  - dev
+  - host_goldendragon_laptop
+  - laptop_power_tlp
+  - host_goldendragon_nvidia
+  - hyprland_session
+  - fingerprint
+  - openfortivpn
+# Archived hardware policy only. A future inventory must explicitly declare its
+# private target_home, target_source and managed_users before selecting a user.
+managed_users: []
+fingerprint_usb_id: "06cb:00f9"
+legacy_host_directory: hosts/legacy/goldendragon

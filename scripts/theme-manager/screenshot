@@ -1,27 +1,59 @@
 #!/bin/bash
-# A command wrapper for taking screenshots with editing and annotation.
-
-# --- Dependencies Check ---
-for cmd in hyprshot satty wl-copy; do
-    if ! command -v "$cmd" &> /dev/null; then
-        echo "Error: Required command '$cmd' not found." >&2
-        exit 1
-    fi
+# Retained Satty action; the separate Hyprshot -> Swappy binding is unchanged.
+set -euo pipefail
+case "${1:-region}" in
+  region|output) mode=${1:-region} ;;
+  *) echo 'Usage: screenshot [region|output]' >&2; exit 2 ;;
+esac
+[[ $# -le 1 ]] || { echo 'Usage: screenshot [region|output]' >&2; exit 2; }
+for cmd in grim slurp satty wl-copy; do
+  command -v "$cmd" >/dev/null || { echo "Missing capture dependency: $cmd" >&2; exit 1; }
 done
-
-# --- Configuration ---
-# Use standard XDG pictures directory, or fallback to ~/Pictures
-[[ -f ~/.config/user-dirs.dirs ]] && source ~/.config/user-dirs.dirs
-OUTPUT_DIR="${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots"
-mkdir -p "$OUTPUT_DIR"
-
-# --- Main Logic ---
-# The logic from dragon is excellent. It uses hyprshot for capturing,
-# satty for editing/annotating, and wl-copy for clipboard.
-pkill slurp || hyprshot -m "${1:-region}" --raw |
-  satty --filename - \
-    --output-filename "$OUTPUT_DIR/screenshot-$(date +'%Y-%m-%d_%H-%M-%S').png" \
-    --early-exit \
-    --actions-on-enter save-to-clipboard \
-    --save-after-copy \
-    --copy-command 'wl-copy'
+[[ ! -f "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" ]] || source "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
+output_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots"
+mkdir -p -- "$output_dir"
+umask 077
+stage=$(mktemp -d -- "$output_dir/.satty-XXXXXXXX")
+cleanup() {
+  rm -f -- "$stage/input.png"
+  if ! rmdir -- "$stage" 2>/dev/null; then
+    printf 'Unpublished annotated image retained: %s\n' "$stage" >&2
+  fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM HUP
+# Hyprshot 1.3.0's watchdog globally kills hyprpicker even in raw mode.
+# Keep the separate Hyprshot/Swappy action; this Satty action owns its selector.
+selection=(slurp)
+[[ "$mode" != output ]] || selection+=(-o -r)
+if ! geometry=$("${selection[@]}") || [[ -z "$geometry" ]]; then
+  echo 'Screenshot cancelled or capture failed; no image saved.' >&2
+  exit 1
+fi
+if ! grim -g "$geometry" "$stage/input.png"; then
+  echo 'Screenshot capture failed; no image saved.' >&2
+  exit 1
+fi
+[[ -s "$stage/input.png" ]] || { echo 'Capture returned no image.' >&2; exit 1; }
+# Satty expands strftime directives even in parent paths. Escape literal percent.
+target="$stage/annotated.png"
+status=0
+satty --filename "$stage/input.png" --output-filename "${target//%/%%}" \
+  --action-on-enter save-to-clipboard --save-after-copy --copy-command wl-copy \
+  --early-exit || status=$?
+if [[ -s "$target" ]]; then
+  filename="$output_dir/screenshot-$(date +'%Y-%m-%d_%H-%M-%S')-${stage##*satty-}.png"
+  # Exclusive publication: neither an old screenshot nor a personal file is replaced.
+  if ln -- "$target" "$filename"; then
+    rm -- "$target"
+    printf 'Screenshot saved: %s\n' "$filename"
+  else
+    printf 'Could not publish screenshot; annotated image retained: %s\n' "$target" >&2
+    exit 1
+  fi
+else
+  [[ ! -e "$target" ]] || rm -- "$target"
+  echo 'Editor closed without saving an annotated image.' >&2
+fi
+exit "$status"

@@ -1,0 +1,38 @@
+---
+# Reusable pre-mutation gate. --version exits in the CLI parser, before startup.
+- name: Refuse lowering the supported native Lua release floor
+  ansible.builtin.assert:
+    that:
+      - (hyprland_minimum_version | default('0.57.2')) is version('0.57.2', '>=')
+    fail_msg: Dragonarchy requires Hyprland >= 0.57.2; the release floor cannot be lowered.
+
+- name: Read installed Hyprland version without contacting a session
+  ansible.builtin.command:
+    argv: [Hyprland, --version]
+  register: hyprland_release
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Extract the declared compositor release
+  ansible.builtin.set_fact:
+    hyprland_detected_versions: "{{ hyprland_release.stdout | default('') | regex_findall('(?m)^Hyprland (?:v)?([0-9]+\\.[0-9]+\\.[0-9]+)(?:[^0-9]|$)') }}"
+
+- name: Refuse missing or unidentifiable Hyprland releases
+  ansible.builtin.assert:
+    that:
+      - hyprland_release.rc == 0
+      - hyprland_detected_versions | length == 1
+    fail_msg: >-
+      Cannot establish the installed Hyprland release. Install/upgrade to Hyprland
+      >= {{ hyprland_minimum_version | default('0.57.2') }} before managed desktop cutover.
+      Dragonarchy supports native Lua only; no older Hyprlang fallback is provided.
+
+- name: Refuse obsolete compositor releases
+  ansible.builtin.assert:
+    that:
+      - hyprland_detected_versions[0] is version(hyprland_minimum_version | default('0.57.2'), '>=')
+    fail_msg: >-
+      Hyprland {{ hyprland_detected_versions[0] }} is too old. Upgrade to Hyprland
+      >= {{ hyprland_minimum_version | default('0.57.2') }} before managed desktop cutover.
+      Native Lua is required; future API errors are errors, not fallback triggers.

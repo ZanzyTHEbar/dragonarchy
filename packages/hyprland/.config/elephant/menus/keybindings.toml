@@ -8,6 +8,5 @@ search_name = true
 text = "Browse Keybindings"
 icon = "input-keyboard"
 [entries.actions]
-"menus:default" = "keybindings-menu"
-
+"menus:default" = '"$HOME/.local/bin/keybindings-menu"'
 

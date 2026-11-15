@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Resolve only the managed installed command; never append a checkout to PATH.
+set -euo pipefail
+exec "$HOME/.local/bin/dragon-cli" "$@"

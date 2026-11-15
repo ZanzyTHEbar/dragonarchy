@@ -27,6 +27,7 @@ HOST_NAME=""
 FEATURE_CSV=""
 GROUPS_CSV=""
 FORMAT="json"
+ALLOW_BOOTSTRAP=1
 
 tier_for_manager() {
 	case "$1" in
@@ -48,7 +49,10 @@ normalize_arch_pkg() {
 usage() {
 	cat <<'EOF'
 Usage: export-package-plan.sh --platform <arch|debian> --groups <comma-separated> \
-  [--host <name>] [--feature-csv <csv>] [--manifest <path>] [--format json]
+  [--host <name>] [--feature-csv <csv>] [--manifest <path>] [--format json] \
+  [--no-bootstrap]
+
+--no-bootstrap refuses to download yq; the caller must provide yq v4.
 
 Outputs JSON with resolved groups, flat lists by manager tier, and ansible_install hints.
 EOF
@@ -79,6 +83,10 @@ while [[ $# -gt 0 ]]; do
 	--format)
 		FORMAT="${2:-}"
 		shift 2
+		;;
+	--no-bootstrap)
+		ALLOW_BOOTSTRAP=0
+		shift
 		;;
 	-h | --help)
 		usage
@@ -113,7 +121,9 @@ if ! command -v jq >/dev/null 2>&1; then
 	exit 1
 fi
 
-manifest_ensure_yq "$PLATFORM" >/dev/null 2>&1 || true
+if [[ "$ALLOW_BOOTSTRAP" == "1" ]]; then
+	manifest_ensure_yq "$PLATFORM" >/dev/null 2>&1 || true
+fi
 if ! manifest_yq_resolve_bin >/dev/null 2>&1; then
 	log_error "yq v4 (mikefarah) is required"
 	exit 1

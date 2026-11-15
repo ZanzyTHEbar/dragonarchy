@@ -1,12 +1,78 @@
 name = "dragon_utilities"
-name_pretty = "Utilities"
-icon = "utilities-terminal"
+name_pretty = "Desktop Utilities"
 parent = "dragon"
-description = "Additional Dragon utilities will appear here soon."
+icon = "utilities-terminal"
 history = false
+search_name = true
 
 [[entries]]
-text = "Coming soon"
-subtext = "Utilities menu is under construction"
+text = "Clipboard Manager"
+icon = "edit-paste"
+[entries.actions]
+"menus:default" = '"$HOME/.local/bin/dragon-cli" clipboard'
+
+[[entries]]
+text = "Screenshot Region (Satty)"
+icon = "camera-photo"
+[entries.actions]
+"menus:default" = '"$HOME/.local/bin/dragon-cli" screenshot region'
+
+[[entries]]
+text = "Screenshot Output (Satty)"
+icon = "camera-photo"
+[entries.actions]
+"menus:default" = '"$HOME/.local/bin/dragon-cli" screenshot output'
+
+[[entries]]
+text = "Toggle Region Recording"
+icon = "media-record"
+[entries.actions]
+"menus:default" = '"$HOME/.local/bin/dragon-cli" screenrecord region'
+
+[[entries]]
+text = "Toggle Output Recording"
+icon = "media-record"
+[entries.actions]
+"menus:default" = '"$HOME/.local/bin/dragon-cli" screenrecord output'
+
+[[entries]]
+text = "Toggle Idle Inhibitor"
+icon = "preferences-system-power"
+[entries.actions]
+"menus:default" = '"$HOME/.local/bin/dragon-cli" toggle-idle'
+
+[[entries]]
+text = "Idle Status (terminal)"
+icon = "preferences-system-power"
+[entries.actions]
+"menus:default" = 'kitty --hold -e "$HOME/.local/bin/dragon-cli" idle-status'
+
+[[entries]]
+text = "Power and Session"
+icon = "system-shutdown"
+[entries.actions]
+"menus:default" = '"$HOME/.local/bin/dragon-cli" power-menu'
+
+[[entries]]
+text = "Keybindings"
+icon = "preferences-desktop-keyboard-shortcuts"
+[entries.actions]
+"menus:default" = '"$HOME/.local/bin/dragon-cli" keybindings'
+
+[[entries]]
+text = "About (local system information)"
 icon = "dialog-information"
-actions = {}
+[entries.actions]
+"menus:default" = 'kitty -e "$HOME/.local/bin/dragon-cli" about --wait'
+
+[[entries]]
+text = "Dragon CLI (terminal controls)"
+icon = "utilities-terminal"
+[entries.actions]
+"menus:default" = 'kitty -e "$HOME/.local/bin/dragon-cli-shell"'
+
+[[entries]]
+text = "Unsupported Legacy Actions (status only)"
+icon = "dialog-warning"
+[entries.actions]
+"menus:default" = 'kitty --hold -e "$HOME/.local/bin/dragon-cli" unmigrated'

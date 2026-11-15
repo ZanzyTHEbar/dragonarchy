@@ -1,0 +1,3 @@
+#!/bin/sh
+# Explicit installed live API; offline preparation remains theme-bootstrap set.
+exec "$(dirname "$0")/theme-bootstrap" live set "$@"

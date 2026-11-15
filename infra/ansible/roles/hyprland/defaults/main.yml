@@ -1,20 +1,28 @@
 ---
 hyprland_enabled: true
 
-# Packages are owned by scripts/install/deps.manifest.toml (hyprland_session)
-# and installed by the packages role.
-hyprland_session_packages_by_platform:
-  arch: []
+# Packages have one owner: deps.manifest.toml and the packages role.
+# Update this floor only after verifying the current upstream release/API.
+hyprland_minimum_version: '0.57.2'
 
 hyprland_required_commands:
+  - Hyprland
   - uwsm
   - hypridle
   - hyprlock
 
-hyprland_required_paths:
-  - path: /usr/share/wayland-sessions/hyprland.desktop
-    description: Hyprland desktop entry
-  - path: /usr/lib/systemd/user/xdg-desktop-portal-hyprland.service
-    description: Hyprland portal user unit
-  - path: /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
-    description: Polkit authentication agent
+hyprland_required_paths_by_platform:
+  arch:
+    - path: /usr/share/wayland-sessions/hyprland.desktop
+      description: Hyprland desktop entry
+    - path: /usr/lib/systemd/user/xdg-desktop-portal-hyprland.service
+      description: Hyprland portal user unit
+    - path: /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+      description: Polkit authentication agent
+  debian:
+    - path: /usr/share/wayland-sessions/hyprland.desktop
+      description: Hyprland desktop entry
+    - path: /usr/lib/systemd/user/xdg-desktop-portal-hyprland.service
+      description: Hyprland portal user unit
+    - path: /usr/libexec/polkit-mate-authentication-agent-1
+      description: Polkit authentication agent

@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/wallpaper-utils.sh"
+: "${XDG_RUNTIME_DIR:?A real session runtime is required}"
+: "${WAYLAND_DISPLAY:?A real Wayland session is required}"
+backend="$(theme_wallpaper_backend)"
+unit=dragon-wallpaper.service
+systemctl --user import-environment WAYLAND_DISPLAY XDG_RUNTIME_DIR
+systemctl --user daemon-reload
+if ! systemctl --user is-active --quiet "$unit"; then
+    if pgrep -u "$UID" -x swaybg >/dev/null || pgrep -u "$UID" -x swww-daemon >/dev/null; then
+        echo 'A wallpaper process exists outside the active managed owner; inspect/quiesce it before cutover.' >&2
+        exit 1
+    fi
+    systemctl --user start "$unit"
+elif [[ "$backend" == swaybg ]]; then
+    systemctl --user restart "$unit"
+else
+    pid="$(systemctl --user show "$unit" -p MainPID --value)"
+    [[ -r "/proc/$pid/comm" && "$(cat "/proc/$pid/comm")" == swww-daemon ]] || systemctl --user restart "$unit"
+fi
+if [[ "$backend" == swww ]]; then
+    ready=false
+    for _ in {1..40}; do
+        if swww query >/dev/null 2>&1; then ready=true; break; fi
+        sleep 0.05
+    done
+    "$ready" || { echo 'Owned swww daemon unavailable; no swaybg fallback started.' >&2; exit 1; }
+    image="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
+    if [[ -f "$image" ]]; then
+        args=(img "$image" --transition-type "${SWWW_TRANSITION_TYPE:-fade}" --transition-fps "${SWWW_TRANSITION_FPS:-60}" --transition-step "${SWWW_TRANSITION_STEP:-90}")
+        [[ -z "${SWWW_TRANSITION_ANGLE:-}" ]] || args+=(--transition-angle "$SWWW_TRANSITION_ANGLE")
+        [[ -z "${SWWW_TRANSITION_POS:-}" ]] || args+=(--transition-pos "$SWWW_TRANSITION_POS")
+        swww "${args[@]}"
+    else
+        color="${WALLPAPER_FALLBACK_COLOR:-#000000}"
+        swww clear "${color#\#}"
+    fi
+fi

@@ -1,1 +1,4 @@
-runprefix = "uwsm app -- "
+show_actions = false
+show_generic = true
+history = false
+window_integration = false

@@ -1,0 +1,23 @@
+---
+# Installing pipewire-alsa/pulse or WirePlumber can otherwise let the native
+# solver remove an incumbent server/policy manager. Cutover is not provisioning.
+- name: Inspect installed audio owners before desktop package mutation
+  ansible.builtin.package_facts:
+    manager: auto
+  when: "'hyprland_session' in packages_manifest_resolved_groups"
+
+- name: Require separately approved incumbent audio cutover
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.packages.keys() | intersect([
+          'pulseaudio', 'pulseaudio-alsa', 'pulseaudio-module-gsettings',
+          'pipewire-media-session', 'wireplumber-system-services'
+        ]) | length == 0
+    fail_msg: >-
+      Host '{{ inventory_hostname }}': an incumbent PulseAudio or alternative/system
+      PipeWire policy owner is installed. Refusing package actions that could replace
+      it. Preserve its configuration/state and obtain scoped cutover/recovery approval;
+      quiesce and remove conflicting packages separately, then rerun. This role never
+      uninstalls audio owners or enables a global/all-user audio service.
+  when: "'hyprland_session' in packages_manifest_resolved_groups"

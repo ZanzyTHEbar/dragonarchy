@@ -1,33 +1,155 @@
-#!/bin/bash
-# A command wrapper for screen recording.
+#!/usr/bin/env python3
+"""Toggle only this command's recorder. No PID files or global process matching."""
+import fcntl
+import os
+from pathlib import Path
+import select
+import shutil
+import signal
+import socket
+import stat
+import subprocess
+import sys
+import tempfile
+import time
 
-# --- Dependencies Check ---
-for cmd in wl-screenrec slurp; do
-    if ! command -v "$cmd" &> /dev/null; then
-        echo "Error: Required command '$cmd' not found." >&2
-        exit 1
-    fi
-done
 
-# --- Configuration ---
-[[ -f ~/.config/user-dirs.dirs ]] && source ~/.config/user-dirs.dirs
-OUTPUT_DIR="${XDG_VIDEOS_DIR:-$HOME/Videos}/Screen Records"
-mkdir -p "$OUTPUT_DIR"
+def private_directory(path):
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+        raise ValueError(f'Requires an owned private runtime directory: {path}')
 
-# --- Main Logic ---
-screenrecording() {
-  filename="$OUTPUT_DIR/screenrecord-$(date +'%Y-%m-%d_%H-%M-%S').mp4"
-  echo "Screen recording starting... Output file: $filename"
-  sleep 1
-  wl-screenrec -f "$filename" --ffmpeg-encoder-options="-c:v libx264 -crf 23 -preset medium -movflags +faststart" "$@"
-}
 
-if pgrep -x wl-screenrec >/dev/null; then
-  pkill -x wl-screenrec
-  echo "Screen recording stopped. File saved in $OUTPUT_DIR"
-elif [[ "$1" == "output" ]]; then
-  screenrecording
-else
-  region=$(slurp) || exit 1
-  screenrecording -g "$region"
-fi
+def main():
+    args = sys.argv[1:]
+    if len(args) > 1 or (args and args[0] not in ('region', 'output')):
+        raise ValueError('Usage: screenrecord [region|output]; DRAGON_SCREENRECORD_ENCODER=vaapi|cpu')
+    mode = args[0] if args else 'region'
+    runtime = Path(os.environ['XDG_RUNTIME_DIR'])
+    if not runtime.is_absolute():
+        raise ValueError('XDG_RUNTIME_DIR must be absolute')
+    private_directory(runtime)
+    state = runtime / 'dragon-screenrecord'
+    state.mkdir(mode=0o700, exist_ok=True)
+    private_directory(state)
+    address = str(state / 'control.sock')
+    lock = os.open(state / 'lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        with socket.socket(socket.AF_UNIX) as client:
+            client.settimeout(2)
+            client.connect(address)
+            client.sendall(b'stop\n')
+            if client.recv(32) != b'stopping\n':
+                raise ValueError('Recorder did not acknowledge stop')
+        print('Stop requested for the owned recording; its original command reports the saved path.')
+        return
+
+    backend = os.environ.get('DRAGON_SCREENRECORD_ENCODER', 'vaapi')
+    if backend not in ('cpu', 'vaapi'):
+        raise ValueError('Unknown encoder backend; choose vaapi or cpu (no automatic fallback)')
+    for command in ('wl-screenrec', 'slurp', 'xdg-user-dir'):
+        if not shutil.which(command):
+            raise ValueError(f'Missing capture dependency: {command}')
+    # --no-hw changes encoding only: upstream still needs VAAPI for DMA-BUF capture.
+    if not any(os.access(p, os.R_OK | os.W_OK) for p in Path('/dev/dri').glob('renderD*')):
+        raise ValueError('wl-screenrec requires accessible DRM/VAAPI capture even for cpu encoding; no supported device found')
+
+    child = None
+    stopping = False
+
+    def stop(_number=None, _frame=None):
+        nonlocal stopping
+        stopping = True
+
+    def receive_stop():
+        nonlocal stopping
+        if select.select([server], [], [], 0.05)[0]:
+            with server.accept()[0] as client:
+                client.settimeout(1)
+                if client.recv(32) == b'stop\n':
+                    stopping = True
+                    client.sendall(b'stopping\n')
+
+    for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(number, stop)
+    server = socket.socket(socket.AF_UNIX)
+    stage = None
+    bound = False
+    try:
+        # The exclusive lock proves no other command instance owns this stale socket.
+        if os.path.lexists(address):
+            if not stat.S_ISSOCK(os.lstat(address).st_mode):
+                raise ValueError('Refusing non-socket recorder control path')
+            os.unlink(address)
+        server.bind(address)
+        bound = True
+        server.listen(1)
+        selection = ['slurp', '-o', '-r', '-f', '%o'] if mode == 'output' else ['slurp']
+        child = subprocess.Popen(selection, stdout=subprocess.PIPE, text=True)
+        while child.poll() is None and not stopping:
+            receive_stop()
+        if stopping:
+            return
+        chosen = child.communicate()[0].strip()
+        if child.returncode or not chosen:
+            print('Recording cancelled; no media file created.', file=sys.stderr)
+            return
+        videos = subprocess.check_output(['xdg-user-dir', 'VIDEOS'], text=True).strip()
+        if not videos or not Path(videos).is_absolute():
+            raise ValueError('xdg-user-dir VIDEOS must return an absolute media path')
+        output = Path(videos) / 'Screen Records'
+        output.mkdir(parents=True, exist_ok=True)
+        stage = Path(tempfile.mkdtemp(prefix='.screenrecord-', dir=output))
+        partial = stage / 'recording.mp4'
+        command = ['wl-screenrec', '-f', str(partial)]
+        command += ['-o' if mode == 'output' else '-g', chosen]
+        if backend == 'cpu':
+            command += ['--no-hw']
+        print(f'Recording ({backend}); toggle screenrecord to stop. In-progress media: {partial}', flush=True)
+        child = subprocess.Popen(command)
+        while child.poll() is None and not stopping:
+            receive_stop()
+        if stopping and child.poll() is None:
+            child.send_signal(signal.SIGINT)
+        result = child.wait(timeout=15)
+        if partial.exists() and partial.stat().st_size:
+            suffix = '' if result == 0 else '.incomplete'
+            destination = output / f"screenrecord-{time.strftime('%Y-%m-%d_%H-%M-%S')}-{stage.name.removeprefix('.screenrecord-')}{suffix}.mp4"
+            os.link(partial, destination)  # Never replace existing personal media.
+            partial.unlink()
+            print(f'Recording saved{suffix}: {destination}', flush=True)
+        elif partial.exists():
+            partial.unlink()  # Only this invocation's empty output.
+            print('No frames recorded; no MP4 saved.', file=sys.stderr)
+        else:
+            print('Recorder produced no MP4.', file=sys.stderr)
+        if result:
+            raise ValueError(f'wl-screenrec failed ({result}); backend/device/codec support is not qualified')
+    finally:
+        if child is not None and child.poll() is None:
+            # Only an unreaped direct child can be signalled; its PID cannot be reused.
+            child.terminate()
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait()
+        server.close()
+        if bound:
+            os.unlink(address)
+        if stage is not None:
+            if list(stage.iterdir()):
+                print(f'Incomplete media retained (not a completed MP4): {stage}', file=sys.stderr)
+            else:
+                stage.rmdir()
+
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        main()
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        print(f'screenrecord: {error}', file=sys.stderr)
+        sys.exit(1)

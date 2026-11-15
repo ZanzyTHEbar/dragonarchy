@@ -2,9 +2,9 @@
 Version=1.0
 Type=Application
 Name=Dragon
-Comment=Dragon TUI
-Exec=uwsm app -- kitty --class=Dragon --title=Dragon -e bash -lc 'exec "$HOME/.local/share/dragon/dragon-cli"'
+Comment=Installed Dragon desktop controls
+Exec=kitty --class=Dragon --title=Dragon -e dragon-cli-shell
 Icon=dragon-control
 Terminal=false
-Categories=System;Utility;
-StartupNotify=false 
+Categories=Utility;
+StartupNotify=false

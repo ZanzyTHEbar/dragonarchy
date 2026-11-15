@@ -5,7 +5,22 @@ Parent = "dragon_theme"
 Description = "Pick backgrounds for the active theme"
 History = false
 Cache = false
-Action = "theme-set-background %VALUE%"
+
+
+local function shell_quote(value)
+    -- Split percent tokens across shell quotes so Elephant's later %ARGS%
+    -- substitution cannot reinterpret a literal filename or checkout path.
+    return "'" .. value:gsub("'", "'\\''"):gsub("%%", "%%''") .. "'"
+end
+
+-- Declared installed live API, also used by theme/gallery actions.
+local function theme_helper(name)
+    return shell_quote((os.getenv("HOME") or "") .. "/.local/bin/" .. name)
+end
+
+-- Elephant substitutes Value literally before sh -c. Values below are already
+-- shell-quoted; the empty-value guard also makes informational entries inert.
+Action = "[ -n ''%VALUE% ] && " .. theme_helper("theme-set-background") .. " %VALUE%"
 
 local function config_home()
     local env = os.getenv("XDG_CONFIG_HOME")
@@ -18,7 +33,7 @@ end
 
 local function current_theme_path()
     local link = config_home() .. "/current/theme"
-    local handle = io.popen(string.format("readlink -f '%s' 2>/dev/null", link))
+    local handle = io.popen(string.format("readlink -e %s 2>/dev/null", shell_quote(link)))
     if not handle then
         return ""
     end
@@ -29,7 +44,7 @@ end
 
 local function current_background_path()
     local link = config_home() .. "/current/background"
-    local handle = io.popen(string.format("readlink -f '%s' 2>/dev/null", link))
+    local handle = io.popen(string.format("readlink -e %s 2>/dev/null", shell_quote(link)))
     if not handle then
         return ""
     end
@@ -39,24 +54,14 @@ local function current_background_path()
 end
 
 local function list_backgrounds(theme_path)
-    local files = {}
-    local base = theme_path .. "/backgrounds"
-    local cmd = string.format(
-        "find '%s' -maxdepth 1 -type f \\( " ..
-        "-iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.bmp' " ..
-        "\\) 2>/dev/null",
-        base
-    )
-    local handle = io.popen(cmd)
+    local handle = io.popen(theme_helper("theme-list") .. " --backgrounds")
     if not handle then
-        return files
+        return {}
     end
-    for line in handle:lines() do
-        table.insert(files, line)
-    end
+    local data = handle:read("*a")
     handle:close()
-    table.sort(files)
-    return files
+    local files = jsonDecode(data)
+    return type(files) == "table" and files or {}
 end
 
 function GetEntries()
@@ -85,22 +90,23 @@ function GetEntries()
         return entries
     end
 
-    for _, file in ipairs(backgrounds) do
+    for _, item in ipairs(backgrounds) do
+        local file = item.path
         local name = file:match("([^/]+)$") or file
         local entry = {
             Text = name,
-            Value = file,
+            Value = shell_quote(file),
             -- Many UIs expect icon *names* (not file paths). Use preview for the actual image.
             Icon = "image-x-generic",
             Preview = file,
             PreviewType = "file",
             Actions = {
-                ["menus:default"] = "theme-set-background %VALUE%",
-                undo = "theme-bg-undo"
+                ["menus:default"] = Action,
+                undo = theme_helper("theme-bg-undo")
             }
         }
 
-        if current_bg ~= "" and current_bg == file then
+        if item.current then
             entry.State = { "current" }
             entry.Subtext = "current"
         end

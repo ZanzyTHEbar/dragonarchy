@@ -5,9 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/theme-utils.sh
 source "$SCRIPT_DIR/lib/theme-utils.sh"
 
-WALKER_DEFAULT_STYLE="$DOTFILES_ROOT/vendored/walker/resources/themes/default/style.css"
+: "${WALKER_BASE:=/usr/local/share/dragon-launcher/walker-2.17.2.css}"
+WALKER_DEFAULT_STYLE="$WALKER_BASE"
 
-if [[ ! -f "$WALKER_DEFAULT_STYLE" ]]; then
+if [[ ! -f "$WALKER_DEFAULT_STYLE" || -L "$WALKER_DEFAULT_STYLE" || ! -s "$WALKER_DEFAULT_STYLE" ]]; then
   echo "walker default style not found at $WALKER_DEFAULT_STYLE" >&2
   exit 1
 fi
@@ -16,7 +17,8 @@ walker_base_css="$(awk '!/^[[:space:]]*@define-color[[:space:]]/' "$WALKER_DEFAU
 
 for theme in "$THEMES_DIR"/*/; do
   palette="$theme/hyprland-palette.conf"
-  [[ -f "$palette" ]] || continue
+  [[ -f "$palette" ]] || { echo "Missing palette: $palette" >&2; exit 1; }
+  tm_validate_palette "$palette"
 
   if ! background="$(tm_palette_hex "$palette" background)"; then
     echo "Skipping $theme: missing background color" >&2

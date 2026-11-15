@@ -4,10 +4,9 @@
 
 set -euo pipefail
 
-HYPRLAND_CONFIG_DIR="${HYPRLAND_CONFIG_DIR:-$HOME/.config/hypr/config}"
-ADDITIONAL_BINDING_FILES=()
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 
-KITTY_CONFIG_DIR="${KITTY_CONFIG_DIR:-$HOME/.config/kitty}"
+KITTY_CONFIG_DIR="${KITTY_CONFIG_DIR:-$CONFIG_HOME/kitty}"
 KITTY_FILES=(
   "$KITTY_CONFIG_DIR/kitty.conf"
   "$KITTY_CONFIG_DIR/mappings.conf"
@@ -95,7 +94,7 @@ parse_keycodes() {
         272) symbol="LEFT MOUSE BUTTON" ;;
         273) symbol="RIGHT MOUSE BUTTON" ;;
         274) symbol="MIDDLE MOUSE BUTTON" ;;
-        *)   symbol="mouse:${code}" ;;
+        *)   symbol="MOUSE BUTTON ${code}" ;;
       esac
       line="${line/mouse:${code}/$symbol}"
     done
@@ -129,43 +128,6 @@ dynamic_bindings() {
     sed -r \
       -e 's/@0\b//g' \
       -e 's/,@/,code:/g'
-}
-
-config_bindings() {
-  local files=()
-  if [[ -d "$HYPRLAND_CONFIG_DIR" ]]; then
-    while IFS= read -r -d '' file; do
-      files+=("$file")
-    done < <(find "$HYPRLAND_CONFIG_DIR" -maxdepth 1 -type f -name '*.conf' -print0 2>/dev/null)
-  fi
-  if (( ${#ADDITIONAL_BINDING_FILES[@]} )); then
-    files+=("${ADDITIONAL_BINDING_FILES[@]}")
-  fi
-  (( ${#files[@]} == 0 )) && return 1
-
-  grep -h '^[[:space:]]*bind' "${files[@]}" 2>/dev/null |
-    sed -E -e 's/#.*//' \
-           -e '/^[[:space:]]*$/d' \
-           -e 's/^[[:space:]]*bind[^=]*=[[:space:]]*//' |
-    awk -F',' '
-      function trim(s) {
-        gsub(/^[ \t]+|[ \t]+$/, "", s)
-        return s
-      }
-      NF >= 2 {
-        mod = trim($1)
-        key = trim($2)
-        dispatcher = (NF >= 3 ? trim($3) : "")
-        arg = ""
-        if (NF > 3) {
-          for (i = 4; i <= NF; ++i) {
-            arg = arg $i (i < NF ? "," : "")
-          }
-          arg = trim(arg)
-        }
-        printf "%s,%s,,%s,%s\n", mod, key, dispatcher, arg
-      }
-    '
 }
 
 kitty_bindings() {
@@ -459,11 +421,11 @@ run_menu() {
 deduplicate_smart() {
   awk '
     function normalize_for_dedup(line) {
-      # Extract just the key combo and action, ignore formatting
-      gsub(/^[[:space:]]*[^ ]+[[:space:]]+/, "", line)  # Remove icon
-      gsub(/[[:space:]]*│.*$/, "", line)  # Remove separator and everything after temporarily
-      gsub(/[[:space:]]+/, " ", line)  # Normalize spaces
-      return tolower(line)
+      # Keep modifiers and actions: different applications may use the same
+      # key combination, and stripping the first word loses a modifier.
+      gsub(/[[:space:]]+/, " ", line)
+      gsub(/^ | $/, "", line)
+      return line
     }
     {
       # Create a normalized key for duplicate detection
@@ -483,7 +445,6 @@ main() {
     {
       dynamic_bindings || true
       static_bindings || true
-      config_bindings || true
       kitty_bindings || true
     } |
       sed '/^[[:space:]]*$/d' |

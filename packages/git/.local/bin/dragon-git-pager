@@ -1,0 +1,13 @@
+#!/bin/sh
+
+if command -v diff-so-fancy >/dev/null 2>&1; then
+    if command -v less >/dev/null 2>&1; then
+        diff-so-fancy | less --tabs=4 -RFX
+    else
+        exec diff-so-fancy
+    fi
+elif command -v less >/dev/null 2>&1; then
+    exec less --tabs=4 -RFX
+else
+    exec cat
+fi

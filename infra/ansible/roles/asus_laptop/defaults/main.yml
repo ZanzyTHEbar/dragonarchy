@@ -1,5 +1,7 @@
 ---
 asus_laptop_enabled: true
+asus_laptop_managed_power_policy: false
+asus_laptop_power_policy: {}
 asus_laptop_bootloader_helper_src: "{{ playbook_dir }}/../../../scripts/lib/bootloader.sh"
 asus_laptop_bootloader_helper_path: /usr/local/libexec/dotfiles/bootloader.sh
 asus_laptop_kernel_param_string: "acpi_osi=! acpi_osi='Windows 2020' acpi_backlight=native"
@@ -38,7 +40,5 @@ asus_laptop_managed_paths_by_host:
 
 asus_laptop_managed_services:
   - NetworkManager.service
-  - bluetooth.service
   - asusd.service
   - acpid.service
-  - thermald.service

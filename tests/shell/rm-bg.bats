@@ -55,22 +55,22 @@ teardown() {
   [ -e "$TEST_ROOT/real/file" ]
 }
 
-@test "rejects directories instead of recursively deleting them" {
+@test "removes directories recursively outside protected roots" {
   run zsh -f -c '
     log_error() { print -u2 -- "[ERROR] $*"; }
     log_info() { print -- "[INFO] $*"; }
     log_success() { print -- "[SUCCESS] $*"; }
     source "$1"
-    mkdir "$2/target"
+    mkdir -p "$2/target/nested"
+    touch "$2/target/nested/file"
     RM_BG_NOTIFY=0 RM_BG_SYNC=1 rm_bg "$2/target"
   ' zsh "$RM_BG_FUNCTION" "$TEST_ROOT"
 
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"directories are not supported"* ]]
-  [ -d "$TEST_ROOT/target" ]
+  [ "$status" -eq 0 ]
+  [ ! -e "$TEST_ROOT/target" ]
 }
 
-@test "rejects option-like paths without the sentinel" {
+@test "rejects unknown options before the sentinel" {
   run zsh -f -c '
     log_error() { print -u2 -- "[ERROR] $*"; }
     log_info() { print -- "[INFO] $*"; }
@@ -78,11 +78,11 @@ teardown() {
     source "$1"
     cd "$2" || exit 2
     touch -- --option
-    RM_BG_SYNC=1 rm_bg --option
+    RM_BG_NOTIFY=0 RM_BG_SYNC=1 rm_bg --option
   ' zsh "$RM_BG_FUNCTION" "$TEST_ROOT"
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"refuse option-like path"* ]]
+  [[ "$output" == *"rm_bg: unknown option: --option"* ]]
   [ -e "$TEST_ROOT/--option" ]
 }
 
@@ -102,11 +102,11 @@ teardown() {
   ' zsh "$RM_BG_FUNCTION" "$TEST_ROOT"
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"parent-directory path component"* ]]
+  [[ "$output" == *"refuse path with . or .. component"* ]]
   [ -d "$TEST_ROOT" ]
 }
 
-@test "removes option-like paths after the sentinel" {
+@test "refuses bare option-like paths after the sentinel and removes explicit relative paths" {
   run zsh -f -c '
     log_error() { print -u2 -- "[ERROR] $*"; }
     log_info() { print -- "[INFO] $*"; }
@@ -114,7 +114,11 @@ teardown() {
     source "$1"
     cd "$2" || exit 2
     touch -- --option
-    RM_BG_NOTIFY=0 RM_BG_SYNC=1 rm_bg -- --option
+    if RM_BG_NOTIFY=0 RM_BG_SYNC=1 rm_bg -- --option; then
+      exit 2
+    fi
+    [[ -e ./--option ]] || exit 3
+    RM_BG_NOTIFY=0 RM_BG_SYNC=1 rm_bg -- ./--option
     [[ ! -e ./--option ]]
   ' zsh "$RM_BG_FUNCTION" "$TEST_ROOT"
 

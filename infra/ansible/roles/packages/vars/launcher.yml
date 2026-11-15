@@ -1,0 +1,19 @@
+---
+# Official Elephant 2.22.1 artifacts, verified bytes, one Go 1.27.1 build cohort.
+# This is the finite retained plugin composition, not an AUR/vendor registry.
+packages_launcher_plugins:
+  - {name: desktopapplications, sha256: a185897cae065c036a2b2a5beac08201e0a233ad51587b9a553428434225c75a}
+  - {name: files, sha256: 1342d88da31610fdadb3c62445c033ca188a4bbcb17da992d1ef2ee0f23be9dc}
+  - {name: clipboard, sha256: 775a7bca91493fffce27f33f65b91c0a92b96b51a3cb3fe0e99143ff0f18e099}
+  - {name: calc, sha256: b0b861f6e88ce84c7e5bbcedf233e028ac86fe50312c1291b906ce6741e4be1c}
+  - {name: runner, sha256: 0a6ff0435b62b5c804a55cc2cd7af9ea846f412eeec62277212b7f14a6fc15ca}
+  - {name: websearch, sha256: bfa793014370b88fcea8c6166b403c938aacaf26ada5c84b63e4a30f6ebcd7ff}
+  - {name: providerlist, sha256: bafb807419f9cf38825935e15097aea10adc8678234468a7971543d3bba59862}
+  - {name: todo, sha256: f0b1572f29988c64d5bebb792f892458621f58a3e88bea7ef2ec9905ea1f52c6}
+  - {name: bookmarks, sha256: 567f6d2855f6b9d17682ce2230ff0f268a938c757699b5e942d5312e731b0328}
+  - {name: archlinuxpkgs, sha256: 9c35efe554f80ba83077cb9216ad83be5f9d3638171c8b2a9a8b045fae94810e}
+  - {name: symbols, sha256: a85996477a78354f80592459d544300659b73f974707f7e86cf96bab32f89f91}
+  - {name: unicode, sha256: 1ab560105e181000975bbff098399d716c6eb448bf88c2b9d64dbdadf87478f7}
+  - {name: bluetooth, sha256: 4eb8af63d2bff4529a51a867ec017f06e47bb35d5fb4eeff415671ca711761ea}
+  - {name: menus, sha256: 1c0542ca22a3bf580f5d0e39d8b964622f58b45bb4aeb8b1feb9a319490f15a6}
+  - {name: windows, sha256: fa4ce6351da5328fe93d7fbc80a0516a4510be0300903ac8731a5ed1095b46f4}

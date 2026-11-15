@@ -1,0 +1,31 @@
+---
+# Normal dpkg scripts are intentional: owner accepted vendor codec/repository,
+# alternatives, AppArmor and MIME-cache effects. Never execute this during checks.
+- name: Install the verified official Debian bootstrap with normal dpkg ownership
+  ansible.builtin.apt:
+    deb: /var/cache/dragonarchy/vivaldi-stable_8.3.4191.30-1_amd64.deb
+    state: present
+    update_cache: true
+    fail_on_autoremove: true
+  when: "'vivaldi-stable' not in ansible_facts.packages"
+
+- name: Create system package enrollment directory
+  ansible.builtin.file:
+    path: /var/lib/dragonarchy
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Record completed standard-package enrollment without owning vendor configuration
+  ansible.builtin.copy:
+    content: "dragonarchy: vivaldi-stable official deb -> vendor apt\n"
+    dest: /var/lib/dragonarchy/vivaldi-package-owner
+    owner: root
+    group: root
+    mode: '0644'
+    force: false
+
+# Subsequent convergence never replays the old deb or downgrades newer packages.
+# Vendor postinst/cron own vivaldi.sources and scoped keys; upgrade.yml's ordinary
+# apt-get update/upgrade owns updates. No second repository/key writer is added.

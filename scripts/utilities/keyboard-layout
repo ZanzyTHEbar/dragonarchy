@@ -8,12 +8,6 @@ IFS=$'\n\t'
 #   keyboard-layout status   → JSON for Waybar custom module
 #   keyboard-layout switch   → Switch layout, notify, signal Waybar
 
-SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-# shellcheck disable=SC1091
-source "$DOTFILES_ROOT/scripts/lib/notifications.sh"
-
 # Must match the "signal" value in Waybar custom/keyboard config
 SIGNAL_NUM=12
 
@@ -73,8 +67,10 @@ switch_layout() {
   keymap="$(get_active_keymap)"
   short="$(get_short_name "$keymap")"
 
-  notify_send --app "Keyboard" --icon "input-keyboard" --expire 2000 \
-    "Keyboard Layout" "Switched to $keymap ($short)"
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send --app-name=Keyboard --icon=input-keyboard --expire-time=2000 \
+      "Keyboard Layout" "Switched to $keymap ($short)" 2>/dev/null || true
+  fi
 
   # Signal Waybar to refresh the module immediately
   pkill -RTMIN+${SIGNAL_NUM} waybar 2>/dev/null || true

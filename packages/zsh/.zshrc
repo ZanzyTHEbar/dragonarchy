@@ -25,8 +25,8 @@ fi
 # Zinit plugin manager setup
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 
-# Download Zinit, if it's not there yet
-if [ ! -d "$ZINIT_HOME" ]; then
+# Bootstrap plugins only for a terminal that will actually load them.
+if [[ "$ZSH_TTY_UI" == "true" && ! -d "$ZINIT_HOME" ]]; then
     mkdir -p "$(dirname $ZINIT_HOME)"
     if command -v git >/dev/null 2>&1; then
         git clone --depth=1 https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME" >/dev/null 2>&1 || true

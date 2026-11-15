@@ -1,0 +1,41 @@
+---
+- name: Recheck desktop service selection and incumbent ownership after packages
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Require all selected vendor units after canonical package convergence
+  ansible.builtin.assert:
+    that:
+      - "'LoadState=loaded' in item.stdout_lines"
+    fail_msg: "Required {{ item.item }} is absent after package convergence; no alternate unit or installer fallback."
+  loop: "{{ desktop_services_unit_inspection.results }}"
+
+# cups.service Requires=cups.socket and its Install.Also owns cups.socket/path.
+# Do not independently enable a competing socket or a second scheduler owner.
+- name: Enable and start the retained CUPS scheduler family
+  ansible.builtin.systemd_service:
+    name: cups.service
+    enabled: true
+    state: started
+  when: desktop_services_printing
+
+- name: Enable and start Bluetooth only for declared hardware capability
+  ansible.builtin.systemd_service:
+    name: bluetooth.service
+    enabled: true
+    state: started
+  when: desktop_services_bluetooth
+
+# docker.service Requires=docker.socket; the socket supplies fd://, not TCP.
+# Enable the socket as well so activation after a daemon stop follows native policy.
+- name: Enable the retained native Docker socket trigger
+  ansible.builtin.systemd_service:
+    name: docker.socket
+    enabled: true
+  when: desktop_services_docker
+
+- name: Enable and start the retained rootful Docker engine family
+  ansible.builtin.systemd_service:
+    name: docker.service
+    enabled: true
+    state: started
+  when: desktop_services_docker

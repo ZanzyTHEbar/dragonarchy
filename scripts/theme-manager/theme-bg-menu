@@ -118,23 +118,20 @@ case "${action}" in
   "Pick background from installed themes")
     theme=$(pick_theme) || exit 0
     file=$(pick_background_from_theme "$theme") || exit 0
-    ln -nsf "$file" "$CURRENT_BG_LINK"
+    "$HOME/.local/bin/theme-set-background" "$file"
     echo "Background link set to $(basename "$file")"
-    theme_wallpaper_apply "$CURRENT_BG_LINK"
     echo "Background applied!"
     ;;
   "Add background to a theme")
     theme=$(pick_theme) || exit 0
     file=$(add_background_to_theme "$theme") || exit 0
     if gum confirm "Set as current background now?"; then
-      ln -nsf "$file" "$CURRENT_BG_LINK"
+      "$HOME/.local/bin/theme-set-background" "$file"
       echo "Background link set to $(basename "$file")"
-      theme_wallpaper_apply "$CURRENT_BG_LINK"
       echo "Background applied!"
     else
       echo "Added $(basename "$file") to ${theme}"
     fi
     ;;
 esac
-
 

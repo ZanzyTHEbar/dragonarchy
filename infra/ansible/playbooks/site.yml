@@ -1,3 +1,9 @@
 ---
 - import_playbook: hot-path-tranche-5.yml
+- name: Retained desktop system service ownership from the canonical package plan
+  hosts: all
+  gather_facts: true
+  any_errors_fatal: true
+  roles:
+    - role: desktop_services
 - import_playbook: edge-cases.yml

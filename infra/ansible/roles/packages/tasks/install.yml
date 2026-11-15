@@ -1,21 +1,57 @@
 ---
-- name: Fail on pending AUR / paru-tier packages in strict package parity mode
+- name: Refuse incomplete required AUR / paru tier before any package action
   ansible.builtin.fail:
     msg: >-
-      Manifest lists {{ packages_pending_paru | length }} paru/AUR package(s) for this host,
-      but packages_pending_paru_policy=fail: {{ packages_pending_paru | join(', ') }}
-  when:
-    - packages_pending_paru | default([]) | length > 0
-    - packages_pending_paru_policy == 'fail'
+      Host '{{ inventory_hostname }}', groups={{ packages_manifest_resolved_groups }}: required paru/AUR tier
+      has no managed provider; packages={{ packages_pending_paru | join(', ') }}. Provisioning is incomplete.
+  when: packages_pending_paru | length > 0
 
-- name: Fail on pending script-channel packages in strict package parity mode
+- name: Separate concrete providers from unprovided requirements
+  ansible.builtin.set_fact:
+    # These concrete, pinned providers are implemented below; all others fail.
+    packages_unprovided_script: "{{ packages_pending_script | difference(['clipse', 'walker', 'elephant', 'wl-screenrec', 'node-lts', 'fnm'] + (['hyprshot', 'wl-clip-persist', 'caskaydiamono-nerd-font', 'satty', 'dua-cli', 'vivaldi-stable'] if host_platform_family == 'debian' else ['wlogout'])) }}"
+
+- name: Refuse unprovided required script tier before any package action
   ansible.builtin.fail:
     msg: >-
-      Manifest lists {{ packages_pending_script | length }} script/vendor package(s) for this host,
-      but packages_pending_script_policy=fail: {{ packages_pending_script | join(', ') }}
-  when:
-    - packages_pending_script | default([]) | length > 0
-    - packages_pending_script_policy == 'fail'
+      Host '{{ inventory_hostname }}', groups={{ packages_manifest_resolved_groups }}: required script/vendor tier
+      has no managed provider; packages={{ packages_unprovided_script | join(', ') }}. Provisioning is incomplete.
+  when: packages_unprovided_script | length > 0
+
+- name: Refuse obsolete native Hyprland candidates before any package action
+  ansible.builtin.import_role:
+    name: hyprland
+    tasks_from: preflight
+  when: host_desktop_stack | default('none') == 'hyprland'
+
+- name: Validate required vendor platform support before any package action
+  ansible.builtin.import_tasks: providers-preflight.yml
+
+- name: Validate selected browser platform, incumbent ownership and bootstrap trust
+  ansible.builtin.import_tasks: vivaldi-preflight.yml
+  when: "'vivaldi' in resolved_package_list_pacman or 'vivaldi-stable' in packages_pending_script"
+
+- name: Validate selected developer defaults and incumbent owners before package mutation
+  ansible.builtin.import_tasks: dev-preflight.yml
+  when: "'node-lts' in packages_pending_script or 'fnm' in packages_pending_script or 'dua-cli' in packages_pending_script"
+
+- name: Refuse conflicting system Rust managers before distro toolchain mutation
+  ansible.builtin.import_tasks: rust-preflight.yml
+  when: "'rust' in resolved_package_list_pacman or 'rustc' in resolved_package_list_apt"
+
+- name: Refuse implicit replacement of incumbent desktop audio owners
+  ansible.builtin.import_tasks: audio-preflight.yml
+  when: "'hyprland_session' in packages_manifest_resolved_groups"
+
+- name: Check retained service owners before native package postinst activation
+  ansible.builtin.import_role:
+    name: desktop_services
+    tasks_from: preflight
+  when: >-
+    'cups' in (resolved_package_list_pacman + resolved_package_list_apt) or
+    'bluetooth' in (host_capabilities | default([])) or
+    'docker' in (host_capabilities | default([])) or
+    (resolved_package_list_pacman + resolved_package_list_apt) | intersect(['docker', 'docker.io', 'docker-ce']) | length > 0
 
 - name: Install resolved pacman plan (repo-native)
   ansible.builtin.package:
@@ -34,20 +70,48 @@
     - host_platform_family == 'debian'
     - resolved_package_list_apt | length > 0
 
-- name: Report AUR / paru-tier packages (not installed by this role)
-  ansible.builtin.debug:
-    msg: >-
-      Manifest lists {{ packages_pending_paru | length }} paru/AUR package(s) for this host
-        (install via install-deps.sh, paru, or a dedicated gate): {{ packages_pending_paru | join(', ') }}
+- name: Install pinned Debian Hyprshot provider
+  ansible.builtin.import_tasks: hyprshot.yml
   when:
-    - packages_pending_paru | default([]) | length > 0
-    - packages_pending_paru_policy == 'report'
+    - host_platform_family == 'debian'
+    - "'hyprshot' in packages_pending_script"
 
-- name: Report script-channel packages (not installed by this role)
-  ansible.builtin.debug:
-    msg: >-
-      Manifest lists {{ packages_pending_script | length }} script/vendor package(s)
-      (handled by install-deps.sh or manual steps): {{ packages_pending_script | join(', ') }}
+- name: Bootstrap normal Debian Vivaldi package and vendor update ownership
+  ansible.builtin.import_tasks: vivaldi.yml
   when:
-    - packages_pending_script | default([]) | length > 0
-    - packages_pending_script_policy == 'report'
+    - host_platform_family == 'debian'
+    - "'vivaldi-stable' in packages_pending_script"
+
+- name: Install pinned developer commands without provisioning user manager state
+  ansible.builtin.import_tasks: dev.yml
+  when: "'node-lts' in packages_pending_script or 'fnm' in packages_pending_script or 'dua-cli' in packages_pending_script"
+
+- name: Install selected pinned native capture providers
+  ansible.builtin.import_tasks: capture.yml
+  when: "'wl-screenrec' in packages_pending_script or 'satty' in packages_pending_script"
+
+- name: Install pinned native Arch Wlogout provider
+  ansible.builtin.import_tasks: wlogout.yml
+  when:
+    - host_platform_family == 'arch'
+    - "'wlogout' in packages_pending_script"
+
+- name: Install pinned Clipse Wayland provider
+  ansible.builtin.import_tasks: clipse.yml
+  when: "'clipse' in packages_pending_script"
+
+- name: Install coherent pinned Walker and Elephant release bundle
+  ansible.builtin.import_tasks: launcher.yml
+  when: "'walker' in packages_pending_script or 'elephant' in packages_pending_script"
+
+- name: Install pinned Debian clipboard persistence provider
+  ansible.builtin.import_tasks: wl-clip-persist.yml
+  when:
+    - host_platform_family == 'debian'
+    - "'wl-clip-persist' in packages_pending_script"
+
+- name: Install pinned Debian CaskaydiaMono Nerd Font provider
+  ansible.builtin.import_tasks: caskaydiamono.yml
+  when:
+    - host_platform_family == 'debian'
+    - "'caskaydiamono-nerd-font' in packages_pending_script"

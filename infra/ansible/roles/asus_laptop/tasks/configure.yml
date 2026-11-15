@@ -74,7 +74,14 @@
   ansible.builtin.command: asusctl profile -p
   register: asus_laptop_current_profile
   changed_when: false
+  when: not asus_laptop_managed_power_policy | bool
 
 - name: Set ASUS laptop performance profile to Balanced
   ansible.builtin.command: asusctl profile set Balanced
-  when: "'Balanced' not in asus_laptop_current_profile.stdout"
+  when:
+    - not asus_laptop_managed_power_policy | bool
+    - "'Balanced' not in asus_laptop_current_profile.stdout"
+
+- name: Persist the single ASUS CPU platform and charge owner
+  ansible.builtin.import_tasks: power-owner.yml
+  when: asus_laptop_managed_power_policy | bool

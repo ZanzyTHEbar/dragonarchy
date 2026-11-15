@@ -5,8 +5,7 @@ SCRIPT_DIR="$(cd -P "$(dirname "$0")" && pwd)"
 PKG_THEMES_DIR="$SCRIPT_DIR/../../packages/sddm/usr/share/sddm/themes"
 SYS_THEMES_DIR="/usr/share/sddm/themes"
 
-# Ensure packaged themes are present as real files (no symlinks)
-"$SCRIPT_DIR/refresh-sddm"
+# Listing must not provision system payloads; Ansible owns managed SDDM refresh.
 
 # Prefer listing from packaged repo (authoritative list)
 LIST_DIR="$PKG_THEMES_DIR"

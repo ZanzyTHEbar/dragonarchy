@@ -1,0 +1,19 @@
+# Fresh-home defaults only; existing personal engines/order are preserved.
+engines_as_actions = false
+
+[[entries]]
+name = "Google"
+default = true
+url = "https://www.google.com/search?q=%TERM%"
+
+[[entries]]
+name = "DuckDuckGo"
+url = "https://duckduckgo.com/?q=%TERM%"
+
+[[entries]]
+name = "Ecosia"
+url = "https://www.ecosia.org/search?q=%TERM%"
+
+[[entries]]
+name = "Yandex"
+url = "https://yandex.com/search/?text=%TERM%"

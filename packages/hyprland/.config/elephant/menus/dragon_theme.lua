@@ -3,18 +3,32 @@ NamePretty = "Theme Controls"
 Icon = "preferences-desktop-theme"
 Parent = "dragon"
 Description = "Manage Dragon themes and assets"
-Action = "theme-set %VALUE%"
 History = false
 Cache = false
 SearchName = true
 
-local function dotfiles_root()
-    local env = os.getenv("DOTFILES_ROOT")
-    if env ~= nil and env ~= "" then
-        return env
+local function installed_bin()
+    return (os.getenv("HOME") or "") .. "/.local/bin"
+end
+
+local function shell_quote(value)
+    -- Elephant replaces %VALUE% and then %ARGS%, even inside shell quotes.
+    return "'" .. value:gsub("'", "'\\''"):gsub("%%", "%%''") .. "'"
+end
+
+-- Declared installed live API; never fall back to checkout/offline dispatch.
+local function theme_helper(name)
+    return shell_quote(installed_bin() .. "/" .. name)
+end
+
+Action = "[ -n ''%VALUE% ] && " .. theme_helper("theme-set") .. " %VALUE%"
+
+-- Elephant passes args as data to Lua actions before performing substitutions.
+function InstallTheme(_value, args, _query)
+    local result = os.execute(theme_helper("theme-install") .. " " .. shell_quote(args))
+    if result ~= 0 and result ~= true then
+        error("theme-install failed")
     end
-    local home = os.getenv("HOME") or ""
-    return home .. "/dotfiles"
 end
 
 local function config_home()
@@ -36,29 +50,23 @@ local function title_case(str)
 end
 
 local function list_themes()
-    local themes = {}
-    local base = dotfiles_root() .. "/packages/themes/.config/themes"
-    local cmd = string.format("find '%s' -mindepth 1 -maxdepth 1 -type d -o -type l 2>/dev/null", base)
-    local handle = io.popen(cmd)
+    local handle = io.popen(theme_helper("theme-list") .. " --json")
     if not handle then
-        return themes
+        return {}
     end
-    for line in handle:lines() do
-        local slug = line:match("([^/]+)$")
-        if slug then
-            table.insert(themes, { slug = slug, path = line })
-        end
-    end
+    local data = handle:read("*a")
     handle:close()
+    local themes = jsonDecode(data)
+    if type(themes) ~= "table" then return {} end
     table.sort(themes, function(a, b)
-        return a.slug < b.slug
+        return a.id < b.id
     end)
     return themes
 end
 
 local function current_theme_slug()
     local link = config_home() .. "/current/theme"
-    local handle = io.popen(string.format("readlink -f '%s' 2>/dev/null", link))
+    local handle = io.popen(string.format("readlink -e %s 2>/dev/null", shell_quote(link)))
     if not handle then
         return ""
     end
@@ -87,16 +95,16 @@ function GetEntries()
         local display = title_case(item.slug:gsub("-", " "))
         local entry = {
             Text = display,
-            Subtext = item.slug,
-            Value = item.slug,
+            Subtext = item.id,
+            Value = shell_quote(item.id),
             Icon = "preferences-desktop-theme",
             Actions = {
-                ["menus:default"] = "theme-set %VALUE%",
-                remove = "theme-remove %VALUE%"
+                ["menus:default"] = Action,
+                remove = theme_helper("theme-remove") .. " %VALUE%"
             }
         }
 
-        if current ~= "" and current == item.slug then
+        if item.current then
             entry.State = { "current" }
             entry.Subtext = "current"
         end
@@ -109,8 +117,8 @@ function GetEntries()
         Subtext = "Type or paste URL, default action uses query args",
         Icon = "system-software-install",
         Actions = {
-            ["menus:default"] = "theme-install %ARGS%",
-            from_clipboard = "theme-install \"$(wl-paste)\""
+            ["menus:default"] = "lua:InstallTheme",
+            from_clipboard = theme_helper("theme-install") .. " \"$(wl-paste)\""
         }
     })
 
@@ -118,7 +126,7 @@ function GetEntries()
         Text = "Update Installed Themes",
         Icon = "view-refresh",
         Actions = {
-            ["menus:default"] = "theme-update"
+            ["menus:default"] = theme_helper("theme-update")
         }
     })
 
@@ -132,11 +140,9 @@ function GetEntries()
         Text = "Next Background",
         Icon = "media-skip-forward",
         Actions = {
-            ["menus:default"] = "theme-bg-next"
+            ["menus:default"] = theme_helper("theme-bg-next")
         }
     })
 
     return entries
 end
-
-

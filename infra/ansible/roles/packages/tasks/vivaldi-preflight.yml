@@ -1,0 +1,195 @@
+---
+- name: Require supported selected standard Vivaldi package platform
+  ansible.builtin.assert:
+    that:
+      - "'hyprland_session' in packages_manifest_resolved_groups"
+      - ansible_system == 'Linux'
+      - ansible_architecture == 'x86_64'
+      - ansible_os_family == {'arch':'Archlinux', 'debian':'Debian'}[host_platform_family]
+      - >-
+        host_platform_family == 'arch'
+        or (ansible_distribution == 'Debian' and ansible_distribution_major_version == '13')
+        or (ansible_distribution == 'Ubuntu' and ansible_distribution_version == '26.04')
+    fail_msg: >-
+      Standard Vivaldi requires selected Linux x86_64 Arch, Debian 13 or Ubuntu
+      26.04 desktop facts. Unsupported/unknown facts cannot authorize package actions.
+
+- name: Inspect installed browser package owners without launching browsers
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Refuse alternative Vivaldi package owners without uninstall or adoption
+  ansible.builtin.assert:
+    that:
+      - "ansible_facts.packages.keys() | intersect(['vivaldi-snapshot', 'vivaldi-snapshot-ffmpeg-codecs', 'vivaldi-developer', 'vivaldi-bin']) | length == 0"
+      - "('vivaldi-stable' if host_platform_family == 'arch' else 'vivaldi') not in ansible_facts.packages"
+    fail_msg: >-
+      An alternative Vivaldi package owner is installed. Preserve packages and
+      profiles; obtain separately approved incumbent cutover/recovery first.
+      Other browsers and their personal defaults are not removed or changed.
+
+- name: Inspect competing local browser commands without following links
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - /usr/local/bin/vivaldi
+    - /usr/local/bin/vivaldi-stable
+    - /usr/local/share/applications/vivaldi-stable.desktop
+  register: packages_vivaldi_local_owners
+
+- name: Refuse shadowing unmanaged local Vivaldi commands or launchers
+  ansible.builtin.assert:
+    that: not item.stat.exists and not (item.stat.islnk | default(false))
+    fail_msg: "Preserve competing Vivaldi owner {{ item.item }}; explicit cutover is required."
+  loop: "{{ packages_vivaldi_local_owners.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Inspect Vivaldi payload paths without following links
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - /opt/vivaldi
+    - /usr/bin/vivaldi
+    - /usr/bin/vivaldi-stable
+    - /usr/share/applications/vivaldi-stable.desktop
+  register: packages_vivaldi_payload_owners
+
+- name: Refuse payloads without the selected native package owner
+  ansible.builtin.assert:
+    that: >-
+      (not item.stat.exists and not (item.stat.islnk | default(false)))
+      or (('vivaldi' if host_platform_family == 'arch' else 'vivaldi-stable') in ansible_facts.packages)
+    fail_msg: "Unpackaged Vivaldi payload at {{ item.item }} requires explicit cutover; it will not be overwritten."
+  loop: "{{ packages_vivaldi_payload_owners.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Inspect Debian browser enrollment receipt
+  ansible.builtin.stat:
+    path: /var/lib/dragonarchy/vivaldi-package-owner
+    follow: false
+    checksum_algorithm: sha256
+  register: packages_vivaldi_receipt
+  when: host_platform_family == 'debian'
+
+- name: Refuse adopting an incumbent Debian Vivaldi installation or conflicting receipt
+  ansible.builtin.assert:
+    that:
+      - >-
+        (not packages_vivaldi_receipt.stat.exists and not (packages_vivaldi_receipt.stat.islnk | default(false))
+         and 'vivaldi-stable' not in ansible_facts.packages)
+        or (packages_vivaldi_receipt.stat.isreg | default(false)
+            and not (packages_vivaldi_receipt.stat.islnk | default(false))
+            and packages_vivaldi_receipt.stat.uid == 0
+            and packages_vivaldi_receipt.stat.nlink == 1
+            and packages_vivaldi_receipt.stat.checksum == ('dragonarchy: vivaldi-stable official deb -> vendor apt\n' | hash('sha256')))
+    fail_msg: >-
+      Existing Debian Vivaldi lacks the managed standard-package enrollment receipt,
+      or the receipt conflicts. Preserve it and obtain explicit cutover/recovery;
+      this provider never adopts, downgrades or uninstalls an incumbent browser.
+  when: host_platform_family == 'debian'
+
+- name: Inspect Debian vendor configuration before first enrollment
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - /etc/default/vivaldi
+    - /etc/apt/sources.list.d/vivaldi.list
+    - /etc/apt/sources.list.d/vivaldi.sources
+    - /usr/share/keyrings/vivaldi-16BD9233.gpg
+    - /usr/share/keyrings/vivaldi-5220E3E9.gpg
+  register: packages_vivaldi_vendor_owners
+  when:
+    - host_platform_family == 'debian'
+    - not packages_vivaldi_receipt.stat.exists
+
+- name: Refuse taking over existing vendor configuration at first enrollment
+  ansible.builtin.assert:
+    that: not item.stat.exists and not (item.stat.islnk | default(false))
+    fail_msg: "Existing vendor configuration {{ item.item }} requires explicit cutover, not overwrite/adoption."
+  loop: "{{ packages_vivaldi_vendor_owners.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when:
+    - host_platform_family == 'debian'
+    - not packages_vivaldi_receipt.stat.exists
+
+- name: Inspect apt sources for alternate Vivaldi repository owners before enrollment
+  ansible.builtin.find:
+    paths: /etc/apt
+    patterns: ['*.list', '*.sources']
+    recurse: true
+    contains: '(?i)vivaldi'
+    read_whole_file: true
+  register: packages_vivaldi_existing_sources
+  when:
+    - host_platform_family == 'debian'
+    - not packages_vivaldi_receipt.stat.exists
+
+- name: Inspect legacy globally trusted Vivaldi keys before enrollment
+  ansible.builtin.find:
+    paths: /etc/apt/trusted.gpg.d
+    patterns: 'vivaldi-*.gpg'
+  register: packages_vivaldi_global_keys
+  when:
+    - host_platform_family == 'debian'
+    - not packages_vivaldi_receipt.stat.exists
+
+- name: Detect redirected apt sources that cannot be covered by the regular-file scan
+  ansible.builtin.find:
+    paths: /etc/apt
+    patterns: ['*.list', '*.sources']
+    recurse: true
+    file_type: link
+  register: packages_vivaldi_redirected_sources
+  when:
+    - host_platform_family == 'debian'
+    - not packages_vivaldi_receipt.stat.exists
+
+- name: Refuse duplicate repositories or removal of incumbent global vendor keys
+  ansible.builtin.assert:
+    that:
+      - packages_vivaldi_existing_sources.matched == 0
+      - packages_vivaldi_global_keys.matched == 0
+      - packages_vivaldi_redirected_sources.matched == 0
+      - packages_vivaldi_existing_sources.skipped_paths | default({}) | length == 0
+      - packages_vivaldi_global_keys.skipped_paths | default({}) | length == 0
+      - packages_vivaldi_redirected_sources.skipped_paths | default({}) | length == 0
+    fail_msg: >-
+      Existing Vivaldi apt configuration/legacy keys or redirected/unreadable apt paths require
+      inspection and separately approved cutover. No duplicate stanza or key cleanup
+      is automatic; the standard package may otherwise migrate/remove those inputs.
+  when:
+    - host_platform_family == 'debian'
+    - not packages_vivaldi_receipt.stat.exists
+
+# Verify the signed-metadata-derived immutable bootstrap before ANY package action.
+# No apt-key, global trust change, custom extraction or duplicate repo writer.
+# Release signer KEY11: 8D1FA52AEF58A09D889DD4221256C34716BD9233.
+# The README records the independently checked Release -> Packages -> deb chain.
+- name: Create package artifact cache for the official Debian bootstrap
+  ansible.builtin.file:
+    path: /var/cache/dragonarchy
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when:
+    - host_platform_family == 'debian'
+    - "'vivaldi-stable' not in ansible_facts.packages"
+
+- name: Verify official Vivaldi deb against the signed repository metadata pin
+  ansible.builtin.get_url:
+    url: https://repo.vivaldi.com/archive/deb/pool/main/vivaldi-stable_8.3.4191.30-1_amd64.deb
+    checksum: sha256:f657f0838447d115784ff4065f9151f010f082d624c1e2e126c4853559657f8b
+    dest: /var/cache/dragonarchy/vivaldi-stable_8.3.4191.30-1_amd64.deb
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - host_platform_family == 'debian'
+    - "'vivaldi-stable' not in ansible_facts.packages"

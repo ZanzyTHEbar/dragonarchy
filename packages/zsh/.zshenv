@@ -27,9 +27,16 @@ esac
 # opencode
 export PATH=$HOME/.opencode/bin:$PATH
 
-export LD_LIBRARY_PATH=/opt/SEGGER/JLink:$LD_LIBRARY_PATH
-
-export PATH=$LD_LIBRARY_PATH:$PATH
+if [[ -d /opt/SEGGER/JLink ]]; then
+  case ":${LD_LIBRARY_PATH-}:" in
+    *:/opt/SEGGER/JLink:*) ;;
+    *) export LD_LIBRARY_PATH="/opt/SEGGER/JLink${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ;;
+  esac
+  case ":${PATH-}:" in
+    *:/opt/SEGGER/JLink:*) ;;
+    *) export PATH="/opt/SEGGER/JLink${PATH:+:$PATH}" ;;
+  esac
+fi
 
 # Master toggle (enables many experiments at once)
 export OPENCODE_EXPERIMENTAL=0
@@ -43,4 +50,6 @@ export OPENCODE_EXPERIMENTAL_LSP_TOOL=true            # Model-facing LSP tool su
 export OPENCODE_EXPERIMENTAL_PLAN_MODE=true           # Enhanced plan mode behavior
 export OPENCODE_EXPERIMENTAL_FILEWATCHER=true         # Full directory file watching
 export OPENCODE_EXPERIMENTAL_NATIVE_LLM=false
-. "$HOME/.cargo/env"
+if [[ -r "$HOME/.cargo/env" ]]; then
+  . "$HOME/.cargo/env"
+fi

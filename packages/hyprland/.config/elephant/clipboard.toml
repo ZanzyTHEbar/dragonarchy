@@ -1,0 +1,6 @@
+# Fresh-home preferences only. Clipse and Elephant histories remain separate.
+max_items = 100
+command = "wl-copy"
+auto_cleanup = 0
+text_editor_cmd = "kitty -e nvim '%FILE%'"
+image_editor_cmd = "swappy -f '%FILE%' -o '%FILE%'"

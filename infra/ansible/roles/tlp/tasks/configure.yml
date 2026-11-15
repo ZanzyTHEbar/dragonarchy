@@ -11,9 +11,11 @@
   ansible.builtin.copy:
     src: "{{ tlp_role_files_root }}/etc/tlp.d/01-{{ inventory_hostname }}.conf"
     dest: "/etc/tlp.d/01-{{ inventory_hostname }}.conf"
+    backup: true
     owner: root
     group: root
     mode: "0644"
+  notify: Reload TLP policy
 
 - name: Gather service facts before TLP conflict handling
   ansible.builtin.service_facts:

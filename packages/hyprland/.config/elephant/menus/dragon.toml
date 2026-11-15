@@ -23,15 +23,15 @@ icon = "preferences-desktop-wallpaper"
 text = "Next Background"
 icon = "media-skip-forward"
 [entries.actions]
-"menus:default" = "theme-bg-next"
+"menus:default" = '"$HOME/.local/bin/dragon-cli" theme-bg-next'
 
 [[entries]]
 text = "Restart Walker Service"
 icon = "view-refresh"
 [entries.actions]
-"menus:default" = "walker-restart"
+"menus:default" = '"$HOME/.local/bin/dragon-cli" walker-restart'
 
 [[entries]]
-text = "Utilities (coming soon)"
+text = "Utilities"
 submenu = "dragon_utilities"
 icon = "utilities-terminal"

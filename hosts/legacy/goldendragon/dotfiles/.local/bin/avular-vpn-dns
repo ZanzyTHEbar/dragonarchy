@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+# Host-specific VPN DNS helper.
+# Declare VPN_DOMAIN and space-separated VPN_DNS_SERVERS in the private
+# root-owned /etc/openfortivpn/dns-helper.env. VPN_LINK optionally fixes the
+# interface; otherwise detect a VPN interface. --reset removes overrides.
+if [[ $EUID -ne 0 ]]; then
+  sudo -k
+  exec sudo "$0" "$@"
+fi
+
+RESET=0
+if [ -f /etc/openfortivpn/dns-helper.env ]; then
+  # shellcheck source=/dev/null
+  source /etc/openfortivpn/dns-helper.env
+fi
+: "${VPN_LINK:=}"
+: "${WAIT_SECS:=10}"
+: "${SLEEP_SECS:=1}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --reset) RESET=1; shift ;;
+    *) echo "Usage: $0 [--reset]" >&2; exit 2 ;;
+  esac
+done
+
+have_cmd() { command -v "$1" >/dev/null 2>&1; }
+detect_link() {
+  local link=""
+  link="$(resolvectl status 2>/dev/null | awk '/^Link [0-9]+ \(/ {name=$3; gsub(/[()]/,"",name); if (name ~ /^fctvpn/) {print name; exit}}')"
+  if [[ -z "$link" ]] && resolvectl status 2>/dev/null | grep -q 'Link .* (ppp0)'; then
+    link="ppp0"
+  fi
+  if [[ -z "$link" ]]; then
+    link="$(resolvectl status 2>/dev/null | awk '/^Link [0-9]+ \(/ {name=$3; gsub(/[()]/,"",name); if (name ~ /^(ppp|tun|tap)/) {print name; exit}}')"
+  fi
+  echo "$link"
+}
+if ! have_cmd resolvectl; then
+  echo "resolvectl not found; cannot set VPN DNS." >&2
+  exit 1
+fi
+if [[ $RESET -eq 0 ]]; then
+  : "${VPN_DOMAIN:?Declare VPN_DOMAIN in /etc/openfortivpn/dns-helper.env}"
+  : "${VPN_DNS_SERVERS:?Declare VPN_DNS_SERVERS in /etc/openfortivpn/dns-helper.env}"
+  IFS=' ' read -r -a dns_servers <<<"$VPN_DNS_SERVERS"
+  ((${#dns_servers[@]})) || { echo 'No VPN DNS servers declared.' >&2; exit 1; }
+fi
+if [[ -z "$VPN_LINK" ]]; then
+  waited=0
+  while (( waited < WAIT_SECS )); do
+    VPN_LINK="$(detect_link)"
+    if [[ -n "$VPN_LINK" ]]; then
+      break
+    fi
+    sleep "$SLEEP_SECS"
+    waited=$((waited + SLEEP_SECS))
+  done
+fi
+if [[ -z "$VPN_LINK" ]]; then
+  echo "Could not detect VPN link after ${WAIT_SECS}s. Set VPN_LINK=<interface> and retry." >&2
+  exit 1
+fi
+if [[ $RESET -eq 1 ]]; then
+  if resolvectl revert "$VPN_LINK" >/dev/null 2>&1; then
+    resolvectl flush-caches >/dev/null 2>&1 || true
+    resolvectl status "$VPN_LINK"
+    exit 0
+  fi
+  resolvectl dns "$VPN_LINK" >/dev/null 2>&1 || true
+  resolvectl domain "$VPN_LINK" >/dev/null 2>&1 || true
+  resolvectl flush-caches >/dev/null 2>&1 || true
+  resolvectl status "$VPN_LINK"
+  exit 0
+fi
+resolvectl dns "$VPN_LINK" "${dns_servers[@]}"
+resolvectl domain "$VPN_LINK" "~${VPN_DOMAIN}"
+resolvectl status "$VPN_LINK"

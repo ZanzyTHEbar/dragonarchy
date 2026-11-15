@@ -1,0 +1,103 @@
+---
+# Upstream 0.5.0 has no release binaries. Build its pinned source with the native
+# distro toolchain, under a dedicated non-login account, never as root/a user.
+- name: Create private wl-clip-persist build group
+  ansible.builtin.group:
+    name: dragonarchy-wlclip-build
+    system: true
+
+- name: Create unprivileged wl-clip-persist build identity
+  ansible.builtin.user:
+    name: dragonarchy-wlclip-build
+    group: dragonarchy-wlclip-build
+    system: true
+    create_home: false
+    home: /var/cache/dragonarchy/wl-clip-persist/build
+    shell: /usr/sbin/nologin
+    password_lock: true
+
+- name: Ensure root-owned wl-clip-persist source directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /var/cache/dragonarchy
+    - /var/cache/dragonarchy/wl-clip-persist
+    - /var/cache/dragonarchy/wl-clip-persist/source
+    - /usr/local/bin
+    - /usr/local/share/doc/wl-clip-persist
+
+- name: Ensure private unprivileged build directory exists
+  ansible.builtin.file:
+    path: /var/cache/dragonarchy/wl-clip-persist/build
+    state: directory
+    owner: dragonarchy-wlclip-build
+    group: dragonarchy-wlclip-build
+    mode: '0700'
+
+- name: Download checksum-pinned upstream wl-clip-persist 0.5.0 source
+  ansible.builtin.get_url:
+    url: https://codeload.github.com/Linus789/wl-clip-persist/tar.gz/e26fde01c13922e3a65049dafb7d5adfbc52626e
+    checksum: sha256:4f57033dae159b887168210bcc69de84ba5f43e7e39444e483297e6ccb4b747c
+    dest: /var/cache/dragonarchy/wl-clip-persist/source-0.5.0.tar.gz
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Extract root-owned pinned source and Cargo.lock
+  ansible.builtin.unarchive:
+    src: /var/cache/dragonarchy/wl-clip-persist/source-0.5.0.tar.gz
+    dest: /var/cache/dragonarchy/wl-clip-persist/source
+    remote_src: true
+    owner: root
+    group: root
+  register: packages_wlclip_source
+
+- name: Inspect cached wl-clip-persist build output
+  ansible.builtin.stat:
+    path: /var/cache/dragonarchy/wl-clip-persist/build/target-0.5.0/{{ ansible_architecture }}-unknown-linux-gnu/release/wl-clip-persist
+  register: packages_wlclip_binary
+
+- name: Build pinned wl-clip-persist with locked dependency checksums
+  become: true
+  become_user: dragonarchy-wlclip-build
+  ansible.builtin.command:
+    chdir: /var/cache/dragonarchy/wl-clip-persist/source/wl-clip-persist-e26fde01c13922e3a65049dafb7d5adfbc52626e
+    argv:
+      - /usr/bin/cargo
+      - build
+      - --locked
+      - --release
+      - --target
+      - "{{ ansible_architecture }}-unknown-linux-gnu"
+      - --manifest-path
+      - /var/cache/dragonarchy/wl-clip-persist/source/wl-clip-persist-e26fde01c13922e3a65049dafb7d5adfbc52626e/Cargo.toml
+  environment:
+    HOME: /var/cache/dragonarchy/wl-clip-persist/build
+    CARGO_HOME: /var/cache/dragonarchy/wl-clip-persist/build/cargo
+    CARGO_TARGET_DIR: /var/cache/dragonarchy/wl-clip-persist/build/target-0.5.0
+    RUSTC: /usr/bin/rustc
+    PATH: /usr/bin:/bin
+  when: packages_wlclip_source.changed or not packages_wlclip_binary.stat.exists
+  changed_when: true
+
+- name: Install compiled wl-clip-persist executable
+  ansible.builtin.copy:
+    src: /var/cache/dragonarchy/wl-clip-persist/build/target-0.5.0/{{ ansible_architecture }}-unknown-linux-gnu/release/wl-clip-persist
+    dest: /usr/local/bin/wl-clip-persist
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install upstream wl-clip-persist license
+  ansible.builtin.copy:
+    src: /var/cache/dragonarchy/wl-clip-persist/source/wl-clip-persist-e26fde01c13922e3a65049dafb7d5adfbc52626e/LICENSE
+    dest: /usr/local/share/doc/wl-clip-persist/LICENSE
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0644'

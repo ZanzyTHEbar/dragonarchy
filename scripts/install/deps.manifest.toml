@@ -76,7 +76,6 @@ packages = [
     "acpi",
     "acpi_call",
     "lm_sensors",
-    "thermald",
     "brightnessctl",
     "laptop-detect",
     "libinput",
@@ -96,8 +95,10 @@ packages = [
     "mesa-utils",
 ]
 
-# AUR-only laptop tools for firedragon (explicit tier; not installed by ansible.builtin.package)
-[platforms.arch.paru.host_firedragon_laptop]
+# Host-specific opt-in AUR extra. The active Ansible inventory selects the
+# pacman laptop group, not this provider group; selecting it makes the AUR
+# requirement binding.
+[platforms.arch.paru.host_firedragon_gestures]
 requires_hosts = ["firedragon"]
 packages = ["libinput-gestures"]
 
@@ -139,7 +140,30 @@ packages = [
     "github-cli",
     "terraform",
     "python-pipx",
+    # Managed defaults track the configured distro repositories, not upstream latest.
+    "go",
+    "ruby",
+    "ruby-bundler",
+    "gcc",
+    "make",
+    "pkgconf",
+    "openssl",
+    "zlib",
+    "libffi",
+    "libyaml",
+    "python",
+    "python-poetry",
+    "python-black",
+    "python-flake8",
+    "mypy",
+    # User development defaults, independently of capture's build toolchain.
+    "rust",
+    "unzip",
+    "xz",
 ]
+
+[platforms.arch.script.dev]
+packages = ["node-lts", "fnm"]
 
 [platforms.arch.pacman.fonts]
 packages = [
@@ -196,17 +220,99 @@ packages = ["v4l2loopback-dkms"]
 [platforms.arch.pacman.hyprland_session]
 requires_features = ["hyprland"]
 packages = [
+    # Retained desktop development engine; native defaults, desktop_services owner.
+    "docker",
+    "docker-buildx",
+    "docker-compose",
+    # Retained local printing; canonical desktop_services owns activation.
+    "cups",
+    "cups-filters",
+    "cups-pdf",
     "hyprland",
     "hypridle",
     "hyprlock",
     "hyprpicker",
     "hyprshot",
+    "swappy",
+    "satty",
+    "grim",
+    "slurp",
+    "xdg-user-dirs",
+    # Pinned wl-screenrec source build; VAAPI capability is runtime-qualified.
+    "cargo",
+    "rust",
+    "clang",
+    "ffmpeg",
+    "libdrm",
+    "libva",
     "polkit",
     "uwsm",
     "xdg-desktop-portal-gtk",
     "xdg-desktop-portal-hyprland",
     "polkit-gnome",
+    # Direct retained session runtimes; mappings already declared in hyprland_base.
+    "fcitx5",
+    "fcitx5-configtool",
+    "fcitx5-gtk",
+    "fcitx5-qt",
+    "waybar",
+    "swaync",
+    "swayosd",
+    "wl-clip-persist",
+    # Official Arch extra mappings verified 2026-10-27 (not target qualification).
+    "gnome-keyring",
+    "wl-clipboard",
+    "network-manager-applet",
+    # Retained session-core launchers and explicit fontconfig families.
+    "imv",
+    "mpv",
+    "evince", # org.gnome.Evince.desktop, verified official Arch file list.
+    "vivaldi", # Official extra; vivaldi-stable.desktop. Owner-selected clean browser.
+    "fontconfig",
+    "ttf-liberation",
+    "gtk-update-icon-cache", # Changed-only managed user Dragon icon refresh.
+    "ttf-cascadia-mono-nerd",
+    "procps-ng", # pgrep used by the retained Clipse wrapper
+    # Pinned Walker/Elephant bundle shared libraries and required provider commands.
+    "gtk4",
+    "gtk4-layer-shell",
+    "poppler-glib",
+    "imagemagick",
+    "libqalculate",
+    "bluez",
+    "python",
+    "swaybg", # Required owned wallpaper backend; existing swww remains optional.
+    # Retained desktop audio: ALSA routing, Bluetooth SPA, Pulse compatibility.
+    "pipewire",
+    "pipewire-audio",
+    "pipewire-alsa",
+    "pipewire-pulse",
+    "wireplumber",
+    "alsa-utils",
+    "libpulse", # pactl, not the old pulseaudio daemon
+    "pamixer",
+    "playerctl",
+    "rtkit",
+    "libnotify",
+    "wob",
+    # Wlogout has no Arch repo package: build pinned upstream with native tools.
+    "gtk3",
+    "gtk-layer-shell",
+    "meson",
+    "ninja",
+    "gcc",
+    "pkgconf",
 ]
+
+# No AUR build is required for the selected official launcher release bundle.
+[platforms.arch.paru.hyprland_session]
+requires_features = ["hyprland"]
+packages = []
+
+# Official pinned Clipse and coherent Walker/Elephant providers on both families.
+[platforms.arch.script.hyprland_session]
+requires_features = ["hyprland"]
+packages = ["clipse", "walker", "elephant", "wlogout", "wl-screenrec"]
 
 [platforms.arch.pacman.sddm]
 requires_features = ["sddm"]
@@ -214,7 +320,118 @@ packages = ["sddm", "qt6-svg", "qt6-declarative"]
 
 [platforms.debian.apt.sddm]
 requires_features = ["sddm"]
-packages = ["sddm"]
+packages = ["sddm", "xserver-xorg"]
+
+[platforms.debian.apt.hyprland_session]
+requires_features = ["hyprland"]
+packages = [
+    "docker.io",
+    "docker-buildx",
+    # Debian 13 Compose v2; Ubuntu 26.04 virtual name provided by docker-compose-v2.
+    "docker-compose",
+    "cups",
+    "cups-daemon", # Explicit native systemd unit provider, not a recommends assumption.
+    "cups-filters",
+    "printer-driver-cups-pdf",
+    "fastfetch", # Debian 13 / Ubuntu 26.04; About uses an explicit local-only config.
+    "hyprland",
+    "hypridle",
+    "hyprlock",
+    "hyprpicker",
+    "mate-polkit",
+    "uwsm",
+    "xdg-desktop-portal-gtk",
+    "xdg-desktop-portal-hyprland",
+    # Existing hyprland_base mappings, preserving the shipped fcitx5 family/profile.
+    "fcitx5",
+    "fcitx5-config-qt",
+    "fcitx5-frontend-gtk2",
+    "fcitx5-frontend-gtk3",
+    "fcitx5-frontend-gtk4",
+    "fcitx5-frontend-qt5",
+    "fcitx5-frontend-qt6",
+    "waybar",
+    "wl-clipboard",
+    # Existing hyprland_aur apt mapping (not an AUR provider on Debian).
+    "gnome-keyring",
+    # Native providers: see infra/ansible/roles/packages/README.md for provenance.
+    "swappy",
+    "xdg-user-dirs",
+    # Satty and wl-screenrec native source build inputs, not GUI activation.
+    "pkg-config",
+    "libgtk-4-dev",
+    "libadwaita-1-dev",
+    "libfontconfig1-dev",
+    "libclang-dev",
+    "clang",
+    "libavutil-dev",
+    "libavformat-dev",
+    "libavfilter-dev",
+    "libavdevice-dev",
+    "libdrm-dev",
+    "libva-dev",
+    # Hyprshot 1.3.0 runtime dependencies (hyprctl comes with hyprland above).
+    "grim",
+    "slurp",
+    "jq",
+    "libnotify-bin",
+    "procps",
+    "util-linux",
+    "network-manager-applet", # /usr/bin/nm-applet (not the transitional -gnome package)
+    "sway-notification-center", # /usr/bin/swaync and swaync-client
+    "swayosd", # /usr/bin/swayosd-server and swayosd-client
+    # Retained session-core launchers and Liberation Sans/Serif families.
+    "imv",
+    "mpv",
+    "evince", # org.gnome.Evince.desktop, verified Ubuntu 26.04 file list.
+    "fontconfig",
+    "fonts-liberation",
+    "gtk-update-icon-cache",
+    # Official CaskaydiaMono font archive extraction.
+    "xz-utils",
+    # wl-clip-persist 0.5.0 is source-only upstream; native Rust >=1.85 is
+    # release-gated before mutation by the managed packages role.
+    "cargo",
+    "rustc",
+    "gcc",
+    "libc6-dev",
+    "libgcc-s1",
+    "ca-certificates",
+    # Walker 2.17.2 shared objects; Elephant provider external commands.
+    "libgtk-4-1",
+    "libgtk4-layer-shell0",
+    "libpoppler-glib8t64",
+    "libgdk-pixbuf-2.0-0",
+    "libglib2.0-0t64",
+    "libcairo2",
+    "libgraphene-1.0-0",
+    "imagemagick",
+    "qalc",
+    "bluez",
+    "python3",
+    "swaybg",
+    # Bluetooth SPA is a separate Debian package; do not rely on recommends.
+    "pipewire",
+    "pipewire-bin",
+    "pipewire-alsa",
+    "pipewire-pulse",
+    "wireplumber",
+    "libspa-0.2-bluetooth",
+    "alsa-utils",
+    "pulseaudio-utils", # pactl client only
+    "pamixer",
+    "playerctl",
+    "rtkit",
+    "wob",
+    "wlogout",
+]
+
+# Non-repo program requirements, NOT universal apt package names.
+# These selected non-repo requirements have concrete pinned managed providers.
+# Unknown identifiers still block the entire plan before any package action.
+[platforms.debian.script.hyprland_session]
+requires_features = ["hyprland"]
+packages = ["walker", "elephant", "clipse", "wl-clip-persist", "hyprshot", "caskaydiamono-nerd-font", "satty", "wl-screenrec", "vivaldi-stable"]
 
 [platforms.arch.pacman.fingerprint]
 requires_hosts = ["goldendragon"]
@@ -235,10 +452,8 @@ packages = [
     "bluez",
     "bluez-utils",
     "brightnessctl",
-    # Ensure `cargo` is available from repos so AUR builds don't prompt to choose a provider.
-    # (Rust toolchain management is still handled by rustup elsewhere.)
+    # One concrete distro toolchain owner; rustup conflicts with Arch rust.
     "rust",
-    "rustup",
     "clang",
     "cups",
     "cups-filters",
@@ -339,6 +554,7 @@ packages = ["hypridle", "hyprland", "hyprlock", "hyprpicker", "hyprshot"]
 [platforms.arch.paru.hyprland_aur]
 requires_features = ["hyprland"]
 packages = [
+    "wleave-git",
     "openbsd-netcat",
     "gnome-calculator",
     "gnome-keyring",
@@ -430,7 +646,14 @@ packages = [
 ]
 
 [platforms.debian.apt.dev]
-packages = ["git", "ansible", "pipx"]
+packages = [
+    "git", "ansible", "pipx",
+    "golang-go", "ruby", "ruby-dev", "bundler",
+    "build-essential", "pkg-config", "libssl-dev", "zlib1g-dev", "libffi-dev", "libyaml-dev",
+    "python3", "python3-poetry", "black", "flake8", "mypy",
+    "rustc", "cargo", "eza", "git-delta",
+    "unzip", "xz-utils",
+]
 
 [platforms.debian.apt.fonts]
 packages = [
@@ -585,11 +808,23 @@ packages = [
     "mpv",
 ]
 
+# Concrete selected dev providers; core remains repo-native.
 [platforms.debian.script.dev]
-packages = ["gh"]
+packages = ["node-lts", "fnm", "dua-cli"]
 
 [platforms.debian.script.core_cli]
+packages = []
+
+# Host-specific opt-in script extras. The active Ansible inventory does not
+# select these groups; the legacy installer still installs them on the matching
+# hosts. Selecting one through inventory makes its provider requirement binding.
+[platforms.debian.script.host_debian_installer_ui]
+requires_hosts = ["microdragon", "opencode-runtime", "ubuntu-mobile-dev"]
 packages = ["gum"]
+
+[platforms.debian.script.host_ubuntu_mobile_dev_github_cli]
+requires_hosts = ["ubuntu-mobile-dev"]
+packages = ["gh"]
 
 [platforms.debian.script.gui]
 packages = [

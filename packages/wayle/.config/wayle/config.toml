@@ -1,0 +1,105 @@
+# Palette is runtime-owned by theme-manager; layout and color roles are managed here.
+imports = ["palette.toml"]
+
+[general]
+font-sans = "JetBrains Mono"
+font-mono = "JetBrains Mono"
+
+[styling]
+theme-provider = "wayle"
+
+[bar]
+location = "top"
+exclusive = false
+autohide = true
+autohide-delay-ms = 500
+bg = "bg-base"
+padding = 0.375
+padding-ends = 0.75
+module-gap = 0.375
+button-variant = "basic"
+button-label-size = 0.8125
+button-label-weight = "medium"
+button-icon-size = 0.875
+button-label-padding = 0.75
+button-gap = 0.5
+button-rounding = "sm"
+button-border-location = "none"
+
+[[bar.layout]]
+monitor = "*"
+left = ["hyprland-workspaces"]
+center = ["clock"]
+right = ["keyboard-input", "volume", "cpu", "storage", "idle-inhibit", "bluetooth", "battery", "systray", "custom-session"]
+
+[modules.hyprland-workspaces]
+min-workspace-count = 5
+app-icons-show = false
+label-use-name = false
+label-size = 0.8125
+active-color = "accent"
+occupied-color = "fg-default"
+empty-color = "fg-muted"
+container-bg-color = "bg-surface"
+
+[modules.clock]
+format = "%a %d %b  %H:%M"
+icon-show = false
+label-color = "fg-default"
+button-bg-color = "bg-surface"
+
+[modules.keyboard-input]
+icon-show = false
+label-color = "fg-default"
+button-bg-color = "bg-surface"
+left-click = "$HOME/dotfiles/scripts/utilities/keyboard-layout switch"
+
+[modules.keyboard-input.layout-alias-map]
+"English (US)" = "US"
+"English (intl., with AltGr dead keys)" = "US"
+"Portuguese" = "PT"
+
+[modules.volume]
+label-show = false
+icon-color = "fg-default"
+button-bg-color = "bg-surface"
+
+[modules.cpu]
+label-show = false
+icon-color = "fg-default"
+button-bg-color = "bg-surface"
+
+[modules.storage]
+label-show = false
+icon-color = "fg-default"
+button-bg-color = "bg-surface"
+
+[modules.idle-inhibit]
+label-show = false
+icon-color = "fg-default"
+button-bg-color = "bg-surface"
+
+[modules.bluetooth]
+label-show = false
+icon-color = "fg-default"
+button-bg-color = "bg-surface"
+
+[modules.battery]
+label-color = "fg-default"
+icon-color = "fg-default"
+button-bg-color = "bg-surface"
+
+[[modules.custom]]
+id = "session"
+icon-name = "ld-power-symbolic"
+icon-color = "fg-default"
+label-show = false
+button-bg-color = "bg-surface"
+left-click = "$HOME/dotfiles/scripts/theme-manager/power-menu"
+
+# Retain existing wallpaper and OSD owners during the pilot.
+[wallpaper]
+engine-enabled = false
+
+[osd]
+enabled = false

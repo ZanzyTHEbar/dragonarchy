@@ -1,0 +1,45 @@
+---
+# Import from packages/tasks/install.yml BEFORE its first mutation, conditioned
+# on host_desktop_stack == 'hyprland'. No repository enrollment or installation.
+- name: Validate supported Hyprland release floor before package actions
+  ansible.builtin.assert:
+    that:
+      - host_platform_family in ['arch', 'debian']
+      - (hyprland_minimum_version | default('0.57.2')) is version('0.57.2', '>=')
+    fail_msg: Native Lua requires Hyprland >= 0.57.2 on a declared desktop platform.
+
+- name: Read selected repository compositor candidate without installing
+  ansible.builtin.command:
+    argv: "{{ ['pacman', '-Si', 'hyprland'] if host_platform_family == 'arch' else ['apt-cache', 'policy', 'hyprland'] }}"
+  environment:
+    LC_ALL: C
+  register: hyprland_candidate
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Extract candidate upstream release from native package metadata
+  ansible.builtin.set_fact:
+    hyprland_candidate_versions: >-
+      {{ hyprland_candidate.stdout | default('') | regex_findall(
+         '(?m)^' + ('Version[ \t]*:' if host_platform_family == 'arch' else '[ \t]*Candidate:') +
+         '[ \t]*(?:[0-9]+:)?([0-9]+\.[0-9]+\.[0-9]+)(?:[^0-9]|$)') }}
+
+- name: Refuse missing or unidentifiable native compositor candidates
+  ansible.builtin.assert:
+    that:
+      - hyprland_candidate.rc == 0
+      - hyprland_candidate_versions | length == 1
+    fail_msg: >-
+      No unambiguous native Hyprland release candidate exists. Configure an approved
+      provider for Hyprland >= {{ hyprland_minimum_version | default('0.57.2') }}
+      before package actions. No repository, fallback parser or installer is invented.
+
+- name: Refuse obsolete repository compositor candidates before package actions
+  ansible.builtin.assert:
+    that:
+      - hyprland_candidate_versions[0] is version(hyprland_minimum_version | default('0.57.2'), '>=')
+    fail_msg: >-
+      Native repository candidate Hyprland {{ hyprland_candidate_versions[0] }} is too old.
+      Upgrade the approved provider to >= {{ hyprland_minimum_version | default('0.57.2') }}
+      before provisioning the desktop. Dragonarchy uses Lua only, never Hyprlang fallback.

@@ -1,0 +1,107 @@
+---
+# Arch no longer supplies Wlogout in its official repos. Compile reviewed upstream
+# with native distro tools, not an AUR helper or a foreign binary. Debian uses apt.
+- name: Create private Wlogout build group
+  ansible.builtin.group:
+    name: dragonarchy-wlogout-build
+    system: true
+
+- name: Create unprivileged Wlogout build identity
+  ansible.builtin.user:
+    name: dragonarchy-wlogout-build
+    group: dragonarchy-wlogout-build
+    system: true
+    create_home: false
+    home: /var/cache/dragonarchy/wlogout/build
+    shell: /usr/bin/nologin
+    password_lock: true
+
+- name: Ensure root-owned Wlogout source and install directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /var/cache/dragonarchy
+    - /var/cache/dragonarchy/wlogout
+    - /var/cache/dragonarchy/wlogout/source
+    - /usr/local/bin
+    - /usr/local/share/doc/wlogout
+
+- name: Ensure private Wlogout build directory exists
+  ansible.builtin.file:
+    path: /var/cache/dragonarchy/wlogout/build
+    state: directory
+    owner: dragonarchy-wlogout-build
+    group: dragonarchy-wlogout-build
+    mode: '0700'
+
+- name: Download checksum-pinned upstream Wlogout 1.2.2 source
+  ansible.builtin.get_url:
+    url: https://codeload.github.com/ArtsyMacaw/wlogout/tar.gz/2db390f3bb1f57e73b3172a7c24f4c1fe35c0c96
+    checksum: sha256:eb9c4d4b33e186b4c014b5ddb67027be6228d9a622947d56da7788240402dc5b
+    dest: /var/cache/dragonarchy/wlogout/source-1.2.2.tar.gz
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Extract root-owned Wlogout source
+  ansible.builtin.unarchive:
+    src: /var/cache/dragonarchy/wlogout/source-1.2.2.tar.gz
+    dest: /var/cache/dragonarchy/wlogout/source
+    remote_src: true
+    owner: root
+    group: root
+  register: packages_wlogout_source
+
+- name: Inspect native Wlogout build output
+  ansible.builtin.stat:
+    path: /var/cache/dragonarchy/wlogout/build/1.2.2/wlogout
+  register: packages_wlogout_binary
+
+- name: Configure pinned Wlogout with native GTK3 and layer shell
+  become: true
+  become_user: dragonarchy-wlogout-build
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/meson
+      - setup
+      - --reconfigure
+      - /var/cache/dragonarchy/wlogout/build/1.2.2
+      - /var/cache/dragonarchy/wlogout/source/wlogout-2db390f3bb1f57e73b3172a7c24f4c1fe35c0c96
+      - --buildtype=release
+      - --wrap-mode=nodownload
+      - -Dwerror=false
+      - -Dman-pages=disabled
+  environment:
+    HOME: /var/cache/dragonarchy/wlogout/build
+  when: packages_wlogout_source.changed or not packages_wlogout_binary.stat.exists
+
+- name: Compile pinned Wlogout without installing as the build user
+  become: true
+  become_user: dragonarchy-wlogout-build
+  ansible.builtin.command:
+    argv: [/usr/bin/meson, compile, -C, /var/cache/dragonarchy/wlogout/build/1.2.2]
+  environment:
+    HOME: /var/cache/dragonarchy/wlogout/build
+  when: packages_wlogout_source.changed or not packages_wlogout_binary.stat.exists
+
+- name: Publish native Wlogout executable
+  ansible.builtin.copy:
+    src: /var/cache/dragonarchy/wlogout/build/1.2.2/wlogout
+    dest: /usr/local/bin/wlogout
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install upstream Wlogout license
+  ansible.builtin.copy:
+    src: /var/cache/dragonarchy/wlogout/source/wlogout-2db390f3bb1f57e73b3172a7c24f4c1fe35c0c96/LICENSE
+    dest: /usr/local/share/doc/wlogout/LICENSE
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0644'

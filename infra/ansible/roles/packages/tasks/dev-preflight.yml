@@ -1,0 +1,94 @@
+---
+- name: Require complete selected developer provider contract and supported facts
+  ansible.builtin.assert:
+    that:
+      - "'dev' in packages_manifest_resolved_groups"
+      - "'node-lts' in packages_pending_script and 'fnm' in packages_pending_script"
+      - "host_platform_family != 'debian' or 'dua-cli' in packages_pending_script"
+      - ansible_system == 'Linux'
+      - ansible_architecture in ['x86_64', 'aarch64']
+      - ansible_os_family == {'arch':'Archlinux', 'debian':'Debian'}[host_platform_family]
+      - >-
+        host_platform_family == 'arch'
+        or (ansible_distribution == 'Debian' and ansible_distribution_major_version == '13')
+        or (ansible_distribution == 'Ubuntu' and ansible_distribution_version == '26.04')
+    fail_msg: >-
+      Managed dev requires paired node-lts/fnm (plus Debian dua-cli) on Linux x86_64/aarch64 Arch,
+      Debian 13 or Ubuntu 26.04. Other target releases need explicit package qualification.
+
+- name: Load concrete developer release pins
+  ansible.builtin.include_vars: "{{ role_path }}/vars/dev.yml"
+
+- name: Inspect libc without running a toolchain
+  ansible.builtin.command:
+    argv: [/usr/bin/getconf, GNU_LIBC_VERSION]
+  register: packages_dev_libc
+  changed_when: false
+  check_mode: false
+
+- name: Require official Node GNU Linux ABI floor
+  ansible.builtin.assert:
+    that:
+      - packages_dev_libc.stdout is match('^glibc [0-9]+[.][0-9]+$')
+      - packages_dev_libc.stdout.split()[1] is version('2.28', '>=')
+      - ansible_kernel is version('4.18', '>=')
+    fail_msg: "Pinned official Node requires glibc >= 2.28 and Linux >= 4.18."
+
+- name: Inspect unmanaged system Go and Node owners without following links
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - /usr/local/go
+    - /usr/local/bin/go
+    - /usr/local/bin/gofmt
+    - /usr/bin/node
+    - /usr/bin/npm
+    - /usr/bin/fnm
+  register: packages_dev_incumbents
+
+- name: Refuse competing system runtime owners without removing them
+  ansible.builtin.assert:
+    that: not item.stat.exists and not (item.stat.islnk | default(false))
+    fail_msg: >-
+      Existing runtime owner at {{ item.item }} conflicts with managed distro Go /
+      pinned Node+fnm defaults. Preserve it and obtain an explicit cutover disposition;
+      no package removal, toolchain replacement or home-manager adoption is automatic.
+  loop: "{{ packages_dev_incumbents.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Inspect intended managed executable links
+  ansible.builtin.stat:
+    path: "/usr/local/bin/{{ item.name }}"
+    follow: false
+  loop: "{{ packages_dev_links + (packages_dev_debian_cli_links if host_platform_family == 'debian' else []) }}"
+  register: packages_dev_existing_links
+
+- name: Refuse replacing unrelated executables or links
+  ansible.builtin.assert:
+    that:
+      - >-
+        (not item.stat.exists and not (item.stat.islnk | default(false)))
+        or (item.stat.islnk | default(false)
+            and item.stat.lnk_target == item.item.target
+            and item.stat.uid == 0)
+    fail_msg: >-
+      /usr/local/bin/{{ item.item.name }} is not the selected root-owned managed link.
+      Preserve it; an explicit owner cutover is required, not force replacement.
+  loop: "{{ packages_dev_existing_links.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Inspect competing distro dua command before admitting the vendor provider
+  ansible.builtin.stat:
+    path: /usr/bin/dua
+    follow: false
+  register: packages_dev_distro_dua
+  when: host_platform_family == 'debian'
+
+- name: Refuse dual system dua command owners
+  ansible.builtin.assert:
+    that: not packages_dev_distro_dua.stat.exists and not (packages_dev_distro_dua.stat.islnk | default(false))
+    fail_msg: "Existing /usr/bin/dua requires explicit owner cutover; it will not be shadowed or removed."
+  when: host_platform_family == 'debian'

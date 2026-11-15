@@ -1,0 +1,22 @@
+widget "dev-launcher" {
+  meta { owl: 4; description: "Shortcuts to terminal and development tools"; version: "1.0"; license: "MIT"; category: "dev" }
+  page: 1
+  order: 2
+  size: 3x2
+  minSize: 2x2
+
+  Column {
+    gap: 4
+    Text { text: "dev"; style: muted }
+    Row {
+      gap: 4
+      Button { text: "term"; onTap: terminal("bash") }
+      Button { text: "style"; onTap: launcher("style") }
+    }
+    Row {
+      gap: 4
+      Button { text: "apps"; onTap: launcher("drawer") }
+      Button { text: "linux"; onTap: launcher("linux") }
+    }
+  }
+}

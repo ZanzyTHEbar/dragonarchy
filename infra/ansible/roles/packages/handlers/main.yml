@@ -1,2 +1,8 @@
 ---
-# Packages role has no handlers in tranche 1.
+- name: Refresh managed CaskaydiaMono font cache
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/fc-cache
+      - --force
+      - /usr/local/share/fonts/dragonarchy-caskaydiamono
+  changed_when: true

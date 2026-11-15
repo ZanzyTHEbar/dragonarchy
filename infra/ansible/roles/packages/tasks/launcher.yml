@@ -1,0 +1,127 @@
+---
+- name: Load the selected official launcher artifact composition
+  ansible.builtin.include_vars: "{{ role_path }}/vars/launcher.yml"
+
+- name: Ensure root-owned release-specific launcher directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /var/cache/dragonarchy
+    - /var/cache/dragonarchy/launcher-2.17.2-2.22.1
+    - /usr/local/lib/dragon-launcher/2.17.2-2.22.1
+    - /usr/local/lib/dragon-launcher/2.17.2-2.22.1/providers
+    - /usr/local/lib/dragon-launcher/2.17.2-2.22.1/bin
+    - /usr/local/bin
+    - /usr/local/share/dragon-launcher
+    - /usr/local/share/doc/dragon-launcher
+
+- name: Install selected Walker structural CSS used by both canonical theme paths
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/abenz1267/walker/a515085fd39fae80acc086c8fbfd9b7771a9a11d/resources/themes/default/style.css
+    checksum: sha256:5829f472a3a6fc664627cd16f7f867717bfd3d56c1612b75bf61eaf3d8a8961a
+    dest: /usr/local/share/dragon-launcher/walker-2.17.2.css
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Install the shared upstream GPLv3 license text
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/abenz1267/walker/a515085fd39fae80acc086c8fbfd9b7771a9a11d/LICENSE
+    checksum: sha256:3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986
+    dest: /usr/local/share/doc/dragon-launcher/LICENSE
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Fetch official checksum-pinned Walker 2.17.2 and Elephant 2.22.1 executables
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    checksum: "sha256:{{ item.sha256 }}"
+    dest: "/var/cache/dragonarchy/launcher-2.17.2-2.22.1/{{ item.name }}.tar.gz"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - name: walker
+      url: https://github.com/abenz1267/walker/releases/download/v2.17.2/walker-v2.17.2-x86_64-unknown-linux-gnu.tar.gz
+      sha256: 57e68d1f9f14782f1ae0f1c704509749a545a92531b8788b76b16bc29fcc5c19
+    - name: elephant
+      url: https://github.com/abenz1267/elephant/releases/download/v2.22.1/elephant-linux-amd64.tar.gz
+      sha256: 53098cd67fbd0eb256d02594b06ef6817031ed93e93911126bea9904b33ad775
+
+- name: Extract selected launcher executables without starting either runtime
+  ansible.builtin.unarchive:
+    src: "/var/cache/dragonarchy/launcher-2.17.2-2.22.1/{{ item }}.tar.gz"
+    dest: /usr/local/lib/dragon-launcher/2.17.2-2.22.1
+    remote_src: true
+    owner: root
+    group: root
+  loop: [walker, elephant]
+
+- name: Ensure the selected private Elephant backend is executable
+  ansible.builtin.file:
+    path: /usr/local/lib/dragon-launcher/2.17.2-2.22.1/elephant-linux-amd64
+    state: file
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Fetch each required official same-release Elephant plugin
+  ansible.builtin.get_url:
+    url: "https://github.com/abenz1267/elephant/releases/download/v2.22.1/{{ item.name }}-linux-amd64.tar.gz"
+    checksum: "sha256:{{ item.sha256 }}"
+    dest: "/var/cache/dragonarchy/launcher-2.17.2-2.22.1/{{ item.name }}.tar.gz"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ packages_launcher_plugins }}"
+
+- name: Extract selected Elephant plugin artifacts into root-owned staging
+  ansible.builtin.unarchive:
+    src: "/var/cache/dragonarchy/launcher-2.17.2-2.22.1/{{ item.name }}.tar.gz"
+    dest: /var/cache/dragonarchy/launcher-2.17.2-2.22.1
+    remote_src: true
+    owner: root
+    group: root
+    include: ["{{ item.name }}-linux-amd64.so"]
+  loop: "{{ packages_launcher_plugins }}"
+
+- name: Install only canonical selected plugin names in the isolated provider directory
+  ansible.builtin.copy:
+    src: "/var/cache/dragonarchy/launcher-2.17.2-2.22.1/{{ item.name }}-linux-amd64.so"
+    dest: "/usr/local/lib/dragon-launcher/2.17.2-2.22.1/providers/{{ item.name }}.so"
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ packages_launcher_plugins }}"
+
+- name: Supply the fd command required by this Elephant release on Debian
+  ansible.builtin.file:
+    src: /usr/bin/fdfind
+    dest: /usr/local/lib/dragon-launcher/2.17.2-2.22.1/bin/fd
+    state: link
+    owner: root
+    group: root
+  when: host_platform_family == 'debian'
+
+- name: Publish the pinned Walker executable
+  ansible.builtin.copy:
+    src: /usr/local/lib/dragon-launcher/2.17.2-2.22.1/walker
+    dest: /usr/local/bin/walker
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Publish the single-owner Elephant entry point and isolated plugin boundary
+  ansible.builtin.copy:
+    src: elephant
+    dest: /usr/local/bin/elephant
+    owner: root
+    group: root
+    mode: '0755'

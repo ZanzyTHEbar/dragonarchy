@@ -12,6 +12,9 @@
     fail_msg: "Expected ASUS laptop managed file {{ item.item.dest }} to exist."
   loop: "{{ asus_laptop_installed_files.results }}"
 
+- name: Refresh ASUS service facts after convergence
+  ansible.builtin.service_facts:
+
 - name: Assert ASUS laptop services are present and running
   ansible.builtin.assert:
     that:
@@ -24,9 +27,27 @@
   ansible.builtin.command: asusctl profile -p
   register: asus_laptop_verified_profile
   changed_when: false
+  when: not asus_laptop_managed_power_policy | bool
+
+- name: Read persisted ASUS power policy after convergence
+  ansible.builtin.slurp:
+    src: /etc/asusd/asusd.ron
+  register: asus_laptop_verified_power_config
+  when: asus_laptop_managed_power_policy | bool
+
+- name: Verify ASUS is the declared CPU platform and cap owner
+  ansible.builtin.assert:
+    that:
+      - >-
+        (asus_laptop_verified_power_config.content | b64decode |
+         regex_findall('(?m)^\s*' ~ item.key ~ ': ' ~ item.value ~ ',\s*$') | length) == 1
+    fail_msg: "Persisted ASUS power policy differs from {{ item.key }}={{ item.value }}."
+  loop: "{{ asus_laptop_power_policy | dict2items }}"
+  when: asus_laptop_managed_power_policy | bool
 
 - name: Assert ASUS performance profile is Balanced
   ansible.builtin.assert:
     that:
       - "'Balanced' in asus_laptop_verified_profile.stdout"
     fail_msg: "Expected ASUS performance profile to be Balanced."
+  when: not asus_laptop_managed_power_policy | bool

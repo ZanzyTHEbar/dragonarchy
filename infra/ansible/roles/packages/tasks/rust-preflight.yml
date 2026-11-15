@@ -1,0 +1,25 @@
+---
+# Distro Rust is a system default, not ownership of any user's rustup state.
+# This gate also protects explicit /usr/bin/{cargo,rustc} capture builds.
+- name: Inspect competing system Rust manager and local command owners
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - /usr/bin/rustup
+    - /usr/local/bin/rustup
+    - /usr/local/bin/rustc
+    - /usr/local/bin/cargo
+  register: packages_rust_incumbents
+
+- name: Refuse implicit system Rust owner replacement
+  ansible.builtin.assert:
+    that: not item.stat.exists and not (item.stat.islnk | default(false))
+    fail_msg: >-
+      Existing system/local Rust owner at {{ item.item }} conflicts with the selected
+      distro rustc/cargo default. Preserve it and obtain explicit cutover approval;
+      no uninstall, rustup adoption or default/toolchain reset is automatic.
+      Personal CARGO_HOME/RUSTUP_HOME managers and project choices remain untouched.
+  loop: "{{ packages_rust_incumbents.results }}"
+  loop_control:
+    label: "{{ item.item }}"

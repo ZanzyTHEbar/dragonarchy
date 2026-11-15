@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# One graphical session per user. Start owners, never fork another backend/UI
+# or equate an active systemd unit with complete plugin/visual readiness.
+: "${XDG_RUNTIME_DIR:?A real graphical session runtime directory is required}"
+: "${WAYLAND_DISPLAY:?A real Wayland session is required}"
+names=(DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_SESSION_ID
+       XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP
+       XDG_SESSION_TYPE DESKTOP_SESSION XDG_DATA_DIRS XDG_CONFIG_HOME
+       XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME DOTFILES_ROOT
+       GDK_BACKEND QT_QPA_PLATFORM SDL_VIDEODRIVER ELECTRON_OZONE_PLATFORM_HINT
+       OZONE_PLATFORM NIXOS_OZONE_WL XCURSOR_THEME XCURSOR_SIZE
+       HYPRCURSOR_THEME HYPRCURSOR_SIZE)
+present=()
+for name in "${names[@]}"; do
+    [[ -v "$name" ]] && present+=("$name")
+done
+systemctl --user import-environment "${present[@]}"
+if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+    dbus-update-activation-environment --systemd "${present[@]}"
+fi
+systemctl --user daemon-reload
+status=0
+if ! systemctl --user start dynamic-monitors.service; then
+    printf '%s\n' 'dragon-launcher-session: monitor owner failed; continuing independent desktop startup' >&2
+    status=1
+fi
+if ! systemctl --user start polkit-agent.service; then
+    printf '%s\n' 'dragon-launcher-session: polkit owner failed; continuing independent desktop startup' >&2
+    status=1
+fi
+if ! "$HOME/.local/bin/dragon-clipboard-session" --start; then
+    printf '%s\n' 'dragon-launcher-session: clipboard owner failed; continuing independent audio, idle and Walker startup' >&2
+    status=1
+fi
+if ! "$HOME/.local/bin/dragon-audio-session"; then
+    printf '%s\n' 'dragon-launcher-session: audio owner failed; continuing independent idle and Walker startup' >&2
+    status=1
+fi
+if ! "$HOME/.local/bin/toggle-idle" --start; then
+    printf '%s\n' 'dragon-launcher-session: idle owner failed; continuing independent Walker startup' >&2
+    status=1
+fi
+if ! systemctl --user start walker.service; then
+    printf '%s\n' 'dragon-launcher-session: Walker owner failed' >&2
+    status=1
+fi
+exit "$status"

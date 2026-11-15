@@ -1,0 +1,25 @@
+---
+# Official release metadata read 2026-11-09. Node 26 is the current LTS line;
+# upgrades require a reviewed patch/pin change, never install --lts or @latest.
+packages_dev_node_version: 26.13.0
+packages_dev_fnm_version: 1.39.0
+packages_dev_node_arch: "{{ {'x86_64': 'x64', 'aarch64': 'arm64'}[ansible_architecture] }}"
+packages_dev_node_sha256: "{{ {'x86_64': 'd28a96af6c38596f6d9d97c0ee531c13d238d757742387d1928de822d959e997', 'aarch64': '406fe3fbde1c054adff8b297c16fdb5af6659db327c1ac8acd46b56ef1af9a92'}[ansible_architecture] }}"
+packages_dev_fnm_asset: "{{ {'x86_64': 'fnm-linux.zip', 'aarch64': 'fnm-arm64.zip'}[ansible_architecture] }}"
+packages_dev_fnm_sha256: "{{ {'x86_64': '7807664f39d39fc518da1c35ba0181e4b3267603c4b1dedeb4b5fc6ae440a224', 'aarch64': '4eaff58b2c5bf30d0934027572dd0b5bbb60d2a1af309230b53662d4b1d45599'}[ansible_architecture] }}"
+packages_dev_node_root: "/opt/dragonarchy/node-v{{ packages_dev_node_version }}-linux-{{ packages_dev_node_arch }}"
+packages_dev_fnm_root: "/opt/dragonarchy/fnm-{{ packages_dev_fnm_version }}"
+packages_dev_dua_version: 3.0.1
+packages_dev_dua_target: "{{ ansible_architecture }}-unknown-linux-musl"
+packages_dev_dua_archive_root: "dua-v{{ packages_dev_dua_version }}-{{ packages_dev_dua_target }}"
+packages_dev_dua_root: "/opt/dragonarchy/{{ packages_dev_dua_archive_root }}"
+packages_dev_dua_sha256: "{{ {'x86_64': 'a0834d1247c39a0048fa3e7f520a2afa23538c06c5945ca992e49813290319e0', 'aarch64': '30b6e9f14c9ac6cf1daaf0f54f3e54bde6dd0e88daf4d3d95c0c8dd9c00b526b'}[ansible_architecture] }}"
+packages_dev_debian_cli_links:
+  - {name: dua, target: "{{ packages_dev_dua_root }}/dua"}
+  # Debian deliberately renames the native bat executable, including Ubuntu.
+  - {name: bat, target: /usr/bin/batcat}
+packages_dev_links:
+  - {name: node, target: "{{ packages_dev_node_root }}/bin/node"}
+  - {name: npm, target: "{{ packages_dev_node_root }}/bin/npm"}
+  - {name: npx, target: "{{ packages_dev_node_root }}/bin/npx"}
+  - {name: fnm, target: "{{ packages_dev_fnm_root }}/fnm"}

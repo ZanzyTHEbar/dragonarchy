@@ -1,0 +1,36 @@
+---
+- name: Ensure root-owned font archive and global font directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /var/cache/dragonarchy
+    - /usr/local/share/fonts/dragonarchy-caskaydiamono
+
+- name: Download checksum-pinned official Nerd Fonts 3.5.1 CascadiaMono archive
+  ansible.builtin.get_url:
+    url: https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/CascadiaMono.tar.xz
+    checksum: sha256:e4fe0248bbe2558e907d26b55ed287403972f946239a4ea3f7a8afd3365ad6ba
+    dest: /var/cache/dragonarchy/CascadiaMono-3.5.1.tar.xz
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Install exact CaskaydiaMono Nerd Font family faces and license globally
+  ansible.builtin.unarchive:
+    src: /var/cache/dragonarchy/CascadiaMono-3.5.1.tar.xz
+    dest: /usr/local/share/fonts/dragonarchy-caskaydiamono
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0644'
+    include:
+      - CaskaydiaMonoNerdFont-Regular.ttf
+      - CaskaydiaMonoNerdFont-Bold.ttf
+      - CaskaydiaMonoNerdFont-Italic.ttf
+      - CaskaydiaMonoNerdFont-BoldItalic.ttf
+      - LICENSE
+  notify: Refresh managed CaskaydiaMono font cache

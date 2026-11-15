@@ -77,7 +77,7 @@ get_cpu_temp() {
       # Extract number like 65.0 or 65
       local t
       # Avoid matching the "id 0" from "Package id 0:" by extracting the first value after '+'.
-      t=$(sed -nE 's/.*\\+([0-9]+(\\.[0-9]+)?).*/\\1/p' <<<"$line" | head -n1)
+      t=$(sed -nE 's/^[^:]*:[[:space:]]*\+([0-9]+(\.[0-9]+)?).*/\1/p' <<<"$line" | head -n1)
       if [[ -n "$t" ]]; then
         awk "BEGIN {printf \"%.0f\", $t}"
         return 0
@@ -179,5 +179,3 @@ else
   }
   printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$(escape "$display_text")" "$(escape "$tooltip")" "$(escape "$class")"
 fi
-
-

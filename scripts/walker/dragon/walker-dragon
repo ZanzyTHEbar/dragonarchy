@@ -241,8 +241,7 @@ pick_background_file() {
 set_background() {
   local file="$1"
   [[ -z "$file" ]] && return
-  ln -nsf "$file" "$CURRENT_BG_LINK"
-  theme_wallpaper_apply "$CURRENT_BG_LINK"
+  "$HOME/.local/bin/theme-set-background" "$file"
   show_theme_summary
 }
 
@@ -316,7 +315,7 @@ sddm_collect_themes() {
 }
 
 sddm_list_themes() {
-  "$THEME_MANAGER_DIR/refresh-sddm" >/dev/null 2>&1 || true
+  # Listing is read-only; managed SDDM payload refresh belongs to Ansible.
 
   local current; current="$(sddm_current_theme)"
   local options=()
@@ -447,5 +446,3 @@ main_menu() {
 }
 
 main_menu
-
-

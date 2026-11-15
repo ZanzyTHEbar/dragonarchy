@@ -91,17 +91,10 @@ if command -v pyenv &>/dev/null; then
 fi
 
 # Node version manager
-if [[ -d "$HOME/.nvm" ]]; then
-    export NVM_DIR="$HOME/.nvm"
+if [[ -d "${NVM_DIR:-$HOME/.nvm}" ]]; then
+    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
     [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
     [[ -s "$NVM_DIR/bash_completion" ]] && source "$NVM_DIR/bash_completion"
-fi
-
-# fnm
-FNM_PATH="$HOME/.local/share/fnm"
-if [ -d "$FNM_PATH" ]; then
-  export PATH="$FNM_PATH:$PATH"
-  eval "`fnm env`"
 fi
 
 # Rust environment
@@ -111,7 +104,7 @@ fi
 
 # Go environment
 if command -v go &>/dev/null; then
-    export GOPATH="$HOME/go"
+    export GOPATH="${GOPATH:-$HOME/go}"
     export PATH="$GOPATH/bin:$PATH"
 fi
 
@@ -152,7 +145,11 @@ if [[ -n "$GOPATH" ]]; then
     pathappend "$GOPATH/bin"
 fi
 
-pathappend "$HOME/.cargo/bin"
+# Existing personal Rust managers must win over the distro development default,
+# even if the user has no generated cargo/env file. Never select a toolchain here.
+if [[ -d "${CARGO_HOME:-$HOME/.cargo}/bin" ]]; then
+    export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+fi
 
 # PNPM setup
 export PNPM_HOME="$HOME/.local/share/pnpm"
@@ -161,21 +158,38 @@ case ":$PATH:" in
 *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 
-# fnm
+# Keep an existing user fnm executable ahead of the managed system default.
+# Initialize once, without changing versions, aliases or project preferences.
 FNM_PATH="$HOME/.local/share/fnm"
-if [ -d "$FNM_PATH" ] && command -v fnm >/dev/null 2>&1; then
-    export PATH="$FNM_PATH:$PATH"
-    eval "`fnm env`"
+if [[ -x "$FNM_PATH/fnm" ]]; then
+    pathprepend "$FNM_PATH"
+fi
+# Do not activate two Node managers in the same shell. An existing nvm wins.
+if [[ ! -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]] && command -v fnm >/dev/null 2>&1; then
+    eval "$(fnm env --shell zsh)"
 fi
 
 [ -f "$HOME/.local/share/../bin/env" ] && . "$HOME/.local/share/../bin/env"
 
-[ "$TERM" = "xterm-kitty" ] && alias ssh="kitty +kitten ssh"
+# Keep the existing default without replacing a caller-selected Git config.
+if (( ! ${+GIT_CONFIG_GLOBAL} )); then
+    GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
+fi
+export GIT_CONFIG_GLOBAL
 
-export GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
-
-# Fix broken SSH_AUTH_SOCK (literal $UID from gnome-keyring on Hyprland)
-export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR}/gcr/ssh"
+# Use an existing GCR socket for an unset agent or known unexpanded GCR value.
+# A user-supplied agent (including an explicitly empty value) must win.
+if [[ -n "${XDG_RUNTIME_DIR:-}" && -S "$XDG_RUNTIME_DIR/gcr/ssh" ]]; then
+    if (( ! ${+SSH_AUTH_SOCK} )); then
+        export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/gcr/ssh"
+    else
+        case "$SSH_AUTH_SOCK" in
+            '/run/user/$UID/gcr/ssh'|'${XDG_RUNTIME_DIR}/gcr/ssh')
+                export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/gcr/ssh"
+                ;;
+        esac
+    fi
+fi
 
 # OMP Harness
 export PATH="${OMP_BUN_BIN_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/.bun/bin}:$PATH"

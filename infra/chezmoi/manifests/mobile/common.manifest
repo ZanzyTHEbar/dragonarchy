@@ -1,0 +1,4 @@
+# mode|source|dest
+# Reuse the canonical palette through Omalauncher's supported legacy theme reader.
+# Shell/editor packages remain excluded until their mobile dependencies are audited.
+required|packages/themes/.config/themes/gruvbox/alacritty.toml|dot_config/omarchy/themes/gruvbox/alacritty.toml

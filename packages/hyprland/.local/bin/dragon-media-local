@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Local-only API. Never infer a remote host/key from the focused application.
+# Moonlight forwarding remains owned by its existing, separately gated helper.
+case "${1:-}" in
+    volume-up|volume-down|mute|play-pause|next|previous) ;;
+    *) printf 'Usage: dragon-media-local {volume-up|volume-down|mute|play-pause|next|previous}\n' >&2; exit 2 ;;
+esac
+[[ $# = 1 ]] || exit 2
+
+volume() {
+    local output
+    output=$(LC_ALL=C pactl get-sink-volume @DEFAULT_SINK@)
+    # Use the loudest channel so an imbalanced sink cannot exceed the cap.
+    awk '{ for (i=1; i<=NF; i++) if ($i ~ /^[0-9]+%$/) {
+        sub(/%$/, "", $i); n=$i+0; if (n > max) max=n; found=1
+    }} END { if (!found) exit 1; print max+0 }' <<<"$output"
+}
+
+show_volume() {
+    local value=$1 wob
+    # Retain the existing optional session WOB transport; never create, remove,
+    # open an unrelated path, or block the media key when no reader is present.
+    [[ ${HYPRLAND_INSTANCE_SIGNATURE:-} =~ ^[a-zA-Z0-9_-]+$ ]] || return 0
+    wob=/tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob
+    [[ -p $wob && -O $wob && ! -L $wob ]] || return 0
+    timeout 0.2s bash -c 'printf "%s\n" "$1" >"$2"' _ "$value" "$wob" || :
+}
+
+case "$1" in
+    volume-up)
+        pactl set-sink-volume @DEFAULT_SINK@ +5%
+        value=$(volume)
+        if (( value > 100 )); then
+            pactl set-sink-volume @DEFAULT_SINK@ 100%
+            value=100
+        fi
+        show_volume "$value"
+        ;;
+    volume-down)
+        pactl set-sink-volume @DEFAULT_SINK@ -5%
+        value=$(volume)
+        show_volume "$value"
+        ;;
+    mute)
+        pactl set-sink-mute @DEFAULT_SINK@ toggle
+        state=$(LC_ALL=C pactl get-sink-mute @DEFAULT_SINK@)
+        if [[ $state = 'Mute: yes' ]]; then
+            show_volume 0
+        else
+            value=$(volume)
+            show_volume "$value"
+        fi
+        ;;
+    play-pause|next|previous) exec playerctl "$1" ;;
+esac

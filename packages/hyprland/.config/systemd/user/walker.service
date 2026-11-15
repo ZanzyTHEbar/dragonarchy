@@ -1,0 +1,17 @@
+[Unit]
+Description=Dragon Walker 2.17.2 launcher
+Requires=elephant.service
+After=elephant.service graphical-session.target
+PartOf=graphical-session.target
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+Type=exec
+Environment=XDG_RUNTIME_DIR=%t
+Environment=PATH=/usr/local/bin:%h/.local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/walker --gapplication-service
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=15
+KillMode=control-group

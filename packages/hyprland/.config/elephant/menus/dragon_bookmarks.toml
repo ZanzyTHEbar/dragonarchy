@@ -1,0 +1,26 @@
+name = "dragon_bookmarks"
+name_pretty = "Dragon Bookmarks"
+icon = "user-bookmarks"
+history = false
+search_name = true
+
+[[entries]]
+text = "Walker"
+subtext = "https://github.com/abenz1267/walker"
+keywords = ["walker", "github"]
+[entries.actions]
+"menus:default" = "xdg-open 'https://github.com/abenz1267/walker'"
+
+[[entries]]
+text = "Dragon - Github"
+subtext = "https://github.com/ZanzyTHEbar/dragonarchy"
+keywords = ["dragon", "github"]
+[entries.actions]
+"menus:default" = "xdg-open 'https://github.com/ZanzyTHEbar/dragonarchy'"
+
+[[entries]]
+text = "Dragon Manual"
+subtext = "https://github.com/ZanzyTHEbar/dragonarchy/wiki"
+keywords = ["dragon"]
+[entries.actions]
+"menus:default" = "xdg-open 'https://github.com/ZanzyTHEbar/dragonarchy/wiki'"

@@ -1,36 +1,6 @@
-{
-    "label" : "lock",
-    "action" : "bash -lc 'hyprlock -c ~/.config/hypr/hyprlock.conf || hyprlock; sleep 0.05; pkill -x wlogout'",
-    "text" : "Lock",
-    "keybind" : "l"
-}
-{
-    "label" : "hibernate",
-    "action" : "systemctl hibernate",
-    "text" : "Hibernate",
-    "keybind" : "h"
-}
-{
-    "label" : "logout",
-    "action" : "uwsm stop",
-    "text" : "Logout",
-    "keybind" : "e"
-}
-{
-    "label" : "shutdown",
-    "action" : "systemctl poweroff",
-    "text" : "Shutdown",
-    "keybind" : "s"
-}
-{
-    "label" : "suspend",
-    "action" : "systemctl suspend",
-    "text" : "Suspend",
-    "keybind" : "u"
-}
-{
-    "label" : "reboot",
-    "action" : "systemctl reboot",
-    "text" : "Reboot",
-    "keybind" : "r"
-}
+{"label":"lock","action":"\"$HOME/.local/bin/power-menu\" --action lock","text":"Lock","keybind":"l"}
+{"label":"logout","action":"\"$HOME/.local/bin/power-menu\" --action logout","text":"Logout","keybind":"e"}
+{"label":"suspend","action":"\"$HOME/.local/bin/power-menu\" --action suspend","text":"Suspend","keybind":"u"}
+{"label":"hibernate","action":"\"$HOME/.local/bin/power-menu\" --action hibernate","text":"Hibernate (if supported)","keybind":"h"}
+{"label":"reboot","action":"\"$HOME/.local/bin/power-menu\" --action reboot","text":"Reboot","keybind":"r"}
+{"label":"shutdown","action":"\"$HOME/.local/bin/power-menu\" --action shutdown","text":"Shutdown","keybind":"s"}

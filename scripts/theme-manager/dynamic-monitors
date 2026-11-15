@@ -13,23 +13,83 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOTFILES_ROOT="${DOTFILES_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+log_info() { echo "[INFO] $1"; }
+log_success() { echo "[SUCCESS] $1"; }
+log_warning() { echo "[WARNING] $1" >&2; }
+log_error() { echo "[ERROR] $1" >&2; }
+log_step() { echo "[STEP] $1"; }
 
-# shellcheck disable=SC1090
-if [[ -f "$DOTFILES_ROOT/scripts/lib/logging.sh" ]]; then
-  source "$DOTFILES_ROOT/scripts/lib/logging.sh"
-else
-  log_info() { echo "[INFO] $1"; }
-  log_success() { echo "[SUCCESS] $1"; }
-  log_warning() { echo "[WARNING] $1" >&2; }
-  log_error() { echo "[ERROR] $1" >&2; }
-  log_step() { echo "[STEP] $1"; }
-fi
+POLL_SECONDS="${MONITOR_LAYOUT_POLL_SECONDS:-5}"
+RUNTIME_MONITOR_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/monitor-runtime.lua"
+POWER_POLICY="${MONITOR_BATTERY_POLICY:-0}"
+REFRESH_OVERRIDE="${XDG_CONFIG_HOME:-$HOME/.config}/dynamic-monitors/internal-refresh-rate"
 
-POLL_SECONDS="${MONITOR_LAYOUT_POLL_SECONDS:-2}"
-CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dynamic-monitors"
-RUNTIME_MONITOR_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/config/monitor.local.conf"
+power_source() {
+  local supply type online battery=0 external=0
+  for supply in /sys/class/power_supply/*; do
+    [[ -r "$supply/type" ]] || continue
+    read -r type < "$supply/type"
+    [[ "$type" != Battery ]] || battery=1
+    case "$type" in Mains|USB|USB_C|USB_PD|USB_PD_DRP) ;; *) continue ;; esac
+    [[ -r "$supply/online" ]] || continue
+    external=1
+    read -r online < "$supply/online"
+    if [[ "$online" == 1 ]]; then echo ac; return; fi
+  done
+  if (( battery && external )); then echo bat
+  elif (( ! battery )); then echo ac
+  else log_error 'Cannot identify external power state'; return 1
+  fi
+}
+
+internal_refresh() {
+  local rate=auto source
+  [[ ! -r "$REFRESH_OVERRIDE" ]] || read -r rate < "$REFRESH_OVERRIDE" || true
+  if [[ "$rate" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    printf '%s\n' "$rate"
+  elif [[ "$POWER_POLICY" == 1 ]]; then
+    source="$(power_source)" || return 1
+    if [[ "$source" == bat ]]; then echo 60; else echo 0; fi
+  else echo 0
+  fi
+}
+
+power_brightness_transition() {
+  [[ "$POWER_POLICY" == 1 ]] || return 0
+  local source="$1" device current maximum target saved applied state temporary
+  local devices=()
+  state="${XDG_RUNTIME_DIR:?}/dynamic-monitors-power"
+  [[ ! -L "$state" ]] || { log_error 'Refusing symlink brightness state'; return 1; }
+  mkdir -p -m 700 "$state"
+  [[ "$(stat -c '%u:%a' "$state")" == "$(id -u):700" ]] || return 1
+  # Discover the sole panel backlight instead of hard-coding amdgpu_bl1.
+  for device in /sys/class/backlight/*; do [[ ! -e "$device" ]] || devices+=("${device##*/}"); done
+  (( ${#devices[@]} <= 1 )) || { log_error 'Ambiguous panel backlight'; return 1; }
+  [[ ! -e /sys/class/leds/asus::kbd_backlight ]] || devices+=('asus::kbd_backlight')
+  for device in "${devices[@]}"; do
+    current="$(brightnessctl -d "$device" get)" || return 1
+    maximum="$(brightnessctl -d "$device" max)" || return 1
+    [[ "$current" =~ ^[0-9]+$ && "$maximum" =~ ^[0-9]+$ ]] || return 1
+    [[ ! -L "$state/$device" ]] || return 1
+    if [[ "$source" == bat ]]; then
+      [[ ! -f "$state/$device" ]] || continue
+      if [[ "$device" == asus::kbd_backlight ]]; then target=0; else target=$((maximum * 40 / 100)); fi
+      (( current > target )) || target="$current"
+      brightnessctl -q -d "$device" set "$target" || return 1
+      applied="$(brightnessctl -d "$device" get)" || return 1
+      temporary="$(mktemp "$state/.snapshot.XXXXXX")"
+      printf '%s %s\n' "$current" "$applied" > "$temporary"
+      mv "$temporary" "$state/$device"
+    elif [[ -f "$state/$device" ]]; then
+      IFS=' ' read -r saved applied < "$state/$device"
+      [[ "$saved" =~ ^[0-9]+$ && "$applied" =~ ^[0-9]+$ ]] || return 1
+      if [[ "$applied" == "$current" ]]; then
+        brightnessctl -q -d "$device" set "$saved" || return 1
+      fi
+      rm -- "$state/$device"
+    fi
+  done
+}
 
 usage() {
   cat <<'EOF'
@@ -40,9 +100,12 @@ Commands:
   --apply     Apply the current layout once
   --watch     Watch for monitor topology changes and re-apply
   --status    Validate dependencies and print the current topology signature
+  --suspend-if-battery  Idle action; suspend only on a discovered battery source
 
 Environment:
-  MONITOR_LAYOUT_POLL_SECONDS   Poll interval for --watch (default: 2)
+  MONITOR_LAYOUT_POLL_SECONDS   Poll interval for --watch (default: 5)
+  MONITOR_BATTERY_POLICY        1: native60Hz / brightness cap40 / keyboard off
+  ~/.config/dynamic-monitors/internal-refresh-rate: auto or available native Hz
 EOF
 }
 
@@ -149,11 +212,27 @@ native_dimensions_for_modes() {
 
 choose_mode_for_monitor() {
   local _name="${1:-}"
-  local _native_width="${2:-}"
-  local _native_height="${3:-}"
+  local native_width="${2:-}"
+  local native_height="${3:-}"
   local _physical_width_mm="${4:-}"
-  local _available_modes_b64="${5:-}"
-  echo "preferred"
+  local available_modes_b64="${5:-}"
+  local modes_json='[]' refresh=0
+  if is_internal_name "$_name"; then refresh="$(internal_refresh)"; fi
+
+  if [[ -n "$available_modes_b64" ]]; then
+    modes_json="$(printf '%s' "$available_modes_b64" | base64 -d 2>/dev/null || echo '[]')"
+  fi
+
+  printf '%s' "$modes_json" | jq -r \
+    --argjson native_width "$native_width" \
+    --argjson native_height "$native_height" --argjson refresh "$refresh" '
+    map((capture("^(?<width>[0-9]+)x(?<height>[0-9]+)@(?<refresh>[0-9.]+)Hz$")?) | select(.))
+    | map({width: (.width | tonumber), height: (.height | tonumber), refresh: (.refresh | tonumber)})
+    | map(select(.width == $native_width and .height == $native_height))
+    | sort_by(.refresh)
+    | (if $refresh > 0 then (map(select((.refresh - $refresh) | fabs < 0.5)) | first) // last else last end) // null
+    | if . then "\(.width)x\(.height)@\(.refresh)Hz" else "preferred" end
+  '
 }
 
 scale_for_selected_mode() {
@@ -193,24 +272,24 @@ logical_width_for_mode() {
 }
 
 write_runtime_monitor_conf() {
-  local specs=("$@")
+  local rules=("$@")
   local tmpfile
 
   mkdir -p "$(dirname "$RUNTIME_MONITOR_CONF")"
-  if [[ -L "$RUNTIME_MONITOR_CONF" ]]; then
-    rm -f "$RUNTIME_MONITOR_CONF"
+  [[ ! -L "$RUNTIME_MONITOR_CONF" ]] || { log_error 'Runtime monitor file is a symlink; cutover required'; return 1; }
+  if [[ -e "$RUNTIME_MONITOR_CONF" ]] && ! grep -qxF -- '-- Generated by Dragon dynamic-monitors; runtime-owned.' "$RUNTIME_MONITOR_CONF"; then
+    log_error 'Unknown runtime monitor file; preserve and reconcile before cutover'
+    return 1
   fi
-
-  tmpfile="$(mktemp)"
+  tmpfile="$(mktemp "${RUNTIME_MONITOR_CONF}.XXXXXX")"
   {
-    printf '# Auto-generated by dynamic-monitors. Do not edit.\n'
-    printf '# Updated: %s\n' "$(date --iso-8601=seconds)"
-    for spec in "${specs[@]}"; do
-      printf 'monitor=%s\n' "$spec"
-    done
+    printf '%s\n' '-- Generated by Dragon dynamic-monitors; runtime-owned.'
+    printf '%s\n' "${rules[@]}"
   } >"$tmpfile"
-
-  mv -f "$tmpfile" "$RUNTIME_MONITOR_CONF"
+  if [[ -f "$RUNTIME_MONITOR_CONF" ]] && cmp -s "$tmpfile" "$RUNTIME_MONITOR_CONF"; then
+    rm -- "$tmpfile"
+  else mv "$tmpfile" "$RUNTIME_MONITOR_CONF"
+  fi
 }
 
 monitors_json() {
@@ -239,7 +318,9 @@ current_layout_signature() {
         .name,
         (.x | tostring),
         (.y | tostring),
-        ((.scale // 1) | tostring | sub("\\.?0+$"; ""))
+        ((.scale // 1) | tostring | sub("\\.?0+$"; "")),
+        (.width | tostring), (.height | tostring),
+        ((.refreshRate * 10 | round) | tostring)
       ] | join(":"))
     | join("|")
   '
@@ -256,7 +337,8 @@ layout_rows() {
         (.physicalWidth | tostring),
         (.physicalHeight | tostring),
         ((.availableModes // []) | tojson | @base64),
-        (if (.name | test("^(eDP|LVDS|DSI)")) then "1" else "0" end)
+        (if (.name | test("^(eDP|LVDS|DSI)")) then "1" else "0" end),
+        (.refreshRate | tostring)
       ]
     | @tsv
   '
@@ -273,26 +355,34 @@ desired_layout_signature() {
   fi
 
   for row in "${rows[@]}"; do
-    local name width height physical_width physical_height available_modes internal native_width native_height selected_mode scale effective_width logical_width
-    IFS=$'\t' read -r name width height physical_width physical_height available_modes internal <<<"$row"
+    local name width height physical_width physical_height available_modes internal current_refresh native_width native_height selected_mode scale effective_width logical_width
+    IFS=$'\t' read -r name width height physical_width physical_height available_modes internal current_refresh <<<"$row"
     IFS=$'\t' read -r native_width native_height <<<"$(native_dimensions_for_modes "$width" "$height" "$available_modes")"
     selected_mode="$(choose_mode_for_monitor "$name" "$native_width" "$native_height" "$physical_width" "$available_modes")"
     scale="$(scale_for_selected_mode "$name" "$native_width" "$physical_width" "$selected_mode")"
     effective_width="$(width_for_mode "$width" "$selected_mode")"
     logical_width="$(logical_width_for_mode "$effective_width" "$scale")"
 
-    parts+=("$name:$xpos:0:$scale")
+    local rate_tenths mode_height
+    if [[ "$selected_mode" == preferred ]]; then
+      mode_height="$native_height"
+      rate_tenths="$(awk -v rate="$current_refresh" 'BEGIN {printf "%.0f", rate * 10}')"
+    else
+      mode_height="$(cut -dx -f2 <<<"${selected_mode%%@*}")"
+      rate_tenths="$(awk -v rate="${selected_mode#*@}" 'BEGIN {printf "%.0f", rate * 10}')"
+    fi
+    parts+=("$name:$xpos:0:$scale:$effective_width:$mode_height:$rate_tenths")
     xpos=$((xpos + logical_width))
   done
 
-  printf '%s\n' "${parts[@]}" | sort | paste -sd'|' -
+  printf '%s\n' "${parts[@]}" | LC_ALL=C sort | paste -sd'|' -
 }
 
 apply_layout() {
   local action="${1:-apply}"
   local xpos=0
   local rows=()
-  local specs=()
+  local rules=()
 
   mapfile -t rows < <(layout_rows)
   if (( ${#rows[@]} == 0 )); then
@@ -301,47 +391,66 @@ apply_layout() {
   fi
 
   for row in "${rows[@]}"; do
-    local name width height physical_width physical_height available_modes internal native_width native_height selected_mode scale spec effective_width logical_width
-    IFS=$'\t' read -r name width height physical_width physical_height available_modes internal <<<"$row"
+    local name width height physical_width physical_height available_modes internal current_refresh native_width native_height selected_mode scale spec effective_width logical_width
+    IFS=$'\t' read -r name width height physical_width physical_height available_modes internal current_refresh <<<"$row"
     IFS=$'\t' read -r native_width native_height <<<"$(native_dimensions_for_modes "$width" "$height" "$available_modes")"
     selected_mode="$(choose_mode_for_monitor "$name" "$native_width" "$native_height" "$physical_width" "$available_modes")"
     scale="$(scale_for_selected_mode "$name" "$native_width" "$physical_width" "$selected_mode")"
-    spec="$name,${selected_mode},${xpos}x0,${scale}"
+    spec="hl.monitor({output=$(jq -Rn --arg value "$name" '$value'),mode=$(jq -Rn --arg value "${selected_mode%Hz}" '$value'),position=\"${xpos}x0\",scale=$scale})"
     effective_width="$(width_for_mode "$width" "$selected_mode")"
     logical_width="$(logical_width_for_mode "$effective_width" "$scale")"
-    specs+=("$spec")
+    rules+=("$spec")
 
     if [[ "$action" == "dry-run" ]]; then
-      printf 'hyprctl keyword monitor %q\n' "$spec"
+      printf 'hyprctl eval %q\n' "$spec"
     else
       log_info "Applying monitor layout: $spec"
-      hyprctl keyword monitor "$spec" >/dev/null
+      local result
+      result="$(hyprctl eval "$spec")" || return 1
+      [[ "$result" == ok ]] || { log_error "$result"; return 1; }
     fi
 
     xpos=$((xpos + logical_width))
   done
 
   if [[ "$action" != "dry-run" ]]; then
-    write_runtime_monitor_conf "${specs[@]}"
+    write_runtime_monitor_conf "${rules[@]}"
   fi
 }
 
-watch_layout() {
-  mkdir -p "$CACHE_DIR"
-  if have_cmd flock; then
-    exec 9>"$CACHE_DIR/lock"
-    if ! flock -n 9; then
-      log_info "dynamic-monitors is already running"
-      return 0
-    fi
-  fi
+acquire_owner() {
+  : "${XDG_RUNTIME_DIR:?A real user session is required}"
+  [[ "$(stat -c '%u:%a' "$XDG_RUNTIME_DIR")" == "$(id -u):700" ]] || return 1
+  [[ ! -L "$XDG_RUNTIME_DIR/dynamic-monitors.lock" ]] || return 1
+  exec 9>"$XDG_RUNTIME_DIR/dynamic-monitors.lock"
+  flock -n 9 || { log_error 'Another monitor owner holds the lock'; return 1; }
+  # Unknown checkout instances do not share this lock: require quiescent cutover.
+  local pid arg
+  for pid in /proc/[0-9]*; do
+    [[ "${pid##*/}" != "$$" && -r "$pid/cmdline" && -O "$pid" ]] || continue
+    while IFS= read -r -d '' arg; do
+      if [[ "${arg##*/}" == dynamic-monitors ]]; then
+        log_error "Existing monitor process ${pid##*/} requires approved cutover"
+        return 1
+      fi
+    done < "$pid/cmdline" || true
+  done
+}
 
-  local last_signature=""
+watch_layout() {
+  [[ "${INVOCATION_ID:-}" ]] || { log_error 'Start through dynamic-monitors.service'; return 1; }
+  acquire_owner
+  local last_signature="" last_power_source="" source
   while true; do
     local signature=""
     local desired_signature=""
     local current_signature=""
-    signature="$(topology_signature 2>/dev/null || true)"
+    source="$(power_source)" || return 1
+    if [[ "$source" != "$last_power_source" ]]; then
+      power_brightness_transition "$source" || return 1
+      last_power_source="$source"
+    fi
+    signature="$(topology_signature 2>/dev/null || true):$source:$(internal_refresh)"
     desired_signature="$(desired_layout_signature 2>/dev/null || true)"
     current_signature="$(current_layout_signature 2>/dev/null || true)"
 
@@ -364,6 +473,8 @@ status() {
 }
 
 main() {
+  umask 077
+  [[ "$POLL_SECONDS" =~ ^[1-9][0-9]*$ ]] || { log_error 'Invalid poll interval'; return 2; }
   local cmd="${1:---watch}"
 
   case "$cmd" in
@@ -376,6 +487,7 @@ main() {
       ;;
     --apply)
       require_deps
+      acquire_owner
       apply_layout apply
       ;;
     --watch)
@@ -384,6 +496,10 @@ main() {
       ;;
     --status)
       status
+      ;;
+    --suspend-if-battery)
+      local source
+      if source="$(power_source)" && [[ "$source" == bat ]]; then systemctl suspend; fi
       ;;
     *)
       log_error "Unknown option: $cmd"

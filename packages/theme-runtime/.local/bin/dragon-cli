@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""Installed desktop controls. Provisioning is deliberately not a runtime action."""
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+
+BIN = Path.home() / '.local/bin'
+CONFIG = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
+MENUS = {'control': 'dragon', 'theme': 'dragon_theme_gallery',
+         'theme-controls': 'dragon_theme', 'background': 'dragon_backgrounds',
+         'utilities': 'dragon_utilities'}
+HELPERS = {
+    name: name for name in (
+        'theme-list', 'theme-set', 'theme-undo', 'theme-apply', 'theme-preview',
+        'theme-preview-revert', 'theme-preview-clear', 'theme-install',
+        'theme-update', 'theme-remove', 'theme-set-background', 'theme-bg-next',
+        'theme-bg-undo', 'theme-favorite-toggle', 'idle-status', 'toggle-idle',
+        'screenshot', 'screenrecord', 'walker-restart')
+}
+UNMIGRATED = {
+    'update': 'Host updates require the managed control plane with an explicit inventory host/user.',
+    'setup': 'Setup is not a desktop action; use the managed install control plane.',
+    'sddm': 'SDDM is system-owned; interactive theme administration is not migrated.',
+    'cursor': 'Cursor selection/provider ownership is not migrated.',
+    'cursors': 'Cursor selection/provider ownership is not migrated.',
+    'font': 'Font mutation/provider ownership is not migrated.',
+    'fonts': 'Font mutation/provider ownership is not migrated.',
+    'nfs': 'NFS mount administration and recovery have no installed managed command.',
+    'web-apps': 'Web-app launcher creation/removal and browser provider are not migrated.',
+    'docker-dbs': 'The legacy database helper target is absent; no database manager is provided.',
+    'secrets': 'The legacy secrets helper target is absent; no secret manager/backup is provided.',
+    'deps-manifest': 'Dependency editing is control-plane work, not a desktop action.',
+    'deps': 'Dependency editing is control-plane work, not a desktop action.',
+    'netbird': 'NetBird policy/activation belongs to the Ansible role; enrollment is separate.',
+    'add-migration': 'Legacy migrations are not part of managed updates.',
+    'about-version-age': 'Checkout-derived Dragon version and root birth-time OS age are not '
+                         'reported: no installed release/installation-age authority is established.',
+}
+
+
+def run(argv):
+    result = subprocess.run([str(arg) for arg in argv])
+    return result.returncode if result.returncode >= 0 else 128 - result.returncode
+
+
+def no_args(args):
+    if args:
+        raise ValueError('unexpected arguments; use dragon-cli --help')
+
+
+def dispatch(args):
+    if not args:
+        return terminal_menu()
+    action, *rest = args
+    if action in ('--help', '-h', 'help'):
+        no_args(rest)
+        print('Dragon desktop controls (installed helpers; no provisioning)\n'
+              'No arguments: terminal menu, requiring a TTY.\n'
+              'menu [control|theme|theme-controls|background|utilities]: explicit Walker UI\n'
+              'theme: Walker themes; theme update [args]: theme repositories only\n'
+              'background: Walker backgrounds\n'
+              'power [lock|logout|suspend|hibernate|reboot|shutdown]: direct action\n'
+              'power-menu, clipboard, keybindings: explicit graphical controls\n'
+              'about [--wait]: local system information\n'
+              'unmigrated: remaining unsupported legacy actions\n'
+              'Native helper arguments are passed unchanged:\n  ' + ' '.join(HELPERS))
+        return 0
+    if action == 'unmigrated':
+        no_args(rest)
+        for name, reason in UNMIGRATED.items():
+            print(f'{name}: {reason}')
+        return 0
+    if action == 'utilities' and rest:
+        action, *rest = rest
+    if action in UNMIGRATED:
+        raise ValueError(f'{action}: {UNMIGRATED[action]} No legacy fallback was run.')
+    if action == 'theme' and rest and rest[0] == 'update':
+        return run([BIN / 'theme-update', *rest[1:]])
+    if action in MENUS:
+        no_args(rest)
+        return run(['walker', '-m', 'menus:' + MENUS[action]])
+    if action == 'menu':
+        if len(rest) > 1 or (rest and rest[0] not in MENUS):
+            raise ValueError('menu requires control, theme, theme-controls, background or utilities')
+        return run(['walker', '-m', 'menus:' + MENUS[rest[0] if rest else 'control']])
+    if action in HELPERS:
+        return run([BIN / HELPERS[action], *rest])
+    if action == 'power':
+        if len(rest) != 1 or rest[0] not in ('lock', 'logout', 'suspend', 'hibernate', 'reboot', 'shutdown'):
+            raise ValueError('power requires lock|logout|suspend|hibernate|reboot|shutdown; use power-menu for GUI')
+        return run([BIN / 'power-menu', '--action', rest[0]])
+    if action in ('power-menu', 'clipboard', 'keybindings'):
+        no_args(rest)
+        return run([BIN / {'power-menu': 'power-menu', 'clipboard': 'clipboard-menu',
+                           'keybindings': 'keybindings-menu'}[action]])
+    if action == 'about':
+        if rest not in ([], ['--wait']):
+            raise ValueError('about accepts only --wait')
+        if rest and (not sys.stdin.isatty() or not sys.stdout.isatty()):
+            raise ValueError('about --wait requires a terminal')
+        status = run(['fastfetch', '--config', CONFIG / 'dragon/about.json'])
+        if rest:
+            try:
+                input('Press Enter to close. ')
+            except EOFError:
+                pass
+        return status
+    raise ValueError(f'unknown action: {action}; use dragon-cli --help or unmigrated')
+
+
+def terminal_menu():
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        raise ValueError('interactive menu requires a TTY; use an explicit subcommand or --help')
+    # No GUI is opened merely by entering the terminal menu. Each UI is explicit.
+    choices = [
+        ('Themes (Walker UI)', ['theme']),
+        ('Backgrounds (Walker UI)', ['background']),
+        ('Next background', ['theme-bg-next']),
+        ('Undo theme', ['theme-undo']),
+        ('Idle status', ['idle-status']),
+        ('Toggle idle', ['toggle-idle']),
+        ('Clipboard (Walker UI)', ['clipboard']),
+        ('Capture region (Satty UI)', ['screenshot', 'region']),
+        ('Toggle region recording', ['screenrecord', 'region']),
+        ('Power (Wlogout UI)', ['power-menu']),
+        ('Keybindings (picker UI)', ['keybindings']),
+        ('Restart Walker service', ['walker-restart']),
+        ('About', ['about']),
+        ('Unsupported / unmigrated legacy actions', ['unmigrated']),
+    ]
+    while True:
+        print('\nDragon desktop controls')
+        for number, (label, _) in enumerate(choices, 1):
+            print(f'{number}. {label}')
+        answer = input('Number (Enter/q to exit): ').strip()
+        if answer in ('', 'q'):
+            return 0
+        if not answer.isascii() or not answer.isdecimal() or not 1 <= int(answer) <= len(choices):
+            print('Choose a listed number.', file=sys.stderr)
+            continue
+        try:
+            status = dispatch(choices[int(answer) - 1][1])
+            if status:
+                print(f'Action exited with status {status}; completion is not claimed.', file=sys.stderr)
+        except (OSError, ValueError) as error:
+            print(f'dragon-cli: {error}', file=sys.stderr)
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(dispatch(sys.argv[1:]))
+    except EOFError:
+        sys.exit(0)
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except (OSError, ValueError) as error:
+        print(f'dragon-cli: {error}', file=sys.stderr)
+        sys.exit(2)

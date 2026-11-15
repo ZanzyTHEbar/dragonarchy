@@ -1,0 +1,15 @@
+[Unit]
+Description=Dragon Clipse 1.2.1 image watcher
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=exec
+Environment=DRAGON_CLIPBOARD_OWNER=image
+Environment=XDG_RUNTIME_DIR=%t
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/.local/bin/dragon-clipboard-session --run image
+KillMode=control-group
+TimeoutStopSec=10
+UMask=0077

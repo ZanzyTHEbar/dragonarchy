@@ -17,15 +17,27 @@ fi
 
 # shellcheck disable=SC1091
 source "$REPO_ROOT/scripts/lib/logging.sh"
+# shellcheck disable=SC1091
+source "$REPO_ROOT/scripts/lib/control-plane-mode.sh"
+
+dotfiles_require_explicit_legacy_ownership "migration $(basename "$0")" || exit 1
 
 log_info "Migration $(basename "$0"): remove accidental ~/usr symlink from sddm user-stow"
 
 home_usr="$HOME/usr"
+dotfiles_validate_no_symlinked_ancestors \
+  "$home_usr" "migration $(basename "$0") target $home_usr" || exit 1
 if [[ -L "$home_usr" ]]; then
   resolved="$(readlink -f "$home_usr" 2>/dev/null || true)"
   if [[ -n "$resolved" && "$resolved" == "$REPO_ROOT/packages/sddm/usr" ]]; then
     ts="$(date +%Y%m%d-%H%M%S)"
     backup_root="$HOME/.local/state/dotfiles/backups/${ts}/migration-stow-fixes"
+    dotfiles_validate_no_symlinked_ancestors \
+      "$backup_root/usr" "migration $(basename "$0") backup $backup_root/usr" || exit 1
+    if [[ -L "$backup_root/usr" ]]; then
+      log_error "Migration $(basename "$0"): backup path is a symlink; leaving $home_usr untouched"
+      exit 1
+    fi
     mkdir -p "$backup_root"
     cp -a "$home_usr" "$backup_root/usr"
     rm -f "$home_usr"
@@ -40,4 +52,3 @@ else
 fi
 
 log_success "Migration complete"
-

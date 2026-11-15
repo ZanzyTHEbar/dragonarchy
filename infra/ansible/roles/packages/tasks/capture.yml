@@ -1,0 +1,25 @@
+---
+# Native Arch Satty is supplied by pacman; Debian needs the older compatible
+# source. wl-screenrec 0.2.0 supports FFmpeg 7/8; 0.3.2 adds FFmpeg 9 on Arch.
+- name: Select exact capture source recipes
+  ansible.builtin.set_fact:
+    packages_capture_sources: >-
+      {{ ([{'name':'satty', 'revision':'d7719e5b5202352614d740f4c3e50b576e06f05a',
+            'repo':'Satty-org/Satty', 'directory':'Satty',
+            'sha256':'e21a83e97cc043b340ba946587e8bcf5589119ded44383acdd1235a6c4a86d02'}]
+          if 'satty' in packages_pending_script else [])
+         + ([{'name':'wl-screenrec', 'revision':'719619426e1f5a5680ed1d05565366a1c28223f5',
+              'repo':'rosalyntg/wl-screenrec', 'directory':'wl-screenrec',
+              'sha256':'81e737afcecf249787c8112cab7637fc556fd3231227acb515f894f7a0fa9705'}
+             if host_platform_family == 'debian' else
+             {'name':'wl-screenrec', 'revision':'73b589070f03b47d144ad16de5b65c611d037cea',
+              'repo':'rosalyntg/wl-screenrec', 'directory':'wl-screenrec',
+              'sha256':'268abd0ac689a76b49e33c03de45267f756cd17f8da52c7fe269fb285a6f1ea9'}]
+            if 'wl-screenrec' in packages_pending_script else []) }}
+
+- name: Build and install only selected capture sources
+  ansible.builtin.include_tasks: capture-source.yml
+  loop: "{{ packages_capture_sources }}"
+  loop_control:
+    loop_var: capture_source
+    label: "{{ capture_source.name }}"

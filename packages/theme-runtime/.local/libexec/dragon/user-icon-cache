@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Changed-only user Dragon icon cache refresh after managed desktop apply.
+
+No theme selection, index.theme ownership, icon generation or system writes.
+Only the ten declared Dragon PNGs are inputs; other personal icons stay intact.
+"""
+import fcntl
+import hashlib
+import os
+from pathlib import Path
+import stat
+import subprocess
+import sys
+import tempfile
+
+
+def directory(path):
+    if not path.is_absolute() or '..' in path.parts:
+        raise ValueError(f'Expected an absolute runtime path: {path}')
+    for parent in (*reversed(path.parents), path):
+        if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
+            raise ValueError(f'Preserve redirected/conflicting runtime directory: {parent}')
+
+
+def regular(path):
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+        raise ValueError(f'Preserve conflicting user cache/input: {path}')
+    return path.read_bytes()
+
+
+def main():
+    # These are the declared chezmoi destinations, not inferred checkout roots.
+    icons = Path.home() / '.local/share/icons/hicolor'
+    state = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'dragon/user-icon-cache'
+    directory(icons)
+    directory(state)
+    state.mkdir(mode=0o700, parents=True, exist_ok=True)
+    lock = state / 'lock'
+    fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'r+') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+            raise ValueError(f'Preserve conflicting cache lock: {lock}')
+        fcntl.flock(stream, fcntl.LOCK_EX)
+        digest = hashlib.sha256(Path(__file__).read_bytes())
+        for size in (16, 24, 32, 48, 64, 96, 128, 192, 256, 512):
+            path = icons / f'{size}x{size}/apps/dragon-control.png'
+            directory(path.parent)
+            digest.update(str(size).encode() + b'\0' + regular(path))
+        cache = icons / 'icon-theme.cache'
+        stamp = state / 'published'
+        cached = regular(cache) if cache.exists() or cache.is_symlink() else None
+        previous = regular(stamp) if stamp.exists() or stamp.is_symlink() else None
+        def identity(data):
+            return (digest.hexdigest() + '\n' + hashlib.sha256(data).hexdigest() + '\n').encode()
+        if cached is not None and previous == identity(cached):
+            return
+        # hicolor's system index already describes these standard sizes. Do not
+        # install/replace a personal index.theme just to generate its cache.
+        subprocess.run(['/usr/bin/gtk-update-icon-cache', '--force', '--ignore-theme-index', str(icons)],
+                       check=True, timeout=30)
+        data = identity(regular(cache))
+        fd, temporary = tempfile.mkstemp(prefix='.published-', dir=state)
+        try:
+            with os.fdopen(fd, 'wb') as output:
+                output.write(data)
+            os.replace(temporary, stamp)
+            print('user-icon-cache: refreshed')
+        finally:
+            Path(temporary).unlink(missing_ok=True)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        print(f'user-icon-cache: {error}', file=sys.stderr)
+        sys.exit(1)

@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Called by the graphical entry point, never by provisioning or a login shell.
+# Distributor units remain the only daemon/socket owners. One graphical session
+# per user; stopping/replacing an incumbent owner requires approved cutover.
+fail() { printf 'dragon-audio-session: %s\n' "$*" >&2; exit 1; }
+(( EUID != 0 )) || fail 'run as the graphical-session user, not root'
+: "${XDG_RUNTIME_DIR:?A real graphical runtime directory is required}"
+: "${WAYLAND_DISPLAY:?A real Wayland session is required}"
+[[ -d $XDG_RUNTIME_DIR && -O $XDG_RUNTIME_DIR ]] || fail 'runtime directory is not owned by this user'
+[[ $WAYLAND_DISPLAY = /* ]] && display=$WAYLAND_DISPLAY || display=$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY
+[[ -S $display && -O $display ]] || fail 'Wayland display is not this user’s socket'
+
+runtime=$XDG_RUNTIME_DIR/dragon-audio-session
+[[ ! -L $runtime ]] || fail 'runtime directory must not be a symlink'
+mkdir -m 700 -p -- "$runtime"
+[[ -O $runtime && $(stat -c %a -- "$runtime") = 700 ]] || fail 'runtime directory must be private and owned by this user'
+umask 077
+exec 9>"$runtime/lock"
+flock 9
+
+# Check *before* systemd's Conflicts= could stop a different server. This is a
+# cooperative gate, not containment of an independently racing same-user daemon.
+for unit in pulseaudio.socket pulseaudio.service pipewire-media-session.service; do
+    if status=$(systemctl --user show "$unit" --property=LoadState --property=ActiveState --property=UnitFileState); then
+        :
+    elif [[ $status = *'LoadState=not-found'* ]]; then
+        continue
+    else
+        fail "cannot inspect $unit; no owners were started"
+    fi
+    state=$(sed -n 's/^ActiveState=//p' <<<"$status")
+    enabled=$(sed -n 's/^UnitFileState=//p' <<<"$status")
+    case "$state" in
+        inactive|failed|'') ;;
+        *) fail "$unit is not quiescent; approved cutover is required" ;;
+    esac
+    case "$enabled" in
+        enabled|enabled-runtime|linked|linked-runtime|alias)
+            fail "$unit has another activation owner; approved cutover is required" ;;
+    esac
+done
+if pgrep -u "$EUID" -f '(^|/)(pulseaudio|pipewire-media-session)([[:space:]]|$)' >/dev/null; then
+    fail 'an incumbent audio process is running; preserve state and obtain cutover approval'
+else
+    result=$?
+    (( result == 1 )) || fail 'could not inspect incumbent audio processes'
+fi
+
+units=(pipewire.socket pipewire-pulse.socket wireplumber.service)
+for unit in "${units[@]}" pipewire.service pipewire-pulse.service; do
+    [[ $(systemctl --user show "$unit" --property=LoadState --value) = loaded ]] || fail "$unit is missing or masked; install the selected desktop packages and inspect user overrides"
+done
+if manager=$(systemctl --user show pipewire-session-manager.service --property=Id --property=LoadState); then
+    [[ $manager = *'Id=wireplumber.service'* || $manager = *'LoadState=not-found'* ]] || fail 'another PipeWire session-manager alias owns activation; approved cutover is required'
+elif [[ $manager != *'LoadState=not-found'* ]]; then
+    fail 'cannot inspect the PipeWire session-manager alias'
+fi
+
+# No enable/preset/linger/config changes, no daemon forks, no user-state reset.
+# The Pulse server remains socket activated; WirePlumber pulls in PipeWire.
+systemctl --user start "${units[@]}"
+printf '%s\n' "${units[@]}" >"$runtime/owners"

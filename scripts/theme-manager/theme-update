@@ -1,21 +1,3 @@
-#!/bin/bash
-# Update themes by pulling the dotfiles repository
-# Themes are managed via stow, so we update the main dotfiles repo
-
-DOTFILES_DIR="${HOME}/dotfiles"
-
-if [ ! -d "$DOTFILES_DIR/.git" ]; then
-    echo "Error: Dotfiles directory not found or not a git repository: $DOTFILES_DIR" >&2
-    exit 1
-fi
-
-echo "Updating dotfiles repository (themes are managed here)..."
-git -C "$DOTFILES_DIR" pull
-
-# If stow is available, re-stow themes to ensure symlinks are current
-if command -v stow >/dev/null 2>&1; then
-    echo "Re-stowing themes package..."
-    cd "$DOTFILES_DIR" && stow -R packages/themes 2>/dev/null || true
-fi
-
-echo "Themes updated successfully!"
+#!/bin/sh
+# Theme repositories only. Control-plane updating remains install --update.
+exec "$HOME/.local/bin/theme-bootstrap" live update "$@"

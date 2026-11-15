@@ -1,5 +1,6 @@
 ---
 tlp_enabled: true
+tlp_required_policy: {}
 
 # Packages: deps.manifest.toml (laptop_power_tlp) via packages role.
 tlp_packages_by_platform:
@@ -9,10 +10,6 @@ tlp_conflict_services:
   - power-profiles-daemon.service
 
 tlp_managed_services:
-  - tlp.service
-  - tlp-sleep.service
-
-tlp_running_services:
   - tlp.service
 
 tlp_masked_services:

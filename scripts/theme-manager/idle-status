@@ -1,10 +1,3 @@
 #!/usr/bin/env bash
-# Outputs Waybar JSON with icon reflecting whether hypridle is active
-
-if pgrep -x hypridle >/dev/null; then
-  echo '{"text":"󰒳","alt":"on","tooltip":"Idle: Enabled","class":"on","percentage":100}'
-else
-  echo '{"text":"󰒲","alt":"off","tooltip":"Idle: Inhibited","class":"off","percentage":0}'
-fi
-
-
+# Same owner checks and truthful error state as the toggle command.
+exec "${HOME}/.local/bin/toggle-idle" --status

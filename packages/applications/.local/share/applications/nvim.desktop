@@ -3,6 +3,7 @@ Name=Neovim
 GenericName=Text Editor
 Comment=Edit text files
 Exec=kitty --class=nvim --title=nvim nvim -- %F
+TryExec=nvim
 Terminal=false
 Type=Application
 Keywords=Text;editor;

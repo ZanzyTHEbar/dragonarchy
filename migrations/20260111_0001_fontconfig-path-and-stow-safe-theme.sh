@@ -16,6 +16,12 @@ fi
 
 # shellcheck disable=SC1091
 source "$REPO_ROOT/scripts/lib/logging.sh"
+# shellcheck disable=SC1091
+source "$REPO_ROOT/scripts/lib/control-plane-mode.sh"
+
+dotfiles_require_explicit_legacy_ownership "migration $(basename "$0")" || exit 1
+dotfiles_validate_no_symlinked_ancestors \
+  "$HOME/.config/fontconfig/fonts.conf" "migration $(basename "$0") user configuration" || exit 1
 
 log_info "Migration $(basename "$0"): fontconfig path + stow-safe theme config"
 
@@ -39,6 +45,7 @@ mkdir -p "$HOME/.config/fontconfig"
 maybe_warn_replaced_symlink() {
   local p="$1"
   local expected_prefix="$2"
+  dotfiles_validate_no_symlinked_ancestors "$p" "migration $(basename "$0") target $p" || return 1
   if [[ -e "$p" && ! -L "$p" ]]; then
     log_warning "Potential stow conflict: $p is a regular file (expected a symlink)."
     log_warning "If you hit stow conflicts, back up and remove it, then re-run install/update."
@@ -50,4 +57,3 @@ maybe_warn_replaced_symlink "$HOME/.config/kitty/kitty.conf" "$REPO_ROOT/package
 maybe_warn_replaced_symlink "$HOME/.config/walker/config.toml" "$REPO_ROOT/packages/hyprland"
 
 log_success "Migration complete"
-

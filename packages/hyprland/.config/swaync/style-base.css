@@ -1,14 +1,11 @@
 /* SwayNC layout/structural overrides (base template).
- * Theme colors are prepended by theme-set at runtime.
- * Do NOT add @import here -- theme-set merges colors + this file
- * and writes the result to ~/.config/swaync/style.css directly.
- * That runtime file is user-local and intentionally replaces the
- * initial stow symlink so theme changes do not mutate repo files. */
+ * generate-swaync-themes prepends GTK named colors to this static input.
+ * Runtime publishes the complete stylesheet, without imports or repo writes. */
 
 .control-center {
-  background: var(--cc-bg);
-  color: var(--text-color);
-  border: var(--border);
+  background: @cc-bg;
+  color: @text-color;
+  border: 1px solid @noti-border-color;
   border-radius: 8px;
   padding: 12px;
   margin: 12px;
@@ -30,8 +27,8 @@
 }
 
 .control-center .notification-row .notification-background .notification {
-  background: rgba(var(--noti-bg), var(--noti-bg-alpha));
-  border: var(--border);
+  background: @noti-bg;
+  border: 1px solid @noti-border-color;
   border-radius: 8px;
-  color: var(--text-color);
+  color: @text-color;
 }

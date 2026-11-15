@@ -1,22 +1,107 @@
-#!/bin/bash
-# Toggles the hypridle daemon on and off, with a desktop notification.
+#!/usr/bin/env python3
+"""Control the single per-user hypridle.service; never adopt another daemon."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import shutil
+import stat
+import subprocess
+import sys
 
-#set -euo pipefail
 
-SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-DOTFILES_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-# shellcheck disable=SC1091
-source "$DOTFILES_ROOT/scripts/lib/notifications.sh"
+def fail(message):
+    raise RuntimeError(message)
 
-HYPRIDLE_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hypridle.conf"
 
-if pgrep -x hypridle >/dev/null 2>&1; then
-  pkill -x hypridle || true
-  notify_send --app "Idle" "Idle Inhibited" "Computer will not lock when idle."
-else
-  # Relaunch hypridle with our config via uwsm
-  uwsm app -- hypridle -c "$HYPRIDLE_CFG" >/dev/null 2>&1 &
-  disown || true
-  notify_send --app "Idle" "Idle Enabled" "Computer will now lock when idle."
-fi
+def idle_pids():
+    found = set()
+    for process in Path('/proc').iterdir():
+        if not process.name.isdecimal():
+            continue
+        try:
+            if process.stat().st_uid == os.getuid() and (process / 'comm').read_text().strip() == 'hypridle':
+                found.add(int(process.name))
+        except (FileNotFoundError, ProcessLookupError):
+            continue  # Process exited during inspection.
+    return found
+
+
+def unit_state():
+    result = subprocess.run([
+        'systemctl', '--user', 'show', 'hypridle.service',
+        '--property=LoadState,ActiveState,MainPID,FragmentPath,DropInPaths',
+    ], check=True, capture_output=True, text=True)
+    values = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+    expected = str(Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) /
+                   'systemd/user/hypridle.service')
+    if (values.get('LoadState') != 'loaded' or values.get('FragmentPath') != expected
+            or values.get('DropInPaths')):
+        fail('hypridle.service is missing or has another owner/override; approved cutover required')
+    active = values.get('ActiveState')
+    if active not in ('active', 'inactive'):
+        fail(f'hypridle.service is {active}; inspect the unit before changing idle inhibition')
+    pid = int(values.get('MainPID', '0'))
+    unknown = idle_pids() - ({pid} if active == 'active' and pid else set())
+    if unknown:
+        fail('unmanaged hypridle process detected; approved cutover required (no process was changed)')
+    return active == 'active'
+
+
+def run_owner():
+    # This is a cooperative single-owner guard, not authentication of same-UID code.
+    if os.environ.get('DRAGON_IDLE_OWNER') != '1' or not os.environ.get('INVOCATION_ID'):
+        fail('--run is reserved for the curated hypridle.service')
+    runtime = Path(os.environ['XDG_RUNTIME_DIR'])
+    info = runtime.stat()
+    if not runtime.is_absolute() or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
+        fail('a private per-user XDG_RUNTIME_DIR is required')
+    fd = os.open(runtime / 'dragon-hypridle.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    if idle_pids():
+        fail('existing hypridle process requires approved cutover; refusing to start or adopt it')
+    config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'hypr/hypridle.conf'
+    host_config = config.parent.parent / 'dragon/hypridle-host.conf'
+    if host_config.exists():
+        config = host_config
+    if not config.is_file() or not os.access(config, os.R_OK) or not config.stat().st_size:
+        fail(f'missing or unreadable idle configuration: {config}')
+    os.set_inheritable(fd, True)  # Hold ownership for the daemon lifetime.
+    os.execvp('hypridle', ['hypridle', '-c', str(config)])
+
+
+def main():
+    mode = sys.argv[1:] or ['--toggle']
+    if len(mode) != 1 or mode[0] not in ('--toggle', '--start', '--status', '--run'):
+        fail('usage: toggle-idle [--toggle|--start|--status]')
+    if mode[0] == '--run':
+        run_owner()
+        return
+    enabled = unit_state()
+    if mode[0] == '--status':
+        print(json.dumps({'text': '󰒳' if enabled else '󰒲', 'alt': 'on' if enabled else 'off',
+                          'tooltip': 'Idle: Enabled' if enabled else 'Idle: Inhibited',
+                          'class': 'on' if enabled else 'off', 'percentage': 100 if enabled else 0}))
+        return
+    action = 'start' if mode[0] == '--start' or not enabled else 'stop'
+    subprocess.run(['systemctl', '--user', action, 'hypridle.service'], check=True)
+    if unit_state() != (action == 'start'):
+        fail(f'hypridle.service did not {action}; inspect the unit')
+    if mode[0] == '--toggle':
+        subprocess.run(['notify-send', '--app-name=Idle',
+                        'Idle Enabled' if action == 'start' else 'Idle Inhibited',
+                        'Computer will now lock when idle.' if action == 'start'
+                        else 'Automatic idle locking and idle sleep are inhibited.'], check=True)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
+        message = f'toggle-idle: {error}'
+        print(message, file=sys.stderr)
+        if sys.argv[1:] == ['--status']:
+            print(json.dumps({'text': '󰒲', 'alt': 'error', 'class': 'error', 'tooltip': message}))
+        elif sys.argv[1:] != ['--run'] and shutil.which('notify-send'):
+            subprocess.run(['notify-send', '--app-name=Idle', '--urgency=critical', 'Idle unavailable', message])
+        sys.exit(1)

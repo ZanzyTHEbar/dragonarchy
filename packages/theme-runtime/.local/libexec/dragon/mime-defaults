@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+"""Initialize only absent MIME preferences; never launch/query a desktop app."""
+import configparser
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import stat
+import sys
+import tempfile
+
+
+def directory(path):
+    if not path.is_absolute() or '..' in path.parts:
+        raise ValueError(f'Expected absolute canonical path: {path}')
+    for parent in (*reversed(path.parents), path):
+        if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
+            raise ValueError(f'Preserve redirected/conflicting directory; inspect: {parent}')
+
+
+def personal(path):
+    directory(path.parent)
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+        raise ValueError(f'Preserve conflicting preference/lock; inspect: {path}')
+    return info, path.read_bytes()
+
+
+def parse(data, path):
+    parser = configparser.ConfigParser(interpolation=None, delimiters=('=',),
+                                       comment_prefixes=('#',), strict=True)
+    parser.optionxform = str
+    parser.read_string(data.decode('utf-8'), source=str(path))
+    if parser.defaults():
+        raise ValueError(f'Unsupported DEFAULT section; inspect: {path}')
+    return parser
+
+
+def unchanged(before, after):
+    if before is None or after is None:
+        return before is after
+    fields = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink',
+              'st_size', 'st_mtime_ns', 'st_ctime_ns')
+    return before[1] == after[1] and all(getattr(before[0], key) == getattr(after[0], key)
+                                        for key in fields)
+
+
+def available(desktop_id, types, data_dirs):
+    # First matching file wins, including a Hidden=true user override. Never
+    # bypass it by finding the same ID in a lower-priority system directory.
+    for root in data_dirs:
+        path = root / 'applications' / desktop_id
+        if not path.exists() and not path.is_symlink():
+            continue
+        parser = parse(path.read_bytes(), path)
+        if not parser.has_section('Desktop Entry'):
+            return False
+        entry = parser['Desktop Entry']
+        if entry.get('Type') != 'Application' or entry.get('Hidden', 'false').lower() == 'true':
+            return False
+        command = shlex.split(entry.get('Exec', ''))
+        if not command or not shutil.which(command[0]):
+            return False
+        if entry.get('TryExec') and not shutil.which(entry['TryExec']):
+            return False
+        return set(types) <= set(entry.get('MimeType', '').split(';'))
+    return False
+
+
+def initialize(config, data):
+    policy = json.loads((config / 'dragon/mime-defaults.json').read_bytes())
+    # Inspect all desktop-specific user files, even at non-graphical apply
+    # where XDG_CURRENT_DESKTOP is absent. Never shadow a user's other session.
+    paths = set()
+    for root in (config, data / 'applications'):
+        directory(root)
+        paths.update((root / 'mimeapps.list', root / 'defaults.list'))
+        paths.update(root.glob('*-mimeapps.list'))
+    snapshots = {path: personal(path) for path in paths}
+    protected = set()
+    for path, snapshot in snapshots.items():
+        if snapshot is None:
+            continue
+        parser = parse(snapshot[1], path)
+        for section in ('Default Applications', 'Removed Associations'):
+            if parser.has_section(section):
+                # Even an empty default or a removal for another app is an
+                # explicit user decision. Do not repair or reinterpret it.
+                protected.update(parser[section])
+    data_dirs = [data]
+    for value in os.environ.get('XDG_DATA_DIRS', '/usr/local/share:/usr/share').split(':'):
+        if value and Path(value).is_absolute():
+            data_dirs.append(Path(value))
+    additions = []
+    for name, group in policy.items():
+        types = [mime for mime in group['types'] if mime not in protected]
+        browser_types = set(group['types']) | {'text/html', 'application/xhtml+xml'}
+        if name == 'browser' and (os.environ.get('BROWSER') or browser_types & protected):
+            print('mime-defaults: preserving explicit browser preference/BROWSER')
+            continue
+        if not types:
+            continue
+        selected = next((entry for entry in group['desktop_ids']
+                         if re.fullmatch(r'[A-Za-z0-9_.-]+\.desktop', entry)
+                         and available(entry, types, data_dirs)), None)
+        if selected is None:
+            raise ValueError(f'Unresolved {name} defaults: no compatible installed desktop ID '
+                             f'in {group["desktop_ids"]}; install the selected provider or '
+                             'explicitly choose personal defaults, then retry')
+        additions.extend(f'{mime}={selected};\n' for mime in types)
+    if not additions:
+        return
+    count = len(additions)
+    target = config / 'mimeapps.list'
+    previous = snapshots[target]
+    original = previous[1] if previous else b''
+    # Preserve every original byte (comments, associations, unrelated sections),
+    # inserting new keys only into the existing default section or a new one.
+    lines = original.decode('utf-8').splitlines(keepends=True)
+    section = False
+    insertion = None
+    for index, line in enumerate(lines):
+        header = re.fullmatch(r'\s*\[([^\]]+)\]\s*', line)
+        if header:
+            if section:
+                insertion = index
+                break
+            section = header[1] == 'Default Applications'
+    if section and insertion is None:
+        insertion = len(lines)
+    if insertion is None:
+        lines.append(('\n' if original and not original.endswith(b'\n') else '')
+                     + '[Default Applications]\n')
+        insertion = len(lines)
+    elif insertion and not lines[insertion - 1].endswith('\n'):
+        additions.insert(0, '\n')
+    lines[insertion:insertion] = additions
+    result = ''.join(lines).encode('utf-8')
+    parse(result, target)
+    fd, temporary = tempfile.mkstemp(prefix='.mime-defaults-', dir=config)
+    try:
+        with os.fdopen(fd, 'wb') as output:
+            os.fchmod(output.fileno(), stat.S_IMODE(previous[0].st_mode) if previous else 0o600)
+            output.write(result)
+            output.flush()
+            os.fsync(output.fileno())
+        # Detect ordinary concurrent preference edits before publication. GUI
+        # editors do not share this advisory lock: apply requires quiescence.
+        for root in (config, data / 'applications'):
+            if not set(root.glob('*-mimeapps.list')) <= paths:
+                raise ValueError(f'New desktop preferences appeared; preserve and retry: {root}')
+        for path, snapshot in snapshots.items():
+            if not unchanged(snapshot, personal(path)):
+                raise ValueError(f'Preferences changed during initialization; preserve and retry: {path}')
+        if previous is None:
+            os.link(temporary, target)  # No replacement of a newly created file.
+        else:
+            os.replace(temporary, target)
+        print(f'mime-defaults: initialized {count} missing entries')
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def main():
+    if os.getuid() == 0:
+        raise ValueError('Run as the selected desktop user, never root/sudo')
+    config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
+    data = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share')))
+    directory(config)
+    directory(data)
+    # Static policy is installed into this directory by chezmoi. Do not create
+    # or adopt a redirected personal configuration tree to make apply succeed.
+    lock = config / 'dragon/mime-defaults.lock'
+    directory(lock.parent)
+    personal(lock)
+    fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'r+') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+            raise ValueError(f'Preserve conflicting lock: {lock}')
+        fcntl.flock(stream, fcntl.LOCK_EX)
+        initialize(config, data)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, configparser.Error) as error:
+        print(f'mime-defaults: {error}', file=sys.stderr)
+        sys.exit(1)

@@ -1,0 +1,99 @@
+---
+- name: Create capture build group
+  ansible.builtin.group:
+    name: dragonarchy-capture-build
+    system: true
+
+- name: Create unprivileged capture build identity
+  ansible.builtin.user:
+    name: dragonarchy-capture-build
+    group: dragonarchy-capture-build
+    system: true
+    create_home: false
+    home: /var/cache/dragonarchy/capture/build
+    shell: /usr/sbin/nologin
+    password_lock: true
+
+- name: Ensure root-owned capture source and install directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /var/cache/dragonarchy
+    - /var/cache/dragonarchy/capture
+    - /var/cache/dragonarchy/capture/source
+    - /usr/local/bin
+    - "/usr/local/share/doc/{{ capture_source.name }}"
+
+- name: Ensure private unprivileged capture build directory exists
+  ansible.builtin.file:
+    path: /var/cache/dragonarchy/capture/build
+    state: directory
+    owner: dragonarchy-capture-build
+    group: dragonarchy-capture-build
+    mode: '0700'
+
+- name: Download checksum-pinned official capture source
+  ansible.builtin.get_url:
+    url: "https://codeload.github.com/{{ capture_source.repo }}/tar.gz/{{ capture_source.revision }}"
+    checksum: "sha256:{{ capture_source.sha256 }}"
+    dest: "/var/cache/dragonarchy/capture/{{ capture_source.name }}-{{ capture_source.revision }}.tar.gz"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Extract root-owned capture source and locked dependencies
+  ansible.builtin.unarchive:
+    src: "/var/cache/dragonarchy/capture/{{ capture_source.name }}-{{ capture_source.revision }}.tar.gz"
+    dest: /var/cache/dragonarchy/capture/source
+    remote_src: true
+    owner: root
+    group: root
+  register: packages_capture_source
+
+- name: Inspect revision-specific capture build output
+  ansible.builtin.stat:
+    path: "/var/cache/dragonarchy/capture/build/{{ capture_source.revision }}/{{ ansible_architecture }}-unknown-linux-gnu/release/{{ capture_source.name }}"
+  register: packages_capture_binary
+
+- name: Compile capture source unprivileged with locked checksums
+  become: true
+  become_user: dragonarchy-capture-build
+  ansible.builtin.command:
+    chdir: "/var/cache/dragonarchy/capture/source/{{ capture_source.directory }}-{{ capture_source.revision }}"
+    argv:
+      - /usr/bin/cargo
+      - build
+      - --locked
+      - --release
+      - --target
+      - "{{ ansible_architecture }}-unknown-linux-gnu"
+  environment:
+    HOME: /var/cache/dragonarchy/capture/build
+    CARGO_HOME: /var/cache/dragonarchy/capture/build/cargo
+    CARGO_TARGET_DIR: "/var/cache/dragonarchy/capture/build/{{ capture_source.revision }}"
+    RUSTC: /usr/bin/rustc
+    PATH: /usr/bin:/bin
+  when: packages_capture_source.changed or not packages_capture_binary.stat.exists
+  changed_when: true
+
+- name: Install built capture executable
+  ansible.builtin.copy:
+    src: "/var/cache/dragonarchy/capture/build/{{ capture_source.revision }}/{{ ansible_architecture }}-unknown-linux-gnu/release/{{ capture_source.name }}"
+    dest: "/usr/local/bin/{{ capture_source.name }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install capture source license
+  ansible.builtin.copy:
+    src: "/var/cache/dragonarchy/capture/source/{{ capture_source.directory }}-{{ capture_source.revision }}/LICENSE"
+    dest: "/usr/local/share/doc/{{ capture_source.name }}/LICENSE"
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0644'

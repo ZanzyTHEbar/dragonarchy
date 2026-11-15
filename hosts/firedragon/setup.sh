@@ -245,15 +245,9 @@ setup_networking() {
         fi
     fi
     
-    # Enable Bluetooth
-    if command_exists bluetoothctl; then
-        if ! systemctl is-enabled bluetooth.service &>/dev/null; then
-            _sysmod_sudo systemctl enable bluetooth.service
-            log_success "Bluetooth enabled"
-        else
-            log_info "Bluetooth already enabled"
-        fi
-    fi
+    # Bluetooth activation is owned by the canonical desktop_services role.
+    # Do not bypass its capability/provider/conflict checks from legacy setup.
+    log_warning "Bluetooth activation requires the managed Ansible desktop_services role; legacy setup skips it."
     
     # NetBird is owned by the Ansible netbird role on managed hosts.
     if ! is_step_completed "firedragon-install-netbird"; then

@@ -1,0 +1,15 @@
+---
+host_timezone: Europe/Lisbon
+host_role: server
+host_platform_family: debian
+host_desktop_stack: none
+host_gpu_stack: []
+platform_matrix_id: microdragon
+# Private target_home, target_source and managed_users belong in 90-local.yml.
+# Each account declares name, home, chezmoi_source, shell: /usr/bin/zsh, groups.
+# Optional ansible_host/ansible_user select the private SSH endpoint/account.
+# The retained account's supplementary group is sudo.
+managed_users: []
+host_capabilities:
+  - netbird
+legacy_host_directory: hosts/microdragon

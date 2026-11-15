@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fastfetch-cli/fastfetch/2.57.1/doc/json_schema.json",
+  "logo": null,
+  "modules": [
+    "host", "cpu", "gpu", "display", "disk", "memory", "swap",
+    "os", "kernel", "packages", "shell", "de", "wm", "wmtheme",
+    "icons", "cursor", "terminalfont", "terminal", "uptime"
+  ]
+}

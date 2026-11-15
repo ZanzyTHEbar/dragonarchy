@@ -1,0 +1,56 @@
+---
+# asusd rewrites its RON config at runtime. Quiesce it before bounded field edits;
+# preserve every unrelated hardware/tuning value and keep Ansible backups.
+- name: Read initialized asusd policy
+  ansible.builtin.slurp:
+    src: /etc/asusd/asusd.ron
+  register: asus_laptop_power_config
+
+- name: Refuse unknown asusd schema or custom transition commands
+  ansible.builtin.assert:
+    that:
+      - >-
+        (asus_laptop_power_config.content | b64decode | regex_findall('(?m)^\s*' ~ item.key ~ ': [^,\n]+,\s*$') | length) == 1
+      - >-
+        (asus_laptop_power_config.content | b64decode | regex_findall('(?m)^\s*(?:ac_command|bat_command): "",\s*$') | length) == 2
+    fail_msg: "Unknown/custom asusd policy; preserve and reconcile it before power-owner cutover."
+  loop: "{{ asus_laptop_power_policy | dict2items }}"
+
+- name: Initialize ASUS drift detection
+  ansible.builtin.set_fact:
+    asus_laptop_power_changes_required: false
+
+- name: Detect ASUS policy drift without restarting a converged service
+  ansible.builtin.set_fact:
+    asus_laptop_power_changes_required: >-
+      {{ asus_laptop_power_changes_required or
+         (asus_laptop_power_config.content | b64decode |
+          regex_findall('(?m)^\s*' ~ item.key ~ ': ' ~ item.value ~ ',\s*$') | length) != 1 }}
+  loop: "{{ asus_laptop_power_policy | dict2items }}"
+
+- name: Quiesce ASUS policy writer before editing its runtime configuration
+  ansible.builtin.systemd_service:
+    name: asusd.service
+    state: stopped
+  when: asus_laptop_power_changes_required | bool
+
+- name: Reconcile asusd without discarding hardware settings
+  when: asus_laptop_power_changes_required | bool
+  block:
+    - name: Persist ASUS CPU platform and charge policy from the host declaration
+      ansible.builtin.lineinfile:
+        path: /etc/asusd/asusd.ron
+        regexp: '^\s*{{ item.key }}:'
+        line: '    {{ item.key }}: {{ item.value }},'
+        backup: true
+      loop: "{{ asus_laptop_power_policy | dict2items }}"
+  always:
+    - name: Restore ASUS hardware and power owner after policy reconciliation
+      ansible.builtin.systemd_service:
+        name: asusd.service
+        state: started
+
+- name: Reapply peripheral policy without writing ASUS-owned CPU or charge fields
+  ansible.builtin.command: tlp start
+  changed_when: false
+  when: asus_laptop_power_changes_required | bool

@@ -1,2 +1,7 @@
-# Force launcher prefix (overrides autodetect like systemd-run)
-runprefix = "uwsm app -- "
+# Elephant 2.22.1's real global launch API, not obsolete per-provider runprefix.
+launch_prefix = "uwsm app -- "
+auto_detect_launch_prefix = false
+terminal_cmd = "kitty -e"
+overload_local_env = false
+# The managed wrapper isolates the exact pinned plugin directory as well.
+ignored_providers = ["copilot"]

@@ -1,1 +1,5 @@
 ---
+- name: Reload TLP policy
+  ansible.builtin.systemd_service:
+    name: tlp.service
+    state: reloaded

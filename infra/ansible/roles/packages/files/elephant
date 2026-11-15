@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""Pinned Elephant entry point; systemd owns server start, clients stay clients."""
+import fcntl
+import os
+from pathlib import Path
+import stat
+import sys
+
+ROOT = Path('/usr/local/lib/dragon-launcher/2.17.2-2.22.1')
+PLUGINS = {'desktopapplications', 'files', 'clipboard', 'calc', 'runner', 'websearch',
+           'providerlist', 'todo', 'bookmarks', 'archlinuxpkgs', 'symbols', 'unicode',
+           'bluetooth', 'menus', 'windows'}
+
+try:
+    info = (ROOT / 'providers').lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+        raise ValueError('The isolated provider directory must be root-owned, regular and non-writable')
+    actual = {p.name for p in (ROOT / 'providers').iterdir()}
+    if actual != {name + '.so' for name in PLUGINS}:
+        raise ValueError('Incomplete or unexpected plugin composition; reconverge the selected release')
+    for path in (ROOT / 'providers').iterdir():
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise ValueError(f'Provider must be a root-owned regular non-writable file: {path}')
+    environment = dict(os.environ, ELEPHANT_PROVIDER_DIR=str(ROOT / 'providers'), ELEPHANT_DEV='false')
+    environment['PATH'] = str(ROOT / 'bin') + ':' + os.environ.get('PATH', '/usr/local/bin:/usr/bin:/bin')
+    args = sys.argv[1:]
+    if not args:
+        os.execv('/usr/bin/systemctl', ['systemctl', '--user', 'start', 'elephant.service'])
+    if args[0] != '--managed-server':
+        # Do not let upstream generate/delete the canonical service as a second writer.
+        if args[0] not in {'version', 'v', 'listproviders', 'l', 'menu', 'm', 'query',
+                           'state', 'activate', 'generate', 'g', 'community', '--help', '-h'}:
+            raise ValueError('Use systemctl --user for the managed server; unsupported server/service arguments')
+        os.execve(ROOT / 'elephant-linux-amd64', ['elephant', *args], environment)
+    if args != ['--managed-server']:
+        raise ValueError('The managed service does not accept alternative server configuration')
+    runtime = Path(os.environ['XDG_RUNTIME_DIR'])
+    info = runtime.lstat()
+    if (not runtime.is_absolute() or runtime.resolve(strict=True) != runtime or
+            not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o022):
+        raise ValueError('XDG_RUNTIME_DIR must be a canonical private directory owned by this user')
+    lock = os.open(runtime / 'dragon-elephant.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    info = os.fstat(lock)
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or
+            info.st_nlink != 1 or info.st_mode & 0o022):
+        raise ValueError('Untrusted Elephant ownership lock')
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    socket_dir = runtime / 'elephant'
+    if socket_dir.exists() or socket_dir.is_symlink():
+        info = socket_dir.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o022:
+            raise ValueError('Untrusted Elephant socket directory')
+    socket = socket_dir / 'elephant.sock'
+    try:
+        socket.lstat()
+    except FileNotFoundError:
+        pass
+    else:
+        raise ValueError(f'Existing socket/path is not safe to unlink; inspect the prior owner: {socket}')
+    # Retain the cooperative ownership lock across exec and the complete server lifetime.
+    os.set_inheritable(lock, True)
+    os.execve(ROOT / 'elephant-linux-amd64', ['elephant'], environment)
+except (OSError, ValueError, KeyError) as error:
+    print(f'elephant: {error}', file=sys.stderr)
+    sys.exit(1)

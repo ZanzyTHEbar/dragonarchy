@@ -1,0 +1,25 @@
+---
+host_timezone: Europe/Lisbon
+host_role: server
+host_platform_family: debian
+host_desktop_stack: none
+host_gpu_stack: []
+platform_matrix_id: opencode-runtime
+platform_connection_mode: local
+target_profile: container
+target_connection: local
+# Private target_home, target_source and managed_users belong in 90-local.yml.
+# Each account declares name, home, chezmoi_source, shell: /usr/bin/zsh, groups.
+# Explicit local account selection is required, even inside a container.
+# The retained account's supplementary group is sudo.
+managed_users: []
+platform_local_connection_policy: required
+platform_container_policy: required
+platform_container_identity: declared-local-container
+platform_remote_connection_policy: forbidden
+host_capabilities: []
+base_manage_time: false
+ansible_connection: local
+ansible_become: true
+ansible_become_method: sudo
+legacy_host_directory: hosts/opencode-runtime

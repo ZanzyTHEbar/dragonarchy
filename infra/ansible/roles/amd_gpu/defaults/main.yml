@@ -7,7 +7,6 @@ amd_gpu_bootloader_helper_path: /usr/local/libexec/dotfiles/bootloader.sh
 # host_firedragon_laptop) and installed by the packages role.
 amd_gpu_packages_by_platform:
   arch:
-    dragon: []
     firedragon: []
 
 amd_gpu_kernel_params:
@@ -16,13 +15,6 @@ amd_gpu_kernel_params:
 amd_gpu_host_source_dir: "{{ playbook_dir | dirname | dirname | dirname }}/hosts"
 
 amd_gpu_managed_files_by_host:
-  dragon:
-    modprobe:
-      - amdgpu-dragon.conf
-    services: []
-    polkit_rules:
-      - 90-corectrl.rules
-    bootloader_dropins: []
   firedragon:
     modprobe:
       - amdgpu.conf

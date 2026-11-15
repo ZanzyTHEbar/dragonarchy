@@ -1,0 +1,54 @@
+---
+# Read only. Installed native packages are valid incumbents, not an enrollment gate.
+- name: Inspect installed engine providers before the native solver can replace them
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Refuse replacement of conflicting engine or runtime package owners
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.packages.keys() | intersect([
+          'docker-ce', 'docker-ce-cli', 'containerd.io', 'podman-docker',
+          'moby-engine', 'moby-cli'
+        ]) | length == 0
+    fail_msg: >-
+      Conflicting Docker engine/CLI/runtime provider installed. Preserve its config
+      and data and arrange explicit cutover/recovery before native package actions;
+      this role does not uninstall, migrate or adopt another engine owner.
+
+- name: Inspect Docker configuration paths without following final symlinks
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - /etc/docker
+    - /etc/docker/daemon.json
+  register: desktop_services_docker_config_paths
+
+- name: Refuse indirect or nonregular Docker configuration owners
+  ansible.builtin.assert:
+    that:
+      - not desktop_services_docker_config_paths.results[0].stat.exists or desktop_services_docker_config_paths.results[0].stat.isdir | default(false)
+      - not desktop_services_docker_config_paths.results[1].stat.exists or desktop_services_docker_config_paths.results[1].stat.isreg | default(false)
+    fail_msg: >-
+      Docker configuration paths are indirect or not the native directory/regular
+      file layout. Preserve them and resolve the owner conflict before convergence.
+
+- name: Read existing daemon configuration without adopting or rewriting it
+  ansible.builtin.slurp:
+    src: /etc/docker/daemon.json
+  register: desktop_services_docker_config
+  no_log: true
+  when: desktop_services_docker_config_paths.results[1].stat.exists
+
+- name: Require native daemon defaults rather than adopting a personal profile
+  ansible.builtin.assert:
+    that:
+      - (desktop_services_docker_config.content | b64decode) is match('^[ \t\r\n]*\{[ \t\r\n]*\}[ \t\r\n]*\Z')
+    fail_msg: >-
+      Existing daemon.json customizes Docker. Preserve config/data and arrange
+      explicit profile cutover/recovery; this owner supports native defaults only
+      (absent daemon.json or an empty JSON object), never rewrites personal policy,
+      and does not enable TCP, change storage or migrate networks.
+  when: desktop_services_docker_config_paths.results[1].stat.exists

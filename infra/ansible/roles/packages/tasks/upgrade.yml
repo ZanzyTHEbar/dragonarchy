@@ -1,0 +1,100 @@
+---
+- name: Require matching target platform and selected nonroot user
+  ansible.builtin.assert:
+    that:
+      - host_platform_family in ['arch', 'debian']
+      - ansible_os_family == {'arch':'Archlinux', 'debian':'Debian'}[host_platform_family]
+      - dotfiles_target_user is defined
+      - dotfiles_target_user != 'root'
+      - dotfiles_target_home == target_home
+      - dotfiles_target_source == target_source
+      - dotfiles_target_profile == target_profile
+      - dotfiles_target_connection == target_connection
+      - managed_users | selectattr('name', 'equalto', dotfiles_target_user) | list | length == 1
+
+- name: Require a real container for the container profile
+  ansible.builtin.assert:
+    that:
+      - ansible_virtualization_role == 'guest'
+      - ansible_virtualization_type in ['docker', 'podman', 'containerd', 'container', 'lxc', 'lxd', 'systemd-nspawn', 'openvz']
+  when: target_profile == 'container'
+
+- name: Upgrade Debian packages
+  become: true
+  become_user: root
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: host_platform_family == 'debian'
+  block:
+    - name: Refresh apt cache
+      ansible.builtin.command:
+        argv: [apt-get, update]
+      changed_when: true
+
+    # The apt module's safe upgrade also permits new packages; keep legacy semantics.
+    - name: Upgrade installed apt packages
+      ansible.builtin.command:
+        argv: [apt-get, upgrade, '-y']
+      changed_when: true
+
+- name: Upgrade Arch packages
+  become: true
+  become_user: "{{ dotfiles_target_user }}"
+  environment:
+    HOME: "{{ dotfiles_target_home }}"
+  when: host_platform_family == 'arch'
+  block:
+    - name: Check effective upgrade identity
+      ansible.builtin.command:
+        argv: [id, '-u']
+      register: upgrade_uid
+      changed_when: false
+      check_mode: false
+
+    - name: Refuse root for the AUR helper
+      ansible.builtin.assert:
+        that:
+          - upgrade_uid.stdout | int != 0
+
+    - name: Locate paru as the selected user
+      ansible.builtin.shell: command -v paru
+      register: upgrade_paru
+      changed_when: false
+      failed_when: upgrade_paru.rc not in [0, 1]
+      check_mode: false
+
+    - name: Require noninteractive sudo for paru
+      ansible.builtin.command:
+        argv: [sudo, '-n', 'true']
+      changed_when: false
+      check_mode: false
+      when: upgrade_paru.rc == 0
+
+    - name: Upgrade official and AUR packages as the selected user
+      ansible.builtin.command:
+        argv: ['{{ upgrade_paru.stdout }}', '-Syu', '--noconfirm']
+      changed_when: true
+      when: upgrade_paru.rc == 0
+
+    - name: Query foreign packages before allowing pacman alone
+      ansible.builtin.command:
+        argv: [pacman, '-Qmq']
+      register: upgrade_foreign
+      changed_when: false
+      failed_when: upgrade_foreign.rc not in [0, 1] or upgrade_foreign.stderr | length > 0
+      check_mode: false
+      when: upgrade_paru.rc == 1
+
+    - name: Refuse partial upgrades when foreign packages need paru
+      ansible.builtin.assert:
+        that:
+          - upgrade_foreign.stdout | length == 0
+        fail_msg: Foreign packages are installed but paru is unavailable; refusing a partial upgrade.
+      when: upgrade_paru.rc == 1
+
+    - name: Upgrade official packages when no foreign packages exist
+      become_user: root
+      ansible.builtin.command:
+        argv: [pacman, '-Syu', '--noconfirm']
+      changed_when: true
+      when: upgrade_paru.rc == 1

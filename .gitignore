@@ -43,8 +43,7 @@ packages/hyprland/.config/clipse/tmp_files/
 # zsh autosuggest theme
 packages/zsh/.config/zsh/autosuggest-theme.zsh
 
-# Elephant copilot provider artifacts
-packages/hyprland/.config/elephant/copilot.toml
+# Elephant provider artifacts
 packages/hyprland/.config/elephant/providers/*.so
 
 # Artifacts
@@ -57,3 +56,6 @@ infra/packer/*.auto.pkrvars.json
 
 # pkgsolve may be cloned as a nested working tree; never commit its .git metadata
 tools/pkgsolve/.git/
+
+# Private host account and connection overrides (loaded after 00-defaults.yml).
+/infra/ansible/inventory/host_vars/*/90-local.yml

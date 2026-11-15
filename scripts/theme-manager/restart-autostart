@@ -2,6 +2,11 @@
 set -euo pipefail
 
 # Safer rerun of essential autostart services with idempotency checks.
+status=0
+if ! "$HOME/.local/bin/dragon-clipboard-session" --restart; then
+  printf '%s\n' '[autostart] ERROR: clipboard owner failed; continuing independent services (no fallback)' >&2
+  status=1
+fi
 
 run_exec() {
   local cmd="$1"
@@ -64,19 +69,25 @@ else
   run_exec "uwsm app -- swaync"
 fi
 
+# Audio uses the same guarded native-unit owner as graphical-session startup.
+if ! "$HOME/.local/bin/dragon-audio-session"; then
+  printf '%s\n' '[autostart] ERROR: audio owner failed; continuing independent services (no fallback daemon)' >&2
+  status=1
+fi
+
 # Idle daemon
-start_if_missing hypridle "uwsm app -- hypridle"
+if ! "$HOME/.local/bin/toggle-idle" --start; then
+  printf '%s\n' '[autostart] ERROR: idle owner failed; continuing unrelated services (no fallback daemon)' >&2
+  status=1
+fi
 
 # OSD server
 start_if_missing swayosd-server "uwsm app -- swayosd-server"
 
-# Runner/service (force restart to ensure fresh state)
-restart_proc walker "uwsm app -- walker --gapplication-service"
-
-# Elephant service (gesture/window management daemon)
-if command -v systemctl >/dev/null 2>&1 && systemctl --user list-unit-files --type=service 2>/dev/null | grep -q '^elephant\.service'; then
-  systemctl --user restart elephant.service >/dev/null 2>&1 || true
-fi
+# Launcher refresh uses the same managed owners; no process-name kill/fork fallback.
+systemctl --user stop walker.service
+systemctl --user restart elephant.service
+systemctl --user start walker.service
 
 # Polkit agent
 if ! polkit_agent_running; then
@@ -99,8 +110,9 @@ if ! pgrep -x wob >/dev/null 2>&1; then
   run_exec "bash -c 'mkfifo /tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob && tail -f /tmp/$HYPRLAND_INSTANCE_SIGNATURE.wob | wob & disown'"
 fi
 
-# Clipboard helpers
-start_if_missing clipse "$HOME/dotfiles/scripts/utilities/launch-clipse.sh"
-start_if_missing wl-clip-persist "wl-clip-persist --clipboard regular --all-mime-type-regex '^(?!x-kde-passwordManagerHint).+'"
-
-echo "Autostart services checked/restarted."
+if (( status == 0 )); then
+  echo "Autostart services checked/restarted."
+else
+  printf '%s\n' '[autostart] ERROR: independent services checked; clipboard/audio/idle owner failure remains' >&2
+fi
+exit "$status"

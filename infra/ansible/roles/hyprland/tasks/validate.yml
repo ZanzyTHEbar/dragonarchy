@@ -1,11 +1,12 @@
 ---
-- name: Assert Hyprland tranche-3 metadata exists
+- name: Assert native Lua Hyprland metadata exists
   ansible.builtin.assert:
     that:
       - hyprland_enabled | bool
       - host_desktop_stack is defined
       - host_desktop_stack == 'hyprland'
       - host_platform_family is defined
-      - host_platform_family in hyprland_session_packages_by_platform
+      - host_platform_family in ['arch', 'debian']
+      - hyprland_minimum_version is version('0.57.2', '>=')
     fail_msg: >-
-      Host '{{ inventory_hostname }}' does not satisfy the Hyprland tranche-3 contract.
+      Host '{{ inventory_hostname }}' does not satisfy the current native Lua Hyprland contract.

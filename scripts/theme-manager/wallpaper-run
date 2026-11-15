@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/wallpaper-utils.sh"
+: "${XDG_RUNTIME_DIR:?A real session runtime is required}"
+: "${WAYLAND_DISPLAY:?A real Wayland session is required}"
+backend="$(theme_wallpaper_backend)"
+if [[ "$backend" == swww ]]; then
+    args=()
+    [[ -z "${SWWW_DAEMON_ARGS:-}" ]] || read -r -a args <<<"$SWWW_DAEMON_ARGS"
+    exec swww-daemon "${args[@]}"
+fi
+image="${XDG_CONFIG_HOME:-$HOME/.config}/current/background"
+if [[ -f "$image" ]]; then exec swaybg -i "$image" -m "${WALLPAPER_MODE:-fill}"; fi
+exec swaybg --color "${WALLPAPER_FALLBACK_COLOR:-#000000}"

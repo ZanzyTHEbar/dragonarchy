@@ -1,2 +1,5 @@
 ---
-collections: []
+collections:
+  # 10.x requires ansible-core >=2.15; active fleet roles require up to 2.16.
+  - name: community.general
+    version: ">=10.0.0,<11.0.0"

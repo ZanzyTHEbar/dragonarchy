@@ -1,0 +1,19 @@
+---
+# Official 1.3.0 release, resolved to its commit; no moving release/tag download.
+# Runtime dependencies belong to apt.hyprland_session in the canonical manifest.
+- name: Ensure local executable directory exists
+  ansible.builtin.file:
+    path: /usr/local/bin
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install checksum-pinned Hyprshot 1.3.0 executable
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/Gustash/Hyprshot/054b8967c4adcb56f0f71e3e3f54ba5febdbcca2/hyprshot
+    checksum: sha256:6f7c7633b6f611eee03626c17d3d5863ae0cf2ee2da581a2dc166fd23e47dd49
+    dest: /usr/local/bin/hyprshot
+    owner: root
+    group: root
+    mode: '0755'

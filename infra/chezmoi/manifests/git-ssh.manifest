@@ -1,6 +1,7 @@
 # mode|source|dest
 required|packages/git/.gitconfig|dot_gitconfig
 required|packages/git/.config/git|dot_config/git
+required|packages/git/.local/bin/dragon-git-pager|dot_local/bin/dragon-git-pager
 required|packages/gpg/dirmngr.conf|dot_gnupg/dirmngr.conf
 optional|packages/ssh/.ssh/config|dot_ssh/config
 optional|packages/ssh/.ssh/known_hosts|dot_ssh/known_hosts
